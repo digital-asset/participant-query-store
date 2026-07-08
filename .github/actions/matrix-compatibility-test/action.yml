@@ -1,0 +1,19 @@
+name: Matrix test
+description: Run 
+
+inputs:
+  test-number:
+    description: The number of the test row within the apps/compatibility/parameters.csv matrix
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Restore Mill outputs
+      uses: actions/download-artifact@v8
+      with:
+        path: apps/out
+    - run: make apps/compatibility/matrix-test MATRIX_TEST_ARGS="-d ${{ inputs.test-number }} --pools 3 --lanes 4"
+      shell: bash -euo pipefail -c "source nix.source && exec bash -euo pipefail {0}"
+    - run: make apps/compatibility/matrix-test MATRIX_TEST_ARGS="${{ inputs.test-number }} --pools 3 --lanes 4"
+      shell: bash -euo pipefail -c "source nix.source && exec bash -euo pipefail {0}"

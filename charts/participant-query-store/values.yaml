@@ -1,0 +1,51 @@
+# Copyright (c) 2026 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+image:
+  repo: ""
+  tag: ""
+
+serviceAccount:
+  create: true
+  name: ""
+  annotations:
+
+
+initContainers: []
+env: []
+# Secret mappings
+secrets: []
+
+pod:
+  # -- Annotations for pod
+  annotations: {}
+
+containers:
+  resources:
+    requests:
+      memory: 256M
+      cpu: 500m
+    limits:
+      memory: 3G
+      cpu: 1000m
+  readinessProbe:
+    httpGet:
+      path: /livez
+      port: 8091
+    initialDelaySeconds: 60
+    periodSeconds: 15
+  livenessProbe:
+    httpGet:
+      path: /livez
+      port: 8091
+    initialDelaySeconds: 60
+    periodSeconds: 30
+
+# Raw pqs config
+pqs:
+  pipeline: {}
+  source: {}
+  target: {}
+  retry: {}
+  health: {}
+  logger: {}

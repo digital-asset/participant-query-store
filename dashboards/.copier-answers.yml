@@ -1,0 +1,6 @@
+# Copyright (c) 2026 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# Changes here will be overwritten by Copier; NEVER EDIT MANUALLY
+_commit: v0.1.2
+_src_path: git@github.com:DACH-NY/grafana-tools.git

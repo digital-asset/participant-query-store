@@ -1,0 +1,25 @@
+# Copyright (c) 2026 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+{{- define "pqs.configData" }}
+  app.conf: |
+    include required(file("/app/values.json"))
+
+    {{- range $secretIndex, $secret := $.Values.secrets }}
+    {{- range $path := $secret.paths }}
+    {{ $path }} = {{ include "pqs.secretEnvVarName" $secretIndex | printf "${%s}" }}
+    {{- end }}
+    {{- end }}
+
+  values.json: |
+    {{- .Values.pqs | toPrettyJson | nindent 4 }}
+{{- end }}
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  annotations:
+    checksum: {{ include "pqs.configData" . | sha256sum }}
+  name: {{ .Release.Name }}
+  namespace: {{ .Release.Namespace }}
+data: {{- include "pqs.configData" . }}

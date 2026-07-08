@@ -1,0 +1,37 @@
+# Copyright (c) 2026 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+{
+  "default_stages": [
+    "pre-commit"
+  ],
+  "repos": [
+    {
+      "hooks": [
+        {
+          "always_run": false,
+          "args": [],
+          "entry": "python3 .scaffold/libs/python/copyright-headers.py --action=check --files ",
+          "exclude": "^$",
+          "exclude_types": [],
+          "fail_fast": false,
+          "files": "",
+          "id": "check-copyright-headers",
+          "language": "system",
+          "name": "check-copyright-headers",
+          "pass_filenames": true,
+          "require_serial": false,
+          "stages": [
+            "pre-commit"
+          ],
+          "types": [
+            "file"
+          ],
+          "types_or": [],
+          "verbose": false
+        }
+      ],
+      "repo": "local"
+    }
+  ]
+}

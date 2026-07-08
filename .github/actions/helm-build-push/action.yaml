@@ -1,0 +1,47 @@
+# TODO - move this to a shared repo
+# https://docs.github.com/en/actions/how-tos/reuse-automations/share-across-private-repositories
+
+name: Helm Build and Push
+description: Builds and pushes Helm Charts
+
+inputs:
+  chart:
+    description: The path to the chart
+    default: charts/${{ github.event.repository.name }}
+    required: true
+  registry:
+    description: The registry path
+    required: true
+  username:
+    description: The registry username
+    required: true
+  password:
+    description: The registry password
+    required: true
+  version:
+    description: The chart version
+    required: true
+
+outputs:
+  package:
+    description: The path to the built helm package
+    value: ${{ steps.build-push.outputs.package }}
+
+runs:
+  using: composite
+  steps:
+    - name: Helm Build and Push
+      id: build-push
+      env:
+        CHART: ${{ inputs.chart }}
+        REGISTRY: ${{ inputs.registry }}
+        VERSION: ${{ inputs.version }}
+        USERNAME: ${{ inputs.username }}
+        PASSWORD: ${{ inputs.password }}
+      shell: nix-shell ${{ github.action_path }}/shell.nix --run "exec bash -euo pipefail {0}"
+      run: ${{ github.action_path }}/helm-build-push.sh
+    - name: Upload Chart
+      uses: actions/upload-artifact@v7
+      with:
+        name: chart
+        path: ${{ steps.build-push.outputs.package }}

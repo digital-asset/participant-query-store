@@ -1,0 +1,129 @@
+# Copyright (c) 2025, Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+
+### TEMPLATED MANAGED FILE, DO NOT EDIT
+## If you need to modify this file, please edit relevant file in https://github.com/DACH-NY/snowball
+
+## ETX Snowball™ shared bash script functions
+## source this file in your scripts to leverage the included functions
+
+###############################################################################
+### logging & formatting ######################################################
+###############################################################################
+
+## Default log level to info:
+_LOG_LEVEL='6'
+
+## Human readable way to adjust the log level
+## _set_log_level [debug|info|notice|warning|err|cir|alert|emerg]
+function _set_log_level() {
+  local LOG_LEVEL
+  LOG_LEVEL=${1:-info}
+
+  case ${LOG_LEVEL} in
+  emerg)           export _LOG_LEVEL=0 ;;
+  alert)           export _LOG_LEVEL=1 ;;
+  crit)            export _LOG_LEVEL=2 ;;
+  err|ERROR)       export _LOG_LEVEL=3 ;;
+  warning|WARNING) export _LOG_LEVEL=4 ;;
+  notice)          export _LOG_LEVEL=5 ;;
+  info|INFO)       export _LOG_LEVEL=6 ;;
+  debug|DEBUG)     export _LOG_LEVEL=7 ;;
+  *)               _log_error "${LOG_LEVEL} is not supported" && return 1 ;;
+  esac
+}
+
+## functions for logging at different levels
+function _log_error()     { if [[ "${_LOG_LEVEL}" -ge 3 ]]; then echo "[ERROR] ${@}";        fi }
+function _log_warning()   { if [[ "${_LOG_LEVEL}" -ge 4 ]]; then echo "[WARNING] ${@}";      fi }
+function _log_info()      { if [[ "${_LOG_LEVEL}" -ge 6 ]]; then echo "[INFO] ${@}";         fi }
+function _log_info_item() { if [[ "${_LOG_LEVEL}" -ge 6 ]]; then echo "       - ${@}";       fi }
+function _log_debug()     { if [[ "${_LOG_LEVEL}" -ge 7 ]]; then echo "[DEBUG] [${0}] ${@}"; fi }
+
+## Other helpful logging and formatting functions
+function _log_progress_start() { printf "[INFO] ${@} ..."; }
+function _log_progress_step()  { printf '.';           }
+function _log_progress_done()  { printf ' done\n';     }
+function _print_header()       { printf "\\n### ${@}\\n\\n"; }
+function _print_line()         { printf "%*s\n" "${1:-120}" "" | tr " " -; }
+
+## Formatted output for print arguments as part of help out
+function print_help_item() {
+  echo "    ${1}"
+  echo "       - ${2}"
+  if [[ "${3}" != '' ]]; then
+    echo "       - ${3}"
+  fi
+  echo ""
+}
+
+## Helper function to streamline yes/no prompts for interactive confirmations
+## - all args for function are passed to prompt print out
+## - defaults to 'no' if user just presses enter
+## - positive confirmation returns 0
+## - negative confirmation returns 1 (useful for || exit $?)
+## - if something goes really wrong in the function, exit 2
+function _confirmation_prompt() {
+    local CONTINUE_RESPONSE
+    read -e -p "[????] ${@} [y/N]: " -i "no" CONTINUE_RESPONSE
+    CONTINUE_RESPONSE="${CONTINUE_RESPONSE:-no}"
+
+    case "${CONTINUE_RESPONSE}" in
+      y*|Y*)
+        _log_debug "response was yes"
+        return 0
+        ;;
+      n*|N*)
+        _log_debug "response was no"
+        return 1
+        ;;
+      *)
+        _log_debug "something has gone horribly wrong..."
+        return 2
+        ;;
+    esac
+}
+
+###############################################################################
+### dryrun command execution ##################################################
+###############################################################################
+
+## Wrapper for either executing a command or printing out what would be
+## executed if DRYRUN is set to true.
+
+DRYRUN='false'
+function _cmd() {
+  if [[ "${DRYRUN}" == 'true' ]]; then
+    _log_info "would run the following command:"
+    _log_info_item "${@}"
+  else
+    "${@}"
+  fi
+}
+
+###############################################################################
+### file checks ###############################################################
+###############################################################################
+
+## Checks that all files provided exist and are not empty
+function _check_files_exist() {
+
+  if [[ "${#@}" -lt '1' ]]; then
+    _log_error "no files provided for validation..."
+    return 1
+  else
+    _log_progress_start "Checking that all files provided exist and are not empty"
+    for FILE in "${@}"; do
+      if [[ -s "${FILE}" ]]; then
+        _log_progress_step
+      else
+        echo " fail"
+        _log_error "${FILE} is does not exist or is empty, failing..."
+        return 1
+      fi
+    done
+  fi
+  _log_progress_done
+  return 0
+}

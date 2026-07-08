@@ -1,0 +1,80 @@
+#!/usr/bin/env bash
+# Copyright (c) 2026 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+## Script to generate semver compliant build versions based on DA convention
+source $(git rev-parse --show-toplevel)/.scaffold/libs/bash/shared_functions
+
+BASE_VERSION=3.6
+
+if ! [[ $BASE_VERSION =~ ^[0-9]{1,2}.[0-9]{1,2}$ ]]; then
+  _log_error "The base version $BASE_VERSION does not match the required pattern: ^[0-9]{1,2}.[0-9]{1,2}$."
+  exit 1
+fi
+
+## set vars to path for nix provided tools:
+GIT="$(command -v git)"
+
+## set default values for local build:
+PRE_RELEASE='local'
+BUILD_NUMBER='0'
+
+## if CI is not set, default to false:
+CI="${CI:-false}"
+
+## ensure we have the branch name before proceeding
+BUILD_BRANCH_NAME=$(${GIT} rev-parse --abbrev-ref HEAD)
+
+## if GEN_VER_TEST_MODE is set to true, we use the value of TESTING_BRANCH_NAME for the branch name:
+if [[ "${GEN_VER_TEST_MODE}" == 'true' ]]; then
+  BUILD_BRANCH_NAME="${TESTING_BRANCH_NAME}"
+  echo "[WARN] testing mode in use, overriding BUILD_BRANCH_NAME to ${BUILD_BRANCH_NAME}"
+fi
+
+## When running in CI:
+## - determine pre-release value based on branch name or prefix
+## - add CIRCLE_BUILD_NUM to build meta data
+## - set PRE_RELEASE metadata value to reflect source of build artifact
+if [[ "${CI}" == 'true' ]]; then
+  if [ -n "${GITHUB_ACTIONS:-}" ]; then
+    BUILD_NUMBER="${GITHUB_RUN_NUMBER}"
+  elif [ "${CIRCLE_PIPELINE_NUMBER}" != "" ]; then
+    BUILD_NUMBER="${CIRCLE_PIPELINE_NUMBER}"
+  else
+    BUILD_NUMBER="${CIRCLE_BUILD_NUM}"
+  fi
+  case ${BUILD_BRANCH_NAME} in
+    main|release-line-*)
+      PRE_RELEASE='snapshot'
+      ;;
+    *)
+      PRE_RELEASE='adhoc'
+      ;;
+  esac
+fi
+
+## Collect relevant information from git:
+GIT_SHA=$(${GIT} rev-parse --short --abbrev=8 HEAD)
+GIT_COMMIT_COUNT=$(${GIT} rev-list --count "${GIT_SHA}")
+GIT_TIME_STAMP=$(${GIT} log -n1 --format=%cd --date=format:%Y%m%d "${GIT_SHA}")
+
+PREVIOUS_VERSION=$(
+  ${GIT} describe --tags --abbrev=0 --match "v${BASE_VERSION}.[0-9]*" 2>/dev/null \
+  | sed 's/^v//'
+)
+
+# If the previous version is empty
+if [[ -z $PREVIOUS_VERSION ]]; then
+  # initiate the next version from base version with patch 0
+  NEXT_VERSION="${BASE_VERSION}.0"
+# else if the previous version contains a pre-release suffix
+elif [[ $PREVIOUS_VERSION == *-* ]]; then
+  # strip the suffix
+  NEXT_VERSION=$(echo $PREVIOUS_VERSION | sed 's/-.*//')
+else
+  # increment patch number of the previous version
+  NEXT_VERSION=$(echo $PREVIOUS_VERSION | awk -F. '{$3 = $3 + 1;} 1' OFS=.)
+fi
+
+echo "v${NEXT_VERSION}-${PRE_RELEASE}.${GIT_TIME_STAMP}.${GIT_COMMIT_COUNT}.${BUILD_NUMBER}.v${GIT_SHA}"
+exit "${?}"

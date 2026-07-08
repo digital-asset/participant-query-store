@@ -1,0 +1,18 @@
+## Repo Admins
+.github/CODEOWNERS  @DACH-NY/sdk-tools-admin
+**/.gitignore       @DACH-NY/sdk-tools-admin
+
+## CI/CD
+.github/**          @DACH-NY/sdk-tools-admin
+.scaffold/**        @DACH-NY/sdk-tools-admin
+
+## Direnv and Nix
+.envrc              @DACH-NY/sdk-tools-admin
+flake.nix           @DACH-NY/sdk-tools-admin
+flake.lock          @DACH-NY/sdk-tools-admin
+nix/**              @DACH-NY/sdk-tools-admin
+
+## Build Files
+**/Makefile         @DACH-NY/sdk-tools-admin
+**/build.sc         @DACH-NY/sdk-tools-admin
+apps/mill-build/**  @DACH-NY/sdk-tools-admin

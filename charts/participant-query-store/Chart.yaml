@@ -1,0 +1,11 @@
+# Copyright (c) 2026 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+apiVersion: v2
+name: participant-query-store
+description: Participant Query Store Project Charts
+type: application
+version: 0.0.0
+maintainers:
+- name: Digital Asset
+  url: https://www.digitalasset.com

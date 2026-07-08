@@ -1,0 +1,221 @@
+name: CI
+on:
+  push:
+    branches: [ main, release-line-* ]
+  pull_request:
+
+# Cancel in-progress CI runs for the same PR
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  MILL_OPTS: "-Dcoursier.cache.dir=/data/coursier"
+
+defaults:
+  run:
+    shell: bash -euo pipefail -c "source nix.source && exec bash -euo pipefail {0}"
+
+jobs:
+  build:
+    runs-on: dach-ny-scribe
+    steps:
+      - uses: actions/checkout@v5
+      - uses: ./.github/actions/nix
+      - name: Check copyright headers
+        run: make copyright-check
+      - uses: ./.github/actions/gen-version
+        id: gen-version
+      - run: make apps/prefetch-deps
+      - name: Build & Package
+        run: make apps/build apps/package apps/populate-dist-dir
+      - uses: ./.github/actions/render-dashboard
+        with:
+          version: v9.4.0
+      - uses: ./.github/actions/render-dashboard
+        with:
+          version: v10.4.0
+      - uses: ./.github/actions/render-dashboard
+        with:
+          version: v11.0.0
+      - run: ls -alhR .dist/
+      - name: Store Mill outputs
+        uses: actions/upload-artifact@v7
+        with:
+          name: mill-out
+          path: apps/out
+          if-no-files-found: error
+          retention-days: 7
+      - name: Store dist
+        uses: actions/upload-artifact@v7
+        with:
+          name: dist
+          path: .dist
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 7
+
+  func-tests:
+    runs-on: dach-ny-scribe
+    needs: build
+    steps:
+      - uses: actions/checkout@v5
+      - uses: ./.github/actions/nix
+      - uses: ./.github/actions/gen-version
+      - name: Restore Mill outputs
+        uses: actions/download-artifact@v8
+        with:
+          name: mill-out
+          path: apps/out
+      - name: Unit tests
+        run: make apps/test
+      - name: Functional tests
+        run: make apps/func-test FUNC_TEST_CONTROLS="--pools 3 --lanes 4"
+      - name: Consolidate test results
+        if: always()
+        run: make apps/consolidate-test-results
+      - name: Show junit test results
+        if: always()
+        uses: dorny/test-reporter@v1
+        with:
+          name: Functional Tests
+          reporter: 'java-junit'
+          path: 'apps/out/tests/**/*.xml'
+#      - name: Send slack notification
+#        if: ${{ failure() && regexMatches(github.ref_name, '^(main|release-line-.*|v[0-9].*)$') }}
+#        uses: 8398a7/action-slack@v3
+#        with:
+#          status: ${{ job.status }}
+#          fields: repo,message,commit,author
+#        env:
+#          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+
+  blackduck-scan:
+    runs-on: dach-ny-scribe
+    needs: build
+    steps:
+      - uses: actions/checkout@v5
+      - uses: ./.github/actions/nix
+      - uses: ./.github/actions/gen-version
+      - name: Restore dist
+        uses: actions/download-artifact@v8
+        with:
+          name: dist
+          path: .dist
+      - run: make apps/populate-blackduck-dir
+      - name: Blackduck Scan
+        run: blackduck_scan -p "${GITHUB_REPOSITORY_OWNER}_${GITHUB_REPOSITORY#*/}" -b "$GITHUB_REF_NAME" -c MAJOR,CRITICAL,BLOCKER
+        env:
+          BLACKDUCK_HUBDETECT_TOKEN: ${{ secrets.DA_BLACKDUCK }}
+      - name: Store Blackduck Scan
+        uses: actions/upload-artifact@v7
+        with:
+          name: blackduck-report
+          path: /home/runner/blackduck/runs/
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 7
+
+  ship-docker-unstable:
+    runs-on: dach-ny-scribe
+    needs: build
+    env:
+      GAR_REPOSITORY: ${{ github.event_name == 'push' && 'da-images/public-unstable' || 'da-images/playground' }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: ./.github/actions/nix
+      - uses: ./.github/actions/gen-version
+      - name: Login to GAR
+        uses: docker/login-action@v3
+        with:
+          registry: europe-docker.pkg.dev
+          username: _json_key
+          password: ${{ secrets.DA_IMAGES }}
+      - name: Restore dist
+        uses: actions/download-artifact@v8
+        with:
+          name: dist
+          path: .dist
+      - name: Setup Buildx
+        run: docker buildx create --use --platform=linux/amd64,linux/arm64 --name multi-platform-builder
+      - name: Docker build print
+        run: make docker/images/scribe/build BAKE_ACTION='--print'
+      - name: Docker build-debug print
+        run: make docker/images/scribe/build-debug BAKE_ACTION='--print'
+      - name: Docker build
+        run: make docker/images/scribe/build
+      - name: Docker build-debug
+        run: make docker/images/scribe/build-debug
+      - run: ls -alhR .dist/
+      - name: Docker build push
+        run: make docker/images/scribe/build BAKE_ACTION='--push'
+      - name: Docker build-debug push
+        run: make docker/images/scribe/build-debug BAKE_ACTION='--push'
+
+  ship-component-unstable:
+    runs-on: dach-ny-scribe
+    needs: build
+    env:
+      GAR_REPOSITORY: ${{ github.event_name == 'push' && 'da-images/public-unstable' || 'da-images/playground' }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: ./.github/actions/nix
+      - uses: ./.github/actions/gen-version
+      - name: Login to GAR
+        uses: docker/login-action@v3
+        with:
+          registry: europe-docker.pkg.dev
+          username: _json_key
+          password: ${{ secrets.DA_IMAGES }}
+      - name: Restore dist
+        uses: actions/download-artifact@v8
+        with:
+          name: dist
+          path: .dist
+      - name: Populate dpm component
+        run: make apps/populate-component-yaml
+      - run: ls -alhR .dist/
+      - name: Push dpm component
+        run: make apps/publish-component ASSISTANT_ARGS="oci://europe-docker.pkg.dev/${{ env.GAR_REPOSITORY }}/components"
+
+
+  helm-unittest:
+    runs-on: dach-ny-scribe
+    steps:
+      - uses: actions/checkout@v5
+      - uses: ./.github/actions/nix
+      - run: helm unittest charts/*/ -t JUnit
+
+  ship-helm-unstable:
+    runs-on: dach-ny-scribe
+    needs:
+      - helm-unittest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: ./.github/actions/nix
+      - uses: ./.github/actions/gen-version
+        id: gen-version
+      - name: Login to GAR
+        uses: docker/login-action@v3
+        with:
+          registry: europe-docker.pkg.dev
+          username: _json_key
+          password: ${{ secrets.DA_IMAGES }}
+      - name: Helm Build and Publish (Unstable)
+        uses: ./.github/actions/helm-build-push
+        with:
+          chart: charts/participant-query-store
+          registry: europe-docker.pkg.dev/da-images/public-unstable/charts
+          version: ${{ steps.gen-version.outputs.version }}
+          username: _json_key
+          password: ${{ secrets.DA_IMAGES }}
+
+  validate-matrix-test:
+    runs-on: dach-ny-scribe
+    steps:
+      - uses: actions/checkout@v5
+      - uses: ./.github/actions/nix
+      - name: Validate matrix workflow
+        run: make -s apps/compatibility/validate-matrix-workflow
+      - name: Matrix tests dryrun
+        run: make -s apps/compatibility/matrix-test MATRIX_TEST_ARGS="dryrun all"

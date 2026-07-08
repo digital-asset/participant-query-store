@@ -1,0 +1,12 @@
+version: 2.1
+setup: true
+
+jobs:
+  no-op:
+    type: no-op
+
+
+workflows:
+  setup:
+    jobs:
+      - no-op

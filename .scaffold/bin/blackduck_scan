@@ -1,0 +1,111 @@
+#!/usr/bin/env bash
+# Copyright (c) 2026 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+source $(git rev-parse --show-toplevel)/.scaffold/libs/bash/shared_functions
+
+## Define sane defaults for script:
+HEADER='Blackduck Securtiy Scanner'
+report_path="${HOME}/blackduck/runs/"
+timeout='2200'
+log_level='DEBUG'
+download_url='https://raw.githubusercontent.com/DACH-NY/security-blackduck/master/synopsys-detect'
+excluded_dirs='.direnv,.circleci,docs,.scaffold,apps/'
+policy_checks='MAJOR,CRITICAL,BLOCKER'
+
+function render_help() {
+  echo "  Scan directory structure with Synopsis Blackduck scanning software:"
+  echo ""
+
+  print_help_item "-p|project <project_name>" \
+    "project name provided to synopsis-detect - [required]"
+
+  print_help_item "-b|branch <branch_name>" \
+    "branch name provided to synopsis-detect - [required]"
+
+  print_help_item "-l|log-level <log_level>" \
+    "log level for synopsis-detect, defaults to ${log_level} [optional]"
+
+  print_help_item "-t|timeout <scan_time_out_in_seconds>" \
+    "timeout value for scan in seconds, defaults to ${timeout} [optional]"
+
+  print_help_item "-r|report-path <path_to_scan_report>" \
+    "path to download artifacts to, defaults to ${report_path} [optional]"
+
+  print_help_item "-d|dryrun" \
+    "execute in dryrun mode, will not execute the scan [optional]"
+
+  print_help_item "-u|url" \
+    "url to download synopsis-detect script, defaults to ${download_url} [optional]"
+
+  print_help_item "-c|policy-check <policies_to_check>" \
+    "comma separated list of policies used to detect violations, defaults to ${policy_checks} [optional]" \
+    "Accepted values: ALL, NONE, UNSPECIFIED, TRIVIAL, MINOR, MAJOR, CRITICAL, BLOCKER"
+
+  print_help_item "-h|help" \
+    "you are reading it"
+}
+
+while [[ $# -gt 0 ]]; do
+  case $1 in
+    -p|project)      project="${2}"; shift 2;;
+    -b|branch)       branch="${2}"; shift 2;;
+    -l|log-level)    log_level="${2}"; shift 2;;
+    -t|timeout)      timeout="${2}"; shift 2;;
+    -d|dryrun)       DRYRUN='true'; shift;;
+    -r|report-path)  report_path="${2}"; shift 2;;
+    -u|url)          download_url="${2}"; shift 2;;
+    -x|exclude-dirs) excluded_dirs="${2}"; shift 2;;
+    -c|policy-check)  policy_checks="${2}"; shift 2;;
+    -h|--help|help)  _print_header "${HEADER}"; render_help; exit 0;;
+    *)
+      _log_error "${1} is not a support arg..."
+      render_help
+      exit 1
+      ;;
+  esac
+done
+
+_print_header "${HEADER}"
+
+for req_var in project branch; do
+  if [[ "${!req_var}" == "" ]]; then
+    _log_error "${req_var} is empty, seek help"
+    exit 1
+  fi
+done
+
+## Make sure we have the dirs we need:
+for dir in "${HOME}/bin/" "${report_path}"; do
+  _log_progress_start "ensuring ${dir} exists"
+  mkdir -p "${dir}"
+  _log_progress_done
+done
+
+## Download the latest published version of the DACH-NY provided blackduck script:
+_log_info downloading "${download_url}" to ${HOME}/bin/synopsys-detect
+curl -s "${download_url}" > ${HOME}/bin/synopsys-detect
+
+## Make it executable:
+_log_progress_start "setting ${HOME}/bin/synopsys-detect to executable"
+chmod +x ${HOME}/bin/synopsys-detect
+_log_progress_done
+
+_log_info "running Blackduck scan with the following parameters:"
+for var in project branch report_path timeout log_level excluded_dirs policy_checks; do
+    _log_info_item ${var}: ${!var}
+done
+
+echo ""
+## Scan the repo:
+_cmd ${HOME}/bin/synopsys-detect ci-build "${project}" "${branch}" \
+  --logging.level.com.synopsys.integration="${log_level}" \
+  --detect.tools.excluded=DOCKER,IMPACT_ANALYSIS,CONTAINER_SCAN \
+  --detect.notices.report=true \
+  --detect.notices.report.path="${report_path}" \
+  --detect.excluded.directories="${excluded_dirs}" \
+  --detect.policy.check.fail.on.severities="${policy_checks}" \
+  --detect.cleanup=false \
+  --detect.cleanup.bdio.files=false \
+  --detect.timeout="${timeout}"
+

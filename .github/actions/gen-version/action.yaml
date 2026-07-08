@@ -1,0 +1,29 @@
+name: Build Version
+description: Generate Build Version
+
+outputs:
+  version:
+    description: The build version
+    value: ${{ steps.gen-version.outputs.version }}
+
+runs:
+  using: composite
+  steps:
+    - run: make debug
+      shell: bash -euo pipefail -c "source nix.source && exec bash -euo pipefail {0}"
+    - name: Generate Build Version
+      id: gen-version
+      shell: bash -euo pipefail -c "source nix.source && exec bash -euo pipefail {0}"
+      run: |
+        if [[ "${GITHUB_REF_TYPE:-}" == "tag" && -n "${GITHUB_REF_NAME:-}" ]]; then
+          version="${GITHUB_REF_NAME}"
+        else
+          version="$(.scaffold/bin/_gen_build_version 3.5)"
+        fi
+
+        echo "${version}" > VERSION
+        mkdir -p ".dist/${version}"
+        echo "SCRIBE_VERSION=${version}" >> "$GITHUB_ENV"
+        echo "version=${version}" >> "$GITHUB_OUTPUT"
+    - run: make apps/version
+      shell: bash -euo pipefail -c "source nix.source && exec bash -euo pipefail {0}"

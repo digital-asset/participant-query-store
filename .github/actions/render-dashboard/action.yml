@@ -1,0 +1,23 @@
+name: Render Dashboard
+description: Render Grafana dashboard with Grafonnet
+inputs:
+  version:
+    description: Grafonnet version to render Grafana dashboard with
+    required: false
+    default: ""
+runs:
+  using: composite
+  steps:
+    - name: Create output directory
+      shell: bash
+      run: mkdir -vp ".dist/$(cat VERSION)/grafana/${{ inputs.version }}/"
+    - name: Generate dashboard
+      shell: bash -euo pipefail -c "source nix.source && exec bash -euo pipefail {0}"
+      run: |
+        make dashboards/install dashboards/generate \
+        GRAFONNET_VERSION="${{ inputs.version }}" \
+        DASHBOARD_SOURCE="dashboards/pqs.jsonnet" \
+        DASHBOARD_GENERATED="${PWD}/.dist//$(cat VERSION)/grafana/${{ inputs.version }}/dashboard.json"
+    - name: Validate dashboard JSON
+      shell: bash -euo pipefail -c "source nix.source && exec bash -euo pipefail {0}"
+      run: jq empty ".dist/$(cat VERSION)/grafana/${{ inputs.version }}/dashboard.json"

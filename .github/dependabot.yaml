@@ -1,0 +1,12 @@
+version: 2
+updates:
+  - package-ecosystem: "docker"
+    directories:
+     - "docker/images/*"
+    schedule:
+      interval: "daily"
+    commit-message:
+      prefix: "deps"
+    labels:
+      - "dependencies"
+    open-pull-requests-limit: 10

@@ -1,0 +1,85 @@
+# Copyright (c) 2026 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: {{ .Release.Name }}
+  annotations:
+    checksum: {{ include "pqs.configData" . | sha256sum }}
+  name: {{ .Release.Name }}
+  namespace: {{ .Release.Namespace }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: {{ .Release.Name }}
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: {{ .Release.Name }}
+      annotations:
+        checksum: {{ include "pqs.configData" . | sha256sum }}
+        {{- if .Values.pod.annotations }}
+        {{- toYaml .Values.pod.annotations | nindent 8 }}
+        {{- end}}
+    spec:
+      serviceAccount: {{ include "pqs.serviceAccountName" . }}
+      securityContext:
+        readOnlyRootFilesystem: false
+        runAsGroup: 65532
+        runAsNonRoot: true
+        runAsUser: 65532
+      {{- if .Values.initContainers }}
+      initContainers:
+        {{- toYaml .Values.initContainers | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: pqs
+          image: {{ .Values.image.repo }}/participant-query-store:{{ .Values.image.tag | default .Chart.AppVersion }}
+          args:
+            - pipeline
+            - ledger
+            - postgres-document
+            - "--config=/app/app.conf"
+          env:
+            {{- if .Values.env }}
+            {{- .Values.env | toYamlPretty | nindent 12 }}
+            {{- end }}
+            {{- if .Values.secrets }}
+            {{- range $secretIndex, $secret := .Values.secrets }}
+            - name: {{ include "pqs.secretEnvVarName" $secretIndex }}
+              valueFrom:
+                {{- pick $secret "secretKeyRef" | toYamlPretty | nindent 16 }}
+            {{- end }}
+            {{- end }}
+            - name: JDK_JAVA_OPTIONS
+              value: ' -Dcom.sun.management.jmxremote=true -Dcom.sun.management.jmxremote.port=9999 -Dcom.sun.management.jmxremote.rmi.port=9999 -Dcom.sun.management.jmxremote.authenticate=false -Dcom.sun.management.jmxremote.ssl=false -Dcom.sun.management.jmxremote.ssl.need.client.auth=false'
+          resources:
+            {{- toYaml .Values.containers.resources | nindent 12 }}
+          readinessProbe:
+            {{- toYaml .Values.containers.readinessProbe | nindent 12 }}
+          livenessProbe:
+            {{- toYaml .Values.containers.livenessProbe | nindent 12 }}
+          volumeMounts:
+            - name: configs
+              mountPath: /app/app.conf
+              subPath: app.conf
+            - name: configs
+              mountPath: /app/values.json
+              subPath: values.json
+            - name: tmp
+              mountPath: /tmp
+            - name: shared-data
+              mountPath: /shared-data
+      volumes:
+      - name: configs
+        configMap:
+            name: {{ .Release.Name }}
+      - name: shared-data
+        emptyDir: {}
+      - name: tmp
+        emptyDir: {}
