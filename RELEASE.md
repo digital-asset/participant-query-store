@@ -14,7 +14,7 @@ in the [build configuration](apps/mill-build/src/millbuild/package.scala), and t
 Once the PR is merged into the release branch, wait for the `build-ship` workflow to run successfully.
 
 To trigger the stable release, create a Github release from the Github UI:
-- Go to https://github.com/DACH-NY/scribe/releases
+- Go to https://github.com/digital-asset/participant-query-store/releases
 - Click on `Draft a new release`
 - Open the `Select tag` drop-down
     - Click on `Create a new tag`
@@ -23,7 +23,7 @@ To trigger the stable release, create a Github release from the Github UI:
 - As release title, use the tag version: `v3.5.1`
 - Click on `Generate release notes`. Verify that the previous tag is correct. You should see something like:
 ```
-**Full Changelog**: https://github.com/DACH-NY/scribe/compare/v3.5.0...v3.5.1
+**Full Changelog**: https://github.com/digital-asset/participant-query-store/compare/v3.5.0...v3.5.1
 ```
 - For a backport release, uncheck the `Set as the latest release` box
 - Submit the release by clicking on `Publish release`
