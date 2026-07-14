@@ -3,7 +3,6 @@
   "check-lines": 10,
   "excludes": [
     ".scaffold/libs/bash/shared_functions",
-    ".circleci/*.yml",
     ".github/",
     "*.gitignore",
     "*.md",

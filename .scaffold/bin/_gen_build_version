@@ -33,16 +33,9 @@ fi
 
 ## When running in CI:
 ## - determine pre-release value based on branch name or prefix
-## - add CIRCLE_BUILD_NUM to build meta data
 ## - set PRE_RELEASE metadata value to reflect source of build artifact
 if [[ "${CI}" == 'true' ]]; then
-  if [ -n "${GITHUB_ACTIONS:-}" ]; then
-    BUILD_NUMBER="${GITHUB_RUN_NUMBER}"
-  elif [ "${CIRCLE_PIPELINE_NUMBER}" != "" ]; then
-    BUILD_NUMBER="${CIRCLE_PIPELINE_NUMBER}"
-  else
-    BUILD_NUMBER="${CIRCLE_BUILD_NUM}"
-  fi
+  BUILD_NUMBER="${GITHUB_RUN_NUMBER}"
   case ${BUILD_BRANCH_NAME} in
     main|release-line-*)
       PRE_RELEASE='snapshot'

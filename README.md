@@ -14,7 +14,6 @@ If you wish to build, not just use Scribe, the following [resources](#resources)
 
 - [Technical User Documentation](https://docs.canton.network/sdks-tools/development-tools/pqs)
 - [Environment setup instructions](ENGINEER_SETUP.md)
-- [CircleCI Pipeline](https://app.circleci.com/pipelines/github/DACH-NY/scribe)
 - Artifacts
   - Releases
     - Docker Images

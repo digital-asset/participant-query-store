@@ -33,12 +33,6 @@ let
     jdk21_headless
     jsonnet-bundler
     (mill.override { jre = pkgs.jdk21_headless; })
-    ## assistant defaults:
-    google-cloud-sdk
-    oras
-    ## CircleCI dynamic workflow packages:
-    circleci-cli
-    cue
     ## Blackduck scanning
     maven
   ] ++ (if ci then [

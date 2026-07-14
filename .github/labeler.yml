@@ -2,7 +2,7 @@
 
 Standard-Change:
 - changed-files:
-  - any-glob-to-any-file: '.circleci/**'
+  - any-glob-to-any-file: '.github/**'
   - any-glob-to-any-file: '.scaffold/**'
   - any-glob-to-any-file: 'apps/.mill-version'
   - any-glob-to-any-file: 'apps/mill-build/**'
