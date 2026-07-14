@@ -18,7 +18,7 @@ defaults:
 
 jobs:
   build:
-    runs-on: dach-ny-scribe
+    runs-on: digital-asset-participant-query-store
     steps:
       - uses: actions/checkout@v5
       - uses: ./.github/actions/nix
@@ -56,7 +56,7 @@ jobs:
           retention-days: 7
 
   func-tests:
-    runs-on: dach-ny-scribe
+    runs-on: digital-asset-participant-query-store
     needs: build
     steps:
       - uses: actions/checkout@v5
@@ -91,7 +91,7 @@ jobs:
 #          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
 
   blackduck-scan:
-    runs-on: dach-ny-scribe
+    runs-on: digital-asset-participant-query-store
     needs: build
     steps:
       - uses: actions/checkout@v5
@@ -117,7 +117,7 @@ jobs:
           retention-days: 7
 
   ship-docker-unstable:
-    runs-on: dach-ny-scribe
+    runs-on: digital-asset-participant-query-store
     needs: build
     env:
       GAR_REPOSITORY: ${{ github.event_name == 'push' && 'da-images/public-unstable' || 'da-images/playground' }}
@@ -153,7 +153,7 @@ jobs:
         run: make docker/images/scribe/build-debug BAKE_ACTION='--push'
 
   ship-component-unstable:
-    runs-on: dach-ny-scribe
+    runs-on: digital-asset-participant-query-store
     needs: build
     env:
       GAR_REPOSITORY: ${{ github.event_name == 'push' && 'da-images/public-unstable' || 'da-images/playground' }}
@@ -180,14 +180,14 @@ jobs:
 
 
   helm-unittest:
-    runs-on: dach-ny-scribe
+    runs-on: digital-asset-participant-query-store
     steps:
       - uses: actions/checkout@v5
       - uses: ./.github/actions/nix
       - run: helm unittest charts/*/ -t JUnit
 
   ship-helm-unstable:
-    runs-on: dach-ny-scribe
+    runs-on: digital-asset-participant-query-store
     needs:
       - helm-unittest
     steps:
@@ -211,7 +211,7 @@ jobs:
           password: ${{ secrets.DA_IMAGES }}
 
   validate-matrix-test:
-    runs-on: dach-ny-scribe
+    runs-on: digital-asset-participant-query-store
     steps:
       - uses: actions/checkout@v5
       - uses: ./.github/actions/nix

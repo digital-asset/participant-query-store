@@ -13,7 +13,7 @@ defaults:
 
 jobs:
   build:
-    runs-on: dach-ny-scribe
+    runs-on: digital-asset-participant-query-store
     steps:
       - uses: actions/checkout@v5
       - uses: ./.github/actions/nix
@@ -61,7 +61,7 @@ jobs:
           retention-days: 7
 
   ship-docker:
-    runs-on: dach-ny-scribe
+    runs-on: digital-asset-participant-query-store
     needs: build
     steps:
       - uses: actions/checkout@v5
@@ -95,7 +95,7 @@ jobs:
         run: make docker/images/scribe/build-debug BAKE_ACTION='--push' GAR_REPOSITORY='da-images/public'
 
   ship-component:
-    runs-on: dach-ny-scribe
+    runs-on: digital-asset-participant-query-store
     needs: build
     steps:
       - uses: actions/checkout@v5
@@ -119,7 +119,7 @@ jobs:
         run: make apps/publish-component ASSISTANT_ARGS="oci://europe-docker.pkg.dev/da-images/public/components"
 
   ship-helm:
-    runs-on: dach-ny-scribe
+    runs-on: digital-asset-participant-query-store
     needs: ship-docker
     steps:
       - uses: actions/checkout@v5

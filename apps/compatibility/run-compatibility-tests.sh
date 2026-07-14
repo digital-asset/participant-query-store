@@ -74,7 +74,7 @@ defaults:
 
 jobs:
   build:
-    runs-on: dach-ny-scribe
+    runs-on: digital-asset-participant-query-store
     steps:
       - uses: actions/checkout@v5
       - uses: ./.github/actions/nix
@@ -90,7 +90,7 @@ jobs:
   matrix-test:
     name: Matrix Test \${{ matrix.test-number }}
     needs: build
-    runs-on: dach-ny-scribe
+    runs-on: digital-asset-participant-query-store
     strategy:
       fail-fast: false
       max-parallel: 4
