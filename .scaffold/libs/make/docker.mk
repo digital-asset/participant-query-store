@@ -6,7 +6,7 @@
 ## Know the arch we're running on, this is mostly for local builds:
 export ARCH ?= $(shell uname -p)
 
-## CircleCI awareness:
+## CI awareness:
 export CI   ?= $(shell [ -f /.dockerenv ] && echo 'true' || echo 'false')
 
 ## If we are running in CI, build for both amd64 and arm64 images by default

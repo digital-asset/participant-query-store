@@ -5,8 +5,8 @@
 matrix-test: ## run matrix compatibility test tool use MATRIX_TEST_ARGS to pass arguments
 	./run-compatibility-tests.sh ${MATRIX_TEST_ARGS}
 
-validate-matrix-workflow: ## ensure test count in parameters.csv and CircleCI config match
+validate-matrix-workflow: ## ensure test count in parameters.csv and GHA config match
 	./run-compatibility-tests.sh -v
 
-render-matrix-workflow: ## renders .circleci/configs/workflow/matrix-compatibility-func-test.yml
+render-matrix-workflow: ## renders .github/workflow/matrix-compatibility-test.yml
 	./run-compatibility-tests.sh -r

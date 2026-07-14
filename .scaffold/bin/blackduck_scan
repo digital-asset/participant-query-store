@@ -10,7 +10,7 @@ report_path="${HOME}/blackduck/runs/"
 timeout='2200'
 log_level='DEBUG'
 download_url='https://raw.githubusercontent.com/DACH-NY/security-blackduck/master/synopsys-detect'
-excluded_dirs='.direnv,.circleci,docs,.scaffold,apps/'
+excluded_dirs='.direnv,docs,.scaffold,apps/'
 policy_checks='MAJOR,CRITICAL,BLOCKER'
 
 function render_help() {
