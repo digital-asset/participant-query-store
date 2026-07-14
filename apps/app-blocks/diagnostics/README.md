@@ -132,7 +132,7 @@ BLOCK ULID                  MIN TIME       MAX TIME       DURATION     NUM SAMPL
 Metrics are stored in memory in a ring buffer which is configured through `interval` and `buffer size`, so require a
 fixed amount of resources _per metric_. However, an application is free to emit as many metrics as it needs, so the
 total required memory becomes dependent on this factor. Empirically, the following calculations of a real-world
-application ([Scribe](https://github.com/DACH-NY/scribe/releases)) can be taken into account when estimating the memory
+application ([PQS](https://github.com/digital-asset/participant-query-store/releases)) can be taken into account when estimating the memory
 footprint for your own application:
 
 - number of metrics: 402

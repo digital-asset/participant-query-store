@@ -1,27 +1,27 @@
-# Scribe Project
+# Participant Query Store (PQS)
 
 ## Welcome
 
-Scribe enhances the ledger by connecting it with the world of the SQL database. This enables users familiar with SQL to query the state of the ledger, as well as the history of how that state evolved, and re-use existing tools and skills.
+PQS enhances the ledger by connecting it with the world of the SQL database. This enables users familiar with SQL to query the state of the ledger, as well as the history of how that state evolved, and re-use existing tools and skills.
 
 ## Getting Started
 
-See [getting started](docs/user/tutorials/app-dev/pqs/index.rst) for instructions on how to use Scribe.
+See [official documentation](https://docs.canton.network/sdks-tools/development-tools/pqs) for instructions on how to use PQS.
 
 ## Contributing
 
-If you wish to build, not just use Scribe, the following [resources](#resources) may be of interest:
+If you wish to build, not just use PQS, the following [resources](#resources) may be of interest:
 
 - [Technical User Documentation](https://docs.canton.network/sdks-tools/development-tools/pqs)
 - [Environment setup instructions](ENGINEER_SETUP.md)
 - Artifacts
   - Releases
     - Docker Images
-      - [Google Container Registry](https://console.cloud.google.com/artifacts/docker/da-images/europe/public/docker%2Fscribe)
+      - [Google Container Registry](https://console.cloud.google.com/artifacts/docker/da-images/europe/public/docker%2Fparticipant-query-store)
     - Dpm Components: [Google Container Registry](https://console.cloud.google.com/artifacts/docker/da-images/europe/public/components%2Fscribe)
   - Snapshots
     - Docker Images
-      - [Google Container Registry](https://console.cloud.google.com/artifacts/docker/da-images/europe/public-unstable/docker%2Fscribe)
+      - [Google Container Registry](https://console.cloud.google.com/artifacts/docker/da-images/europe/public-unstable/docker%2Fparticipant-query-store)
     - Dpm Components: [Google Container Registry](https://console.cloud.google.com/artifacts/docker/da-images/europe/public-unstable/components%2Fscribe)
 
 ### Guidelines

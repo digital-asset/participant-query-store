@@ -1,4 +1,4 @@
-# Scribe
+# Participant Query Store
 
 ## Connectivity test
 
