@@ -3,8 +3,8 @@
 
 package com.digitalasset.auth
 
-import com.digitalasset.scribe.configuration.{ISO8601Duration, Secret}
-import com.digitalasset.scribe.utils.safeequals.===
+import com.digitalasset.pqs.configuration.{ISO8601Duration, Secret}
+import com.digitalasset.pqs.utils.safeequals.===
 import okhttp3.{Credentials, OkHttpClient, Response as OkResponse, Route}
 import sttp.capabilities.Effect
 import sttp.client4.*

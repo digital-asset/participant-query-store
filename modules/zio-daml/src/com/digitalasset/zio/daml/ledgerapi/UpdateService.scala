@@ -9,9 +9,9 @@ import com.daml.ledger.api.v2.update_service.ZioUpdateService.UpdateServiceClien
 import com.daml.ledger.api.v2.update_service.{GetUpdatesRequest, GetUpdatesResponse}
 import com.digitalasset.canonical.specific.{Event, Offset, Transaction, TransactionEvent}
 import com.digitalasset.canonical.{CommandId, TransactionId, UserRight, WorkflowId}
-import com.digitalasset.scribe.grpc.ZManagedChannel
-import com.digitalasset.scribe.o11y.traces.{DetachedSpan, given}
-import com.digitalasset.scribe.o11y.{logs, traces}
+import com.digitalasset.pqs.grpc.ZManagedChannel
+import com.digitalasset.pqs.o11y.traces.{DetachedSpan, given}
+import com.digitalasset.pqs.o11y.{logs, traces}
 import com.digitalasset.transcode.schema.Dictionary
 import com.digitalasset.zio.daml.*
 import com.digitalasset.zio.daml.ledgerapi.*

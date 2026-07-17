@@ -43,7 +43,7 @@ object `package` extends RootModule { root =>
     else s"-${T.workspace.toString.hashCode.toHexString}"
   }
 
-  trait ScribeModule extends ScalaModule with ScalafmtModule with WartRemoverModule {
+  trait PqsModule extends ScalaModule with ScalafmtModule with WartRemoverModule {
     outer =>
     override def scalaVersion = V.scala
 
@@ -55,7 +55,7 @@ object `package` extends RootModule { root =>
 
     override def mandatoryIvyDeps = T { super.mandatoryIvyDeps() ++ Agg(L.pprint) }
 
-    def publishVersion: T[String] = Task.Input { T.env.getOrElse[String]("SCRIBE_VERSION", "UNSPECIFIED") }
+    def publishVersion: T[String] = Task.Input { T.env.getOrElse[String]("PQS_VERSION", "UNSPECIFIED") }
     def publishVendor: T[String]  = "Digital Asset"
 
     override def warts = Seq(
@@ -94,7 +94,7 @@ object `package` extends RootModule { root =>
       ) ++ (if (isCI()) Seq("-Xfatal-warnings") else Seq.empty)
     }
 
-    trait ScribeTests
+    trait PqsTests
         extends ScalaTests
         with TestModule
         with JunitReportsModule
@@ -114,9 +114,9 @@ object `package` extends RootModule { root =>
   }
 
   //////////////////////////////////////////////
-  // Scribe top-level entry point Application //
+  // PQS top-level entry point Application //
   //////////////////////////////////////////////
-  object scribe extends ScribeModule with ProguardModule with BuildxDockerModule {
+  object pqs extends PqsModule with ProguardModule with BuildxDockerModule {
     override def forkArgs = T { Seq("-Djdk.attach.allowAttachSelf") ++ super.forkArgs() }
 
     // Create a pom.xml listing all runtime dependencies
@@ -141,7 +141,7 @@ object `package` extends RootModule { root =>
       postgres.relational
     )
 
-    override def mainClass = Some("com.digitalasset.scribe.Main")
+    override def mainClass = Some("com.digitalasset.pqs.Main")
 
     override def assemblyRules = super.assemblyRules ++ Seq(
       Rule.AppendPattern("META-INF/services/.*", separator = "\n"), // A.k.a. merge services - required for GRPC clients
@@ -243,9 +243,9 @@ object `package` extends RootModule { root =>
     }
 
     object docker extends BuildxDockerConfig {
-      def moduleName    = "scribe"
+      def moduleName    = "pqs"
       override def tags = T { Seq(s"${moduleName()}${localImageSuffix()}") }
-      def baseImage     = Task.Input { T.env.getOrElse[String]("SCRIBE_IMAGE_BASE", dockerImage) }
+      def baseImage     = Task.Input { T.env.getOrElse[String]("PQS_IMAGE_BASE", dockerImage) }
       def jvmOptions    = T { Seq("-Djdk.attach.allowAttachSelf") ++ super.jvmOptions() }
 
       def run = T {
@@ -259,18 +259,18 @@ object `package` extends RootModule { root =>
       }
     }
 
-    object test extends ScribeTests
+    object test extends PqsTests
 
     /** Control parallelism by passing in pools and lanes parameters, e.g. --pools 2 --lanes 4 */
-    object functest extends ScribeTests with ScalafmtModule with WartRemoverModule {
+    object functest extends PqsTests with ScalafmtModule with WartRemoverModule {
       // There isn't single source of truth for env var names.
       // There is one in build system (here) and another on the test code side.
       // Please keep them in sync if making any changes.
-      val PostgresVersionEnvVar       = "SCRIBE_POSTGRESVERSION"
-      val DamlSdkVersionEnvVar        = "SCRIBE_DAMLSDKVERSION"
-      val CantonVersionEnvVar         = "SCRIBE_CANTONVERSION"
-      val CantonProtocolVersionEnvVar = "SCRIBE_CANTONPROTOCOLVERSION"
-      val DamlLfTargetEnvVar          = "SCRIBE_DAMLLFTARGET"
+      val PostgresVersionEnvVar       = "PQS_POSTGRESVERSION"
+      val DamlSdkVersionEnvVar        = "PQS_DAMLSDKVERSION"
+      val CantonVersionEnvVar         = "PQS_CANTONVERSION"
+      val CantonProtocolVersionEnvVar = "PQS_CANTONPROTOCOLVERSION"
+      val DamlLfTargetEnvVar          = "PQS_DAMLLFTARGET"
 
       // This is needed to prevent mill caching from storing env values from previous invocations
       // https://mill-build.org/mill/fundamentals/tasks.html#_environment_variable_inputs
@@ -278,15 +278,15 @@ object `package` extends RootModule { root =>
         Task.env
       }
 
-      override def testFramework: T[String] = "com.digitalasset.scribe.functest.sbt.FTFramework"
+      override def testFramework: T[String] = "com.digitalasset.pqs.functest.sbt.FTFramework"
 
       override def forkEnv = T {
-        scribe.docker.build()
+        pqs.docker.build()
         val commonOverrides = Map(
           PostgresVersionEnvVar     -> "17",
           DamlSdkVersionEnvVar      -> V.damlc,
           CantonVersionEnvVar       -> V.canton,
-          "SCRIBE_IMAGE_TAG_SUFFIX" -> localImageSuffix()
+          "PQS_IMAGE_TAG_SUFFIX" -> localImageSuffix()
         )
         val sdkOverrides = Map(
           CantonProtocolVersionEnvVar -> "35",
@@ -308,7 +308,7 @@ object `package` extends RootModule { root =>
   // Pipeline //
   //////////////
 
-  object pipeline extends ScribeModule {
+  object pipeline extends PqsModule {
     override val moduleDeps = Seq(
       `app-blocks`.`app-version`,
       `app-blocks`.`bootstrap-o11y`,
@@ -333,14 +333,14 @@ object `package` extends RootModule { root =>
       L.protoJava,
     )
 
-    object test extends ScribeTests
+    object test extends PqsTests
   }
 
   ////////////////////////
   // Datastore Backends //
   ////////////////////////
 
-  object backend extends ScribeModule {
+  object backend extends PqsModule {
     override def ivyDeps = Agg(
       L.zio.zio,
       L.zio.streams
@@ -352,7 +352,7 @@ object `package` extends RootModule { root =>
   }
 
   object postgres extends Module {
-    object backend extends ScribeModule {
+    object backend extends PqsModule {
       override def ivyDeps = Agg(
         L.zio.zio,
         L.zio.streams,
@@ -367,7 +367,7 @@ object `package` extends RootModule { root =>
       )
     }
 
-    object document extends ScribeModule {
+    object document extends PqsModule {
       override def ivyDeps = Agg(
         L.commons.text,
         L.flyway.core,
@@ -388,7 +388,7 @@ object `package` extends RootModule { root =>
       )
     }
 
-    object relational extends ScribeModule {
+    object relational extends PqsModule {
       override val moduleDeps = Seq(
         `app-blocks`.`composable-app`,
         postgres.backend
@@ -403,14 +403,14 @@ object `package` extends RootModule { root =>
   object `app-blocks` extends Module {
 
     /** Show App Version and build metadata */
-    object `app-version` extends ScribeModule {
+    object `app-version` extends PqsModule {
       override def moduleDeps = Seq(
         `composable-app`
       )
     }
 
     /** Logging Bootstrap for user-interactive command line applications */
-    object `bootstrap-cli` extends ScribeModule {
+    object `bootstrap-cli` extends PqsModule {
       override def moduleDeps = Seq(
         logging
       )
@@ -423,7 +423,7 @@ object `package` extends RootModule { root =>
     }
 
     /** Logging Bootstrap for server applications with OpenTelemetry */
-    object `bootstrap-o11y` extends ScribeModule {
+    object `bootstrap-o11y` extends PqsModule {
       override def moduleDeps = Seq(
         o11y,
         `app-version`,
@@ -440,7 +440,7 @@ object `package` extends RootModule { root =>
     }
 
     /** Composable app with hierarchical menus */
-    object `composable-app` extends ScribeModule {
+    object `composable-app` extends PqsModule {
       override def ivyDeps = Agg(
         L.zio.zio,
         L.zio.logging.logging
@@ -448,11 +448,11 @@ object `package` extends RootModule { root =>
 
       override def moduleDeps = Seq(`app-blocks`.config)
 
-      object test extends ScribeTests
+      object test extends PqsTests
     }
 
     /** Parse configs from env, system properties, command line arguments */
-    object config extends ScribeModule {
+    object config extends PqsModule {
       override def ivyDeps = Agg(
         L.zio.zio,
         L.zio.config.core,
@@ -464,11 +464,11 @@ object `package` extends RootModule { root =>
 
       override def moduleDeps = Seq(`safe-equals`)
 
-      object test extends ScribeTests
+      object test extends PqsTests
     }
 
     /** Provide unobtrusive features for diagnostics and troubleshooting */
-    object diagnostics extends ScribeModule {
+    object diagnostics extends PqsModule {
       override def moduleDeps = Seq(`jdk-helper`)
 
       override def ivyDeps = Agg(
@@ -479,9 +479,9 @@ object `package` extends RootModule { root =>
     }
 
     /** Provide certain utilities for working with the JDK */
-    object `jdk-helper` extends ScribeModule
+    object `jdk-helper` extends PqsModule
 
-    object `feature-flag` extends ScribeModule {
+    object `feature-flag` extends PqsModule {
       override def moduleDeps = Seq(
         `safe-equals`
       )
@@ -492,7 +492,7 @@ object `package` extends RootModule { root =>
     }
 
     /** Logging utils */
-    object logging extends ScribeModule {
+    object logging extends PqsModule {
       override def ivyDeps = Agg(
         L.zio.zio,
         L.zio.config.magnolia,
@@ -501,7 +501,7 @@ object `package` extends RootModule { root =>
     }
 
     /** OpenTelemetry */
-    object o11y extends ScribeModule {
+    object o11y extends PqsModule {
       override def ivyDeps = Agg(
         L.zio.zio,
         L.openTelemetry.api
@@ -509,7 +509,7 @@ object `package` extends RootModule { root =>
     }
 
     /** Type-safe equals operator */
-    object `safe-equals` extends ScribeModule
+    object `safe-equals` extends PqsModule
   }
 
   ///////////
@@ -608,7 +608,7 @@ object `package` extends RootModule { root =>
     }
   }
 
-  object auth extends ScribeModule {
+  object auth extends PqsModule {
     override def ivyDeps = Agg(
       L.zio.zio,
       L.sttp.zio,
@@ -622,11 +622,11 @@ object `package` extends RootModule { root =>
       `app-blocks`.`safe-equals`
     )
 
-    object test extends ScribeTests
+    object test extends PqsTests
   }
 
   /* Idiomatic zio module to talk to ledger */
-  object `zio-daml` extends ScribeModule {
+  object `zio-daml` extends PqsModule {
     override def ivyDeps = Agg(
       L.zio.zio,
       L.zio.streams,
@@ -653,7 +653,7 @@ object `package` extends RootModule { root =>
       override def deps           = Seq("daml-prim", "daml-stdlib")
     }
 
-    object test extends ScribeTests {
+    object test extends PqsTests {
       override def ivyDeps = T {
         super.ivyDeps() ++ Agg(
           L.zio.test.mock
@@ -673,7 +673,7 @@ object `package` extends RootModule { root =>
   }
 
   object utils extends Module {
-    object `canonical-types` extends ScribeModule {
+    object `canonical-types` extends PqsModule {
       override def ivyDeps = Agg(
         L.zio.zio,
         L.zio.config.magnolia,
@@ -686,14 +686,14 @@ object `package` extends RootModule { root =>
       )
     }
 
-    object `zio-grpc-codegen` extends ScribeModule {
+    object `zio-grpc-codegen` extends PqsModule {
       override def ivyDeps = Agg(
         L.scalapb.compiler,
         L.transcode.daml
       )
     }
 
-    object docker extends ScribeModule {
+    object docker extends PqsModule {
       override def moduleDeps = Seq(
         `app-blocks`.`safe-equals`
       )
@@ -710,7 +710,7 @@ object `package` extends RootModule { root =>
       )
     }
 
-    object `func-test` extends ScribeModule {
+    object `func-test` extends PqsModule {
       override def moduleDeps = Seq(
         utils.docker,
         `zio-daml`

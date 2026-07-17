@@ -1,4 +1,4 @@
-SCRIBE_POSTGRESVERSION,SCRIBE_DAMLSDKVERSION,SCRIBE_CANTONVERSION,SCRIBE_CANTONPROTOCOLVERSION,SCRIBE_DAMLLFTARGET,SCRIBE_IMAGE_BASE
+PQS_POSTGRESVERSION,PQS_DAMLSDKVERSION,PQS_CANTONVERSION,PQS_CANTONPROTOCOLVERSION,PQS_DAMLLFTARGET,PQS_IMAGE_BASE
 # NOTE: if you add/remove tests from this file please run from the following to generate an updated workflow and commit it:
 # modules/compatibility/./run-compatibility-tests.sh -r
 # baseline

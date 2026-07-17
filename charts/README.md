@@ -2,7 +2,7 @@
 
 *For standard Kubernetes deployment configurations (such as image, service account, pod annotations, and container resources), please refer to the [Standard Configurations README](participant-query-store/README.md).*
 
-This document provides an in-depth guide to the application-specific configurations for the PQS (Scribe) Helm chart. It explains the dynamic configuration mapping and how the chart securely injects secrets into the application. It is intended for chart developer knowledge and is not intended for public consumption.
+This document provides an in-depth guide to the application-specific configurations for the PQS Helm chart. It explains the dynamic configuration mapping and how the chart securely injects secrets into the application. It is intended for chart developer knowledge and is not intended for public consumption.
 
 ## Table of Contents
 1. [Secret Mapping Mechanism](#1-secret-mapping-mechanism)
@@ -53,7 +53,7 @@ When PQS reads `/app/app.conf`, it loads the base config, then reads the appende
 
 ## 2. PQS Configuration & HOCON Generation
 
-The `pqs` section manages the core application configuration for PQS (Scribe). Instead of mapping individual fields directly to command-line arguments, this Helm chart uses a  **JSON to HOCON** bridging mechanism inside the `ConfigMap`.
+The `pqs` section manages the core application configuration for PQS. Instead of mapping individual fields directly to command-line arguments, this Helm chart uses a  **JSON to HOCON** bridging mechanism inside the `ConfigMap`.
 
 ### How the `pqs` block works
 1. **JSON Serialization:** The entire `pqs` block from `values.yaml` is serialized into a raw JSON file called `values.json` within the ConfigMap (`{{ .Values.pqs | toPrettyJson }}`).
@@ -99,7 +99,7 @@ Below are the primary sub-sections of the `pqs` configuration and how to configu
       ledger:
         auth: OAuth
         bufferSize: "128"
-        cacheDir: "/tmp/scribe"
+        cacheDir: "/tmp/pqs"
         host: participant
         keepAlive:
           time: PT40S
@@ -118,7 +118,7 @@ Below are the primary sub-sections of the `pqs` configuration and how to configu
         int64AsString: "true"
         numericAsString: "true"
       postgres:
-        appName: scribe
+        appName: pqs
         bufferSize: "128"
         database: public
         host: postgres

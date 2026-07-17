@@ -3,7 +3,7 @@
 
 package com.digitalasset.zio.daml.ledgerapi
 
-import com.digitalasset.scribe.grpc.ZManagedChannel
+import com.digitalasset.pqs.grpc.ZManagedChannel
 import zio.{ZIO, ZLayer}
 
 object PingService:

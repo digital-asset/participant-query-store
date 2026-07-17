@@ -4,7 +4,7 @@
 package com.digitalasset.zio.daml.ledgerapi
 
 import com.digitalasset.canonical.specific.{Offset, Transaction}
-import com.digitalasset.scribe.utils.safeequals.===
+import com.digitalasset.pqs.utils.safeequals.===
 import io.grpc.Status.Code
 import io.grpc.StatusException
 import zio.ZIO.{logDebug, logFatal, logInfo}
