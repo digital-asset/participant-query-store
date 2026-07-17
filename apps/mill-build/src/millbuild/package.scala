@@ -30,7 +30,7 @@ package object millbuild {
     val openTelemetryAgent = "2.28.1"
     val scalaPB = "0.11.19"
 
-    val zio                  = "2.1.24"
+    val zio                  = "2.1.26"
     val zioConfig            = "3.0.7"
     val zioLogging           = "2.3.0"
     val zioMetricsConnectors = "2.3.1"
