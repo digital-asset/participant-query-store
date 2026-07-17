@@ -75,6 +75,47 @@ spec:
               mountPath: /tmp
             - name: shared-data
               mountPath: /shared-data
+      {{- if .Values.autoPrune.enabled }}
+        - name: auto-prune
+          command:
+            - /bin/bash
+            - -c
+            - | 
+{{ .Files.Get "files/prune.sh" | indent 14}}
+          env:
+            - name: PRUNING_INTERVAL_SECONDS
+              value: '{{ .Values.autoPrune.interval }}'
+            - name: PQS_MAX_AGE_DAYS
+              value: '{{ .Values.autoPrune.maxAge }}'
+            - name: PGHOST
+              value: {{ .Values.pqs.target.postgres.host }}
+            - name: PGSCHEMA
+              value: pqs
+            - name: PGDATABASE
+              value: {{ .Values.pqs.target.postgres.database }}
+            - name: PGUSER
+              value: {{ .Values.pqs.target.postgres.username }}
+            {{- if .Values.pqs.target.passwordSecretRef }}
+            - name: PGPASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.pqs.target.passwordSecretRef.name }}
+                  key: {{ .Values.pqs.target.passwordSecretRef.key }}
+          {{- end }}
+          image: "europe-docker.pkg.dev/da-images/remote-dockerhub/postgres:14.12"
+          resources:
+            limits:
+              cpu: 1000m
+              memory: 1Gi
+            requests:
+              cpu: 500m
+              memory: 512Mi
+          securityContext:
+            readOnlyRootFilesystem: false
+            runAsGroup: 65532
+            runAsNonRoot: true
+            runAsUser: 65532
+      {{- end }}
       volumes:
       - name: configs
         configMap:

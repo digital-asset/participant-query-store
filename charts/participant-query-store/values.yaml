@@ -10,6 +10,10 @@ serviceAccount:
   name: ""
   annotations:
 
+autoPrune:
+  enabled: false
+  interval: "3600"
+  maxAge: "2"
 
 initContainers: []
 env: []
