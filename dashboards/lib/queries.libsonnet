@@ -5,12 +5,12 @@ local g = import '../lib-shared/g.libsonnet';
 local q = import '../lib-shared/queries.libsonnet';
 
 {
-  scribe: {
+  pqs: {
     info:
       q.simple('target_info{job="$jvm"}', '')
       + { format: 'table', instant: true, range: false, hide: false, editorMode: 'code', exemplar: false },
 
-    tx_lag: q.simple('tx_lag_from_ledger_wallclock{job="$jvm"}', 'command->scribe'),
+    tx_lag: q.simple('tx_lag_from_ledger_wallclock{job="$jvm"}', 'command->pqs'),
 
     down: {
       grpc: q.simple('(grpc_up{job="$jvm"} < 1) + 1', 'Ledger down'),
@@ -190,8 +190,8 @@ local q = import '../lib-shared/queries.libsonnet';
     heap_blks_ratio: self.stat('heap_blks_ratio'),
     idx_blks_ratio: self.stat('idx_blks_ratio'),
 
-    tx_lag: q.simple('pg_lag_tracker_delta_wallclock_time{job="postgres-scribe-exporter"}', 'command->watermark'),
-    watermark_lag: q.simple('pg_lag_tracker_delta_tx_index{job="postgres-scribe-exporter"}', 'delta'),
+    tx_lag: q.simple('pg_lag_tracker_delta_wallclock_time{job="postgres-pqs-exporter"}', 'command->watermark'),
+    watermark_lag: q.simple('pg_lag_tracker_delta_tx_index{job="postgres-pqs-exporter"}', 'delta'),
 
     all: [
       self.statRate('seq_scan', ['relname=~"$pg_relname"'], false, 'seq_scan'),
@@ -221,7 +221,7 @@ local q = import '../lib-shared/queries.libsonnet';
 
     bgwriter: {
       local this2 = self,
-      stat(source, labels=['job="postgres-scribe-exporter"'], filterZeroes=false, legend=source):
+      stat(source, labels=['job="postgres-pqs-exporter"'], filterZeroes=false, legend=source):
         this.base('irate(pg_stat_bgwriter_%s_total{%s}[$__rate_interval]) %s', source, labels, filterZeroes, legend),
       checkpoints: {
         write_time: this2.stat('checkpoint_write_time', legend='write time'),
@@ -240,8 +240,8 @@ local q = import '../lib-shared/queries.libsonnet';
     },
 
     scrape: {
-      latency: q.simple('pg_exporter_last_scrape_duration_seconds{job="postgres-scribe-exporter"}', '{{role}}'),
-      status: q.simple('irate(promhttp_metric_handler_requests_total{job="postgres-scribe-exporter"}[$__rate_interval])', '[{{role}}] {{code}}'),
+      latency: q.simple('pg_exporter_last_scrape_duration_seconds{job="postgres-pqs-exporter"}', '{{role}}'),
+      status: q.simple('irate(promhttp_metric_handler_requests_total{job="postgres-pqs-exporter"}[$__rate_interval])', '[{{role}}] {{code}}'),
     },
 
     top_queries: {

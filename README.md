@@ -16,13 +16,11 @@ If you wish to build, not just use PQS, the following [resources](#resources) ma
 - [Environment setup instructions](ENGINEER_SETUP.md)
 - Artifacts
   - Releases
-    - Docker Images
-      - [Google Container Registry](https://console.cloud.google.com/artifacts/docker/da-images/europe/public/docker%2Fparticipant-query-store)
-    - Dpm Components: [Google Container Registry](https://console.cloud.google.com/artifacts/docker/da-images/europe/public/components%2Fscribe)
+    - Docker Images: [Google Container Registry](https://console.cloud.google.com/artifacts/docker/da-images/europe/public/docker%2Fparticipant-query-store)
+    - Dpm Components: [Google Container Registry](https://console.cloud.google.com/artifacts/docker/da-images/europe/public/components%2Fparticipant-query-store)
   - Snapshots
-    - Docker Images
-      - [Google Container Registry](https://console.cloud.google.com/artifacts/docker/da-images/europe/public-unstable/docker%2Fparticipant-query-store)
-    - Dpm Components: [Google Container Registry](https://console.cloud.google.com/artifacts/docker/da-images/europe/public-unstable/components%2Fscribe)
+    - Docker Images: [Google Container Registry](https://console.cloud.google.com/artifacts/docker/da-images/europe/public-unstable/docker%2Fparticipant-query-store)
+    - Dpm Components: [Google Container Registry](https://console.cloud.google.com/artifacts/docker/da-images/europe/public-unstable/components%2Fparticipant-query-store)
 
 ### Guidelines
 

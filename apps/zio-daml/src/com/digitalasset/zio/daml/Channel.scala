@@ -4,8 +4,8 @@
 package com.digitalasset.zio.daml
 
 import com.digitalasset.auth.TokenService
-import com.digitalasset.scribe.configuration.ISO8601Duration
-import com.digitalasset.scribe.grpc.{ZClientInterceptor, ZManagedChannel}
+import com.digitalasset.pqs.configuration.ISO8601Duration
+import com.digitalasset.pqs.grpc.{ZClientInterceptor, ZManagedChannel}
 import com.digitalasset.zio.daml.ledgerapi.PingService
 import io.grpc.netty.shaded.io.grpc.netty.{GrpcSslContexts, NettyChannelBuilder}
 import io.grpc.{ManagedChannelBuilder, Metadata, StatusException}

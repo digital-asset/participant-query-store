@@ -8,7 +8,7 @@ import com.digitalasset.canonical.*
 import com.digitalasset.canonical.specific.{Event, EventId, TransactionEvent}
 import com.digitalasset.transcode.{Codec, schema}
 import com.digitalasset.transcode.schema.*
-import com.digitalasset.scribe.utils.safeequals.=/=
+import com.digitalasset.pqs.utils.safeequals.=/=
 import com.digitalasset.zio.daml.KnownEntityIdentifiers
 import com.google.rpc.error_details.{ErrorInfo, RequestInfo, ResourceInfo, RetryInfo}
 import io.grpc.Status.Code

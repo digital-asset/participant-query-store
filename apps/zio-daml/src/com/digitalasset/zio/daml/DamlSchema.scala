@@ -4,7 +4,7 @@
 package com.digitalasset.zio.daml
 
 import com.digitalasset.canonical.{ContractFilter, MetadataFilter}
-import com.digitalasset.scribe.grpc.ZManagedChannel
+import com.digitalasset.pqs.grpc.ZManagedChannel
 import com.digitalasset.transcode.schema.*
 import com.digitalasset.zio.daml.ledgerapi.PackageService
 import zio.ZIO.*
@@ -44,7 +44,7 @@ object DamlSchema:
       .attempt {
         require(
           knownEntityIdentifiers.filtered.entities.nonEmpty,
-          "No user-supplied Daml models found on connected ledger. Please, deploy your application's DAR to the ledger before running Scribe."
+          "No user-supplied Daml models found on connected ledger. Please, deploy your application's DAR to the ledger before running PQS."
         )
       }
 

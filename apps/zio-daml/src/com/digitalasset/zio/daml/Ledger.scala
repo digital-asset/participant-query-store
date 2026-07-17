@@ -6,8 +6,8 @@ package com.digitalasset.zio.daml
 import com.digitalasset.auth.Auth
 import com.digitalasset.canonical.specific.{Event, Offset, Transaction, TransactionEvent}
 import com.digitalasset.canonical.{ContractFilter, MetadataFilter, UserRight}
-import com.digitalasset.scribe.configuration.filter.PartyFilterParser.PartyFilter
-import com.digitalasset.scribe.grpc.ZManagedChannel
+import com.digitalasset.pqs.configuration.filter.PartyFilterParser.PartyFilter
+import com.digitalasset.pqs.grpc.ZManagedChannel
 import com.digitalasset.transcode.codec.proto.ProtobufCodec
 import com.digitalasset.transcode.schema.{Dictionary, Schema}
 import com.digitalasset.zio.daml.ledgerapi.{PartiesService, StateService, UpdateService}
