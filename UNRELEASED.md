@@ -13,3 +13,4 @@ _Write summary of release_
 - *BREAKING*: PQS configuration no longer provides default Postgres credentials. It is now mandatory to supply the `--target-postgres-username` and `--target-postgres-password` command arguments, or the `PQS_TARGET_POSTGRES_USERNAME` and `PQS_TARGET_POSTGRES_PASSWORD` environment variables.
 
 - PQS values file modified to allow for the creation of an autopruning sidecar. Disabled by default.
+- PQS autopruning sidercar refactored for better readability and maintanence
