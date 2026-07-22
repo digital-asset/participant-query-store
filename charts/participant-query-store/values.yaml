@@ -12,8 +12,8 @@ serviceAccount:
 
 autoPrune:
   enabled: false
-  interval: "3600"
-  maxAge: "2"
+  interval: "86400"
+  maxAge: "30"
 
 initContainers: []
 env: []
