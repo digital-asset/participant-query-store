@@ -12,7 +12,7 @@ serviceAccount:
 
 autoPrune:
   enabled: false
-  interval: "0 * * * *"
+  cronSchedule: "0 * * * *"
   # ISO 8601 - Default prunes >30 days 
   maxAge: "P30D"
 
