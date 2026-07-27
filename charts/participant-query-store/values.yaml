@@ -12,8 +12,10 @@ serviceAccount:
 
 autoPrune:
   enabled: false
-  interval: "86400"
-  maxAge: "30"
+  # Mins between each cronjob
+  interval: "60"
+  # ISO 8601 - Default prunes >30 days 
+  maxAge: "P30D"
 
 initContainers: []
 env: []

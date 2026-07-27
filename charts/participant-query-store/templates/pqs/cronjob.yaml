@@ -1,0 +1,59 @@
+# Copyright (c) 2026 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+{{- if .Values.autoPrune.enabled }}
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ .Release.Name }}-pruner
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: {{ .Release.Name }}
+spec:
+  # Run every v hours
+  schedule: {{ printf "0 */%v * * *" (.Values.autoPrune.interval) | quote }}
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 1
+  jobTemplate:
+    spec:
+      template:
+        metadata:
+          labels:
+            app: {{ .Release.Name }}
+        spec:
+          serviceAccount: {{ include "pqs.serviceAccountName" . }}
+          restartPolicy: OnFailure
+          {{- if .Values.initContainers }}
+          initContainers:
+            {{- toYaml .Values.initContainers | nindent 12 }}
+          {{- end }}
+          containers:
+            - name: pqs-pruner
+              image: {{ .Values.image.repo }}/participant-query-store:{{ .Values.image.tag | default .Chart.AppVersion }}
+              command: ["/bin/bash", "/scripts/prune.sh"]
+              env:
+                - name: PRUNING_INTERVAL_SECONDS
+                  value: '{{ .Values.autoPrune.interval }}'
+                - name: PRUNE_TARGET
+                  value: '{{ .Values.autoPrune.maxAge }}'
+                - name: PGHOST
+                  value: {{ .Values.pqs.target.postgres.host }}
+                - name: PGSCHEMA
+                  value: pqs
+                - name: PGDATABASE
+                  value: {{ .Values.pqs.target.postgres.database }}
+                - name: PGUSER
+                  value: {{ .Values.pqs.target.postgres.username }}
+              volumeMounts:
+                - name: configs
+                  mountPath: /scripts
+                - name: tmp
+                  mountPath: /tmp
+          volumes:
+            - name: configs
+              configMap:
+                  name: {{ .Release.Name }}
+            - name: tmp
+              emptyDir: {}
+{{- end }}
