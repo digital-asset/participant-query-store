@@ -13,7 +13,6 @@
 
   values.json: |
     {{- .Values.pqs | toPrettyJson | nindent 4 }}
-
 {{- end }}
 
 apiVersion: v1
