@@ -10,8 +10,7 @@ metadata:
   labels:
     app: {{ .Release.Name }}
 spec:
-  # Run every v hours
-  schedule: {{ printf "0 */%v * * *" (.Values.autoPrune.interval) | quote }}
+  schedule: {{ .Values.autoPrune.interval }}
   concurrencyPolicy: Forbid
   successfulJobsHistoryLimit: 1
   failedJobsHistoryLimit: 1
@@ -31,29 +30,29 @@ spec:
           containers:
             - name: pqs-pruner
               image: {{ .Values.image.repo }}/participant-query-store:{{ .Values.image.tag | default .Chart.AppVersion }}
-              command: ["/bin/bash", "/scripts/prune.sh"]
-              env:
-                - name: PRUNING_INTERVAL_SECONDS
-                  value: '{{ .Values.autoPrune.interval }}'
-                - name: PRUNE_TARGET
-                  value: '{{ .Values.autoPrune.maxAge }}'
-                - name: PGHOST
-                  value: {{ .Values.pqs.target.postgres.host }}
-                - name: PGSCHEMA
-                  value: pqs
-                - name: PGDATABASE
-                  value: {{ .Values.pqs.target.postgres.database }}
-                - name: PGUSER
-                  value: {{ .Values.pqs.target.postgres.username }}
+              command: ["java", "-jar", "/scribe.jar"]
+              args:
+                  - "datastore"
+                  - "postgres-document"
+                  - "prune"
+                  - "--prune-target"
+                  - {{ .Values.autoPrune.maxAge }}
+                  - "--postgres-schema"
+                  - "pqs"
+                  - "--postgres-host"
+                  - {{ .Values.pqs.target.postgres.host }}
+                  - "--postgres-database"
+                  - {{ .Values.pqs.target.postgres.database }}
+                  - "--postgres-username"
+                  - {{ .Values.pqs.target.postgres.username }}
+                  - "--prune-mode"
+                  - Force
+                  - "--logger-destination"
+                  - "/tmp/output.log"
               volumeMounts:
-                - name: configs
-                  mountPath: /scripts
                 - name: tmp
                   mountPath: /tmp
           volumes:
-            - name: configs
-              configMap:
-                  name: {{ .Release.Name }}
             - name: tmp
               emptyDir: {}
 {{- end }}
