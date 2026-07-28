@@ -25,7 +25,7 @@ package object millbuild {
 
     // Think twice before changing this version, check with Canton's dependencies for a particular release line
     // for compatibility: https://github.com/DACH-NY/canton/blob/main/shared_dependencies.json
-    val grpc  = "1.81.0"
+    val grpc  = "1.81.1"
 
     val openTelemetryAgent = "2.28.1"
     val scalaPB = "0.11.19"
