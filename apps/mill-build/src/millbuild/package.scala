@@ -122,7 +122,7 @@ package object millbuild {
         val test     = ivy"dev.zio::zio-test:${V.zio}"
         val sbt      = ivy"dev.zio::zio-test-sbt:${V.zio}"
         val magnolia = ivy"dev.zio::zio-test-magnolia:${V.zio}"
-        val http     = ivy"dev.zio::zio-http-testkit:${V.zioHttp}"
+        val http     = ivy"dev.zio::zio-http-testkit:${V.zioHttp}".excludeOrg("io.netty")
         val mock     = ivy"dev.zio::zio-mock:${V.zioMock}"
       }
     }
