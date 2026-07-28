@@ -10,7 +10,7 @@ metadata:
   labels:
     app: {{ .Release.Name }}
 spec:
-  schedule: {{ .Values.autoPrune.interval }}
+  schedule: {{ .Values.autoPrune.cronSchedule }}
   concurrencyPolicy: Forbid
   successfulJobsHistoryLimit: 1
   failedJobsHistoryLimit: 1
@@ -49,6 +49,18 @@ spec:
                   - Force
                   - "--logger-destination"
                   - "/tmp/output.log"
+                  {{- if .Values.pqs.target.passwordSecretRef }}
+                  - "--postgres-password"
+                  - "$(PGPASSWORD)"
+                  {{- end }}
+              {{- if .Values.pqs.target.passwordSecretRef }}
+              env:
+                - name: PGPASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ .Values.pqs.target.passwordSecretRef.name }}
+                      key: {{ .Values.pqs.target.passwordSecretRef.key }}
+              {{- end }}
               volumeMounts:
                 - name: tmp
                   mountPath: /tmp
