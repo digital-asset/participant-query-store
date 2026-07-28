@@ -75,6 +75,7 @@ spec:
               mountPath: /tmp
             - name: shared-data
               mountPath: /shared-data
+              
       volumes:
       - name: configs
         configMap:
