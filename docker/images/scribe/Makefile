@@ -12,7 +12,7 @@ DEVENV_ROOT ?= $(shell git rev-parse --show-toplevel)
 include ${DEVENV_ROOT}/.scaffold/libs/make/docker.mk
 
 ## Variables
-export SCRIBE_VERSION      ?= $(shell _gen_build_version)
+export SCRIBE_VERSION      ?= $(shell _gen_build_version 3.5)
 export GAR_REPOSITORY      ?= da-images/playground
 export REGISTRY            ?= europe-docker.pkg.dev/$(GAR_REPOSITORY)/docker
 export REPOSITORY          ?= scribe

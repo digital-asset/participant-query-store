@@ -7,8 +7,7 @@ import zio.Promise
 import zio.logging.LogAnnotation
 
 package object docker:
-  sealed trait StdIO:
-    def line: String
+  sealed trait StdIO
   final case class StdOut(line: String) extends StdIO
   final case class StdErr(line: String) extends StdIO
 

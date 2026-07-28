@@ -3,7 +3,7 @@
 
 package com.digitalasset.scribe.docker
 
-import zio.ZIO.{logDebug, logError}
+import zio.ZIO.{logDebug, logErrorCause}
 import zio.stream.ZStream
 import zio.{ExitCode, Task, Trace, ZIO}
 
@@ -26,19 +26,16 @@ final case class Service[T](
           .collect(p)
           .runHead
           .someOrElseZIO(
-            for {
-              code   <- exitCode.map(_.code)
-              stdout <- io.takeRight(20).map(_.line).runCollect
-              errorMessage =
-                s"Container ${container.hostName} (${container.image}) exited (exit code $code) before expected output was observed"
-              _ <- logError(
-                s"""|$errorMessage
-                    |Last output:
-                    |${stdout.mkString("\n")}""".stripMargin
+            exitCode.flatMap { code =>
+              ZIO.fail(
+                ContainerExitedException(
+                  s"Container ${container.hostName} (${container.image}) exited (exit code ${code.code}) " +
+                    "before expected output was observed"
+                )
               )
-              err <- ZIO.fail(ContainerExitedException(errorMessage))
-            } yield err
+            }
           )
+          .tapErrorCause(logErrorCause("service didn't start", _))
         <* logDebug(s"Predicate satisfied, unblocking. Exposed address: $exposedAddress. Exposed ports: $exposedPorts")
     )
 }

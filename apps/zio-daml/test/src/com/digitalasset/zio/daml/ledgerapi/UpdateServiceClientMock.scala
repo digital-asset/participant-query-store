@@ -5,17 +5,16 @@ package com.digitalasset.zio.daml.ledgerapi
 
 import com.daml.ledger.api.v2.update_service.ZioUpdateService.UpdateServiceClient
 import com.daml.ledger.api.v2.update_service.*
+import io.grpc.StatusException
 import zio.mock.*
 import zio.stream.ZStream
 import zio.*
-import io.grpc.StatusException
 
 object UpdateServiceClientMock extends Mock[UpdateServiceClient]:
   object GetUpdates        extends Stream[GetUpdatesRequest, StatusException, GetUpdatesResponse]
   object GetUpdateByOffset extends Effect[GetUpdateByOffsetRequest, StatusException, GetUpdateResponse]
   object GetUpdateById     extends Effect[GetUpdateByIdRequest, StatusException, GetUpdateResponse]
   object GetUpdatePages    extends Effect[GetUpdatesPageRequest, StatusException, GetUpdatesPageResponse]
-  object GetUpdateByHash   extends Effect[GetUpdateByHashRequest, StatusException, GetUpdateResponse]
 
   override val compose: URLayer[Proxy, UpdateServiceClient] =
     ZLayer {
@@ -26,5 +25,4 @@ object UpdateServiceClientMock extends Mock[UpdateServiceClient]:
         override def getUpdateById(request: GetUpdateByIdRequest)         = proxy(GetUpdateById, request)
         override def getUpdatesPage(request: GetUpdatesPageRequest): IO[StatusException, GetUpdatesPageResponse] =
           proxy(GetUpdatePages, request)
-        override def getUpdateByHash(request: GetUpdateByHashRequest) = proxy(GetUpdateByHash, request)
     }

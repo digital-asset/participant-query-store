@@ -16,9 +16,8 @@ endif
 ## Populate and export SCRIBE_VERSION with generated details above:
 ## - use svu to generate SemVer compliant version value
 ##   - increments patch value from most recent release tag
-
 ## - Mill sets version in application from SCRIBE_VERSION env var
-export SCRIBE_VERSION ?= $(shell _gen_build_version)
+export SCRIBE_VERSION ?= $(shell _gen_build_version 3.5)
 
 .PHONY: version
 version:
@@ -118,4 +117,4 @@ populate-component-yaml: ## Render dpm component.yaml
 publish-component: ## publish dpm component
 	dpm publish component \
 		-p generic=../.dist/${SCRIBE_VERSION}/ $(ASSISTANT_ARGS)/scribe:$(patsubst v%,%,$(SCRIBE_VERSION)) \
-		--extra-tags 3.6
+		--extra-tags 3.5

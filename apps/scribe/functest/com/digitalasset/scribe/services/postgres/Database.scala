@@ -35,9 +35,9 @@ object Database:
   def __exercises() = Postgres `query`
     sql"""select package_pk, tpe_pk, contract_tpe_pk, contract_id, argument ->> 'newLabel' from __exercises order by exercised_at_ix, tpe_pk"""
 
-  def active(qname: Option[String] = None, additionalColumns: Seq[String] = Seq.empty) = Postgres `query` {
+  def active(qname: Option[String] = None, additionalRows: Seq[String] = Seq.empty) = Postgres `query` {
     val select =
-      SqlFragment.select((Seq("package_id", "template_fqn", "payload_type", "contract_id") ++ additionalColumns)*)
+      SqlFragment.select((Seq("package_id", "template_fqn", "payload_type", "contract_id") ++ additionalRows)*)
     sql"""$select from active($qname) order by created_at_ix, template_fqn, payload_type desc"""
   }
 

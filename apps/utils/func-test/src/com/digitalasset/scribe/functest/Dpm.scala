@@ -53,10 +53,7 @@ object Dpm:
     for
       ftEnv <- ZIO.service[FTEnv]
       damlVersion = ftEnv.config.damlSdkVersion
-      registry =
-        if damlVersion.toLowerCase.contains("snapshot")
-        then "europe-docker.pkg.dev/da-images/public-unstable"
-        else "europe-docker.pkg.dev/da-images/public"
+      registry    = "europe-docker.pkg.dev/da-images/public-all"
       _      <- ZIO.log(s"Installing daml components for $damlVersion")
       tmpDir <- ftEnv.createUniqueDirectory("dpm-install-sdk")
       // Create an empty daml project to install the daml components

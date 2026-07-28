@@ -96,8 +96,8 @@ Options:
   --postgres-tls-cafile file           Trusted Certificate Authority (CA) certificate (optional)
   --postgres-keepalive boolean         Enable/disable TCP keep-alive probe (default: true)
   --postgres-maxconnections int        Maximum number of JDBC connections (default: 16)
-  --postgres-password string           Postgres user password
-  --postgres-username string           Postgres user name
+  --postgres-password string           Postgres user password (default: ********)
+  --postgres-username string           Postgres user name (default: postgres)
   --postgres-schema string             Postgres schema (default: public)
   --postgres-database string           Postgres database (default: postgres)
   --postgres-port int                  Postgres port (default: 5432)
@@ -213,10 +213,10 @@ Options:
   --postgres-maxconnections int        Maximum number of JDBC connections (default: 16)
                                         + Environment variable: SCRIBE_POSTGRES_MAXCONNECTIONS
                                         + System property:      postgres.maxConnections
-  --postgres-password string           Postgres user password
+  --postgres-password string           Postgres user password (default: ********)
                                         + Environment variable: SCRIBE_POSTGRES_PASSWORD
                                         + System property:      postgres.password
-  --postgres-username string           Postgres user name
+  --postgres-username string           Postgres user name (default: postgres)
                                         + Environment variable: SCRIBE_POSTGRES_USERNAME
                                         + System property:      postgres.username
   --postgres-schema string             Postgres schema (default: public)
@@ -428,8 +428,8 @@ Options:
   --postgres-tls-cafile file          Trusted Certificate Authority (CA) certificate (optional)
   --postgres-keepalive boolean        Enable/disable TCP keep-alive probe (default: true)
   --postgres-maxconnections int       Maximum number of JDBC connections (default: 16)
-  --postgres-password string          Postgres user password
-  --postgres-username string          Postgres user name
+  --postgres-password string          Postgres user password (default: ********)
+  --postgres-username string          Postgres user name (default: postgres)
   --postgres-schema string            Postgres schema (default: public)
   --postgres-database string          Postgres database (default: postgres)
   --postgres-port int                 Postgres port (default: 5432)
@@ -500,10 +500,10 @@ Options:
   --postgres-maxconnections int       Maximum number of JDBC connections (default: 16)
                                        + Environment variable: SCRIBE_POSTGRES_MAXCONNECTIONS
                                        + System property:      postgres.maxConnections
-  --postgres-password string          Postgres user password
+  --postgres-password string          Postgres user password (default: ********)
                                        + Environment variable: SCRIBE_POSTGRES_PASSWORD
                                        + System property:      postgres.password
-  --postgres-username string          Postgres user name
+  --postgres-username string          Postgres user name (default: postgres)
                                        + Environment variable: SCRIBE_POSTGRES_USERNAME
                                        + System property:      postgres.username
   --postgres-schema string            Postgres schema (default: public)
@@ -640,8 +640,8 @@ Options:
           "  --target-postgres-maxconnections int",
           "Maximum number of JDBC connections (default: 16)"
         ),
-        paddedOptionLine("  --target-postgres-password string", "Postgres user password"),
-        paddedOptionLine("  --target-postgres-username string", "Postgres user name"),
+        paddedOptionLine("  --target-postgres-password string", "Postgres user password (default: ********)"),
+        paddedOptionLine("  --target-postgres-username string", "Postgres user name (default: postgres)"),
         paddedOptionLine("  --target-postgres-schema string", "Postgres schema (default: public)"),
         paddedOptionLine("  --target-postgres-database string", "Postgres database (default: postgres)"),
         paddedOptionLine("  --target-postgres-port int", "Postgres port (default: 5432)"),
@@ -885,10 +885,10 @@ Options:
         ),
         paddedOptionLine("", " + Environment variable: SCRIBE_TARGET_POSTGRES_MAXCONNECTIONS"),
         paddedOptionLine("", " + System property:      target.postgres.maxConnections"),
-        paddedOptionLine("  --target-postgres-password string", "Postgres user password"),
+        paddedOptionLine("  --target-postgres-password string", "Postgres user password (default: ********)"),
         paddedOptionLine("", " + Environment variable: SCRIBE_TARGET_POSTGRES_PASSWORD"),
         paddedOptionLine("", " + System property:      target.postgres.password"),
-        paddedOptionLine("  --target-postgres-username string", "Postgres user name"),
+        paddedOptionLine("  --target-postgres-username string", "Postgres user name (default: postgres)"),
         paddedOptionLine("", " + Environment variable: SCRIBE_TARGET_POSTGRES_USERNAME"),
         paddedOptionLine("", " + System property:      target.postgres.username"),
         paddedOptionLine("  --target-postgres-schema string", "Postgres schema (default: public)"),

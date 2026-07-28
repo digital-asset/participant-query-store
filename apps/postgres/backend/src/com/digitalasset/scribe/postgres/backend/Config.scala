@@ -20,9 +20,9 @@ case class PostgresConfig(
     @describe("Postgres schema")
     schema: String = "public",
     @describe("Postgres user name")
-    username: String,
+    username: String = "postgres",
     @describe("Postgres user password")
-    password: Secret,
+    password: Secret = Secret("postgres"),
     @describe("Maximum number of JDBC connections")
     maxConnections: Int = 16,
     @describe("Enable/disable TCP keep-alive probe")

@@ -219,7 +219,7 @@ object RpidTwoParticipantSpec extends FuncTestStandalone:
               prepopulateFiles = prepopulateFiles,
               hostname = Some(hostname),
               env = cantonConf.cantonEnvVarMap,
-              user = Some(1001),
+              user = Some(cantonConf.user),
               suppressOutput = !ftEnv.showCantonLogs
             )("daemon")
             .tap(_.get.blockUntilStdOut(_.contains("=== Bootstrapping complete ===")))

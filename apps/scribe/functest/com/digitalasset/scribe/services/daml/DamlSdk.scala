@@ -130,7 +130,6 @@ object DamlSdk:
     ZLayer
       .fromZIO(
         for
-          version         <- FTEnv.cantonVersion
           protocolVersion <- FTEnv.cantonProtocolVersion
           cnt             <- Docker.share(s"${prefix}_cnt")(Ref.Synchronized.make(0)).flatMap(_.updateAndGet(_ + 1))
           hostname = s"$prefix-$cnt"

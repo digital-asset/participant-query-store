@@ -14,11 +14,11 @@ package object millbuild {
 
     // Latest snapshot: https://console.cloud.google.com/artifacts/docker/da-images/europe/public-unstable/components%2Fdamlc
     // Latest stable: https://console.cloud.google.com/artifacts/docker/da-images/europe/public/components%2Fdamlc
-    val damlc = "3.6.0-snapshot.20260709.14749.0.v2489973e"
+    val damlc = "3.5.2"
 
     // Latest snapshot: https://console.cloud.google.com/artifacts/docker/da-images/europe/public-unstable/components%2Fcanton-open-source
     // Latest stable: https://console.cloud.google.com/artifacts/docker/da-images/europe/public/components%2Fcanton-open-source
-    val canton = "3.6.0-snapshot.20260710.19599.0.v11fb3ac0"
+    val canton = "3.5.10"
 
     val dockerClient = "3.4.0"
     val flyway = "12.10.0"
@@ -30,7 +30,7 @@ package object millbuild {
     val openTelemetryAgent = "2.28.1"
     val scalaPB = "0.11.19"
 
-    val zio                  = "2.1.24"
+    val zio                  = "2.1.26"
     val zioConfig            = "3.0.7"
     val zioLogging           = "2.3.0"
     val zioMetricsConnectors = "2.3.1"

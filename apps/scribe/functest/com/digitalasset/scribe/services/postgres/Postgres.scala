@@ -28,6 +28,7 @@ object Postgres:
 
   // Snapshot of the Docker image checksums
   private val imageChecksums = Map(
+    "13" -> "sha256:4689940c683801b4ab839ab3b0a0a3555a5fe425371422310944e89eca7d8068",
     "14" -> "sha256:9e279cc7fc6e908da071befe389c576bd6752dbd295a9c078f96a75bab03e54c",
     "15" -> "sha256:bcab099bfaab33333a73a2ebe8c1d615c9f4c2402dd43452f989a36c6da9a5ba",
     "16" -> "sha256:be01cf82fc7dbba824acf0a82e150b4b360f3ff93c6631d7844af431e841a95c",

@@ -82,8 +82,6 @@ package object errors:
           s"SCRIBE_${_prefix}POSTGRES_HOST"       -> pg.container.hostName,
           s"SCRIBE_${_prefix}POSTGRES_PORT"       -> Postgres.port,
           s"SCRIBE_${_prefix}POSTGRES_DATABASE"   -> dbName.name,
-          s"SCRIBE_${_prefix}POSTGRES_USERNAME"   -> "postgres",
-          s"SCRIBE_${_prefix}POSTGRES_PASSWORD"   -> "postgres",
           s"SCRIBE_${_prefix}POSTGRES_TLS_MODE"   -> "VerifyFull",
           s"SCRIBE_${_prefix}POSTGRES_TLS_KEY"    -> "/tls/client-pg.der",
           s"SCRIBE_${_prefix}POSTGRES_TLS_CERT"   -> "/tls/client-pg.crt",

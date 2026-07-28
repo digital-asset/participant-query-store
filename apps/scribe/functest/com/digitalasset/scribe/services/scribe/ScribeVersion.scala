@@ -9,5 +9,5 @@ case class ScribeVersion(semVer: Semver):
   override def toString: String = semVer.getVersion
 
 object ScribeVersion:
-  val Latest: ScribeVersion                 = ScribeVersion(Semver.of(Int.MaxValue, Int.MaxValue, Int.MaxValue).build)
+  val Latest: ScribeVersion                 = ScribeVersion(Semver.of(Int.MaxValue, Int.MaxValue, Int.MaxValue))
   def apply(version: String): ScribeVersion = ScribeVersion(Semver.parse(version))

@@ -17,12 +17,10 @@ If you wish to build, not just use Scribe, the following [resources](#resources)
 - [CircleCI Pipeline](https://app.circleci.com/pipelines/github/DACH-NY/scribe)
 - Artifacts
   - Releases
-    - Docker Images
-      - [Google Container Registry](https://console.cloud.google.com/artifacts/docker/da-images/europe/public/docker%2Fscribe)
+    - Docker Images: [Google Container Registry](https://console.cloud.google.com/artifacts/docker/da-images/europe/public/docker%2Fscribe)
     - Dpm Components: [Google Container Registry](https://console.cloud.google.com/artifacts/docker/da-images/europe/public/components%2Fscribe)
   - Snapshots
-    - Docker Images
-      - [Google Container Registry](https://console.cloud.google.com/artifacts/docker/da-images/europe/public-unstable/docker%2Fscribe)
+    - Docker Images: [Google Container Registry](https://console.cloud.google.com/artifacts/docker/da-images/europe/public-unstable/docker%2Fscribe)
     - Dpm Components: [Google Container Registry](https://console.cloud.google.com/artifacts/docker/da-images/europe/public-unstable/components%2Fscribe)
 
 ### Guidelines

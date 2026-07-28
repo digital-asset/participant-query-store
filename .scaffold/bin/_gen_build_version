@@ -5,7 +5,14 @@
 ## Script to generate semver compliant build versions based on DA convention
 source $(git rev-parse --show-toplevel)/.scaffold/libs/bash/shared_functions
 
-BASE_VERSION=3.6
+if [ $# -eq 0 ]; then
+  _log_error "No argument provided."
+  _log_error "Usage _gen_build_version <major>.<minor>"
+  _log_error "Example: _gen_build_version 3.5"
+  exit 1
+fi
+
+BASE_VERSION=$1
 
 if ! [[ $BASE_VERSION =~ ^[0-9]{1,2}.[0-9]{1,2}$ ]]; then
   _log_error "The base version $BASE_VERSION does not match the required pattern: ^[0-9]{1,2}.[0-9]{1,2}$."
