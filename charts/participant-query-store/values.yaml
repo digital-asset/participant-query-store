@@ -10,6 +10,11 @@ serviceAccount:
   name: ""
   annotations:
 
+autoPrune:
+  enabled: false
+  cronSchedule: "0 * * * *"
+  # ISO 8601 - Default prunes >30 days 
+  maxAge: "P30D"
 
 initContainers: []
 env: []
