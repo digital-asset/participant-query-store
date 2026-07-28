@@ -12,5 +12,5 @@ _Write summary of release_
 
 - *BREAKING*: PQS configuration no longer provides default Postgres credentials. It is now mandatory to supply the `--target-postgres-username` and `--target-postgres-password` command arguments, or the `PQS_TARGET_POSTGRES_USERNAME` and `PQS_TARGET_POSTGRES_PASSWORD` environment variables.
 
-- PQS values file modified to allow for the creation of an autopruning sidecar. Disabled by default.
-- Refactored PQS autopruner from a sidecar to a cronjob and switched to PQS image and CLI arguments for simplification.
+- (Helm chart) PQS pruning can now be configured via the chart values file. Runs as a cronjob with configurable schedule, disabled by default.
+- Update library versions to address security vulnerabilities
