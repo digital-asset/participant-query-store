@@ -1,0 +1,70 @@
+# Copyright (c) 2026 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+{{- if .Values.autoPrune.enabled }}
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ .Release.Name }}-pruner
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: {{ .Release.Name }}
+spec:
+  schedule: {{ .Values.autoPrune.cronSchedule }}
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 1
+  jobTemplate:
+    spec:
+      template:
+        metadata:
+          labels:
+            app: {{ .Release.Name }}
+        spec:
+          serviceAccount: {{ include "pqs.serviceAccountName" . }}
+          restartPolicy: OnFailure
+          {{- if .Values.initContainers }}
+          initContainers:
+            {{- toYaml .Values.initContainers | nindent 12 }}
+          {{- end }}
+          containers:
+            - name: pqs-pruner
+              image: {{ .Values.image.repo }}/participant-query-store:{{ .Values.image.tag | default .Chart.AppVersion }}
+              command: ["java", "-jar", "/scribe.jar"]
+              args:
+                  - "datastore"
+                  - "postgres-document"
+                  - "prune"
+                  - "--prune-target"
+                  - {{ .Values.autoPrune.maxAge }}
+                  - "--postgres-schema"
+                  - "pqs"
+                  - "--postgres-host"
+                  - {{ .Values.pqs.target.postgres.host }}
+                  - "--postgres-database"
+                  - {{ .Values.pqs.target.postgres.database }}
+                  - "--postgres-username"
+                  - {{ .Values.pqs.target.postgres.username }}
+                  - "--prune-mode"
+                  - Force
+                  - "--logger-destination"
+                  - "/tmp/output.log"
+                  {{- if .Values.pqs.target.passwordSecretRef }}
+                  - "--postgres-password"
+                  - "$(PGPASSWORD)"
+                  {{- end }}
+              {{- if .Values.pqs.target.passwordSecretRef }}
+              env:
+                - name: PGPASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ .Values.pqs.target.passwordSecretRef.name }}
+                      key: {{ .Values.pqs.target.passwordSecretRef.key }}
+              {{- end }}
+              volumeMounts:
+                - name: tmp
+                  mountPath: /tmp
+          volumes:
+            - name: tmp
+              emptyDir: {}
+{{- end }}
