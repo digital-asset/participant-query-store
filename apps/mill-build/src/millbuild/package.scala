@@ -55,7 +55,6 @@ package object millbuild {
     val nettyTransportNativeEpoll = ivy"io.netty:netty-transport-native-epoll:${V.nettyVersion}"
     val nettyTransportNativeKqueue = ivy"io.netty:netty-transport-native-kqueue:${V.nettyVersion}"
 
-
     object canton {
       val ledgerApiProto = ivy"com.daml:ledger-api-proto:${V.canton}"
       val ledgerApi      = ivy"com.daml::ledger-api-scala:${V.canton}".withDottyCompat(V.scala)
