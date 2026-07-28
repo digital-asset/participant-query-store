@@ -49,11 +49,14 @@ package object millbuild {
     }
 
     val protoJava = ivy"com.google.protobuf:protobuf-java:3.25.9"
-    val nettyCodecHttp = ivy"io.netty:netty-codec-http:${V.nettyVersion}"
-    val nettyHandlerProxy = ivy"io.netty:netty-handler-proxy:${V.nettyVersion}"
-    val nettyPkiTesting = ivy"io.netty:netty-pkitesting:${V.nettyVersion}"
-    val nettyTransportNativeEpoll = ivy"io.netty:netty-transport-native-epoll:${V.nettyVersion}"
-    val nettyTransportNativeKqueue = ivy"io.netty:netty-transport-native-kqueue:${V.nettyVersion}"
+
+    object netty {
+      val codecHttp = ivy"io.netty:netty-codec-http:${V.nettyVersion}"
+      val handlerProxy = ivy"io.netty:netty-handler-proxy:${V.nettyVersion}"
+      val pkiTesting = ivy"io.netty:netty-pkitesting:${V.nettyVersion}"
+      val transportNativeEpoll = ivy"io.netty:netty-transport-native-epoll:${V.nettyVersion}"
+      val transportNativeKqueue = ivy"io.netty:netty-transport-native-kqueue:${V.nettyVersion}"
+    }
 
     object canton {
       val ledgerApiProto = ivy"com.daml:ledger-api-proto:${V.canton}"
