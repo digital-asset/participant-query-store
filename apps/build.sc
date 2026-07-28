@@ -324,12 +324,12 @@ object `package` extends RootModule { root =>
       L.zio.http,
       L.zio.streams,
       // Bump transitive dep to resolve vulnerabilities
-      L.protoJava,
-      L.nettyCodecHttp,
-      L.nettyHandlerProxy,
-      L.nettyPkiTesting,
-      L.nettyTransportNativeEpoll,
-      L.nettyTransportNativeKqueue
+      L.protoJava
+//      L.nettyCodecHttp,
+//      L.nettyHandlerProxy,
+//      L.nettyPkiTesting,
+//      L.nettyTransportNativeEpoll,
+//      L.nettyTransportNativeKqueue
     )
 
     object test extends ScribeTests

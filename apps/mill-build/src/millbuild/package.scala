@@ -49,11 +49,11 @@ package object millbuild {
     }
 
     val protoJava = ivy"com.google.protobuf:protobuf-java:3.25.9"
-    val nettyCodecHttp = ivy"io.netty:netty-codec-http:${V.nettyVersion}"
-    val nettyHandlerProxy = ivy"io.netty:netty-handler-proxy:${V.nettyVersion}"
-    val nettyPkiTesting = ivy"io.netty:netty-pkitesting:${V.nettyVersion}"
-    val nettyTransportNativeEpoll = ivy"io.netty:netty-transport-native-epoll:${V.nettyVersion}"
-    val nettyTransportNativeKqueue = ivy"io.netty:netty-transport-native-kqueue:${V.nettyVersion}"
+//    val nettyCodecHttp = ivy"io.netty:netty-codec-http:${V.nettyVersion}"
+//    val nettyHandlerProxy = ivy"io.netty:netty-handler-proxy:${V.nettyVersion}"
+//    val nettyPkiTesting = ivy"io.netty:netty-pkitesting:${V.nettyVersion}"
+//    val nettyTransportNativeEpoll = ivy"io.netty:netty-transport-native-epoll:${V.nettyVersion}"
+//    val nettyTransportNativeKqueue = ivy"io.netty:netty-transport-native-kqueue:${V.nettyVersion}"
 
 
     object canton {
@@ -97,7 +97,7 @@ package object millbuild {
     object zio {
       val zio           = ivy"dev.zio::zio:${V.zio}"
       val streams       = ivy"dev.zio::zio-streams:${V.zio}"
-      val http          = ivy"dev.zio::zio-http:${V.zioHttp}"
+      val http          = ivy"dev.zio::zio-http:${V.zioHttp}".exclude("io.netty")
       val jdbc          = ivy"dev.zio::zio-jdbc:0.1.2"
       val opentelemetry = ivy"dev.zio::zio-opentelemetry:3.1.18"
       val process       = ivy"dev.zio::zio-process:0.8.0"
