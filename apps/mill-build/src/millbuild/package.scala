@@ -25,7 +25,10 @@ package object millbuild {
 
     // Think twice before changing this version, check with Canton's dependencies for a particular release line
     // for compatibility: https://github.com/DACH-NY/canton/blob/main/shared_dependencies.json
-    val grpc  = "1.81.1"
+    val grpc  = "1.81.0"
+
+    // force specific version to address vulns
+    val nettyVersion = "4.2.16"
 
     val openTelemetryAgent = "2.28.1"
     val scalaPB = "0.11.19"
@@ -46,6 +49,12 @@ package object millbuild {
     }
 
     val protoJava = ivy"com.google.protobuf:protobuf-java:3.25.9"
+    val nettyCodecHttp = ivy"io.netty:netty-codec-http:${V.nettyVersion}"
+    val nettyHandlerProxy = ivy"io.netty:netty-handler-proxy:${V.nettyVersion}"
+    val nettyPkiTesting = ivy"io.netty:netty-pkitesting:${V.nettyVersion}"
+    val nettyTransportNativeEpoll = ivy"io.netty:netty-transport-native-epoll:${V.nettyVersion}"
+    val nettyTransportNativeKqueue = ivy"io.netty:netty-transport-native-kqueue:${V.nettyVersion}"
+
 
     object canton {
       val ledgerApiProto = ivy"com.daml:ledger-api-proto:${V.canton}"
