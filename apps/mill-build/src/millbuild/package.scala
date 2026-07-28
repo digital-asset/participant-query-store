@@ -99,7 +99,7 @@ package object millbuild {
     object zio {
       val zio           = ivy"dev.zio::zio:${V.zio}"
       val streams       = ivy"dev.zio::zio-streams:${V.zio}"
-      val http          = ivy"dev.zio::zio-http:${V.zioHttp}"
+      val http          = ivy"dev.zio::zio-http:${V.zioHttp}".excludeOrg("io.netty")
       val jdbc          = ivy"dev.zio::zio-jdbc:0.1.2"
       val opentelemetry = ivy"dev.zio::zio-opentelemetry:3.1.18"
       val process       = ivy"dev.zio::zio-process:0.8.0"
@@ -124,7 +124,7 @@ package object millbuild {
         val test     = ivy"dev.zio::zio-test:${V.zio}"
         val sbt      = ivy"dev.zio::zio-test-sbt:${V.zio}"
         val magnolia = ivy"dev.zio::zio-test-magnolia:${V.zio}"
-        val http     = ivy"dev.zio::zio-http-testkit:${V.zioHttp}"
+        val http     = ivy"dev.zio::zio-http-testkit:${V.zioHttp}".excludeOrg("io.netty")
         val mock     = ivy"dev.zio::zio-mock:${V.zioMock}"
       }
     }
