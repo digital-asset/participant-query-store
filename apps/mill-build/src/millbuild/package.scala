@@ -97,7 +97,7 @@ package object millbuild {
     object zio {
       val zio           = ivy"dev.zio::zio:${V.zio}"
       val streams       = ivy"dev.zio::zio-streams:${V.zio}"
-      val http          = ivy"dev.zio::zio-http:${V.zioHttp}".exclude("io.netty")
+      val http          = ivy"dev.zio::zio-http:${V.zioHttp}".excludeOrg("io.netty")
       val jdbc          = ivy"dev.zio::zio-jdbc:0.1.2"
       val opentelemetry = ivy"dev.zio::zio-opentelemetry:3.1.18"
       val process       = ivy"dev.zio::zio-process:0.8.0"
