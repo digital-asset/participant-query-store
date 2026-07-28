@@ -28,7 +28,7 @@ package object millbuild {
     val grpc  = "1.81.0"
 
     // force specific version to address vulns
-    val nettyVersion = "4.2.16"
+    val nettyVersion = "4.2.16.Final"
 
     val openTelemetryAgent = "2.28.1"
     val scalaPB = "0.11.19"
