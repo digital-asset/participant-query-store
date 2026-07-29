@@ -73,6 +73,22 @@ These top-level sections in the `values.yaml` control the standard lifecycle, id
       periodSeconds: 30
   ```
 
+### `autoPrune`
+* **Description:** Enable PQS auto pruning as per defined schedule and retention period
+* **How it informs `deployment.yaml`:** Will setup a kubernetes cron job to run pruning job as per defined configuration.
+* **Example `values.yaml` Configuration:**
+  ```yaml
+  autoPrune:
+    # Enable auto pruning (disabled by default)
+    enabled: true
+
+    # Define when the pqs pruning job will run format: POSIX 5 field cron schedule
+    cronSchedule: "0 * * * *"
+
+    # ISO 8601 - Default prunes >30 days
+    maxAge: "P30D"
+  ```
+
 ### `initContainers`
 * **Description:** Allows injection of custom initialization containers that run to completion before the main PQS app starts.
 * **How it informs `deployment.yaml`:** Rendered directly into `spec.template.spec.initContainers`.
