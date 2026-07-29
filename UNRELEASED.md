@@ -10,3 +10,4 @@ _Write summary of release_
 
 ### Minor Improvements
 - Add PQS autopruner as a cronjob using PQS image and CLI arguments for simplification.
+- Update library versions to address security vulnerabilities

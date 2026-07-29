@@ -27,6 +27,9 @@ package object millbuild {
     // for compatibility: https://github.com/DACH-NY/canton/blob/main/shared_dependencies.json
     val grpc  = "1.81.0"
 
+    // force specific version to address vulns
+    val nettyVersion = "4.2.16.Final"
+
     val openTelemetryAgent = "2.28.1"
     val scalaPB = "0.11.19"
 
@@ -46,6 +49,14 @@ package object millbuild {
     }
 
     val protoJava = ivy"com.google.protobuf:protobuf-java:3.25.9"
+
+    object netty {
+      val codecHttp = ivy"io.netty:netty-codec-http:${V.nettyVersion}"
+      val handlerProxy = ivy"io.netty:netty-handler-proxy:${V.nettyVersion}"
+      val pkiTesting = ivy"io.netty:netty-pkitesting:${V.nettyVersion}"
+      val transportNativeEpoll = ivy"io.netty:netty-transport-native-epoll:${V.nettyVersion}"
+      val transportNativeKqueue = ivy"io.netty:netty-transport-native-kqueue:${V.nettyVersion}"
+    }
 
     object canton {
       val ledgerApiProto = ivy"com.daml:ledger-api-proto:${V.canton}"
@@ -88,7 +99,7 @@ package object millbuild {
     object zio {
       val zio           = ivy"dev.zio::zio:${V.zio}"
       val streams       = ivy"dev.zio::zio-streams:${V.zio}"
-      val http          = ivy"dev.zio::zio-http:${V.zioHttp}"
+      val http          = ivy"dev.zio::zio-http:${V.zioHttp}".excludeOrg("io.netty")
       val jdbc          = ivy"dev.zio::zio-jdbc:0.1.2"
       val opentelemetry = ivy"dev.zio::zio-opentelemetry:3.1.18"
       val process       = ivy"dev.zio::zio-process:0.8.0"
@@ -113,7 +124,7 @@ package object millbuild {
         val test     = ivy"dev.zio::zio-test:${V.zio}"
         val sbt      = ivy"dev.zio::zio-test-sbt:${V.zio}"
         val magnolia = ivy"dev.zio::zio-test-magnolia:${V.zio}"
-        val http     = ivy"dev.zio::zio-http-testkit:${V.zioHttp}"
+        val http     = ivy"dev.zio::zio-http-testkit:${V.zioHttp}".excludeOrg("io.netty")
         val mock     = ivy"dev.zio::zio-mock:${V.zioMock}"
       }
     }
