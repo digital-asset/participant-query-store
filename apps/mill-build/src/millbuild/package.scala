@@ -27,7 +27,7 @@ package object millbuild {
     // for compatibility: https://github.com/DACH-NY/canton/blob/main/shared_dependencies.json
     val grpc  = "1.81.0"
 
-    // force specific version to address vulnsAdd a comment on  lines R29 to R30Add diff commentMarkdown input:  edit mode selected.WritePreviewAdd a suggestionHeadingBoldItalicQuoteCodeLinkUnordered listNumbered listTask listMentionReferenceMore itemsSaved repliesAdd FilesPaste, drop, or click to add filesCancelCommentStart a review
+    // force specific version to address vulns
     val nettyVersion = "4.2.16.Final"
 
     val openTelemetryAgent = "2.28.1"
