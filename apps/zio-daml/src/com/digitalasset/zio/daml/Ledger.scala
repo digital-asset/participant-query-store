@@ -29,8 +29,8 @@ case class Ledger(
   def getUserRights(partyFilter: PartyFilter): Task[UserRight] =
     partiesService.getRights(partyFilter)
 
-  def getLedgerStart(rights: UserRight): Task[Offset] =
-    stateService.getLedgerStart(rights)
+  def getLedgerStart: Task[Offset] =
+    stateService.getLedgerStart
 
   def getLedgerEnd: Task[Offset] =
     stateService.getLedgerEnd

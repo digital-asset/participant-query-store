@@ -55,7 +55,7 @@ case class StateService(
         )
     )
 
-  def getLedgerStart(rights: UserRight): IO[Throwable, Offset] =
+  def getLedgerStart: IO[Throwable, Offset] =
     stateServiceClient
       .getLatestPrunedOffsets(GetLatestPrunedOffsetsRequest())
       .map(_.participantPrunedUpToInclusive.toOffset)

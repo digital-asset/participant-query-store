@@ -44,7 +44,7 @@ private case class Impl(
             case UserRight.AsAnyParty =>
               logInfo(s"Starting pipeline on behalf of all parties on the participant")
 
-          ledgerStart <- ledger.getLedgerStart(rights)
+          ledgerStart <- ledger.getLedgerStart
           ledgerEnd   <- ledger.getLedgerEnd
           // Registering this instance as the active writer to prevent stale instances from updating the watermark
           _                <- datastore.registerActiveWriterAndCleanupTransactions
