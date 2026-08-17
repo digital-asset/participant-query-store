@@ -12,11 +12,11 @@ DEVENV_ROOT ?= $(shell git rev-parse --show-toplevel)
 include ${DEVENV_ROOT}/.scaffold/libs/make/docker.mk
 
 ## Variables
-export PQS_VERSION      ?= $(shell _gen_build_version)
+export PQS_VERSION         ?= $(shell _gen_build_version)
 export GAR_REPOSITORY      ?= da-images/playground
 export REGISTRY            ?= europe-docker.pkg.dev/$(GAR_REPOSITORY)/docker
 export REPOSITORY          ?= participant-query-store
-export LEGACY_REPOSITORY      ?= scribe
+export LEGACY_REPOSITORY   ?= scribe
 export IMAGE_TAG           ?= $(shell echo ${PQS_VERSION} | sed 's|^v||g')
 export BASE_IMAGE_TAG      ?= jdk
 
