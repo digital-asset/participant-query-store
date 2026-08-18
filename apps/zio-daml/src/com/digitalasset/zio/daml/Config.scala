@@ -4,7 +4,7 @@
 package com.digitalasset.zio.daml
 
 import com.digitalasset.auth.Config.AuthMode
-import com.digitalasset.scribe.configuration.ISO8601Duration
+import com.digitalasset.pqs.configuration.ISO8601Duration
 import zio.config.magnolia.{describe, name}
 import zio.durationInt
 
@@ -23,7 +23,7 @@ case class Config(
     @describe("Buffer size for gRPC channel")
     bufferSize: Int = 128,
     @describe("Cache Directory")
-    cacheDir: File = File("/tmp/scribe")
+    cacheDir: File = File("/tmp/pqs")
 )
 
 case class TlsConfig(

@@ -3,9 +3,9 @@
 
 package zio.jdbc.shims
 
-import com.digitalasset.scribe.o11y.metrics.latency
-import com.digitalasset.scribe.o11y.traces
-import com.digitalasset.scribe.postgres.backend.PostgresConfig
+import com.digitalasset.pqs.o11y.metrics.latency
+import com.digitalasset.pqs.o11y.traces
+import com.digitalasset.pqs.postgres.backend.PostgresConfig
 import zio.jdbc.*
 import zio.metrics.MetricKeyType.Histogram.Boundaries
 import zio.{Exit, Schedule, UIO, ZIO, ZLayer, ZPool}

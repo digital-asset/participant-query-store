@@ -5,7 +5,7 @@
 ## If you need to modify this file, please edit relevant file in https://github.com/DACH-NY/grafana-tools
 
 GRAFONNET_VERSION ?= v11.0.0
-DASHBOARD_SOURCE ?= dashboard.jsonnet
+DASHBOARD_SOURCE ?= dashboards/pqs.jsonnet
 DASHBOARD_GENERATED ?= dashboard.json
 
 ###############################################################################

@@ -3,7 +3,7 @@
 
 package com.digitalasset.zio.daml.ledgerapi
 
-import com.digitalasset.scribe.grpc.ZManagedChannel
+import com.digitalasset.pqs.grpc.ZManagedChannel
 import com.digitalasset.transcode.daml_lf.LfSchemaProcessor
 import com.digitalasset.transcode.schema.{IdentifierFilter, SchemaVisitor}
 import com.digitalasset.zio.daml.FileCache

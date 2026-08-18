@@ -8,7 +8,7 @@ import com.daml.ledger.api.v2.state_service.ZioStateService.StateServiceClient
 import com.daml.ledger.api.v2.update_service.ZioUpdateService.UpdateServiceClient
 import com.digitalasset.canonical.*
 import com.digitalasset.canonical.specific.{Event, Offset}
-import com.digitalasset.scribe.grpc.ZManagedChannel
+import com.digitalasset.pqs.grpc.ZManagedChannel
 import com.digitalasset.transcode.schema.Dictionary
 import com.digitalasset.zio.daml.*
 import com.digitalasset.zio.daml.ledgerapi.*

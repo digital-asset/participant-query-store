@@ -1,6 +1,6 @@
 # Chart Documentation
 
-This document provides a comprehensive guide to the `values.yaml` configuration for the PQS (Scribe) Helm chart. It explains how each section of the values file directly informs the generated Kubernetes manifests, specifically the `Deployment` and `ConfigMap`.
+This document provides a comprehensive guide to the `values.yaml` configuration for the PQS Helm chart. It explains how each section of the values file directly informs the generated Kubernetes manifests, specifically the `Deployment` and `ConfigMap`.
 
 ## Table of Contents
 1. [Standard Kubernetes Configurations](#1-standard-kubernetes-configurations)
@@ -173,7 +173,7 @@ The chart handles sensitive data securely without exposing them in plaintext con
       ledger:
         auth: OAuth
         bufferSize: "128"
-        cacheDir: "/tmp/scribe"
+        cacheDir: "/tmp/pqs"
         host: participant
         keepAlive:
           time: PT40S
@@ -192,7 +192,7 @@ The chart handles sensitive data securely without exposing them in plaintext con
         int64AsString: "true"
         numericAsString: "true"
       postgres:
-        appName: scribe
+        appName: pqs
         bufferSize: "128"
         database: public
         host: postgres

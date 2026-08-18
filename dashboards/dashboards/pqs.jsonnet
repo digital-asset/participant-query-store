@@ -20,7 +20,7 @@ local phmOpts = g.panel.heatmap.panelOptions;
 local pts = p.timeSeries;
 local phm = p.heatmap;
 local ptb = p.table;
-local qs = queries.scribe;
+local qs = queries.pqs;
 
 db.new('Participant Query Store (PQS)')
 + db.withUid('digital-asset-pqs')
@@ -53,8 +53,8 @@ db.new('Participant Query Store (PQS)')
   row.new('Contracts')
   + row.withCollapsed(true)
   + row.withPanels(grid.makeGrid([
-    panels.scribe.timeSeries.contractsChurn('Churn', qs.contracts.churn.all),
-    panels.scribe.timeSeries.activeContracts('Active *', qs.contracts.active),
+    panels.pqs.timeSeries.contractsChurn('Churn', qs.contracts.churn.all),
+    panels.pqs.timeSeries.activeContracts('Active *', qs.contracts.active),
   ], panelWidth=24)),
 
   row.new('Throughput')
@@ -83,24 +83,24 @@ db.new('Participant Query Store (PQS)')
   row.new('Queues sizes - ACS')
   + row.withCollapsed(true)
   + row.withPanels(grid.makeGrid([
-    panels.scribe.heatmap.queueSize('Events', qs.pipeline.waitpoints.queue_size.acs.events)
+    panels.pqs.heatmap.queueSize('Events', qs.pipeline.waitpoints.queue_size.acs.events)
     + phmOpts.withDescription('\\* only during seeding from the ActiveContractSet Ledger API service'),
-    panels.scribe.heatmap.queueSize('Statements', qs.pipeline.waitpoints.queue_size.acs.statements)
+    panels.pqs.heatmap.queueSize('Statements', qs.pipeline.waitpoints.queue_size.acs.statements)
     + phmOpts.withDescription('\\* only during seeding from the ActiveContractSet Ledger API service'),
-    panels.scribe.heatmap.queueSize('Batched statements', qs.pipeline.waitpoints.queue_size.acs.batches)
+    panels.pqs.heatmap.queueSize('Batched statements', qs.pipeline.waitpoints.queue_size.acs.batches)
     + phmOpts.withDescription('\\* only during seeding from the ActiveContractSet Ledger API service'),
-    panels.scribe.heatmap.queueSize('Prepared statements', qs.pipeline.waitpoints.queue_size.acs.prepared_statements)
+    panels.pqs.heatmap.queueSize('Prepared statements', qs.pipeline.waitpoints.queue_size.acs.prepared_statements)
     + phmOpts.withDescription('\\* only during seeding from the ActiveContractSet Ledger API service'),
   ], panelWidth=12)),
 
   row.new('Queues sizes - streaming')
   + row.withCollapsed(true)
   + row.withPanels(grid.wrapPanels([
-    panels.scribe.heatmap.queueSize('Events', qs.pipeline.waitpoints.queue_size.stream.events),
-    panels.scribe.heatmap.queueSize('Statements', qs.pipeline.waitpoints.queue_size.stream.statements),
-    panels.scribe.heatmap.queueSize('Batched statements', qs.pipeline.waitpoints.queue_size.stream.batches),
-    panels.scribe.heatmap.queueSize('Prepared statements', qs.pipeline.waitpoints.queue_size.stream.prepared_statements),
-    panels.scribe.heatmap.queueSize('Watermarks', qs.pipeline.waitpoints.queue_size.stream.watermarks, width=24),
+    panels.pqs.heatmap.queueSize('Events', qs.pipeline.waitpoints.queue_size.stream.events),
+    panels.pqs.heatmap.queueSize('Statements', qs.pipeline.waitpoints.queue_size.stream.statements),
+    panels.pqs.heatmap.queueSize('Batched statements', qs.pipeline.waitpoints.queue_size.stream.batches),
+    panels.pqs.heatmap.queueSize('Prepared statements', qs.pipeline.waitpoints.queue_size.stream.prepared_statements),
+    panels.pqs.heatmap.queueSize('Watermarks', qs.pipeline.waitpoints.queue_size.stream.watermarks, width=24),
   ], panelWidth=12)),
 
   row.new('Latency')
