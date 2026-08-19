@@ -169,7 +169,7 @@ object `package` extends RootModule { root =>
         "class com.fasterxml.** extends java.lang.Enum { *; } ",
         "class io.netty.util.concurrent.ConcurrentSkipListIntObjMultimap { *; }",
         "class tools.jackson.databind.** extends java.lang.Enum { *; }",
-        
+
       )
     }
 

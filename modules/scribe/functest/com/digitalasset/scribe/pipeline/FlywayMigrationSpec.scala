@@ -3,12 +3,14 @@
 
 package com.digitalasset.scribe.pipeline
 
+import com.digitalasset.scribe.Utils
 import com.digitalasset.scribe.functest.FuncTestStandalone
 import com.digitalasset.scribe.functest.matchers.*
 import com.digitalasset.scribe.functest.table.*
 import com.digitalasset.scribe.services.daml.*
 import com.digitalasset.scribe.services.postgres.{Database, Postgres}
-import com.digitalasset.scribe.services.scribe.{Scribe34, Scribe}
+import com.digitalasset.scribe.services.scribe.{Scribe, Scribe34}
+
 import scala.language.implicitConversions
 import zio.jdbc.*
 import zio.test.Assertion.*
@@ -19,30 +21,12 @@ import zio.test.Assertion.*
 object FlywayMigrationSpec extends FuncTestStandalone:
   private val alice = Party("Alice")
 
-  private val pingPong = DamlSource(
-    "PingPong" -> """module PingPong where
-                    |
-                    |import Daml.Script
-                    |import DA.Functor (void)
-                    |
-                    |template Ping
-                    |  with
-                    |    owner: Party
-                    |  where
-                    |    signatory owner
-                    |
-                    |transact : Party -> Script ()
-                    |transact party = void do
-                    |  submit party $ createCmd Ping with owner = party
-                    |""".stripMargin
-  )
-
   def spec = suite("FlyMigrationSpec")(
     funcTest("Migrate from 3.4.6 to main") {
       val instanceId = Capture[String]
       Given:
         DamlSdk.ledger ++ Postgres.instance
-          >+> DamlSdk.dar(pingPong) ++ DamlSdk.parties(alice) ++ Postgres.database
+          >+> DamlSdk.dar(Utils.pingPongTransact) ++ DamlSdk.parties(alice) ++ Postgres.database
           >+> DamlSdk.deploy
 
       And:
@@ -55,10 +39,10 @@ object FlywayMigrationSpec extends FuncTestStandalone:
         )
       Expect:
         Database
-          .active(Some(s"${pingPong.name}:PingPong:Ping"))
+          .active(Some(s"${Utils.pingPongTransact.name}:PingPong:Ping"))
           .returns(
             table {
-              anything | s"${pingPong.name}:PingPong:Ping" | "template" | anything
+              anything | s"${Utils.pingPongTransact.name}:PingPong:Ping" | "template" | anything
             }
           )
       Expect:
@@ -87,11 +71,11 @@ object FlywayMigrationSpec extends FuncTestStandalone:
         )
       Expect:
         Database
-          .active(Some(s"${pingPong.name}:PingPong:Ping"))
+          .active(Some(s"${Utils.pingPongTransact.name}:PingPong:Ping"))
           .returns(
             table {
-              anything | s"${pingPong.name}:PingPong:Ping" | "template" | anything
-              anything | s"${pingPong.name}:PingPong:Ping" | "template" | anything
+              anything | s"${Utils.pingPongTransact.name}:PingPong:Ping" | "template" | anything
+              anything | s"${Utils.pingPongTransact.name}:PingPong:Ping" | "template" | anything
             }
           )
       Expect:
