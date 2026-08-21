@@ -6,6 +6,11 @@ PQS PQS_VERSION has been released on RELEASE_DATE
 
 _Write summary of release_
 
+## SQL Migration
+
+This release includes the following SQL migrations:
+- _MIGRATION FILE: DESCRIPTION_
+
 ## What's New
 
 ### Minor Improvements
