@@ -10,6 +10,6 @@ _Write summary of release_
 
 ### Bug fixes
 
-- Optimize core SQL functions (`creates`, `exercises`, `active`,  `archives`) to compute the nearest offset only once per query.
+- Optimize core SQL functions (`creates`, `exercises`, `active`, `archives`) to compute the nearest offset only once per query.
 
 ### Minor Improvements
