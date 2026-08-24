@@ -1013,7 +1013,7 @@ create or replace function creates(
 $$
     select c.*
     from __contracts(qname) c
-    where c.created_at_ix between __nearest_ix_ceil(from_offset) and __nearest_ix_floor(to_offset)
+    where c.created_at_ix between (select __nearest_ix_ceil(from_offset)) and (select __nearest_ix_floor(to_offset))
 $$ language sql stable parallel safe;
 comment on function creates(text, __transactions."offset"%type, __transactions."offset"%type) is $$Returns payload and metadata for created contracts of the given Daml qualified name.
 Qualified name can be:
@@ -1029,7 +1029,7 @@ create or replace function summary_creates(
 $$
     with stats as (select c.tpe_pk as tpe_pk, count(*) as count
                from __contracts c
-               where c.created_at_ix between __nearest_ix_ceil(from_offset) and __nearest_ix_floor(to_offset)
+               where c.created_at_ix between (select __nearest_ix_ceil(from_offset)) and (select __nearest_ix_floor(to_offset))
                group by c.tpe_pk)
     select tpe.template_fqn, tpe.payload_type, stats.count
     from stats
@@ -1045,7 +1045,7 @@ create or replace function exercises(
 $$
     select e.*
     from __exercises(qname) e
-    where e.exercised_at_ix between __nearest_ix_ceil(from_offset) and __nearest_ix_floor(to_offset)
+    where e.exercised_at_ix between (select __nearest_ix_ceil(from_offset)) and (select __nearest_ix_floor(to_offset))
 $$ language sql stable parallel safe;
 comment on function exercises(text, __transactions."offset"%type, __transactions."offset"%type)
     is $$Returns argument, result and metadata for exercised events of the given Daml qualified name.
@@ -1069,7 +1069,7 @@ create or replace function summary_exercises(
 $$
     with stats as (select e.tpe_pk as tpe_pk, count(*) as count
                from __exercises e
-               where e.exercised_at_ix between __nearest_ix_ceil(from_offset) and __nearest_ix_floor(to_offset)
+               where e.exercised_at_ix between (select __nearest_ix_ceil(from_offset)) and (select __nearest_ix_floor(to_offset))
                group by e.tpe_pk)
     select tpe.template_fqn, tpe.choice_fqn, tpe.choice, tpe.consuming, count
     from stats
@@ -1086,7 +1086,7 @@ as
 $$
 select c.*
 from __contracts(qname) c
-where c.life_ix @> __nearest_ix_floor("offset")
+where c.life_ix @> (select __nearest_ix_floor("offset"))
   and not c.divulged_only -- exclude contracts that were merely divulged
 $$ language sql stable
                 parallel safe;
@@ -1105,7 +1105,7 @@ as
 $$
 with stats as (select c.tpe_pk as tpe_pk, count(*) as count
                from __contracts c
-               where c.life_ix @> __nearest_ix_floor("offset")
+               where c.life_ix @> (select __nearest_ix_floor("offset"))
                  and not c.divulged_only -- exclude contracts that were merely divulged
                group by c.tpe_pk)
 select tpe.template_fqn,
@@ -1153,7 +1153,7 @@ select c.template_fqn,
        c.creation_package_id,
        c.contract_key_hash
 from __contracts(qname) c
-where c.archived_at_ix between __nearest_ix_ceil(from_offset) and __nearest_ix_floor(to_offset)
+where c.archived_at_ix between (select __nearest_ix_ceil(from_offset)) and (select __nearest_ix_floor(to_offset))
 $$ language sql stable
                 parallel safe;
 comment on function archives is $$Returns payload and metadata for archived contracts of the given Daml qualified name.
@@ -1170,7 +1170,7 @@ create or replace function summary_archives(
 $$
     with stats as (select c.tpe_pk as tpe_pk, count(*) as count
                from __contracts c
-               where c.archived_at_ix between __nearest_ix_ceil(from_offset) and __nearest_ix_floor(to_offset)
+               where c.archived_at_ix between (select __nearest_ix_ceil(from_offset)) and (select __nearest_ix_floor(to_offset))
                group by c.tpe_pk)
     select tpe.template_fqn, tpe.payload_type, stats.count
     from stats
@@ -1225,11 +1225,11 @@ create or replace function summary_updates(
 $$
     with creates as (select c.tpe_pk as tpe_pk, count(*) as count
                  from __contracts c
-                 where c.created_at_ix between __nearest_ix_ceil(from_offset) and __nearest_ix_floor(to_offset)
+                 where c.created_at_ix between (select __nearest_ix_ceil(from_offset)) and (select __nearest_ix_floor(to_offset))
                  group by c.tpe_pk),
          archives as (select c.tpe_pk as tpe_pk, count(*) as count
                  from __contracts c
-                 where c.archived_at_ix between __nearest_ix_ceil(from_offset) and __nearest_ix_floor(to_offset)
+                 where c.archived_at_ix between (select __nearest_ix_ceil(from_offset)) and (select __nearest_ix_floor(to_offset))
                  group by c.tpe_pk)
     select tpe.template_fqn,
            tpe.payload_type,
