@@ -8,6 +8,8 @@ _Write summary of release_
 
 ## What's New
 
+### Bug fixes
+
+- Optimize core SQL functions (`creates`, `exercises`, `active`,  `archives`) to compute the nearest offset only once per query.
+
 ### Minor Improvements
-- Add PQS autopruner as a cronjob using PQS image and CLI arguments for simplification.
-- Update library versions to address security vulnerabilities
