@@ -1084,9 +1084,12 @@ create or replace function active(
 ) returns setof contract
 as
 $$
+with o as materialized ( -- execute only once
+  select __nearest_ix_floor("offset") as ix
+)
 select c.*
-from __contracts(qname) c
-where c.life_ix @> __nearest_ix_floor("offset")
+from __contracts(qname) c, o
+where c.life_ix @> o.ix
   and not c.divulged_only -- exclude contracts that were merely divulged
 $$ language sql stable
                 parallel safe;
