@@ -14,11 +14,11 @@ package object millbuild {
 
     // Latest snapshot: https://console.cloud.google.com/artifacts/docker/da-images/europe/public-unstable/components%2Fdamlc
     // Latest stable: https://console.cloud.google.com/artifacts/docker/da-images/europe/public/components%2Fdamlc
-    val damlc = "3.6.0-snapshot.20260709.14749.0.v2489973e"
+    val damlc = "3.6.0-snapshot.20260818.14788.0.v64638935"
 
     // Latest snapshot: https://console.cloud.google.com/artifacts/docker/da-images/europe/public-unstable/components%2Fcanton-open-source
     // Latest stable: https://console.cloud.google.com/artifacts/docker/da-images/europe/public/components%2Fcanton-open-source
-    val canton = "3.6.0-snapshot.20260710.19599.0.v11fb3ac0"
+    val canton = "3.6.0-snapshot.20260818.20026.0.v41046c3b"
 
     val dockerClient = "3.4.0"
     val flyway = "12.10.0"
