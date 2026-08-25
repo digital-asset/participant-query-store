@@ -33,7 +33,8 @@ class ThreadDumpsCollector(interval: Duration, bufferSize: Int, openModules: Boo
 
   private var storage = Ring.empty[(String, Array[Byte])](bufferSize)
   private val executorService = Executors.newSingleThreadScheduledExecutor(
-    new BasicThreadFactory.Builder()
+    BasicThreadFactory
+      .builder()
       .namingPattern("diagnostics-thread-dumps-collector-%d")
       .daemon(true)
       .priority(Thread.MAX_PRIORITY)

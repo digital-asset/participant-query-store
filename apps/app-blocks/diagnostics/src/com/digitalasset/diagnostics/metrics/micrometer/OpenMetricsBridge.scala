@@ -33,7 +33,8 @@ class OpenMetricsBridge(conf: OpenMetricsBridge.Config, storage: OpenMetricsStor
 
   config.namingConvention(NamingConvention.snakeCase)
   start(
-    new BasicThreadFactory.Builder()
+    BasicThreadFactory
+      .builder()
       .namingPattern("diagnostics-metrics-collector-%d")
       .daemon(true)
       .priority(Thread.MAX_PRIORITY)

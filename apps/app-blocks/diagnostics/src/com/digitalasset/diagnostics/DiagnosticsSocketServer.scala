@@ -41,7 +41,8 @@ private class DiagnosticsSocketServer(conf: Config, openModules: Boolean):
 
   // init services
   private val executorService = Executors.newSingleThreadExecutor(
-    new BasicThreadFactory.Builder()
+    BasicThreadFactory
+      .builder()
       .namingPattern("diagnostics-socket-server-%d")
       .daemon(true)
       .priority(Thread.MAX_PRIORITY)
