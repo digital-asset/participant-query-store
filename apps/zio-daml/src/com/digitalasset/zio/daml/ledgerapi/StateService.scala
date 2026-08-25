@@ -63,6 +63,6 @@ case class StateService(
 
   def getLedgerEnd: IO[Throwable, Offset] =
     stateServiceClient
-      .getLedgerEnd(GetLedgerEndRequest())
+      .getLedgerEnd(GetLedgerEndRequest(Seq.empty))
       .map(_.offset.toOffset)
       .tap(offset => logInfo(s"Retrieved ledger end offset: $offset"))
