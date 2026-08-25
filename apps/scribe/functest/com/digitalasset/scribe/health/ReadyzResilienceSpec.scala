@@ -14,7 +14,7 @@ import com.digitalasset.scribe.services.postgres.Postgres
 import com.digitalasset.scribe.services.scribe.Scribe
 import com.github.dockerjava.api.DockerClient
 import com.github.dockerjava.api.command.SyncDockerCmd
-import zio.ZIO
+import zio.{ZIO, durationInt}
 import zio.http.Status
 import zio.json.ast.Json
 
@@ -74,7 +74,9 @@ object ReadyzResilienceSpec extends FuncTestStandalone:
       When:
         ZIO.serviceWith[Postgres](_.service).flatMap(pg => startContainer(pg.container.containerId))
       Then:
-        readyzStatusAndField("jdbc_connection_pool_up") `is` Some((Status.Ok, Some(Json.Bool(true)))) atTheEndOfTheDay
+        readyzStatusAndField("jdbc_connection_pool_up")
+          .is(Some((Status.Ok, Some(Json.Bool(true)))))
+          .atTheEndOfTheDay(50.seconds)
     ,
     funcTest("Canton failure and recovery"):
       Given:

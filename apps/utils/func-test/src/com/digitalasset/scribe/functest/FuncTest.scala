@@ -19,18 +19,17 @@ object FuncTest:
   private[functest] val defaultLayerTimeout = 5.minutes
   private val instructionTimeout            = 30.seconds
 
-  extension [R, E >: Throwable](io: ZIO[R, E, TestResult])
-    def atTheEndOfTheDay: ZIO[R, E, TestResult] =
-      val retryFailures = Schedule.identity[TestResult].whileInput(_.isFailure)
-      val log = Schedule.identity[TestResult].tapOutput { tr =>
-        lazy val assertions = FailureCase.getPath(tr.result).map((a, b) => s"$a → $b").mkString("; ")
-        logDebug(s"Retrying [$assertions]").when(tr.isFailure)
-      }
-      val backoff  = Schedule.exponential(10.millis, 2) || Schedule.spaced(1.second)
-      val upto     = Schedule.upTo(instructionTimeout)
-      val schedule = retryFailures <* log <* backoff <* upto
-      io.repeat(schedule)
-    end atTheEndOfTheDay
+  def atTheEndOfTheDay[R, E](io: ZIO[R, E, TestResult], timeout: Duration = instructionTimeout): ZIO[R, E, TestResult] =
+    val retryFailures = Schedule.identity[TestResult].whileInput(_.isFailure)
+    val log = Schedule.identity[TestResult].tapOutput { tr =>
+      lazy val assertions = FailureCase.getPath(tr.result).map((a, b) => s"$a → $b").mkString("; ")
+      logDebug(s"Retrying [$assertions]").when(tr.isFailure)
+    }
+    val backoff  = Schedule.exponential(10.millis, 2) || Schedule.spaced(1.second)
+    val upto     = Schedule.upTo(timeout)
+    val schedule = retryFailures <* log <* backoff <* upto
+    io.repeat(schedule)
+  end atTheEndOfTheDay
 
 @SuppressWarnings(Array("org.wartremover.warts.AsInstanceOf"))
 abstract class FuncTest[FR: EnvironmentTag] extends ZIOSpec[FTEnv & Dpm & Docker & FR]:
@@ -131,6 +130,7 @@ abstract class FuncTest[FR: EnvironmentTag] extends ZIOSpec[FTEnv & Dpm & Docker
   end Ctx
 
   extension [R, E >: Throwable](io: ZIO[R, E, TestResult])
-    def atTheEndOfTheDay: ZIO[R, E, TestResult] = FuncTest.atTheEndOfTheDay(io)
+    def atTheEndOfTheDay: ZIO[R, E, TestResult]                    = FuncTest.atTheEndOfTheDay(io)
+    def atTheEndOfTheDay(timeout: Duration): ZIO[R, E, TestResult] = FuncTest.atTheEndOfTheDay(io, timeout)
 
 end FuncTest

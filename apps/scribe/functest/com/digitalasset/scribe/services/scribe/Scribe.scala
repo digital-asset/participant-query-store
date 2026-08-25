@@ -5,6 +5,7 @@ package com.digitalasset.scribe.services.scribe
 
 import com.digitalasset.scribe.docker
 import com.digitalasset.scribe.docker.*
+import com.digitalasset.scribe.functest.FuncTest
 import com.digitalasset.scribe.postgres.document.Prune
 import com.digitalasset.scribe.services.daml.{DeployedDar, Ledger, Parties}
 import com.digitalasset.scribe.services.o11y.Collector
@@ -300,8 +301,6 @@ trait Scribe {
     )
 
   def hasProcessedAtLeastTransactions(count: Int) = {
-    import com.digitalasset.scribe.functest.FuncTest.atTheEndOfTheDay
-    import com.digitalasset.scribe.services.postgres.Postgres
     import zio.jdbc.sqlInterpolator
 
     val checkpoints = Postgres.query(
@@ -313,6 +312,6 @@ trait Scribe {
         case _                                                          => false
       }
       .label(s"Difference between start and end is at least $count")
-    zio.test.assertZIO(checkpoints)(difference).atTheEndOfTheDay
+    FuncTest.atTheEndOfTheDay(zio.test.assertZIO(checkpoints)(difference))
   }
 }
