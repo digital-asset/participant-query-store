@@ -37,15 +37,15 @@ Follow the same steps as adding a new function (above), but edit `R__50_views.sq
 	- `DROP PROCEDURE ...`
 	- `DROP VIEW ...`
 
-## Schema snapshot
+## SQL Schema snapshot
 
-[`../schema-dump.sql`](../schema-dump.sql) is a checked-in, generated snapshot of the full Postgres schema (DDL only,
-no data) after all migrations in this directory have been applied — a single file to read/`git diff` to understand
-what the database looks like on a live system, without replaying every migration by hand.
+[`../schema-dump.sql`](../schema-dump.sql) is a checked-in, generated SQL schema snapshot of the full PQS Postgres schema (DDL only,
+no data) after all migrations in this directory have been applied and is meant to serve as a single file to read/`git diff` to understand
+what the database looks like on a live system.
 
-It is **generated, never hand-edited**, and kept honest by `SchemaDumpSpec`, which fails if the checked-in file has
-drifted from what the current migrations actually produce. After adding, changing, or removing a migration here,
-regenerate it and commit the diff alongside your migration:
+The SQL dump is kept up-to-date automatically by `SchemaDumpSpec`, which fails if the checked-in file has
+drifted from what the current migrations actually produce. After updating any of the migration files, regenerate the SQL schema dump
+by running:
 
 ```bash
 REGENERATE_SCHEMA_DUMP=true mill scribe.functest.testOnly com.digitalasset.scribe.schema.postgres.document.SchemaDumpSpec
