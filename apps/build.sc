@@ -200,6 +200,7 @@ object `package` extends RootModule { root =>
       "lombok.Generated",
       "org.checkerframework.**",
       "org.osgi.annotation.bundle.Export",
+      "com.google.protobuf.descriptor.FileOptions$",
     )
 
     override def proguardOptimize: T[Boolean] = false
