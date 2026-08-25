@@ -38,7 +38,7 @@ object SchemaDumpSpec extends SharedLedgerAndPostgresTest:
 
   private val staleMessage =
     s"The reference SQL dump ($target) is stale: regenerate it with `REGENERATE_SCHEMA_DUMP=true mill scribe.functest.testOnly " +
-      "com.digitalasset.scribe.schema.postgres.document.SchemaDumpSpec` and commit it"
+      s"${getClass.getName}` and commit it"
 
   def spec = suite("SchemaDumpSpec")(
     funcTest(s"$target matches the schema produced by the current Flyway migrations"):
