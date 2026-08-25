@@ -48,7 +48,7 @@ package object millbuild {
       val compiler = ivy"com.thesamet.scalapb::compilerplugin:${V.scalaPB}"
     }
 
-    val protoJava = ivy"com.google.protobuf:protobuf-java:3.25.9"
+    val protoJava = ivy"com.google.protobuf:protobuf-java:4.35.1"
 
     object netty {
       val codecHttp = ivy"io.netty:netty-codec-http:${V.nettyVersion}"
@@ -153,7 +153,7 @@ package object millbuild {
 
     object commons {
       val text  = ivy"org.apache.commons:commons-text:1.12.0"
-      val lang3 = ivy"org.apache.commons:commons-lang3:3.17.0"
+      val lang3 = ivy"org.apache.commons:commons-lang3:3.18.0"
     }
 
     object openTelemetry {
