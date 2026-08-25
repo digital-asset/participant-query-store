@@ -176,7 +176,7 @@ object FailedInterfaceViewsSpec extends SharedLedgerAndPostgresTest:
           }
       else
         Expect:
-          active(additionalColumns = Seq("payload")) `returns` expectedPayloadsTbl atTheEndOfTheDay
+          active(additionalColumns = Seq("payload")) `returns` expectedPayloadsTbl retryUntilTimeout
 
       Expect:
         ZIO.from(cid1_assetV2_payload.get) `is` stringMatching(

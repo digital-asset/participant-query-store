@@ -312,6 +312,6 @@ trait Scribe {
         case _                                                          => false
       }
       .label(s"Difference between start and end is at least $count")
-    FuncTest.atTheEndOfTheDay(zio.test.assertZIO(checkpoints)(difference))
+    FuncTest.retryUntilTimeout(zio.test.assertZIO(checkpoints)(difference))
   }
 }

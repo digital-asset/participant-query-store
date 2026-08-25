@@ -70,9 +70,9 @@ object GrafanaSetupSpec extends SharedLedgerAndPostgresTest:
       And:
         database.captureFromService
       Then:
-        Grafana.findTraceByName("initialization routine") `is` initTraceId.captureOptional atTheEndOfTheDay
+        Grafana.findTraceByName("initialization routine") `is` initTraceId.captureOptional retryUntilTimeout
       And:
-        Grafana.findTraceById(initTraceId.get) `is` initTrace.capture atTheEndOfTheDay
+        Grafana.findTraceById(initTraceId.get) `is` initTrace.capture retryUntilTimeout
       And:
         // Check for most important spans to be present
         ZIO.succeed(initTrace.get.spanNames) `is` hasSubset(
@@ -114,10 +114,10 @@ object GrafanaSetupSpec extends SharedLedgerAndPostgresTest:
               && exists(stringMatching("Contract filter inclusive of \\d+ templates and \\d+ interfaces"))
               && exists(stringContaining("Advanced watermark: ix = 0"))
           )
-          .atTheEndOfTheDay
+          .retryUntilTimeout
       And:
         // 2 events: 1 contract + 1 watermark
-        Grafana.getMetrics("pipeline_wp_acs_statements_total") `is` exists(equalTo(2)) atTheEndOfTheDay
+        Grafana.getMetrics("pipeline_wp_acs_statements_total") `is` exists(equalTo(2)) retryUntilTimeout
     }
 
   def pipelineSpec(source: TxSource, service: String, batchedConsume: Boolean = true) =
@@ -149,9 +149,9 @@ object GrafanaSetupSpec extends SharedLedgerAndPostgresTest:
 
       // 1. `consume` root-span checks
       Then:
-        Grafana.findTraceByName(s"consume $service") `is` consumeTraceId.captureOptional atTheEndOfTheDay
+        Grafana.findTraceByName(s"consume $service") `is` consumeTraceId.captureOptional retryUntilTimeout
       And:
-        Grafana.findTraceById(consumeTraceId.get) `is` consumeTrace.capture atTheEndOfTheDay
+        Grafana.findTraceById(consumeTraceId.get) `is` consumeTrace.capture retryUntilTimeout
       And:
         ZIO.succeed(consumeTrace.get.spanNames) `is` hasSameElements(
           Seq(s"consume $service", s"export $label")
@@ -202,9 +202,9 @@ object GrafanaSetupSpec extends SharedLedgerAndPostgresTest:
 
       // 2. `flush` root-span checks
       Then:
-        Grafana.findTraceByName(s"execute datastore transaction") `is` flushTraceId.captureOptional atTheEndOfTheDay
+        Grafana.findTraceByName(s"execute datastore transaction") `is` flushTraceId.captureOptional retryUntilTimeout
       And:
-        Grafana.findTraceById(flushTraceId.get) `is` flushTrace.capture atTheEndOfTheDay
+        Grafana.findTraceById(flushTraceId.get) `is` flushTrace.capture retryUntilTimeout
       And:
         ZIO.succeed(flushTrace.get.spanNames) `is` hasSameElements(
           Seq(
@@ -240,9 +240,9 @@ object GrafanaSetupSpec extends SharedLedgerAndPostgresTest:
 
       // 3. `advance` root-span checks
       Then:
-        Grafana.findTraceByName(s"advance datastore watermark") `is` advanceTraceId.captureOptional atTheEndOfTheDay
+        Grafana.findTraceByName(s"advance datastore watermark") `is` advanceTraceId.captureOptional retryUntilTimeout
       And:
-        Grafana.findTraceById(advanceTraceId.get) `is` advanceTrace.capture atTheEndOfTheDay
+        Grafana.findTraceById(advanceTraceId.get) `is` advanceTrace.capture retryUntilTimeout
       And:
         ZIO.succeed(advanceTrace.get.spanNames) `is` hasSubset(
           Seq(

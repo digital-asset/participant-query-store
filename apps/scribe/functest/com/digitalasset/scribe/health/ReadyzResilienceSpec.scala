@@ -61,7 +61,7 @@ object ReadyzResilienceSpec extends FuncTestStandalone:
           "--target-postgres-probeinterval=PT2S"
         )
       Expect:
-        readyzStatusAndField("jdbc_connection_pool_up") `is` Some((Status.Ok, Some(Json.Bool(true)))) atTheEndOfTheDay
+        readyzStatusAndField("jdbc_connection_pool_up") `is` Some((Status.Ok, Some(Json.Bool(true)))) retryUntilTimeout
       When:
         // We stop/start the Postgres container instead of pausing, because Docker pause freezes the process
         // but keeps TCP sockets open in kernel buffers, so the JDBC probe's SELECT 1 blocks indefinitely rather than
@@ -69,14 +69,14 @@ object ReadyzResilienceSpec extends FuncTestStandalone:
         ZIO.serviceWith[Postgres](_.service).flatMap(pg => stopContainer(pg.container.containerId))
       Then:
         readyzStatusAndField("jdbc_connection_pool_up") `is`
-          Some((Status.ServiceUnavailable, Some(Json.Bool(false)))) atTheEndOfTheDay
+          Some((Status.ServiceUnavailable, Some(Json.Bool(false)))) retryUntilTimeout
 
       When:
         ZIO.serviceWith[Postgres](_.service).flatMap(pg => startContainer(pg.container.containerId))
       Then:
         readyzStatusAndField("jdbc_connection_pool_up")
           .is(Some((Status.Ok, Some(Json.Bool(true)))))
-          .atTheEndOfTheDay(50.seconds)
+          .retryUntilTimeout(50.seconds)
     ,
     funcTest("Canton failure and recovery"):
       Given:
@@ -96,7 +96,7 @@ object ReadyzResilienceSpec extends FuncTestStandalone:
         )
       Expect:
         readyzStatusAndField("grpc_up") `is`
-          Some((Status.Ok, Some(Json.Bool(true)))) atTheEndOfTheDay
+          Some((Status.Ok, Some(Json.Bool(true)))) retryUntilTimeout
 
       When:
         // We pause/unpause the Canton container because stop would lose the uploaded DARs, requiring
@@ -104,12 +104,12 @@ object ReadyzResilienceSpec extends FuncTestStandalone:
         Docker.inspect[Ledger].flatMap(l => pauseContainer(l.container.containerId))
       Then:
         readyzStatusAndField("grpc_up") `is`
-          Some((Status.ServiceUnavailable, Some(Json.Bool(false)))) atTheEndOfTheDay
+          Some((Status.ServiceUnavailable, Some(Json.Bool(false)))) retryUntilTimeout
 
       When:
         Docker.inspect[Ledger].flatMap(l => unpauseContainer(l.container.containerId))
       Then:
-        readyzStatusAndField("grpc_up") `is` Some((Status.Ok, Some(Json.Bool(true)))) atTheEndOfTheDay
+        readyzStatusAndField("grpc_up") `is` Some((Status.Ok, Some(Json.Bool(true)))) retryUntilTimeout
   )
 
   private def containerCmd(cmd: DockerClient => SyncDockerCmd[?]) =

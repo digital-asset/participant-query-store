@@ -52,7 +52,7 @@ object HealthSpec extends SharedLedgerAndPostgresTest:
           "--pipeline-ledger-stop=Never"
         )
       Expect:
-        responseStatus("/livez") `is` Some(Status.Ok) atTheEndOfTheDay
+        responseStatus("/livez") `is` Some(Status.Ok) retryUntilTimeout
     ,
     funcTest("readyz"):
       Given:
@@ -64,7 +64,7 @@ object HealthSpec extends SharedLedgerAndPostgresTest:
           "--pipeline-ledger-stop=Never"
         )
       Expect:
-        responseStatus("/readyz") `is` Some(Status.Ok) atTheEndOfTheDay
+        responseStatus("/readyz") `is` Some(Status.Ok) retryUntilTimeout
       And:
         responseBody("/readyz") `is` Some(
           Json.Obj(
@@ -73,5 +73,5 @@ object HealthSpec extends SharedLedgerAndPostgresTest:
             "jdbc_connection_pool_up" -> Json.Bool(true),
             "stream_up"               -> Json.Bool(true)
           )
-        ) atTheEndOfTheDay
+        ) retryUntilTimeout
   )

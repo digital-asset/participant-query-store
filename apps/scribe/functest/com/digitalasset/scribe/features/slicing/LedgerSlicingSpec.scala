@@ -61,7 +61,7 @@ object LedgerSlicingSpec extends SharedLedgerAndPostgresTest:
       Given:
         context >+> Scribe.pipeline("--pipeline-ledger-start=Genesis", "--pipeline-ledger-stop=Never")
       Expect:
-        checkpointsQuery `is` table { anything | 1L | anything | 1L } atTheEndOfTheDay
+        checkpointsQuery `is` table { anything | 1L | anything | 1L } retryUntilTimeout
     ,
     funcTest("on non-empty datastore"):
       val checkpoint = Capture[OffsetType]

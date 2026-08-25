@@ -159,7 +159,7 @@ object PipelineUpdateSpec extends SharedLedgerAndPostgresTest:
         // Release the SQL transaction so the pipeline can proceed
         releaseTransaction.succeed(())
       Expect:
-        Scribe.exitCode.is(ExitCode.success).atTheEndOfTheDay
+        Scribe.exitCode.is(ExitCode.success).retryUntilTimeout
       Expect:
         Postgres.query(sql"""select count(*) from active($templateRef)""").returns(table(1))
     },

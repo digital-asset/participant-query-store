@@ -124,7 +124,7 @@ object AmbiguousPackageNameSupportSpec extends SharedLedgerAndPostgresTest:
           __packages(sql"""order by id""") `returns` table {
             pkgPkR1.capture | packageName | "0.0.0" | pkgIdR1
             pkgPkR2.capture | packageName | "0.0.0" | pkgIdR2
-          } atTheEndOfTheDay
+          } retryUntilTimeout
 
         val pingCTpePk      = Capture[Int]
         val labelableCTpePk = Capture[Int]
@@ -144,7 +144,7 @@ object AmbiguousPackageNameSupportSpec extends SharedLedgerAndPostgresTest:
             upgPkgPk | pingCTpePk      | cId2.capture | "[2,3)" | "created upgraded contract"
             upgPkgPk | labelableCTpePk | anything     | "[3,)"  | "exercised SetLabelChoice on upgraded contract"
             upgPkgPk | pingCTpePk      | cId3.capture | "[3,)"  | "exercised SetLabelChoice on upgraded contract"
-          } atTheEndOfTheDay
+          } retryUntilTimeout
 
         val setLabelChoiceETpePk = Capture[Int]
         Expect:
@@ -164,7 +164,7 @@ object AmbiguousPackageNameSupportSpec extends SharedLedgerAndPostgresTest:
             upgPkgPk | pingCTpePk      | cId2 | "[2,3)" | "created upgraded contract"
             upgPkgPk | labelableCTpePk | cId3 | "[3,)"  | "exercised SetLabelChoice on upgraded contract"
             upgPkgPk | pingCTpePk      | cId3 | "[3,)"  | "exercised SetLabelChoice on upgraded contract"
-          } atTheEndOfTheDay
+          } retryUntilTimeout
 
         Expect:
           __exercises() `returns` Table.empty
@@ -249,7 +249,7 @@ object AmbiguousPackageNameSupportSpec extends SharedLedgerAndPostgresTest:
           __packages(sql"""order by id""") `returns` table {
             pkgPkR1.capture | packageName | "0.0.0" | pkgIdR1
             pkgPkR2.capture | packageName | "0.0.0" | pkgIdR2
-          } atTheEndOfTheDay
+          } retryUntilTimeout
 
         val pingCTpePk      = Capture[Int]
         val labelableCTpePk = Capture[Int]
@@ -267,7 +267,7 @@ object AmbiguousPackageNameSupportSpec extends SharedLedgerAndPostgresTest:
             pkgPk    | pingCTpePk | cId1.capture | "[1,)"  | null
             upgPkgPk | pingCTpePk | cId2.capture | "[2,3)" | "created upgraded contract"
             upgPkgPk | pingCTpePk | cId3.capture | "[3,)"  | "exercised SetLabelChoice on upgraded contract"
-          } atTheEndOfTheDay
+          } retryUntilTimeout
 
         val setLabelChoiceETpePk = Capture[Int]
         Expect:
@@ -287,7 +287,7 @@ object AmbiguousPackageNameSupportSpec extends SharedLedgerAndPostgresTest:
             pkgPk    | pingCTpePk | cId1 | "[1,)"  | null
             upgPkgPk | pingCTpePk | cId2 | "[2,3)" | "created upgraded contract"
             upgPkgPk | pingCTpePk | cId3 | "[3,)"  | "exercised SetLabelChoice on upgraded contract"
-          } atTheEndOfTheDay
+          } retryUntilTimeout
 
         Expect:
           __exercises() `returns` table {

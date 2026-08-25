@@ -126,7 +126,7 @@ object PackageReloadSpec extends SharedLedgerAndPostgresTest:
       And:
         Scribe `hasProcessedAtLeastTransactions` 1
       And:
-        responseStatus("/readyz") `is` Some(Status.Ok) atTheEndOfTheDay
+        responseStatus("/readyz") `is` Some(Status.Ok) retryUntilTimeout
 
       lazy val pongDar = Capture[DeployedDar]
       When:
@@ -140,7 +140,7 @@ object PackageReloadSpec extends SharedLedgerAndPostgresTest:
       And:
         Scribe `hasProcessedAtLeastTransactions` 2
       And:
-        responseStatus("/readyz") `is` Some(Status.Ok) atTheEndOfTheDay
+        responseStatus("/readyz") `is` Some(Status.Ok) retryUntilTimeout
     },
     // Regression: when interfaces were present on the ledger, mkEventFormat fell through
     // to the else branch (closed subscription with explicit TemplateFilter/InterfaceFilter
