@@ -76,7 +76,7 @@ Links:
 * Import project into IDEA:
 
 ```text
-make apps/idea
+make idea
 ```
 
 To get IDE support in mill's build files under settings in `Language & Frameworks` → `Scala` → `Worksheet` → `Treat .sc files as` choose `Always Ammonite`.

@@ -25,5 +25,5 @@ runs:
         mkdir -p ".dist/${version}"
         echo "SCRIBE_VERSION=${version}" >> "$GITHUB_ENV"
         echo "version=${version}" >> "$GITHUB_OUTPUT"
-    - run: make apps/version
+    - run: make version
       shell: bash -euo pipefail -c "source nix.source && exec bash -euo pipefail {0}"

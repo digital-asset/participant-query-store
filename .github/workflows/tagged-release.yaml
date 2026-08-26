@@ -21,9 +21,9 @@ jobs:
         run: make copyright-check
       - uses: ./.github/actions/gen-version
         id: gen-version
-      - run: make apps/prefetch-deps
+      - run: make prefetch-deps
       - name: Build & Package
-        run: make apps/build apps/package apps/populate-dist-dir
+        run: make build package populate-dist-dir
       - uses: ./.github/actions/render-dashboard
         with:
           version: v9.4.0
@@ -33,7 +33,7 @@ jobs:
       - uses: ./.github/actions/render-dashboard
         with:
           version: v11.0.0
-      - run: make apps/populate-blackduck-dir
+      - run: make populate-blackduck-dir
       - name: Blackduck Scan
         run: blackduck_scan -p "${GITHUB_REPOSITORY_OWNER}_${GITHUB_REPOSITORY#*/}" -b "$GITHUB_REF_NAME" -c MAJOR,CRITICAL,BLOCKER
         env:
@@ -113,10 +113,10 @@ jobs:
           name: dist
           path: .dist
       - name: Populate dpm component
-        run: make apps/populate-component-yaml
+        run: make populate-component-yaml
       - run: ls -alhR .dist/
       - name: Push dpm component to da-images/public
-        run: make apps/publish-component ASSISTANT_ARGS="oci://europe-docker.pkg.dev/da-images/public/components"
+        run: make publish-component ASSISTANT_ARGS="oci://europe-docker.pkg.dev/da-images/public/components"
 
   ship-helm:
     runs-on: digital-asset-participant-query-store

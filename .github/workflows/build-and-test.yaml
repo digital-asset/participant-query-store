@@ -26,9 +26,9 @@ jobs:
         run: make copyright-check
       - uses: ./.github/actions/gen-version
         id: gen-version
-      - run: make apps/prefetch-deps
+      - run: make prefetch-deps
       - name: Build & Package
-        run: make apps/build apps/package apps/populate-dist-dir
+        run: make build package populate-dist-dir
       - uses: ./.github/actions/render-dashboard
         with:
           version: v9.4.0
@@ -68,12 +68,12 @@ jobs:
           name: mill-out
           path: out
       - name: Unit tests
-        run: make apps/test
+        run: make test
       - name: Functional tests
-        run: make apps/func-test FUNC_TEST_CONTROLS="--pools 3 --lanes 4"
+        run: make func-test FUNC_TEST_CONTROLS="--pools 3 --lanes 4"
       - name: Consolidate test results
         if: always()
-        run: make apps/consolidate-test-results
+        run: make consolidate-test-results
       - name: Show junit test results
         if: always()
         uses: dorny/test-reporter@v1
@@ -102,7 +102,7 @@ jobs:
         with:
           name: dist
           path: .dist
-      - run: make apps/populate-blackduck-dir
+      - run: make populate-blackduck-dir
       - name: Blackduck Scan
         run: blackduck_scan -p "${GITHUB_REPOSITORY_OWNER}_${GITHUB_REPOSITORY#*/}" -b "$GITHUB_REF_NAME" -c MAJOR,CRITICAL,BLOCKER
         env:
@@ -173,10 +173,10 @@ jobs:
           name: dist
           path: .dist
       - name: Populate dpm component
-        run: make apps/populate-component-yaml
+        run: make populate-component-yaml
       - run: ls -alhR .dist/
       - name: Push dpm component
-        run: make apps/publish-component ASSISTANT_ARGS="oci://europe-docker.pkg.dev/${{ env.GAR_REPOSITORY }}/components"
+        run: make publish-component ASSISTANT_ARGS="oci://europe-docker.pkg.dev/${{ env.GAR_REPOSITORY }}/components"
 
 
   helm-unittest:
@@ -216,6 +216,6 @@ jobs:
       - uses: actions/checkout@v5
       - uses: ./.github/actions/nix
       - name: Validate matrix workflow
-        run: make -s apps/compatibility/validate-matrix-workflow
+        run: make -s validate-matrix-workflow
       - name: Matrix tests dryrun
-        run: make -s apps/compatibility/matrix-test MATRIX_TEST_ARGS="dryrun all"
+        run: make -s matrix-test MATRIX_TEST_ARGS="dryrun all"
