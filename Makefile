@@ -26,7 +26,7 @@ FUNC_TEST_CONTROLS ?=
 
 ## Disable Mill server in CI:
 ifeq ($(CI),true)
-MILL_OPTS += --no-server
+MILL_OPTS := --no-server $(MILL_OPTS)
 endif
 
 ###############################################################################
