@@ -15,6 +15,7 @@
 ## Block Scaffold Specific Files:
 .direnv*
 .envrc.private
+/.dist/
 
 ## Target for Blackduck scanning
 .blackduck-input
