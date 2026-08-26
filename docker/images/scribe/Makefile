@@ -25,7 +25,7 @@ export RFC_3339_BUILD_DATE := $(shell date --rfc-3339=seconds)
 export GIT_SHA             := $(shell git rev-parse HEAD)
 
 ## Ensure we bundle the same OTEL version as what we build and test scribe against:
-export OTEL_VERSION    ?= $(shell grep openTelemetryAgent ${DEVENV_ROOT}/apps/mill-build/src/millbuild/package.scala | awk '{print $$4}'| sed 's/"//g')
+export OTEL_VERSION    ?= $(shell grep openTelemetryAgent ${DEVENV_ROOT}/mill-build/src/millbuild/package.scala | awk '{print $$4}'| sed 's/"//g')
 
 ## Set required variables and build args for this image:
 REQUIRED_BUILD_VARS := SCRIBE_VERSION BASE_IMAGE_TAG OTEL_VERSION RFC_3339_BUILD_DATE GIT_SHA

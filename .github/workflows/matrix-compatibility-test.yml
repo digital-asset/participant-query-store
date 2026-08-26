@@ -30,7 +30,7 @@ jobs:
       - name: Store Mill outputs
         uses: actions/upload-artifact@v7
         with:
-          path: apps/out
+          path: out
           retention-days: 7
 
   matrix-test:

@@ -24,9 +24,9 @@ import wart.WartRemoverModule
 import scala.annotation.nowarn
 
 object `package` extends RootModule { root =>
-  // modules are under apps/
+  // modules are under modules/
   implicit def millModuleBasePath: define.Ctx.BasePath =
-    define.Ctx.BasePath(super.millModuleBasePath.value / "apps")
+    define.Ctx.BasePath(super.millModuleBasePath.value / "modules")
 
   object all extends GlobalTasks
 

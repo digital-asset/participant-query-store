@@ -65,7 +65,7 @@ Follow these conventions:
 
 ## DB Migrations
 
-Refer to [the main README on migrations](apps/postgres/document/resources/db/migration/README.md).
+Refer to [the main README on migrations](modules/postgres/document/resources/db/migration/README.md).
 
 ## Copyright Headers
 

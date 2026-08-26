@@ -86,5 +86,5 @@ To get IDE support in mill's build files under settings in `Language & Framework
 * Install [VSCode](https://code.visualstudio.com/)
 * Install the [Scala (Metals)](https://scalameta.org/metals/docs/editors/vscode/#installation) extension
 * Install the [direnv](https://marketplace.visualstudio.com/items?itemName=Rubymaniac.vscode-direnv) extension
-* Open the `apps` folder in VSCode (File -> Open Folder...)
+* Open the repository folder in VSCode (File -> Open Folder...)
 * Accept Metals' invitation to import the build 

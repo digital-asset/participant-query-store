@@ -15,4 +15,4 @@ nix/**              @digital-asset/sdk-tools-admin
 ## Build Files
 **/Makefile         @digital-asset/sdk-tools-admin
 **/build.sc         @digital-asset/sdk-tools-admin
-apps/mill-build/**  @digital-asset/sdk-tools-admin
+mill-build/**       @digital-asset/sdk-tools-admin

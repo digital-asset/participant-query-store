@@ -9,7 +9,7 @@ Snapshot versions are continuously published by the CI, after each merge to `mai
 Stable releases must be triggered exclusively from the release branches (e.g. `release-line-3.5`).
 
 In preparation for the release, open a PR to update the Canton and daml versions to their latest stable versions,
-in the [build configuration](apps/mill-build/src/millbuild/package.scala), and the [matrix compatibility tests](apps/compatibility/parameters.csv).
+in the [build configuration](mill-build/src/millbuild/package.scala), and the [matrix compatibility tests](modules/compatibility/parameters.csv).
 
 Once the PR is merged into the release branch, wait for the `build-ship` workflow to run successfully.
 
@@ -42,8 +42,8 @@ git checkout -b release-line-3.5 origin/main
 git push origin -u HEAD
 ```
 
-Check every base version passed as argument to `_gen_build_version`, the component tag in [apps/Makefile](apps/Makefile),
-the `daml` and `canton` version in [mill-build/src/deps/package.scala](apps/mill-build/src/millbuild/package.scala).
+Check every base version passed as argument to `_gen_build_version`, the component tag in [Makefile](Makefile),
+the `daml` and `canton` version in [mill-build/src/deps/package.scala](mill-build/src/millbuild/package.scala).
 They should match the base version of the release.
 If that's not the case, update them as described below.
 
@@ -64,12 +64,12 @@ For example, to update the base version from 3.6 to 3.7, create a PR with the fo
 -3.6.0-pre
 +3.7.0-pre
 ```
-- update the dpm component tag in [apps/Makefile](apps/Makefile)
+- update the dpm component tag in [Makefile](Makefile)
 ```diff
 -    --extra-tags 3.6 \
 +    --extra-tags 3.7 \
 ```
-- update the `damlc` and `canton` versions in [mill-build/src/deps/package.scala](apps/mill-build/src/millbuild/package.scala)
+- update the `damlc` and `canton` versions in [mill-build/src/deps/package.scala](mill-build/src/millbuild/package.scala)
 ```diff
 -    val damlc = "3.6.0-snapshot.20260501.14683.0.v4cff1caf"
 +    val damlc = "3.7.0-snapshot.20261020.14344.0.vac465d36"
@@ -77,6 +77,6 @@ For example, to update the base version from 3.6 to 3.7, create a PR with the fo
 -    val canton = "3.6.0-snapshot.20260501.14683.0.v4cff1caf"
 +    val canton = "3.7.0-snapshot.20261020.14344.0.vac465d36"
 ```
-- update the `SCRIBE_DAMLSDKVERSION` and `SCRIBE_CANTONVERSION` versions in the [matrix compatibility tests](apps/compatibility/parameters.csv)
-- Add `Daml36` config in [apps/scribe/functest/com/digitalasset/scribe/services/daml/CantonConf.scala](apps/scribe/functest/com/digitalasset/scribe/services/daml/CantonConf.scala)
+- update the `SCRIBE_DAMLSDKVERSION` and `SCRIBE_CANTONVERSION` versions in the [matrix compatibility tests](modules/compatibility/parameters.csv)
+- Add `Daml36` config in [modules/scribe/functest/com/digitalasset/scribe/services/daml/CantonConf.scala](modules/scribe/functest/com/digitalasset/scribe/services/daml/CantonConf.scala)
 

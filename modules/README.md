@@ -112,5 +112,5 @@ message string based details to be observed.
 
 ### Compatibility test matrix
 
-In `apps/compatibility` there are scripts to run a series of functional tests against different versions of canton, defined in `compatibility/parameters.csv`. This script is runned in CI.
+In `modules/compatibility` there are scripts to run a series of functional tests against different versions of canton, defined in `compatibility/parameters.csv`. This script is runned in CI.
 

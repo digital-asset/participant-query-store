@@ -43,7 +43,7 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: mill-out
-          path: apps/out
+          path: out
           if-no-files-found: error
           retention-days: 7
       - name: Store dist
@@ -66,7 +66,7 @@ jobs:
         uses: actions/download-artifact@v8
         with:
           name: mill-out
-          path: apps/out
+          path: out
       - name: Unit tests
         run: make apps/test
       - name: Functional tests
@@ -80,7 +80,7 @@ jobs:
         with:
           name: Functional Tests
           reporter: 'java-junit'
-          path: 'apps/out/tests/**/*.xml'
+          path: 'out/tests/**/*.xml'
 #      - name: Send slack notification
 #        if: ${{ failure() && regexMatches(github.ref_name, '^(main|release-line-.*|v[0-9].*)$') }}
 #        uses: 8398a7/action-slack@v3

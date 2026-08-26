@@ -4,8 +4,8 @@ Standard-Change:
 - changed-files:
   - any-glob-to-any-file: '.github/**'
   - any-glob-to-any-file: '.scaffold/**'
-  - any-glob-to-any-file: 'apps/.mill-version'
-  - any-glob-to-any-file: 'apps/mill-build/**'
+  - any-glob-to-any-file: '.mill-version'
+  - any-glob-to-any-file: 'mill-build/**'
   - any-glob-to-any-file: '**/Makefile'
   - any-glob-to-any-file: '**/*.nix'
   - any-glob-to-any-file: '**/*.sc'

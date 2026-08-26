@@ -1,6 +1,6 @@
 SCRIBE_POSTGRESVERSION,SCRIBE_DAMLSDKVERSION,SCRIBE_CANTONVERSION,SCRIBE_CANTONPROTOCOLVERSION,SCRIBE_DAMLLFTARGET,SCRIBE_IMAGE_BASE
 # NOTE: if you add/remove tests from this file please run from the following to generate an updated workflow and commit it:
-# apps/compatibility/./run-compatibility-tests.sh -r
+# modules/compatibility/./run-compatibility-tests.sh -r
 # baseline
 17,3.6.0-snapshot.20260818.14788.0.v64638935,3.6.0-snapshot.20260818.20026.0.v41046c3b,35,2.3,eclipse-temurin:21-jre@sha256:d2b9f8f12212cadcfdf889461531784e8fd097feade954d65b31ee7a71c473ec
 # postgres version

@@ -8,8 +8,8 @@ source ${REPO_ROOT}/.scaffold/libs/bash/shared_functions
 
 ## Defaults
 HEADER='Scribe Matrix Test Runner v2'
-PARAMS_CSV="${REPO_ROOT}/apps/compatibility/parameters.csv"
-LOG_DIR="${REPO_ROOT}/apps/compatibility/log"
+PARAMS_CSV="${REPO_ROOT}/modules/compatibility/parameters.csv"
+LOG_DIR="${REPO_ROOT}/modules/compatibility/log"
 WORKFLOW_FILE="${REPO_ROOT}/.github/workflows/matrix-compatibility-test.yml"
 declare -a FUNC_TEST_CONTROLS='()'
 
@@ -84,7 +84,7 @@ jobs:
       - name: Store Mill outputs
         uses: actions/upload-artifact@v7
         with:
-          path: apps/out
+          path: out
           retention-days: 7
 
   matrix-test:
@@ -230,7 +230,7 @@ for line in "${lines[@]}"; do
     done
 
     echo ""
-    pushd ${REPO_ROOT}/apps 1> /dev/null
+    pushd ${REPO_ROOT} 1> /dev/null
     _cmd make func-test FUNC_TEST_CONTROLS="${FUNC_TEST_CONTROLS[*]}"
     rc="${?}"
     popd 1> /dev/null

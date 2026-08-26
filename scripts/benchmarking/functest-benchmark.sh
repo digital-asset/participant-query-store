@@ -35,7 +35,7 @@ set -euo pipefail
 # =============================================================================
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-APPS_DIR="$(cd "$SCRIPT_DIR/../../apps" && pwd)"
+REPO_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
 RESULTS_DIR="$SCRIPT_DIR/out"
 DOCKER_SOCK="$HOME/Library/Containers/com.docker.docker/Data/backend.sock"
 RESULTS_FILE="$RESULTS_DIR/functest-benchmark-results-$(date +%Y%m%d-%H%M%S).txt"
@@ -76,7 +76,7 @@ check_prerequisites() {
   command -v jq >/dev/null 2>&1 || die "jq not found (brew install jq)"
   command -v make >/dev/null 2>&1 || die "make not found"
   [[ -S "$DOCKER_SOCK" ]] || die "Docker Desktop backend socket not found at: $DOCKER_SOCK"
-  [[ -d "$APPS_DIR" ]] || die "apps directory not found at: $APPS_DIR"
+  [[ -d "$REPO_DIR" ]] || die "repository directory not found at: $REPO_DIR"
 }
 
 get_current_resources() {
@@ -162,7 +162,7 @@ kill_mill() {
 
 run_test() {
   local pools=$1 lanes=$2 logfile=$3
-  cd "$APPS_DIR"
+  cd "$REPO_DIR"
   make func-test FUNC_TEST_CONTROLS="--pools $pools --lanes $lanes" > "$logfile" 2>&1
   return $?
 }
