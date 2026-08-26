@@ -16,7 +16,7 @@
     "flake.nix",
     "flake.lock",
     "*/*.tpl",
-    "apps/.mill-version",
+    ".mill-version",
     "charts/participant-query-store/.helmignore"
   ],
   "legacy-headers": [

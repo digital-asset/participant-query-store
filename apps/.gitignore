@@ -1,9 +1,0 @@
-## JVM/mill Cruft
-/out/
-/target/
-/.bsp/
-/.daml-sdk/
-/.idea/
-/_gen/
-*.log
-/.vscode/
