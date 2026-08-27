@@ -29,7 +29,7 @@ To trigger the stable release, create a Github release from the Github UI:
 - Submit the release by clicking on `Publish release`
 
 Github creates the version tag on the release branch.
-It triggers the `tagged-release` workflow, on that branch, which will publish PQS Docker image and dpm component. 
+It triggers the `tagged-release` workflow, on that branch, which will publish the PQS Docker image and dpm component. 
 
 ## How to create a release branch
 

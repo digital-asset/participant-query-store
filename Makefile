@@ -237,7 +237,10 @@ populate-component-yaml: ## Render dpm component.yaml
 .PHONY: publish-component
 publish-component: ## publish dpm component
 	dpm publish component \
-		-p generic=.dist/${PQS_VERSION}/ $(ASSISTANT_ARGS)/pqs:$(patsubst v%,%,$(PQS_VERSION)) \
+		-p generic=.dist/${PQS_VERSION}/ $(ASSISTANT_ARGS)/participant-query-store:$(patsubst v%,%,$(PQS_VERSION)) \
+		--extra-tags 3.6
+	dpm publish component \
+		-p generic=.dist/${PQS_VERSION}/ $(ASSISTANT_ARGS)/scribe:$(patsubst v%,%,$(PQS_VERSION)) \
 		--extra-tags 3.6
 
 ## Discovered Targets:

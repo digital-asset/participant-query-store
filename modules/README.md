@@ -44,7 +44,7 @@ mill all.reformat
 
 ## Functional tests
 
-Functional tests run against the whole environment (canton, postgres, pqs) running in docker containers, JVM test does this job roughly:
+Functional tests run against the whole environment (canton, postgres, PQS) running in docker containers, JVM test does this job roughly:
 
 1. Start canton in docker (+ another container with postgres as a backing store)
 2. Start postgres for PQS

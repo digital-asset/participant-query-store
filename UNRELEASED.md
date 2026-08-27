@@ -16,7 +16,8 @@ This release includes the following SQL migrations:
 
 ### Renamed Scribe to Participant Query Store (PQS)
 
-- *BREAKING*: The assembly JAR is renamed from `scribe.jar` to `pqs.jar`
+- *BREAKING*: The assembly JAR is renamed from `scribe.jar` to `pqs.jar`.
+- *BREAKING*: The Docker image entrypoint is updated to run the `pqs.jar`.
 - *BREAKING*: The main class is renamed from `com.digitalasset.scribe.Main` to `com.digitalasset.pqs.Main`.
 - *BREAKING*: The application name property in the Postgres connection is renamed from `scribe` to `pqs`.
 - Environment configuration with `PQS_` prefix (e.g. `PQS_TARGET_POSTGRES_HOST`) is now supported. The `SCRIBE_` prefix is still supported as a fallback and it prints a deprecation warning.
