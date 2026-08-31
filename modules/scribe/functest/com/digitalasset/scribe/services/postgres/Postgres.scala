@@ -7,6 +7,7 @@ import com.digitalasset.scribe.docker.{Docker, Service}
 import com.digitalasset.scribe.functest.FTEnv
 import com.digitalasset.scribe.functest.table.{Cell, Row, Table}
 import com.digitalasset.scribe.specific.offsetSqlFragment
+import com.digitalasset.scribe.utils.safeequals.===
 import org.postgresql.PGProperty
 import zio.*
 import zio.ZIO.{acquireRelease, attemptBlocking, logDebug}
@@ -206,45 +207,32 @@ object Postgres:
   )
 
   /** Returns the SQL schema dump (DDL only, no data/roles/ownership) of the currently connected PQS database as text,
-    * by running `pg_dump` from a new container against the running Postgres instance.
+    * by running `pg_dump` inside the already running Postgres container (the equivalent of `docker exec`).
     */
-  def dumpSchema: ZIO[Docker & Postgres & Database, Throwable, String] =
-    ZIO.scoped {
-      for
-        pg     <- ZIO.service[Postgres]
-        dbName <- ZIO.serviceWith[Database](_.name)
-        ca     <- Docker.certificateAuthority
-        client <- ca.generate("pgdump")
-        dumpPath = os.root / "pqs_schema_dump.sql"
-        connInfo =
-          s"host=${pg.container.hostName} port=$port dbname=$dbName user=postgres password=postgres " +
-            "sslmode=verify-ca sslrootcert=/tls/root-ca.crt sslcert=/tls/client.crt sslkey=/tls/client.pem"
-        svc <- Docker.run(
-          image = pg.container.image,
-          prepopulateFiles = Seq(
-            os.root / "tls" / "root-ca.crt" -> ca.certificate.crt,
-            os.root / "tls" / "client.crt"  -> client.certificate.crt,
-            os.root / "tls" / "client.pem"  -> client.certificate.pem
-          )
-        )(
-          "pg_dump",
-          connInfo,
-          // Use a dummy restrict-key tag to ensure determinism in tests
-          "--restrict-key=onlyfortestingpqs",
-          "--schema-only",
-          "--no-owner",
-          "--no-privileges",
-          "--no-comments",
-          s"--file=$dumpPath"
-        )
-        bytes <- svc.getFileContents(dumpPath)
-      yield new String(bytes, java.nio.charset.StandardCharsets.UTF_8)
-    }
+  def dumpSchema: ZIO[Postgres & Database, Throwable, String] =
+    for
+      pg     <- ZIO.service[Postgres]
+      dbName <- ZIO.serviceWith[Database](_.name)
+      result <- pg.exec(
+        "pg_dump",
+        "--username=postgres",
+        s"--dbname=$dbName",
+        // Use a dummy restrict-key tag to ensure determinism in tests
+        "--restrict-key=onlyfortestingpqs",
+        "--schema-only",
+        "--no-owner",
+        "--no-privileges",
+        "--no-comments"
+      )
+      _ <- ZIO
+        .fail(RuntimeException(s"pg_dump failed with exit code ${result.exitCode.code}: ${result.stdErr}"))
+        .unless(result.exitCode === ExitCode.success)
+    yield result.stdOut
 
   /** Dumps the schema (DDL only, no data/roles/ownership) of the currently connected database to the given local file.
     * Useful to eyeball how the schema looks like once all Flyway migrations have been applied.
     */
-  def dumpSchemaTo(target: os.Path): ZIO[Docker & Postgres & Database, Throwable, Unit] =
+  def dumpSchemaTo(target: os.Path): ZIO[Postgres & Database, Throwable, Unit] =
     dumpSchema.flatMap(content =>
       attemptBlocking(os.write.over(target, content, createFolders = true))
         *> logDebug(s"Dumped database schema to $target")

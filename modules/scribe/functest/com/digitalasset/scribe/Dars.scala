@@ -5,7 +5,7 @@ package com.digitalasset.scribe
 
 import com.digitalasset.scribe.services.daml.DamlSource
 
-object Utils:
+object Dars:
   private[scribe] val pingPongTransact = DamlSource(
     "PingPong" ->
       """module PingPong where

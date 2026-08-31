@@ -3,7 +3,7 @@
 
 package com.digitalasset.scribe.schema.postgres.document
 
-import com.digitalasset.scribe.{SharedLedgerAndPostgresTest, Utils}
+import com.digitalasset.scribe.{SharedLedgerAndPostgresTest, Dars}
 import com.digitalasset.scribe.services.daml.{DamlSdk, Party}
 import com.digitalasset.scribe.services.postgres.Postgres
 import com.digitalasset.scribe.services.scribe.Scribe
@@ -33,8 +33,8 @@ object SchemaDumpSpec extends SharedLedgerAndPostgresTest:
   // Mill sets `MILL_WORKSPACE_ROOT` on forked processes precisely to work around this; fall back to `os.pwd` when
   // running outside of Mill (e.g. directly from an IDE).
   private val workspaceRoot = sys.env.get("MILL_WORKSPACE_ROOT").fold(os.pwd)(os.Path(_))
-  private val target        = workspaceRoot / "postgres" / "document" / "resources" / "db" / "schema-dump.sql"
-  private val regenerate    = sys.env.contains("REGENERATE_SCHEMA_DUMP")
+  private val target     = workspaceRoot / "modules" / "postgres" / "document" / "resources" / "db" / "schema-dump.sql"
+  private val regenerate = sys.env.contains("REGENERATE_SCHEMA_DUMP")
 
   private val staleMessage =
     s"The reference SQL dump ($target) is stale: regenerate it with `REGENERATE_SCHEMA_DUMP=true mill scribe.functest.testOnly " +
@@ -43,7 +43,7 @@ object SchemaDumpSpec extends SharedLedgerAndPostgresTest:
   def spec = suite("SchemaDumpSpec")(
     funcTest(s"$target matches the schema produced by the current Flyway migrations"):
       Given:
-        DamlSdk.dar(Utils.pingPongTransact) ++ DamlSdk.parties(alice) ++ Postgres.database >+> DamlSdk.deploy
+        DamlSdk.dar(Dars.pingPongTransact) ++ DamlSdk.parties(alice) ++ Postgres.database >+> DamlSdk.deploy
       When:
         // Running the pipeline once triggers Scribe's normal schema auto-apply (Flyway migrate + mappings)
         // against a brand-new, empty database.

@@ -3,7 +3,7 @@
 
 package com.digitalasset.scribe.pipeline
 
-import com.digitalasset.scribe.Utils
+import com.digitalasset.scribe.Dars
 import com.digitalasset.scribe.functest.FuncTestStandalone
 import com.digitalasset.scribe.functest.matchers.*
 import com.digitalasset.scribe.functest.table.*
@@ -26,7 +26,7 @@ object FlywayMigrationSpec extends FuncTestStandalone:
       val instanceId = Capture[String]
       Given:
         DamlSdk.ledger ++ Postgres.instance
-          >+> DamlSdk.dar(Utils.pingPongTransact) ++ DamlSdk.parties(alice) ++ Postgres.database
+          >+> DamlSdk.dar(Dars.pingPongTransact) ++ DamlSdk.parties(alice) ++ Postgres.database
           >+> DamlSdk.deploy
 
       And:
@@ -39,10 +39,10 @@ object FlywayMigrationSpec extends FuncTestStandalone:
         )
       Expect:
         Database
-          .active(Some(s"${Utils.pingPongTransact.name}:PingPong:Ping"))
+          .active(Some(s"${Dars.pingPongTransact.name}:PingPong:Ping"))
           .returns(
             table {
-              anything | s"${Utils.pingPongTransact.name}:PingPong:Ping" | "template" | anything
+              anything | s"${Dars.pingPongTransact.name}:PingPong:Ping" | "template" | anything
             }
           )
       Expect:
@@ -71,11 +71,11 @@ object FlywayMigrationSpec extends FuncTestStandalone:
         )
       Expect:
         Database
-          .active(Some(s"${Utils.pingPongTransact.name}:PingPong:Ping"))
+          .active(Some(s"${Dars.pingPongTransact.name}:PingPong:Ping"))
           .returns(
             table {
-              anything | s"${Utils.pingPongTransact.name}:PingPong:Ping" | "template" | anything
-              anything | s"${Utils.pingPongTransact.name}:PingPong:Ping" | "template" | anything
+              anything | s"${Dars.pingPongTransact.name}:PingPong:Ping" | "template" | anything
+              anything | s"${Dars.pingPongTransact.name}:PingPong:Ping" | "template" | anything
             }
           )
       Expect:

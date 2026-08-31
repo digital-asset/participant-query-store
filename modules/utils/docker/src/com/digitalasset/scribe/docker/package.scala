@@ -3,7 +3,7 @@
 
 package com.digitalasset.scribe
 
-import zio.Promise
+import zio.{ExitCode, Promise}
 import zio.logging.LogAnnotation
 
 package object docker:
@@ -11,6 +11,9 @@ package object docker:
     def line: String
   final case class StdOut(line: String) extends StdIO
   final case class StdErr(line: String) extends StdIO
+
+  /** Outcome of a command executed inside an already running container (the equivalent of `docker exec`). */
+  final case class ExecResult(exitCode: ExitCode, stdOut: String, stdErr: String)
 
   val SuiteName      = LogAnnotation[Option[Int]]("suite", (_, b) => b, _.fold("")(x => s"#$x"))
   val ContainerImage = LogAnnotation[String]("image", (_, b) => b, "[" + _.split('/').last + "]")

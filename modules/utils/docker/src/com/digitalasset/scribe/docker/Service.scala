@@ -3,6 +3,7 @@
 
 package com.digitalasset.scribe.docker
 
+import os.Shellable
 import zio.ZIO.{logDebug, logError}
 import zio.stream.ZStream
 import zio.{ExitCode, Task, Trace, ZIO}
@@ -13,8 +14,15 @@ final case class Service[T](
     exposedPorts: Map[Int, Int],
     io: ZStream[Any, Throwable, StdIO],
     exitCode: Task[ExitCode],
-    getFileContents: os.Path => Task[Array[Byte]]
+    getFileContents: os.Path => Task[Array[Byte]],
+    execute: Seq[Shellable] => Task[ExecResult]
 ) {
+
+  /** Runs a command inside this (already running) container, the equivalent of `docker exec`, and collects its output
+    * and exit code.
+    */
+  def exec(cmd: Shellable*): Task[ExecResult] = execute(cmd)
+
   def blockUntilStdOut(predicate: String => Boolean)(implicit trace: Trace): Task[Unit] =
     blockUntilOutput { case StdOut(line) if predicate(line) => () }
   def blockUntilStdErr(predicate: String => Boolean)(implicit trace: Trace): Task[Unit] =
