@@ -87,19 +87,17 @@ object NuckSpec extends SharedLedgerAndPostgresTest:
             }
           )
         }
-      // The same hash is stored on the interface row of each contract, so this lookup - which does
-      // not pin the entity - returns both rows of A and both rows of B.
+      // Only template rows carry the key hash, so this lookup - which does not pin the entity -
+      // returns one row per contract.
       Expect:
         lookupByKeyHash(contractKeyHash.get).returns(
           table {
-            anything | "A" // template row
-            anything | "A" // interface row
-            anything | "B"
+            anything | "A"
             anything | "B"
           }
         )
     },
-    funcTest("Interface rows store the key hash the Ledger API sent, but not the contract key") {
+    funcTest("Interface rows store neither the contract key nor its hash") {
       val keyHash42 = Capture[String]
       val keyHash43 = Capture[String]
       Given:
@@ -112,31 +110,26 @@ object NuckSpec extends SharedLedgerAndPostgresTest:
           s"--pipeline-filter-contracts=${Pipeline.allContractsWithoutAdminWorkflows}"
         )
 
-      // What the Ledger API delivers for the interface, against what PQS kept on the interface row.
+      // The Ledger API does deliver both key and hash on an interface-only subscription; PQS drops
+      // both, because they describe the underlying template, not the interface view.
       Expect:
         for
           aliceId <- alice.id
           stored <- Postgres
             .query(
-              sql"""select contract_id, contract_key_hash, contract_key is null
+              sql"""select contract_id, contract_key is null, contract_key_hash is null
                     from active($interfaceFqn)
-                    where payload ->> 'label' = 'A'""".query[(String, Array[Byte], Boolean)].selectOne
+                    where payload ->> 'label' = 'A'""".query[(String, Boolean, Boolean)].selectOne
             )
             .someOrFail(Throwable("interface row of contract A not found"))
-          (contractId, storedKeyHash, storedKeyIsNull) = stored
+          (contractId, storedKeyIsNull, storedKeyHashIsNull) = stored
           fromApi <- DamlSdk.api.getCreatedEventViaInterface(Seq(aliceId), interfaceFqn, contractId)
         yield zio.test.assertTrue(
           fromApi.interfaceViews.map(_.getInterfaceId.entityName) == Seq("IKeyed"),
-          /** From SDK contractKey: _root_.scala.Option[com.daml.ledger.api.v2.value.Value], contractKeyHash:
-            * _root_.com.google.protobuf.ByteString,
-            *
-            * Why is the contractKeyHas required when contractKey is optional?
-            */
           fromApi.contractKey.isDefined,
           !fromApi.contractKeyHash.isEmpty,
-          // Of the two, PQS keeps the hash on the interface row - byte for byte - and drops the key.
           storedKeyIsNull,
-          storedKeyHash.toSeq == fromApi.contractKeyHash.toByteArray.toSeq
+          storedKeyHashIsNull
         )
 
       Expect:
@@ -155,11 +148,11 @@ object NuckSpec extends SharedLedgerAndPostgresTest:
       Expect:
         keyColumnsOf(interfaceFqn).returns(
           table {
-            "key owner" | "key k" | "key hash"        | "label"
-            ---         | ---     | ---               | ---
-            isNull      | isNull  | keyHash42.capture | "A"
-            isNull      | isNull  | keyHash43.capture | "C"
-            isNull      | isNull  | keyHash42.capture | "B"
+            "key owner" | "key k" | "key hash" | "label"
+            ---         | ---     | ---        | ---
+            isNull      | isNull  | isNull     | "A"
+            isNull      | isNull  | isNull     | "C"
+            isNull      | isNull  | isNull     | "B"
           }
         )
     }
