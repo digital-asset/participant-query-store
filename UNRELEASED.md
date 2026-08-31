@@ -20,3 +20,4 @@ This release includes the following SQL migrations:
 
 - (Helm chart) PQS pruning can now be configured via the chart values file. Runs as a cronjob with configurable schedule, disabled by default.
 - Update library versions to address security vulnerabilities
+- *BREAKING*: Interface view rows no longer store `contract_key_hash`. Previously the hash of the underlying template's contract key was duplicated onto every interface view row, while `contract_key` was already left empty. Both columns are now empty for interface views.
