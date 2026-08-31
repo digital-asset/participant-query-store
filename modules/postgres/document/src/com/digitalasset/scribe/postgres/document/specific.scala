@@ -246,8 +246,10 @@ object specific:
                 observers = observers,
                 witnesses = witnesses,
                 payload = codec.template(entityId).fromDynamicValue(value),
+                // A create yields a row per payload: one for the template, one per interface view. Only a keyed
+                // template has a key codec, so checking templateKey codec drops both contractKey and contractKeyHash.
                 contractKey = (codec.getTemplateKey(entityId) zip contractKey).map(_ `fromDynamicValue` _),
-                contractKeyHash = contractKeyHash,
+                contractKeyHash = codec.getTemplateKey(entityId).flatMap(_ => contractKeyHash),
                 metadata = metadata,
                 acsDelta = acsDelta,
                 packagePk = packageMap(rpId),
