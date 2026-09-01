@@ -156,6 +156,9 @@ trait Pqs {
         )
     )
 
+  private val PqsPrefix    = "PQS_"
+  private val ScribePrefix = "SCRIBE_"
+
   private val conf = ZLayer.fromZIO(
     for
       ca                <- Docker.certificateAuthority
@@ -169,36 +172,35 @@ trait Pqs {
       dar               <- ZIO.service[DeployedDar]
       partyNames        <- ZIO.foreach(parties.get)(_.id)
 
-      base = Map(
-        "DA_DIAGNOSTICS_ENABLED"     -> "false",
-        "PQS_SOURCE_LEDGER_CACHEDIR" -> "/ft/pqs-cache",
-        "PQS_HEALTH_PORT"            -> Pipeline.healthPort,
-        "PQS_PIPELINE_FILTER_CONTRACTS" -> (if version.semVer >= Semver.parse("0.4.0")
-                                            then dar.dar.packageInfo.map((name, _, _) => s"$name:*").mkString("|")
-                                            else dar.dar.packageInfo.map((_, _, id) => s"$id:*").mkString("|")),
-        "PQS_SOURCE_LEDGER_HOST"         -> ledger.container.hostName,
-        "PQS_SOURCE_LEDGER_PORT"         -> Ledger.participantPort,
-        "PQS_TARGET_POSTGRES_HOST"       -> pg.container.hostName,
-        "PQS_TARGET_POSTGRES_PORT"       -> Postgres.port,
-        "PQS_TARGET_POSTGRES_DATABASE"   -> dbName.name,
-        "PQS_TARGET_POSTGRES_USERNAME"   -> "postgres",
-        "PQS_TARGET_POSTGRES_PASSWORD"   -> "postgres",
-        "PQS_SOURCE_LEDGER_TLS_KEY"      -> "/tls/client.pem",
-        "PQS_SOURCE_LEDGER_TLS_CERT"     -> "/tls/client.crt",
-        "PQS_TARGET_POSTGRES_TLS_MODE"   -> "VerifyFull",
-        "PQS_TARGET_POSTGRES_TLS_KEY"    -> "/tls/client.der",
-        "PQS_TARGET_POSTGRES_TLS_CERT"   -> "/tls/client.crt",
-        "PQS_SOURCE_LEDGER_TLS_CAFILE"   -> "/tls/root-ca.crt",
-        "PQS_TARGET_POSTGRES_TLS_CAFILE" -> "/tls/root-ca.crt",
-        "PQS_LOGGER_LEVEL"               -> "Info"
+      unprefixedBase = Map(
+        "SOURCE_LEDGER_CACHEDIR" -> "/ft/pqs-cache",
+        "HEALTH_PORT"            -> Pipeline.healthPort,
+        "PIPELINE_FILTER_CONTRACTS" -> (if version.semVer >= Semver.parse("0.4.0")
+                                        then dar.dar.packageInfo.map((name, _, _) => s"$name:*").mkString("|")
+                                        else dar.dar.packageInfo.map((_, _, id) => s"$id:*").mkString("|")),
+        "SOURCE_LEDGER_HOST"         -> ledger.container.hostName,
+        "SOURCE_LEDGER_PORT"         -> Ledger.participantPort,
+        "TARGET_POSTGRES_HOST"       -> pg.container.hostName,
+        "TARGET_POSTGRES_PORT"       -> Postgres.port,
+        "TARGET_POSTGRES_DATABASE"   -> dbName.name,
+        "TARGET_POSTGRES_USERNAME"   -> "postgres",
+        "TARGET_POSTGRES_PASSWORD"   -> "postgres",
+        "SOURCE_LEDGER_TLS_KEY"      -> "/tls/client.pem",
+        "SOURCE_LEDGER_TLS_CERT"     -> "/tls/client.crt",
+        "TARGET_POSTGRES_TLS_MODE"   -> "VerifyFull",
+        "TARGET_POSTGRES_TLS_KEY"    -> "/tls/client.der",
+        "TARGET_POSTGRES_TLS_CERT"   -> "/tls/client.crt",
+        "SOURCE_LEDGER_TLS_CAFILE"   -> "/tls/root-ca.crt",
+        "TARGET_POSTGRES_TLS_CAFILE" -> "/tls/root-ca.crt",
+        "LOGGER_LEVEL"               -> "Info"
       )
 
-      oauth = oauthInstance.fold(Map("PQS_PIPELINE_FILTER_PARTIES" -> partyNames.mkString("|"))) { oauth =>
+      unprefixedAauth = oauthInstance.fold(Map("PIPELINE_FILTER_PARTIES" -> partyNames.mkString("|"))) { oauth =>
         Map(
-          "PQS_PIPELINE_OAUTH_CLIENTSECRET" -> "clientsecret",
-          "PQS_PIPELINE_OAUTH_ENDPOINT"     -> s"https://${oauth.container.hostName}:${OAuth.port}/issuer1/token",
-          "PQS_PIPELINE_OAUTH_CAFILE"       -> "/tls/root-ca.crt",
-          "PQS_SOURCE_LEDGER_AUTH"          -> "OAuth"
+          "PIPELINE_OAUTH_CLIENTSECRET" -> "clientsecret",
+          "PIPELINE_OAUTH_ENDPOINT"     -> s"https://${oauth.container.hostName}:${OAuth.port}/issuer1/token",
+          "PIPELINE_OAUTH_CAFILE"       -> "/tls/root-ca.crt",
+          "SOURCE_LEDGER_AUTH"          -> "OAuth"
         )
       }
       telemetry = collectorInstance.fold(Map.empty)(collector =>
@@ -214,8 +216,13 @@ trait Pqs {
           "OTEL_EXPORTER_OTLP_ENDPOINT" -> s"http://${collector.container.hostName}:${Collector.Instance.otlp}"
         )
       )
+
+      namespaced    = unprefixedBase ++ unprefixedAauth
+      pqsEnv        = namespaced.map { case (k, v) => s"$PqsPrefix$k" -> v }
+      scribeEnv     = namespaced.map { case (k, v) => s"$ScribePrefix$k" -> v }
+      daDiagnostics = Map("DA_DIAGNOSTICS_ENABLED" -> "false")
     yield (
-      base ++ oauth ++ telemetry,
+      daDiagnostics ++ pqsEnv ++ scribeEnv ++ telemetry,
       Seq(
         os.root / "tls" / "client.pem"  -> clientCertificate.certificate.pem,
         os.root / "tls" / "client.der"  -> clientCertificate.certificate.der,
