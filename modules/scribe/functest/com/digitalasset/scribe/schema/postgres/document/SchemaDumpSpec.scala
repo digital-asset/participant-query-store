@@ -17,8 +17,8 @@ import scala.language.implicitConversions
   * debugging purposes.
   *
   * To ensure the SQL dump is kept up to date, this test compares the current SQL dump against the checked-in snapshot
-  * at `postgres/document/resources/db/schema-dump.sql`. The test fails if the snapshot has drifted out of sync with the
-  * migrations.
+  * at `modules/postgres/document/resources/db/schema-dump.sql`. The test fails if the snapshot has drifted out of sync
+  * with the migrations.
   *
   * Whenever changes are effected to the SQL migrations in `postgres/document/resources/db/migration` , the reference
   * SQL dump must be regenerated, by setting the `REGENERATE_SCHEMA_DUMP` env var when running this spec:
@@ -34,7 +34,7 @@ object SchemaDumpSpec extends SharedLedgerAndPostgresTest:
   // running outside of Mill (e.g. directly from an IDE).
   private val workspaceRoot = sys.env.get("MILL_WORKSPACE_ROOT").fold(os.pwd)(os.Path(_))
   private val target     = workspaceRoot / "modules" / "postgres" / "document" / "resources" / "db" / "schema-dump.sql"
-  private val regenerate = sys.env.contains("REGENERATE_SCHEMA_DUMP")
+  private val regenerate = sys.env.get("REGENERATE_SCHEMA_DUMP").flatMap(_.toBooleanOption).exists(identity)
 
   private val staleMessage =
     s"The reference SQL dump ($target) is stale: regenerate it with `REGENERATE_SCHEMA_DUMP=true mill scribe.functest.testOnly " +

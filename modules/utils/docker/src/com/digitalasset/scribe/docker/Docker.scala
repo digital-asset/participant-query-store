@@ -18,6 +18,7 @@ import zio.ZIO.*
 import zio.stream.ZPipeline
 
 import java.nio.charset.StandardCharsets.UTF_8
+import java.util.concurrent.TimeoutException
 import scala.jdk.CollectionConverters.*
 import scala.util.Try
 
@@ -309,9 +310,17 @@ object Docker:
         // in which case the exit code is not available yet.
         finished = Schedule.recurUntil[InspectExecResponse](r => !Option(r.isRunning).exists(_.booleanValue))
         backoff  = Schedule.exponential(1.milli, 2) || Schedule.spaced(100.millis)
-        response <- client.inspectExecCmd(execId).run.repeat(finished <* backoff)
+        response <- client
+          .inspectExecCmd(execId)
+          .run
+          .repeat(finished <* backoff)
+          .timeoutFail(new TimeoutException("Timeout while waiting for pg_dump to complete"))(60.seconds)
         (stdOut, stdErr) = output
-      yield ExecResult(ExitCode(Option(response.getExitCodeLong).fold(0)(_.intValue)), stdOut, stdErr)
+      yield ExecResult(
+        ExitCode(Option(response.getExitCodeLong).fold(sys.error("Unexpected null exit code"))(_.intValue)),
+        stdOut,
+        stdErr
+      )
 
     private def getFileContents(containerId: String, path: os.Path)(implicit trace: Trace): Task[Array[Byte]] =
       acquireReleaseWith( // acquire
