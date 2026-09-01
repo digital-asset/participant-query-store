@@ -40,6 +40,9 @@ object SchemaDumpSpec extends SharedLedgerAndPostgresTest:
     s"The reference SQL dump ($target) is stale: regenerate it with `REGENERATE_SCHEMA_DUMP=true mill scribe.functest.testOnly " +
       s"${getClass.getName}` and commit it"
 
+  // We need to drop the copyright header of the checked-in schema before comparing the schema dumps
+  private val copyrightHeaderRegex = """-- Copyright \(c\) \d{4} [^\n]*\n-- SPDX-License-Identifier: [^\n]*\n\n""".r
+
   def spec = suite("SchemaDumpSpec")(
     funcTest(s"$target matches the schema produced by the current Flyway migrations"):
       Given:
@@ -55,5 +58,7 @@ object SchemaDumpSpec extends SharedLedgerAndPostgresTest:
             current   <- Postgres.dumpSchema
             exists    <- ZIO.attemptBlocking(os.exists(target))
             checkedIn <- ZIO.attemptBlocking(if exists then os.read(target) else "")
-          yield assertTrue(exists) && (assertTrue(current == checkedIn) ?? staleMessage)
+          yield assertTrue(exists) && (assert(current)(
+            Assertion.equalTo(copyrightHeaderRegex.replaceFirstIn(checkedIn, ""))
+          ) ?? staleMessage)
   )
