@@ -31,6 +31,7 @@ This release includes the following SQL migrations:
 ### Bug fixes
 
 - Optimize core SQL functions (`creates`, `exercises`, `active`, `archives`) to compute the nearest offset only once per query.
+- Treat a timestamp or duration prune target older than all recorded history as a successful no-op, instead of failing.
 
 ### Minor Improvements
 

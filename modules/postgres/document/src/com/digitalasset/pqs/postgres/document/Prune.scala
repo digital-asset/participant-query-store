@@ -57,14 +57,13 @@ object Prune:
       for
         maybeResult <-
           transaction(query.query[(Option[String], Int, Int, Int, Int)].selectOne).provideEnvironment(env)
-        result <- maybeResult.fold(
-          ZIO.fail(new IllegalStateException(s"Pruning operation using to ${config.target} returned no result."))
-        )(ZIO.succeed)
-        (pruningBoundary, deletedContracts, deletedExercises, deletedEvents, deletedTransactions) = result
-        _ <- pruningBoundary match
+        _ <- maybeResult match
+          // the pruning functions are STRICT: a NULL `nearest_offset` short-circuits them to an empty set
           case None =>
+            printLine(s"No history older than ${config.target}, nothing to do.")
+          case Some((None, _, _, _, _)) =>
             printLine(s"Already pruned past ${config.target}, nothing to do.")
-          case Some(boundary) =>
+          case Some((Some(boundary), deletedContracts, deletedExercises, deletedEvents, deletedTransactions)) =>
             val printResult = printLine(
               List(
                 s"Pruning boundary offset: $boundary",
