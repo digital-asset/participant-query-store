@@ -167,6 +167,24 @@ object PruneCommandSpec extends SharedLedgerAndPostgresTest:
           s"Illegal pruning offset $biggestOffset is beyond upper bounds of contiguous history"
         )
     ,
+    // A NULL `nearest_offset` short-circuits the STRICT pruning functions to an empty set instead of a row.
+    // Counterpart: `force run with timestamp`, where the same kind of target resolves to a real offset.
+    funcTest("dry run fails when no history is older than the timestamp target"):
+      Given:
+        context
+      And:
+        Postgres
+          .query(sql"select nearest_offset('1970-01-01T00:00Z' :: timestamp with time zone) is null")
+          .returns(table(true))
+      When:
+        Pqs.runPrune("--prune-target", "1970-01-01T00:00Z")
+      Expect:
+        Pqs.exitCode `is` ExitCode.failure
+      And:
+        Pqs.stderr `is` stringContaining(
+          "Pruning operation using to 1970-01-01T00:00Z returned no result."
+        )
+    ,
     funcTest("force run with timestamp"):
       val oneCreated             = Capture[OffsetType]
       val oneArchived            = Capture[OffsetType]
