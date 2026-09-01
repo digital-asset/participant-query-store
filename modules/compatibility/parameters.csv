@@ -2,18 +2,18 @@ PQS_POSTGRESVERSION,PQS_DAMLSDKVERSION,PQS_CANTONVERSION,PQS_CANTONPROTOCOLVERSI
 # NOTE: if you add/remove tests from this file please run from the following to generate an updated workflow and commit it:
 # modules/compatibility/./run-compatibility-tests.sh -r
 # baseline
-17,3.6.0-snapshot.20260818.14788.0.v64638935,3.6.0-snapshot.20260818.20026.0.v41046c3b,35,2.3,eclipse-temurin:21-jre@sha256:d2b9f8f12212cadcfdf889461531784e8fd097feade954d65b31ee7a71c473ec
+17,3.6.0-snapshot.20260828.14793.0.vfa06ab6b,3.6.0-snapshot.20260818.20026.0.v41046c3b,35,2.3,eclipse-temurin:21-jre@sha256:d2b9f8f12212cadcfdf889461531784e8fd097feade954d65b31ee7a71c473ec
 # postgres version
-14,3.6.0-snapshot.20260818.14788.0.v64638935,3.6.0-snapshot.20260818.20026.0.v41046c3b,35,2.3,eclipse-temurin:21-jre@sha256:d2b9f8f12212cadcfdf889461531784e8fd097feade954d65b31ee7a71c473ec
-15,3.6.0-snapshot.20260818.14788.0.v64638935,3.6.0-snapshot.20260818.20026.0.v41046c3b,35,2.3,eclipse-temurin:21-jre@sha256:d2b9f8f12212cadcfdf889461531784e8fd097feade954d65b31ee7a71c473ec
-16,3.6.0-snapshot.20260818.14788.0.v64638935,3.6.0-snapshot.20260818.20026.0.v41046c3b,35,2.3,eclipse-temurin:21-jre@sha256:d2b9f8f12212cadcfdf889461531784e8fd097feade954d65b31ee7a71c473ec
-18,3.6.0-snapshot.20260818.14788.0.v64638935,3.6.0-snapshot.20260818.20026.0.v41046c3b,35,2.3,eclipse-temurin:21-jre@sha256:d2b9f8f12212cadcfdf889461531784e8fd097feade954d65b31ee7a71c473ec
+14,3.6.0-snapshot.20260828.14793.0.vfa06ab6b,3.6.0-snapshot.20260818.20026.0.v41046c3b,35,2.3,eclipse-temurin:21-jre@sha256:d2b9f8f12212cadcfdf889461531784e8fd097feade954d65b31ee7a71c473ec
+15,3.6.0-snapshot.20260828.14793.0.vfa06ab6b,3.6.0-snapshot.20260818.20026.0.v41046c3b,35,2.3,eclipse-temurin:21-jre@sha256:d2b9f8f12212cadcfdf889461531784e8fd097feade954d65b31ee7a71c473ec
+16,3.6.0-snapshot.20260828.14793.0.vfa06ab6b,3.6.0-snapshot.20260818.20026.0.v41046c3b,35,2.3,eclipse-temurin:21-jre@sha256:d2b9f8f12212cadcfdf889461531784e8fd097feade954d65b31ee7a71c473ec
+18,3.6.0-snapshot.20260828.14793.0.vfa06ab6b,3.6.0-snapshot.20260818.20026.0.v41046c3b,35,2.3,eclipse-temurin:21-jre@sha256:d2b9f8f12212cadcfdf889461531784e8fd097feade954d65b31ee7a71c473ec
 # jvm version (eclipse-temurin:17-jre)
-17,3.6.0-snapshot.20260818.14788.0.v64638935,3.6.0-snapshot.20260818.20026.0.v41046c3b,35,2.3,eclipse-temurin:17-jre@sha256:1824944ef1bd572d1ff0952afeb2fec7931d77c972c4fbc4dfcdf89f758fb490
+17,3.6.0-snapshot.20260828.14793.0.vfa06ab6b,3.6.0-snapshot.20260818.20026.0.v41046c3b,35,2.3,eclipse-temurin:17-jre@sha256:1824944ef1bd572d1ff0952afeb2fec7931d77c972c4fbc4dfcdf89f758fb490
 # canton / lf / protocol - same version checks
-17,3.6.0-snapshot.20260818.14788.0.v64638935,3.6.0-snapshot.20260818.20026.0.v41046c3b,34,2.1,eclipse-temurin:21-jre@sha256:d2b9f8f12212cadcfdf889461531784e8fd097feade954d65b31ee7a71c473ec
-17,3.6.0-snapshot.20260818.14788.0.v64638935,3.6.0-snapshot.20260818.20026.0.v41046c3b,34,2.2,eclipse-temurin:21-jre@sha256:d2b9f8f12212cadcfdf889461531784e8fd097feade954d65b31ee7a71c473ec
+17,3.6.0-snapshot.20260828.14793.0.vfa06ab6b,3.6.0-snapshot.20260818.20026.0.v41046c3b,34,2.1,eclipse-temurin:21-jre@sha256:d2b9f8f12212cadcfdf889461531784e8fd097feade954d65b31ee7a71c473ec
+17,3.6.0-snapshot.20260828.14793.0.vfa06ab6b,3.6.0-snapshot.20260818.20026.0.v41046c3b,34,2.2,eclipse-temurin:21-jre@sha256:d2b9f8f12212cadcfdf889461531784e8fd097feade954d65b31ee7a71c473ec
 # canton / lf / protocol - cross version checks
-17,3.6.0-snapshot.20260818.14788.0.v64638935,3.4.11,34,2.2,eclipse-temurin:21-jre@sha256:d2b9f8f12212cadcfdf889461531784e8fd097feade954d65b31ee7a71c473ec
-17,3.6.0-snapshot.20260818.14788.0.v64638935,3.5.14,35,2.2,eclipse-temurin:21-jre@sha256:d2b9f8f12212cadcfdf889461531784e8fd097feade954d65b31ee7a71c473ec
-17,3.6.0-snapshot.20260818.14788.0.v64638935,3.5.14,35,2.3,eclipse-temurin:21-jre@sha256:d2b9f8f12212cadcfdf889461531784e8fd097feade954d65b31ee7a71c473ec
+17,3.6.0-snapshot.20260828.14793.0.vfa06ab6b,3.4.11,34,2.2,eclipse-temurin:21-jre@sha256:d2b9f8f12212cadcfdf889461531784e8fd097feade954d65b31ee7a71c473ec
+17,3.6.0-snapshot.20260828.14793.0.vfa06ab6b,3.5.14,35,2.2,eclipse-temurin:21-jre@sha256:d2b9f8f12212cadcfdf889461531784e8fd097feade954d65b31ee7a71c473ec
+17,3.6.0-snapshot.20260828.14793.0.vfa06ab6b,3.5.14,35,2.3,eclipse-temurin:21-jre@sha256:d2b9f8f12212cadcfdf889461531784e8fd097feade954d65b31ee7a71c473ec
