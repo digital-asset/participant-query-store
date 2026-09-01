@@ -69,6 +69,12 @@ object Scribe34 extends Scribe {
   override def user: Option[Int] = Some(1001)
 }
 
+object Scribe35 extends Scribe {
+  override def version: ScribeVersion = ScribeVersion("3.5.7")
+  override def image: String     = s"europe-docker.pkg.dev/da-images/public-all/docker/participant-query-store:$version"
+  override def user: Option[Int] = Some(1001)
+}
+
 trait Scribe {
   def version: ScribeVersion
   def image: String

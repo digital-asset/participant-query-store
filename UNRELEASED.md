@@ -9,7 +9,7 @@ _Write summary of release_
 ## SQL Migration
 
 This release includes the following SQL migrations:
-- _FileName.sql_: _DESCRIPTION_ **[Impact: Instantaneous /< 1 min / ~10 mins]**
+- _V042__Clear_contract_key_hash_for_interface_views.sql_: clears `contract_key_hash` on interface view rows already stored. Scans `__contracts` once and rewrites only the interface rows that still hold a hash. **[Impact: < 1 min]**
 
 
 ## What's New
@@ -20,4 +20,4 @@ This release includes the following SQL migrations:
 
 - (Helm chart) PQS pruning can now be configured via the chart values file. Runs as a cronjob with configurable schedule, disabled by default.
 - Update library versions to address security vulnerabilities
-- *BREAKING*: Interface view rows no longer store `contract_key_hash`. Previously the hash of the underlying template's contract key was duplicated onto every interface view row, while `contract_key` was already left empty. Both columns are now empty for interface views.
+- *BREAKING*: Interface view rows no longer store `contract_key_hash`. Previously the hash of the underlying template's contract key was duplicated onto every interface view row, while `contract_key` was already left empty. Both columns are now empty for interface views. Upgrading also clears the hash from interface view rows already stored. The hash remains available on the template rows.
