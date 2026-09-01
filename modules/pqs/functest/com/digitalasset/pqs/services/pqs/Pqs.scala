@@ -61,24 +61,28 @@ object Pqs extends Pqs {
   override def version: PqsVersion = PqsVersion.Latest
   override def image: String       = localPqsDockerImage
   override def user: Option[Int]   = Some(65532)
+  override def envPrefix: String   = "PQS_"
 }
 
 object Pqs34 extends Pqs {
   override def version: PqsVersion = PqsVersion("3.4.6")
   override def image: String     = s"europe-docker.pkg.dev/da-images/public-all/docker/participant-query-store:$version"
   override def user: Option[Int] = Some(1001)
+  override def envPrefix: String = "SCRIBE_"
 }
 
 object Pqs35 extends Pqs {
   override def version: PqsVersion = PqsVersion("3.5.7")
   override def image: String     = s"europe-docker.pkg.dev/da-images/public-all/docker/participant-query-store:$version"
   override def user: Option[Int] = Some(1001)
+  override def envPrefix: String = "SCRIBE_"
 }
 
 trait Pqs {
   def version: PqsVersion
   def image: String
   def user: Option[Int] = None
+  def envPrefix: String
 
   ////////////
   // Layers //
@@ -128,19 +132,22 @@ trait Pqs {
           os.root / "tls" / "client.crt"  -> clientCertificate.certificate.crt,
           os.root / "tls" / "root-ca.crt" -> ca.certificate.crt
         )
-        base = Map(
-          "DA_DIAGNOSTICS_ENABLED"  -> "false",
-          "PQS_POSTGRES_HOST"       -> pg.container.hostName,
-          "PQS_POSTGRES_PORT"       -> Postgres.port,
-          "PQS_POSTGRES_DATABASE"   -> dbName.name,
-          "PQS_POSTGRES_USERNAME"   -> "postgres",
-          "PQS_POSTGRES_PASSWORD"   -> "postgres",
-          "PQS_POSTGRES_TLS_MODE"   -> "VerifyFull",
-          "PQS_POSTGRES_TLS_KEY"    -> "/tls/client.der",
-          "PQS_POSTGRES_TLS_CERT"   -> "/tls/client.crt",
-          "PQS_POSTGRES_TLS_CAFILE" -> "/tls/root-ca.crt"
+        unprefixedBase = Map(
+          "POSTGRES_HOST"       -> pg.container.hostName,
+          "POSTGRES_PORT"       -> Postgres.port,
+          "POSTGRES_DATABASE"   -> dbName.name,
+          "POSTGRES_USERNAME"   -> "postgres",
+          "POSTGRES_PASSWORD"   -> "postgres",
+          "POSTGRES_TLS_MODE"   -> "VerifyFull",
+          "POSTGRES_TLS_KEY"    -> "/tls/client.der",
+          "POSTGRES_TLS_CERT"   -> "/tls/client.crt",
+          "POSTGRES_TLS_CAFILE" -> "/tls/root-ca.crt"
         )
-      yield base -> files
+        // Always the local/main image regardless of caller (see Docker.service below), so always PQS_ - never
+        // the caller's own envPrefix, which for Pqs34/Pqs35 would wrongly be SCRIBE_.
+        namespaced    = unprefixedBase.map { case (k, v) => s"PQS_$k" -> v }
+        daDiagnostics = Map("DA_DIAGNOSTICS_ENABLED" -> "false")
+      yield (daDiagnostics ++ namespaced) -> files
     }
     layer.flatMap(env =>
       Docker
@@ -155,12 +162,6 @@ trait Pqs {
           extraArgs
         )
     )
-
-  private val PqsPrefix    = "PQS_"
-  private val ScribePrefix = "SCRIBE_"
-
-  // Pqs34/Pqs35 pin pre-rename images that only understand SCRIBE_; main/Latest understands PQS_.
-  private val envPrefix = if version.semVer <= Semver.parse("3.5.7") then ScribePrefix else PqsPrefix
 
   private val conf = ZLayer.fromZIO(
     for
