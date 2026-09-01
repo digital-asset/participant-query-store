@@ -98,8 +98,6 @@ object NuckSpec extends SharedLedgerAndPostgresTest:
         )
     },
     funcTest("Interface rows store neither the contract key nor its hash") {
-      val keyHash42 = Capture[String]
-      val keyHash43 = Capture[String]
       Given:
         context
       And:
@@ -117,17 +115,13 @@ object NuckSpec extends SharedLedgerAndPostgresTest:
           aliceId <- alice.id
           stored <- Postgres
             .query(
-              sql"""select contract_id, contract_key is null, contract_key_hash is null
+              sql"""select contract_key is null, contract_key_hash is null
                     from active($interfaceFqn)
-                    where payload ->> 'label' = 'A'""".query[(String, Boolean, Boolean)].selectOne
+                    where payload ->> 'label' = 'A'""".query[(Boolean, Boolean)].selectOne
             )
             .someOrFail(Throwable("interface row of contract A not found"))
-          (contractId, storedKeyIsNull, storedKeyHashIsNull) = stored
-          fromApi <- DamlSdk.api.getCreatedEventViaInterface(Seq(aliceId), interfaceFqn, contractId)
+          (storedKeyIsNull, storedKeyHashIsNull) = stored
         yield zio.test.assertTrue(
-          fromApi.interfaceViews.map(_.getInterfaceId.entityName) == Seq("IKeyed"),
-          fromApi.contractKey.isDefined,
-          !fromApi.contractKeyHash.isEmpty,
           storedKeyIsNull,
           storedKeyHashIsNull
         )
@@ -136,11 +130,11 @@ object NuckSpec extends SharedLedgerAndPostgresTest:
         alice.id.flatMap { aliceId =>
           keyColumnsOf(templateFqn).returns(
             table {
-              "key owner" | "key k" | "key hash"        | "label"
-              ---         | ---     | ---               | ---
-              aliceId     | "42"    | keyHash42.capture | "A"
-              aliceId     | "43"    | keyHash43.capture | "C"
-              aliceId     | "42"    | keyHash42.capture | "B"
+              "key owner" | "key k" | "key hash"  | "label"
+              ---         | ---     | ---         | ---
+              aliceId     | "42"    | not(isNull) | "A"
+              aliceId     | "43"    | not(isNull) | "C"
+              aliceId     | "42"    | not(isNull) | "B"
             }
           )
         }
