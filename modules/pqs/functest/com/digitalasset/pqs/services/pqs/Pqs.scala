@@ -143,8 +143,6 @@ trait Pqs {
           "POSTGRES_TLS_CERT"   -> "/tls/client.crt",
           "POSTGRES_TLS_CAFILE" -> "/tls/root-ca.crt"
         )
-        // Always the local/main image regardless of caller (see Docker.service below), so always PQS_ - never
-        // the caller's own envPrefix, which for Pqs34/Pqs35 would wrongly be SCRIBE_.
         namespaced    = unprefixedBase.map { case (k, v) => s"PQS_$k" -> v }
         daDiagnostics = Map("DA_DIAGNOSTICS_ENABLED" -> "false")
       yield (daDiagnostics ++ namespaced) -> files

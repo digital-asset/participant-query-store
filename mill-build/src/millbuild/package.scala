@@ -14,7 +14,7 @@ package object millbuild {
 
     // Latest snapshot: https://console.cloud.google.com/artifacts/docker/da-images/europe/public-unstable/components%2Fdamlc
     // Latest stable: https://console.cloud.google.com/artifacts/docker/da-images/europe/public/components%2Fdamlc
-    val damlc = "3.6.0-snapshot.20260818.14788.0.v64638935"
+    val damlc = "3.6.0-snapshot.20260828.14793.0.vfa06ab6b"
 
     // Latest snapshot: https://console.cloud.google.com/artifacts/docker/da-images/europe/public-unstable/components%2Fcanton-open-source
     // Latest stable: https://console.cloud.google.com/artifacts/docker/da-images/europe/public/components%2Fcanton-open-source
