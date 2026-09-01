@@ -51,30 +51,30 @@ object FlywayMigrationSpec extends FuncTestStandalone:
 
   private val pingPongWithKey = DamlSource(
     "PingPongWithKey" -> """module PingPongWithKey where
-                   |
-                   |import Daml.Script
-                   |import DA.Functor (void)
-                   |import IKeyed
-                   |
-                   |template PingWithKey
-                   |  with
-                   |    owner: Party
-                   |    k: Int
-                   |    label: Text
-                   |  where
-                   |    signatory owner
-                   |    key (owner, k): (Party, Int)
-                   |    maintainer key._1
-                   |
-                   |    interface instance IKeyed for PingWithKey where
-                   |      view = VKeyed with label = label
-                   |
-                   |setup: Party -> Script ()
-                   |setup alice = void do
-                   |  submit alice $ createCmd PingWithKey with owner = alice, k = 42, label = "A"
-                   |  submit alice $ createCmd PingWithKey with owner = alice, k = 43, label = "C"
-                   |  submit alice $ createCmd PingWithKey with owner = alice, k = 42, label = "B"
-                   |""".stripMargin
+                           |
+                           |import Daml.Script
+                           |import DA.Functor (void)
+                           |import IKeyed
+                           |
+                           |template PingWithKey
+                           |  with
+                           |    owner: Party
+                           |    k: Int
+                           |    label: Text
+                           |  where
+                           |    signatory owner
+                           |    key (owner, k): (Party, Int)
+                           |    maintainer key._1
+                           |
+                           |    interface instance IKeyed for PingWithKey where
+                           |      view = VKeyed with label = label
+                           |
+                           |setup: Party -> Script ()
+                           |setup alice = void do
+                           |  submit alice $ createCmd PingWithKey with owner = alice, k = 42, label = "A"
+                           |  submit alice $ createCmd PingWithKey with owner = alice, k = 43, label = "C"
+                           |  submit alice $ createCmd PingWithKey with owner = alice, k = 42, label = "B"
+                           |""".stripMargin
   ).dependsOn(iKeyed)
 
   private val templateFqn  = s"${pingPongWithKey.name}:PingPongWithKey:PingWithKey"
