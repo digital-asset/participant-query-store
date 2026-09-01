@@ -281,6 +281,7 @@ object `package` extends RootModule { root =>
       override def testFramework: T[String] = "com.digitalasset.scribe.functest.sbt.FTFramework"
 
       override def forkEnv = T {
+        scribe.docker.build()
         val commonOverrides = Map(
           PostgresVersionEnvVar     -> "17",
           DamlSdkVersionEnvVar      -> V.damlc,
@@ -294,12 +295,7 @@ object `package` extends RootModule { root =>
         commonOverrides ++ sdkOverrides ++ functestEnvInput() ++ super.forkEnv()
       }
 
-
       override def sources   = Task.Sources { super.sources().map(p => PathRef(p.path / os.up / os.up / "functest")) }
-      override def resources = Task.Sources {
-        scribe.docker.build()
-        Seq.empty
-      }
 
       override def ivyDeps = T { super.ivyDeps() ++ Agg(L.sourceCode) }
       override def moduleDeps = {

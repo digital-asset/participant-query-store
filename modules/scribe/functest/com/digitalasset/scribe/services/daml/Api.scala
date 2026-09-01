@@ -20,6 +20,7 @@ import com.daml.ledger.api.v2.admin.user_management_service.{CreateUserRequest, 
 import com.daml.ledger.api.v2.transaction_filter.{
   CumulativeFilter,
   Filters,
+  InterfaceFilter,
   WildcardFilter,
   UpdateFormat,
   TransactionFormat,
@@ -27,12 +28,14 @@ import com.daml.ledger.api.v2.transaction_filter.{
   EventFormat
 }
 import com.daml.ledger.api.v2.update_service.GetUpdatesRequest
+import com.daml.ledger.api.v2.value.Identifier
 import com.daml.ledger.api.v2.update_service.ZioUpdateService.UpdateServiceClient
 import com.digitalasset.canonical.specific.Offset
 import com.digitalasset.scribe.docker.{Docker, Service}
 import com.digitalasset.scribe.grpc.ZManagedChannel
-import com.digitalasset.scribe.utils.safeequals.=/=
+import com.digitalasset.scribe.utils.safeequals.{===, =/=}
 import com.google.protobuf.ByteString
+import zio.stream.ZStream
 import zio.{Chunk, Schedule, ZLayer, durationInt}
 
 case class Api(
@@ -50,14 +53,14 @@ case class Api(
     PartyManagementServiceClient.getParticipantId(GetParticipantIdRequest()).map(_.participantId)
   )
 
-  def getSingleCreatedBlob(parties: Seq[String], transactionId: String) = svc {
-    val wildcard = CumulativeFilter.IdentifierFilter.WildcardFilter(WildcardFilter(includeCreatedEventBlob = true))
+  /** ACS-delta transaction updates from Genesis, as the given identifier filter sees them. */
+  private def updatesFromGenesis(parties: Seq[String], filter: CumulativeFilter.IdentifierFilter) =
     val updateFormat = UpdateFormat.defaultInstance
       .withIncludeTransactions(
         TransactionFormat(
           eventFormat = Some(
             EventFormat.defaultInstance.withFiltersByParty(
-              parties.map(p => p -> Filters.of(Seq(CumulativeFilter.of(wildcard)))).toMap
+              parties.map(p => p -> Filters.of(Seq(CumulativeFilter.of(filter)))).toMap
             )
           ),
           transactionShape = TransactionShape.TRANSACTION_SHAPE_ACS_DELTA
@@ -65,6 +68,12 @@ case class Api(
       )
     UpdateServiceClient
       .getUpdates(GetUpdatesRequest.defaultInstance.withBeginExclusive(Genesis.value).withUpdateFormat(updateFormat))
+
+  def getSingleCreatedBlob(parties: Seq[String], transactionId: String) = svc {
+    updatesFromGenesis(
+      parties,
+      CumulativeFilter.IdentifierFilter.WildcardFilter(WildcardFilter(includeCreatedEventBlob = true))
+    )
       .dropWhile(_.getTransaction.updateId =/= transactionId)
       .runHead
       .someOrFail(Throwable("Transaction id not found"))
@@ -72,6 +81,31 @@ case class Api(
       .collect(Throwable("Single event expected")) { case Chunk(one) => one }
       .map(_.getCreated.createdEventBlob.toByteArray)
       .filterOrFail(_.nonEmpty)(Throwable("Metadata is empty"))
+  }
+
+  /** The created event of a contract, as an interface-only subscription sees it: an interface filter alone, with no
+    * template filter attached.
+    *
+    * @param interfaceQname
+    *   fully qualified interface name, `"package-name:Module:Entity"`
+    */
+  def getCreatedEventViaInterface(parties: Seq[String], interfaceQname: String, contractId: String) = svc {
+    val parts = interfaceQname.split(':')
+    updatesFromGenesis(
+      parties,
+      CumulativeFilter.IdentifierFilter.InterfaceFilter(
+        InterfaceFilter.of(
+          interfaceId = Some(Identifier(s"#${parts(0)}", parts(1), parts(2))),
+          includeInterfaceView = true,
+          includeCreatedEventBlob = false
+        )
+      )
+    )
+      .flatMap(response => ZStream.fromIterable(response.getTransaction.events))
+      .filter(_.getCreated.contractId === contractId)
+      .runHead
+      .someOrFail(Throwable(s"Created event of contract $contractId not found"))
+      .map(_.getCreated)
   }
 
   def listPackageIds = svc(
