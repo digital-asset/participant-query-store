@@ -28,9 +28,10 @@ This release includes the following SQL migrations:
 - *BREAKING*: The `OTEL_SERVICE_NAME` environment variable is updated from `scribe` to `pqs`.
 - *BREAKING*: All metrics and attributes prefixes are renamed from `scribe` to `pqs`.
 
+### Bug fixes
+
+- Optimize core SQL functions (`creates`, `exercises`, `active`, `archives`) to compute the nearest offset only once per query.
+
 ### Minor Improvements
 
 - *BREAKING*: PQS configuration no longer provides default Postgres credentials. It is now mandatory to supply the `--target-postgres-username` and `--target-postgres-password` command arguments, or the `PQS_TARGET_POSTGRES_USERNAME` and `PQS_TARGET_POSTGRES_PASSWORD` environment variables.
-
-- (Helm chart) PQS pruning can now be configured via the chart values file. Runs as a cronjob with configurable schedule, disabled by default.
-- Update library versions to address security vulnerabilities
