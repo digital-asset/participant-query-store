@@ -30,7 +30,7 @@ spec:
           containers:
             - name: pqs-pruner
               image: {{ .Values.image.repo }}/participant-query-store:{{ .Values.image.tag | default .Chart.AppVersion }}
-              command: ["java", "-jar", "/scribe.jar"]
+              command: ["java", "-jar", "/pqs.jar"]
               args:
                   - "datastore"
                   - "postgres-document"

@@ -3,8 +3,8 @@
 
 package com.digitalasset.auth
 
-import com.digitalasset.scribe.configuration.Secret
-import com.digitalasset.scribe.utils.safeequals.=/=
+import com.digitalasset.pqs.configuration.Secret
+import com.digitalasset.pqs.utils.safeequals.=/=
 import sttp.client4.*
 import sttp.client4.httpclient.zio.HttpClientZioBackend
 import sttp.client4.testing.ResponseStub

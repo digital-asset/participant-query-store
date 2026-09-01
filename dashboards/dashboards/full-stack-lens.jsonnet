@@ -19,7 +19,7 @@ local grid = g.util.grid;
 local pts = p.timeSeries;
 local phm = p.heatmap;
 local ptb = p.table;
-local qs = queries.scribe;
+local qs = queries.pqs;
 local qp = queries.postgres;
 local qc = queries.container;
 local qr = queries.readapi;
@@ -58,31 +58,31 @@ db.new('PQS full-stack lens')
   row.new('Test Execution')
   + row.withCollapsed(true)
   + row.withPanels(grid.wrapPanels([
-    pts.throughput('Scribe throughput', qs.watermark.throughput, width=12),
+    pts.throughput('PQS throughput', qs.watermark.throughput, width=12),
     p.gauge('Current throughput', qs.watermark.throughput),
     p.stat('Ingested so far', qs.watermark.index),
   ], panelWidth=6)),
 
-  row.new('Scribe Pipeline')
+  row.new('PQS Pipeline')
   + row.withCollapsed(true)
   + row.withPanels(grid.wrapPanels([
-    panels.scribe.timeSeries.contractsChurn('Contract Churn', qs.contracts.churn.all, width=24),
-    panels.scribe.timeSeries.activeContracts('Active Contracts *', qs.contracts.active, width=24),
+    panels.pqs.timeSeries.contractsChurn('Contract Churn', qs.contracts.churn.all, width=24),
+    panels.pqs.timeSeries.activeContracts('Active Contracts *', qs.contracts.active, width=24),
     pts.latency('Transaction lag', [qs.tx_lag, qp.tx_lag]),
     pts.short('Watermark behind highest transaction index', [qp.watermark_lag]),
     pts.throughput('Transactions and Events Throughput', qs.pipeline.throughput.all_entities),
     pts.throughputStacked('Events Breakdown', qs.pipeline.throughput.all_events),
     pts.throughput('Transaction Waitpoints: Throughput', qs.pipeline.waitpoints.throughput.stream.all),
     pts.throughput('ACS Waitpoints: Throughput', qs.pipeline.waitpoints.throughput.acs.all),
-    panels.scribe.heatmap.queueSize('ACS: Events Queue', qs.pipeline.waitpoints.queue_size.acs.events),
-    panels.scribe.heatmap.queueSize('ACS: Statements Queue', qs.pipeline.waitpoints.queue_size.acs.statements),
-    panels.scribe.heatmap.queueSize('ACS: Batched Statements Queue', qs.pipeline.waitpoints.queue_size.acs.batches),
-    panels.scribe.heatmap.queueSize('ACS: Prepared Statements Queue', qs.pipeline.waitpoints.queue_size.acs.prepared_statements),
-    panels.scribe.heatmap.queueSize('Events Queue', qs.pipeline.waitpoints.queue_size.stream.events),
-    panels.scribe.heatmap.queueSize('Statements Queue', qs.pipeline.waitpoints.queue_size.stream.statements),
-    panels.scribe.heatmap.queueSize('Batched Statements Queue', qs.pipeline.waitpoints.queue_size.stream.batches),
-    panels.scribe.heatmap.queueSize('Prepared Statements Queue', qs.pipeline.waitpoints.queue_size.stream.prepared_statements),
-    panels.scribe.heatmap.queueSize('Watermarks Queue', qs.pipeline.waitpoints.queue_size.stream.watermarks, width=24),
+    panels.pqs.heatmap.queueSize('ACS: Events Queue', qs.pipeline.waitpoints.queue_size.acs.events),
+    panels.pqs.heatmap.queueSize('ACS: Statements Queue', qs.pipeline.waitpoints.queue_size.acs.statements),
+    panels.pqs.heatmap.queueSize('ACS: Batched Statements Queue', qs.pipeline.waitpoints.queue_size.acs.batches),
+    panels.pqs.heatmap.queueSize('ACS: Prepared Statements Queue', qs.pipeline.waitpoints.queue_size.acs.prepared_statements),
+    panels.pqs.heatmap.queueSize('Events Queue', qs.pipeline.waitpoints.queue_size.stream.events),
+    panels.pqs.heatmap.queueSize('Statements Queue', qs.pipeline.waitpoints.queue_size.stream.statements),
+    panels.pqs.heatmap.queueSize('Batched Statements Queue', qs.pipeline.waitpoints.queue_size.stream.batches),
+    panels.pqs.heatmap.queueSize('Prepared Statements Queue', qs.pipeline.waitpoints.queue_size.stream.prepared_statements),
+    panels.pqs.heatmap.queueSize('Watermarks Queue', qs.pipeline.waitpoints.queue_size.stream.watermarks, width=24),
     pts.percentiles(
       'ACS: Convert Event Latency',
       qs.pipeline.stages.convert_acs_event.latency.all_quantiles
@@ -158,7 +158,7 @@ db.new('PQS full-stack lens')
     pts.io('Network', qc.io.network),
   ], panelWidth=12)),
 
-  row.new('Scribe Read API')
+  row.new('PQS Read API')
   + row.withCollapsed(true)
   + row.withPanels(grid.makeGrid([
     pts.throughput('Scenarios completions', qr.scenarios.completions),
@@ -217,7 +217,7 @@ db.new('PQS full-stack lens')
     + g.panel.timeSeries.standardOptions.withMin(null),
   ], panelWidth=12)),
 
-  row.new('Scribe - tech')
+  row.new('PQS - tech')
   + row.withCollapsed(true)
   + row.withPanels(grid.wrapPanels([
     pts.short('CPUs utilisation', [

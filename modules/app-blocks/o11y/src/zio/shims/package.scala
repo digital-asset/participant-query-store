@@ -3,7 +3,7 @@
 
 package zio
 
-import com.digitalasset.scribe.o11y.traces.{Api, Noop}
+import com.digitalasset.pqs.o11y.traces.{Api, Noop}
 
 package object shims:
   val tracesApi: FiberRef[Api] = FiberRef.unsafe.make[Api](Noop)(using Unsafe.unsafe)

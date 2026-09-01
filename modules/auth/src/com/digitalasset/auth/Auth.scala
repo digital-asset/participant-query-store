@@ -3,11 +3,11 @@
 
 package com.digitalasset.auth
 
-import com.digitalasset.scribe.configuration.ISO8601Duration
+import com.digitalasset.pqs.configuration.ISO8601Duration
 import com.digitalasset.auth.AccessToken as AuthAccessToken
 import com.digitalasset.auth.Config.{AuthMode, Scope}
-import com.digitalasset.scribe.configuration.Secret
-import com.digitalasset.scribe.utils.safeequals.===
+import com.digitalasset.pqs.configuration.Secret
+import com.digitalasset.pqs.utils.safeequals.===
 import zio.{RLayer, Task, ZIO, ZLayer}
 
 import java.io.File

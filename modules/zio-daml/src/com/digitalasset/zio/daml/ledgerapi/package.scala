@@ -9,8 +9,8 @@ import com.digitalasset.canonical.specific.Offset
 import com.digitalasset.daml.lf.archive.Decode
 import com.digitalasset.daml.lf.archive.Error as ArchiveError
 import com.digitalasset.daml.lf.language.Ast
-import com.digitalasset.scribe.configuration.filter.PartyFilterParser.PartyFilter
-import com.digitalasset.scribe.utils.safeequals.===
+import com.digitalasset.pqs.configuration.filter.PartyFilterParser.PartyFilter
+import com.digitalasset.pqs.utils.safeequals.===
 import com.digitalasset.transcode.schema
 import com.digitalasset.transcode.schema.*
 import zio.{IO, Task, ZIO}

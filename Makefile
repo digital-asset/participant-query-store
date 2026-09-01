@@ -123,16 +123,16 @@ copyright-update: ## update missing copyright notices for all files in the proje
 ## Generate version for builds ################################################
 ###############################################################################
 
-## Populate and export SCRIBE_VERSION with generated details above:
+## Populate and export PQS_VERSION with generated details above:
 ## - use svu to generate SemVer compliant version value
 ##   - increments patch value from most recent release tag
 
-## - Mill sets version in application from SCRIBE_VERSION env var
-export SCRIBE_VERSION ?= $(shell _gen_build_version)
+## - Mill sets version in application from PQS_VERSION env var
+export PQS_VERSION ?= $(shell _gen_build_version)
 
 .PHONY: version
 version:
-	@echo "[INFO] build number: ${SCRIBE_VERSION}"
+	@echo "[INFO] build number: ${PQS_VERSION}"
 
 ###############################################################################
 ## Documented Targets #########################################################
@@ -169,11 +169,11 @@ stop: ## Stop running servers
 .PHONY: build
 build: ## Compile all modules
 	mill ${MILL_OPTS} __.checkFormat
-	mill ${MILL_OPTS} scribe.jar
+	mill ${MILL_OPTS} pqs.jar
 
 .PHONY: package
 package: ## Package artifacts
-	mill ${MILL_OPTS} scribe.assembly
+	mill ${MILL_OPTS} pqs.assembly
 
 .PHONY: test
 test: auth.test ## Unit test all modules
@@ -181,7 +181,7 @@ test: auth.test ## Unit test all modules
 
 .PHONY: func-test
 func-test: package ## Run all (expensive) functional tests
-	mill ${MILL_OPTS} -k -j 1 scribe.functest.test ${FUNC_TEST_CONTROLS}
+	mill ${MILL_OPTS} -k -j 1 pqs.functest.test ${FUNC_TEST_CONTROLS}
 
 .PHONY: consolidate-test-results
 consolidate-test-results: ## Consolidate all test results in one folder
@@ -198,15 +198,15 @@ prefetch-deps: ## Fetch all dependencies for offline operations
 	mill ${MILL_OPTS} _.prepareOffline + __.prepareOffline
 
 .PHONY: populate-dist-dir
-populate-dist-dir: ## Create and populate .dist/ directory with scribe.jar
-	mkdir -p .dist/${SCRIBE_VERSION}/
-	cp -v out/scribe/assembly.dest/out.jar .dist/${SCRIBE_VERSION}/scribe.jar
+populate-dist-dir: ## Create and populate .dist/ directory with pqs.jar
+	mkdir -p .dist/${PQS_VERSION}/
+	cp -v out/pqs/assembly.dest/out.jar .dist/${PQS_VERSION}/pqs.jar
 
 .PHONY: populate-blackduck-dir
 populate-blackduck-dir:
-	mill scribe.pom
-	mkdir -p .blackduck-input/${SCRIBE_VERSION}/
-	cp -v out/scribe/pom.dest/pom.xml .blackduck-input/${SCRIBE_VERSION}/pom.xml
+	mill pqs.pom
+	mkdir -p .blackduck-input/${PQS_VERSION}/
+	cp -v out/pqs/pom.dest/pom.xml .blackduck-input/${PQS_VERSION}/pom.xml
 
 ###############################################################################
 ## Matrix Compatibility Tests #################################################
@@ -230,14 +230,17 @@ ASSISTANT_ARGS ?= oci://europe-docker.pkg.dev/da-images/playground/components
 
 .PHONY: populate-component-yaml
 populate-component-yaml: ## Render dpm component.yaml
-	cp LICENSE.txt .dist/${SCRIBE_VERSION}/LICENSE
-	@printf 'apiVersion: digitalasset.com/v1\nkind: Component\nspec:\n  jar-commands:\n    - path: ./scribe.jar\n      name: pqs\n      desc: participant query store\n' \
-		| tee .dist/${SCRIBE_VERSION}/component.yaml
+	cp LICENSE.txt .dist/${PQS_VERSION}/LICENSE
+	@printf 'apiVersion: digitalasset.com/v1\nkind: Component\nspec:\n  jar-commands:\n    - path: ./pqs.jar\n      name: pqs\n      desc: participant query store\n' \
+		| tee .dist/${PQS_VERSION}/component.yaml
 
 .PHONY: publish-component
 publish-component: ## publish dpm component
 	dpm publish component \
-		-p generic=.dist/${SCRIBE_VERSION}/ $(ASSISTANT_ARGS)/scribe:$(patsubst v%,%,$(SCRIBE_VERSION)) \
+		-p generic=.dist/${PQS_VERSION}/ $(ASSISTANT_ARGS)/participant-query-store:$(patsubst v%,%,$(PQS_VERSION)) \
+		--extra-tags 3.6
+	dpm publish component \
+		-p generic=.dist/${PQS_VERSION}/ $(ASSISTANT_ARGS)/scribe:$(patsubst v%,%,$(PQS_VERSION)) \
 		--extra-tags 3.6
 
 ## Discovered Targets:

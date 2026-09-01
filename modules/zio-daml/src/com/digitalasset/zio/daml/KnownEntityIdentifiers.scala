@@ -7,7 +7,7 @@ import com.digitalasset.canonical.{ContractFilter, MetadataFilter}
 import com.digitalasset.transcode.schema.*
 import com.digitalasset.zio.daml
 import zio.ZLayer
-import com.digitalasset.scribe.utils.safeequals.===
+import com.digitalasset.pqs.utils.safeequals.===
 
 object KnownEntityIdentifiers:
   val live: ZLayer[Schema & ContractFilter & MetadataFilter, Throwable, KnownEntityIdentifiers] =

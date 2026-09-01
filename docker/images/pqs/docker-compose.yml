@@ -1,0 +1,16 @@
+# Copyright (c) 2026 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+services:
+  participant-query-store:
+    build:
+      context: ../../../.dist/${PQS_VERSION}/
+      dockerfile: ./Dockerfile
+      args:
+        BASE_IMAGE_TAG: "${BASE_IMAGE_TAG}"
+        OTEL_VERSION: "${OTEL_VERSION}"
+      labels:
+        org.opencontainers.image.created: "${RFC_3339_BUILD_DATE}"
+        org.opencontainers.image.version: "${IMAGE_TAG}"
+        org.opencontainers.image.revision: "${GIT_SHA}"
+        org.opencontainers.image.ref.name: 'participant-query-store'

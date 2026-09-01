@@ -7,7 +7,7 @@ REPO_ROOT=$(git rev-parse --show-toplevel)
 source ${REPO_ROOT}/.scaffold/libs/bash/shared_functions
 
 ## Defaults
-HEADER='Scribe Matrix Test Runner v2'
+HEADER='PQS Matrix Test Runner v2'
 PARAMS_CSV="${REPO_ROOT}/modules/compatibility/parameters.csv"
 LOG_DIR="${REPO_ROOT}/modules/compatibility/log"
 WORKFLOW_FILE="${REPO_ROOT}/.github/workflows/matrix-compatibility-test.yml"

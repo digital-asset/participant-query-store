@@ -23,7 +23,7 @@ runs:
 
         echo "${version}" > VERSION
         mkdir -p ".dist/${version}"
-        echo "SCRIBE_VERSION=${version}" >> "$GITHUB_ENV"
+        echo "PQS_VERSION=${version}" >> "$GITHUB_ENV"
         echo "version=${version}" >> "$GITHUB_OUTPUT"
     - run: make version
       shell: bash -euo pipefail -c "source nix.source && exec bash -euo pipefail {0}"

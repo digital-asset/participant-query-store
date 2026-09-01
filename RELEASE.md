@@ -29,7 +29,7 @@ To trigger the stable release, create a Github release from the Github UI:
 - Submit the release by clicking on `Publish release`
 
 Github creates the version tag on the release branch.
-It triggers the `sanctioned-release` workflow, on that branch, which will publish scribes JAR, docker image and dpm component. 
+It triggers the `tagged-release` workflow, on that branch, which will publish the PQS Docker image and dpm component. 
 
 ## How to create a release branch
 
@@ -53,7 +53,7 @@ Soon after creating a release branch, you should increment the base version of t
 
 For example, to update the base version from 3.6 to 3.7, create a PR with the following changes:
 - update the BASE_VERSION in [_gen_build_version](.scaffold/bin),
-[docker/images/scribe/Makefile](docker/images/scribe/Makefile),
+[docker/images/pqs/Makefile](docker/images/pqs/Makefile),
 
 ```diff
 -BASE_VERSION=3.6
@@ -77,6 +77,6 @@ For example, to update the base version from 3.6 to 3.7, create a PR with the fo
 -    val canton = "3.6.0-snapshot.20260501.14683.0.v4cff1caf"
 +    val canton = "3.7.0-snapshot.20261020.14344.0.vac465d36"
 ```
-- update the `SCRIBE_DAMLSDKVERSION` and `SCRIBE_CANTONVERSION` versions in the [matrix compatibility tests](modules/compatibility/parameters.csv)
-- Add `Daml36` config in [modules/scribe/functest/com/digitalasset/scribe/services/daml/CantonConf.scala](modules/scribe/functest/com/digitalasset/scribe/services/daml/CantonConf.scala)
+- update the `PQS_DAMLSDKVERSION` and `PQS_CANTONVERSION` versions in the [matrix compatibility tests](modules/compatibility/parameters.csv)
+- Add `Daml36` config in [modules/pqs/functest/com/digitalasset/pqs/services/daml/CantonConf.scala](modules/pqs/functest/com/digitalasset/pqs/services/daml/CantonConf.scala)
 
