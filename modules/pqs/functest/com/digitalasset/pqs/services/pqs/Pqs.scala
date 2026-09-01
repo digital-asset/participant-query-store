@@ -159,6 +159,9 @@ trait Pqs {
   private val PqsPrefix    = "PQS_"
   private val ScribePrefix = "SCRIBE_"
 
+  // Pqs34/Pqs35 pin pre-rename images that only understand SCRIBE_; main/Latest understands PQS_.
+  private val envPrefix = if version.semVer <= Semver.parse("3.5.7") then ScribePrefix else PqsPrefix
+
   private val conf = ZLayer.fromZIO(
     for
       ca                <- Docker.certificateAuthority
@@ -195,7 +198,7 @@ trait Pqs {
         "LOGGER_LEVEL"               -> "Info"
       )
 
-      unprefixedAauth = oauthInstance.fold(Map("PIPELINE_FILTER_PARTIES" -> partyNames.mkString("|"))) { oauth =>
+      unprefixedOauth = oauthInstance.fold(Map("PIPELINE_FILTER_PARTIES" -> partyNames.mkString("|"))) { oauth =>
         Map(
           "PIPELINE_OAUTH_CLIENTSECRET" -> "clientsecret",
           "PIPELINE_OAUTH_ENDPOINT"     -> s"https://${oauth.container.hostName}:${OAuth.port}/issuer1/token",
@@ -217,12 +220,10 @@ trait Pqs {
         )
       )
 
-      namespaced    = unprefixedBase ++ unprefixedAauth
-      pqsEnv        = namespaced.map { case (k, v) => s"$PqsPrefix$k" -> v }
-      scribeEnv     = namespaced.map { case (k, v) => s"$ScribePrefix$k" -> v }
+      namespaced    = (unprefixedBase ++ unprefixedOauth).map { case (k, v) => s"$envPrefix$k" -> v }
       daDiagnostics = Map("DA_DIAGNOSTICS_ENABLED" -> "false")
     yield (
-      daDiagnostics ++ pqsEnv ++ scribeEnv ++ telemetry,
+      daDiagnostics ++ namespaced ++ telemetry,
       Seq(
         os.root / "tls" / "client.pem"  -> clientCertificate.certificate.pem,
         os.root / "tls" / "client.der"  -> clientCertificate.certificate.der,
