@@ -28,7 +28,7 @@ package object millbuild {
     val grpc  = "1.81.0"
 
     // force specific version to address vulns
-    val nettyVersion = "4.2.16.Final"
+    val nettyVersion = "4.2.17.Final"
 
     val openTelemetryAgent = "2.28.1"
     val scalaPB = "0.11.19"
@@ -37,7 +37,7 @@ package object millbuild {
     val zioConfig            = "3.0.7"
     val zioLogging           = "2.3.0"
     val zioMetricsConnectors = "2.3.1"
-    val zioHttp              = "3.11.3"
+    val zioHttp              = "3.11.4"
     val zioMock              = "1.0.0-RC12"
     val sttpClient           = "4.0.26"
   }
