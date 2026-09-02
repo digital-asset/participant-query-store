@@ -97,11 +97,6 @@ jobs:
       - uses: actions/checkout@v5
       - uses: ./.github/actions/nix
       - uses: ./.github/actions/gen-version
-      - name: Restore dist
-        uses: actions/download-artifact@v8
-        with:
-          name: dist
-          path: .dist
       - run: make populate-blackduck-dir
       - name: Blackduck Scan
         run: blackduck_scan -p "${GITHUB_REPOSITORY_OWNER}_${GITHUB_REPOSITORY#*/}" -b "$GITHUB_REF_NAME" -c MAJOR,CRITICAL,BLOCKER
