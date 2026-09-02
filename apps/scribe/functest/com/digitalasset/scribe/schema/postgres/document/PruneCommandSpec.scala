@@ -232,6 +232,22 @@ object PruneCommandSpec extends SharedLedgerAndPostgresTest:
           s"Already pruned past ${oneArchived.get}, nothing to do."
         )
     ,
+    funcTest("dry run is no-op when no history is older than the timestamp target"):
+      Given:
+        context
+      And:
+        Postgres
+          .query(sql"select nearest_offset('1970-01-01T00:00Z' :: timestamp with time zone) is null")
+          .returns(table(true))
+      When:
+        Scribe.runPrune("--prune-target", "1970-01-01T00:00Z")
+      Expect:
+        Scribe.exitCode `is` ExitCode.success
+      And:
+        Scribe.stdout `is` stringContaining(
+          "No history older than 1970-01-01T00:00Z, nothing to do."
+        )
+    ,
     funcTest("force run with duration"):
       val oneCreated  = Capture[OffsetType]
       val oneArchived = Capture[OffsetType]
