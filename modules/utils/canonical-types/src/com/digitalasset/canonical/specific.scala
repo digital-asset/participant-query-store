@@ -3,8 +3,8 @@
 
 package com.digitalasset.canonical
 
-import com.digitalasset.scribe.o11y.traces.DetachedSpan
-import com.digitalasset.scribe.utils.safeequals.===
+import com.digitalasset.pqs.o11y.traces.DetachedSpan
+import com.digitalasset.pqs.utils.safeequals.===
 import com.digitalasset.transcode.schema
 import zio.Chunk
 
@@ -55,7 +55,7 @@ object specific:
       domainId: Option[DomainId] = None,
       externalTransactionHash: Option[Array[Byte]] = None,
       paidTrafficCost: Option[Long] = None,
-      seenAt: Long, // nano time this transaction was first observed in scribe
+      seenAt: Long, // nano time this transaction was first observed in PQS
       span: DetachedSpan,
       remoteSpan: Option[(String, String)] = None
   )

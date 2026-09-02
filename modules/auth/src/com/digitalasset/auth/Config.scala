@@ -3,7 +3,7 @@
 
 package com.digitalasset.auth
 
-import com.digitalasset.scribe.configuration.{AccessToken, ISO8601Duration, Secret}
+import com.digitalasset.pqs.configuration.{AccessToken, ISO8601Duration, Secret}
 import zio.config.magnolia.{Descriptor, describe, name}
 import zio.durationInt
 

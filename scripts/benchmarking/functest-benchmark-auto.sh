@@ -134,9 +134,9 @@ wait_for_docker() {
 }
 
 cleanup_containers() {
-  docker ps -aq --filter "name=^scribe-ft-" 2>/dev/null | xargs docker rm -f 2>/dev/null || true
-  docker network ls -q --filter "name=^scribe-ft-" 2>/dev/null | xargs docker network rm 2>/dev/null || true
-  docker volume ls -q --filter "name=^scribe-ft-" 2>/dev/null | xargs docker volume rm 2>/dev/null || true
+  docker ps -aq --filter "name=^pqs-ft-" 2>/dev/null | xargs docker rm -f 2>/dev/null || true
+  docker network ls -q --filter "name=^pqs-ft-" 2>/dev/null | xargs docker network rm 2>/dev/null || true
+  docker volume ls -q --filter "name=^pqs-ft-" 2>/dev/null | xargs docker volume rm 2>/dev/null || true
 }
 
 kill_mill() {

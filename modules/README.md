@@ -1,4 +1,4 @@
-# Participant Query Store
+# Participant Query Store (PQS)
 
 ## Connectivity test
 
@@ -44,23 +44,23 @@ mill all.reformat
 
 ## Functional tests
 
-Functional tests run against the whole environment (canton, postgres, scribe) running in docker containers, JVM test does this job roughly:
+Functional tests run against the whole environment (canton, postgres, PQS) running in docker containers, JVM test does this job roughly:
 
 1. Start canton in docker (+ another container with postgres as a backing store)
 2. Start postgres for PQS
-3. Start scribe with options specific to the test
+3. Start PQS with options specific to the test
 4. Analyse PQS output and/or query postgres to verify results
 
-Before starting the tests, a docker image with scribe is built. The tests are ran against:
- - a just built scribe image
+Before starting the tests, a docker image with PQS is built. The tests are ran against:
+ - a just built PQS image
  - canton, postgres -- specified either by 
    - the daml and Canton versions defined in object `V` in `mill-build/src/millbuild/package.scala`, and `forkEnv` function in `build.sc`
    - or by the environment variables
-     - `SCRIBE_POSTGRESVERSION`
-     - `SCRIBE_DAMLSDKVERSION`
-     - `SCRIBE_CANTONVERSION`
-     - `SCRIBE_CANTONPROTOCOLVERSION`
-     - `SCRIBE_DAMLLFTARGET`
+     - `PQS_POSTGRESVERSION`
+     - `PQS_DAMLSDKVERSION`
+     - `PQS_CANTONVERSION`
+     - `PQS_CANTONPROTOCOLVERSION`
+     - `PQS_DAMLLFTARGET`
    - It should be also possible to select version using commandline options, but it is not used anywhere. Parsing env vars/commandline options is generated using zio-config-magnolia: https://zio.dev/zio-config/
    
 The tests use custom test runner FTFramework. This test runner splits tests into groups that use the same environment (`def shared` in test class). For each group
@@ -77,11 +77,11 @@ This is not true though, as there are tests that set up ad-hoc docker containers
 
 To specify those parameters for the tests
 
-- `mill scribe.functest.test --pools 2 --lanes 2`
-- `mill scribe.functest.testOnly com.digitalasset.scribe.features.filtering.daml3.ContractFilteringSpec  -- --pools 1 --lanes 2`
+- `mill pqs.functest.test --pools 2 --lanes 2`
+- `mill pqs.functest.testOnly com.digitalasset.pqs.features.filtering.ContractFilteringSpec  -- --pools 1 --lanes 2`
 
 Please note the double dash in the testOnly command.
-The defaults are here: `src/com/digitalasset/scribe/functest/sbt/FTSpec.scala`.
+The defaults are here: `src/com/digitalasset/pqs/functest/sbt/FTSpec.scala`.
 
 ### Debugging Functional Tests FAQ
 

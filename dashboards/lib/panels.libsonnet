@@ -5,7 +5,7 @@ local g = import '../lib-shared/g.libsonnet';
 local p = import '../lib-shared/panels.libsonnet';
 
 {
-  scribe: {
+  pqs: {
     timeSeries: {
       local ts = g.panel.timeSeries,
       local options = ts.options,

@@ -35,9 +35,9 @@ declare
 begin
     select __current_writer() into current_writer;
     if current_writer is not null then
-        session_writer := current_setting('scribe.instance');
+        session_writer := current_setting('pqs.instance');
         if current_writer != session_writer then
-            raise exception 'Scribe writer instance has changed (old = %, new = %). Aborting...' , session_writer, current_writer;
+            raise exception 'PQS writer instance has changed (old = %, new = %). Aborting...' , session_writer, current_writer;
         end if;
     end if;
 end

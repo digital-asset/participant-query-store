@@ -902,7 +902,7 @@ begin
     select count(*) into affected_transactions from __transactions where ix > cutoff_ix;
     call __delete_transactions_after(cutoff_ix);
 
-    -- adjust watermark and invalidate the previous scribe instance
+    -- adjust watermark and invalidate the previous PQS instance
     update __watermark
     set "offset" = new_latest,
         ix       = cutoff_ix,
@@ -978,7 +978,7 @@ begin
     lock table __watermark in exclusive mode;
     select ix from latest_checkpoint() into latest_ix;
     call __delete_transactions_after(coalesce(latest_ix, 0));
-    update __watermark set instance_id = current_setting('scribe.instance');
+    update __watermark set instance_id = current_setting('pqs.instance');
 end
 $$ language plpgsql;
 

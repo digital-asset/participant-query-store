@@ -5,8 +5,8 @@ package com.digitalasset.zio.daml.ledgerapi
 
 import com.digitalasset.auth.Auth
 import com.digitalasset.canonical.{Party, UserRight}
-import com.digitalasset.scribe.configuration.filter.PartyFilterParser.PartyFilter
-import com.digitalasset.scribe.grpc.ZManagedChannel
+import com.digitalasset.pqs.configuration.filter.PartyFilterParser.PartyFilter
+import com.digitalasset.pqs.grpc.ZManagedChannel
 import io.grpc.Status
 import zio.ZIO.*
 import zio.stream.ZStream

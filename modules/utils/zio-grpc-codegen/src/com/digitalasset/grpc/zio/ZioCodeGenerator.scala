@@ -54,7 +54,7 @@ class ZioFilePrinter(implicits: DescriptorImplicits, file: FileDescriptor) {
   private val DtoObject   = file.scalaPackage / s"${NameUtils.snakeCaseToCamelCase(baseName(file.getName), true)}Grpc"
   private val OuterObject = file.scalaPackage / s"Zio${NameUtils.snakeCaseToCamelCase(baseName(file.getName), true)}"
 
-  private val Channel         = "_root_.com.digitalasset.scribe.grpc.ZManagedChannel"
+  private val Channel         = "_root_.com.digitalasset.pqs.grpc.ZManagedChannel"
   private val ZLayer          = "_root_.zio.ZLayer"
   private val ZStream         = "_root_.zio.stream.ZStream"
   private val Stream          = "_root_.zio.stream.Stream"
