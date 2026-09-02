@@ -27,17 +27,19 @@ class FixedBoundaryHistogramSupportsDoubles(buckets: Array[Double], isCumulative
     val index = leastLessThanOrEqualTo(value)
     if index > -1 then values.incrementAndGet(index)
 
-  def countsAtValues(values: util.Iterator[java.lang.Double]): util.Iterator[CountAtBucket] =
-    new util.Iterator[CountAtBucket]():
-      private var cumulativeCount   = 0.0
-      override def hasNext: Boolean = values.hasNext
-      override def next: CountAtBucket =
-        val value = values.next
-        val count = countAtValue(value)
-        if isCumulativeBucketCounts then
-          cumulativeCount += count
-          new CountAtBucket(value, cumulativeCount)
-        else new CountAtBucket(value, count.toDouble)
+  /** Returns the array of {@link CountAtBucket} for each of the buckets tracked by this histogram.
+    */
+  def getCountAtBuckets(): Array[CountAtBucket] =
+    val countAtBuckets  = new Array[CountAtBucket](this.buckets.length)
+    var cumulativeCount = 0.0
+
+    for i <- 0.until(buckets.length) do
+      val valueAtCurrentBucket = values.get(i)
+      if isCumulativeBucketCounts then
+        cumulativeCount += valueAtCurrentBucket
+        countAtBuckets(i) = new CountAtBucket(buckets(i), cumulativeCount)
+      else countAtBuckets(i) = new CountAtBucket(buckets(i), valueAtCurrentBucket.toDouble)
+    countAtBuckets
 
   @SuppressWarnings(Array("org.wartremover.warts.While", "org.wartremover.warts.Return"))
   private def leastLessThanOrEqualTo(key: Double): Int =

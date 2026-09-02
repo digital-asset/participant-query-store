@@ -36,7 +36,7 @@ package object millbuild {
     val zio                  = "2.1.26"
     val zioConfig            = "3.0.7"
     val zioLogging           = "2.3.0"
-    val zioMetricsConnectors = "2.3.1"
+    val zioMetricsConnectors = "2.5.7"
     val zioHttp              = "3.11.4"
     val zioMock              = "1.0.0-RC12"
     val sttpClient           = "4.0.26"
@@ -165,7 +165,7 @@ package object millbuild {
 
     object metrics {
       // Keep in sync with the version shipped with `zio-metrics-connectors-micrometer`
-      val micrometerCore = ivy"io.micrometer:micrometer-core:1.11.0"
+      val micrometerCore = ivy"io.micrometer:micrometer-core:1.17.1"
     }
   }
 }
