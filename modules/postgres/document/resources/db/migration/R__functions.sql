@@ -978,7 +978,7 @@ begin
     lock table __watermark in exclusive mode;
     select ix from latest_checkpoint() into latest_ix;
     call __delete_transactions_after(coalesce(latest_ix, 0));
-    update __watermark set instance_id = current_setting('pqs.instance');
+    update __watermark set instance_id = current_setting('scribe.instance');
 end
 $$ language plpgsql;
 
