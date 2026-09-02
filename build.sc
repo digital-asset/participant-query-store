@@ -327,6 +327,7 @@ object `package` extends RootModule { root =>
       L.netty.pkiTesting,
       L.netty.transportNativeEpoll,
       L.netty.transportNativeKqueue,
+      L.bouncyCastle.prov,
       L.zio.http,
       L.zio.streams,
       // Bump transitive dep to resolve vulnerabilities
@@ -705,7 +706,7 @@ object `package` extends RootModule { root =>
         L.zio.logging.logging,
         L.dockerClient.core,
         L.dockerClient.zerodepTransport,
-        L.bouncyCastle,
+        L.bouncyCastle.pkix,
         L.jwt
       )
     }

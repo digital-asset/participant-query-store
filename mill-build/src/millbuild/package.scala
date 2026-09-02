@@ -140,7 +140,10 @@ package object millbuild {
       val postgres = ivy"org.postgresql:postgresql:42.7.11"
     }
 
-    val bouncyCastle = ivy"org.bouncycastle:bcpkix-jdk18on:1.78.1"
+    object bouncyCastle {
+      val prov = ivy"org.bouncycastle:bcprov-jdk18on:1.85.2"
+      val pkix = ivy"org.bouncycastle:bcpkix-jdk18on:1.85"
+    }
 
     val wartRemover = ivy"org.wartremover::wartremover:3.2.0"
 
