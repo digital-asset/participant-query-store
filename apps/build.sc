@@ -189,6 +189,7 @@ object `package` extends RootModule { root =>
       "scalapb.compiler.**",
       "scalapb.options.**",
       "zio.json.DeriveJson*",
+      "zio.json.JsonDecoderDerivation*",
       "zio.stream.**",
       "org.jline.**",
       "sttp.client4.internal.**", // sttp references java.lang.System$Logger$ not available in ProGuard
