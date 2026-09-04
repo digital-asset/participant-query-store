@@ -37,3 +37,4 @@ This release includes the following SQL migrations:
 
 - *BREAKING*: PQS configuration no longer provides default Postgres credentials. It is now mandatory to supply the `--target-postgres-username` and `--target-postgres-password` command arguments, or the `PQS_TARGET_POSTGRES_USERNAME` and `PQS_TARGET_POSTGRES_PASSWORD` environment variables.
 - *BREAKING*: Interface view rows no longer store `contract_key_hash`. Previously the hash of the underlying template's contract key was duplicated onto every interface view row, while `contract_key` was already left empty. Both columns are now empty for interface views. Upgrading also clears the hash from interface view rows already stored. The hash remains available on the template rows.
+- `create_index_for_contract` creates index concurrently

@@ -994,7 +994,7 @@ declare
 begin
     select __contract_tpe4name(qname) tpe into tpe_pk;
     execute format(
-            'create index if not exists %I on %I using %s(%s %s)',
+            'create index concurrently if not exists %I on %I using %s(%s %s)',
             '__contracts_' || tpe_pk || '_' || name || '_idx',
             '__contracts_' || tpe_pk,
             index_type,
