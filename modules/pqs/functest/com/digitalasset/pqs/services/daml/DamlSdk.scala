@@ -6,12 +6,9 @@ package com.digitalasset.pqs.services.daml
 import com.digitalasset.transcode.schema.{PackageId, PackageName, PackageVersion}
 import com.digitalasset.pqs.docker.{Docker, Service}
 import com.digitalasset.pqs.functest.{Dpm, FTConfig, FTEnv}
-import com.digitalasset.pqs.grpc.{ZClientInterceptor, ZManagedChannel}
 import com.digitalasset.pqs.services.daml
 import com.digitalasset.pqs.services.daml.specific.toOffset
 import com.digitalasset.pqs.services.oauth.OAuth
-import io.grpc.Metadata
-import io.grpc.netty.shaded.io.grpc.netty.{GrpcSslContexts, NettyChannelBuilder}
 import org.semver4j.Semver
 import os.Path
 import zio.ZIO.{attemptBlocking, logInfo, suspend}
@@ -132,13 +129,11 @@ object DamlSdk:
     ZLayer
       .fromZIO(
         for
-          version         <- FTEnv.cantonVersion
-          protocolVersion <- FTEnv.cantonProtocolVersion
-          cnt             <- Docker.share(s"canton_cnt")(Ref.Synchronized.make(0)).flatMap(_.updateAndGet(_ + 1))
+          cnt <- Docker.share(s"canton_cnt")(Ref.Synchronized.make(0)).flatMap(_.updateAndGet(_ + 1))
           hostname = s"canton-$cnt"
-          cantonConf <- ZIO.service[CantonConf]
-          files      <- cantonFiles(cantonConf, hostname)
-          ftEnv      <- ZIO.service[FTEnv]
+          cantonConf     <- ZIO.service[CantonConf]
+          files          <- cantonFiles(cantonConf, hostname)
+          showCantonLogs <- FTEnv.showCantonLogs
           svc = Docker
             .service[Ledger](
               image = cantonConf.cantonDockerImage,
@@ -147,7 +142,7 @@ object DamlSdk:
               hostname = Some(hostname),
               env = CantonConf.cantonEnvVarMap,
               user = Some(CantonConf.user),
-              suppressOutput = !ftEnv.showCantonLogs
+              suppressOutput = !showCantonLogs
             )(CantonConf.cantonAdditionalCmds*)
             .tap(_.get.blockUntilStdOut(_.contains(CantonConf.bootstrapCompleteMessage)))
         yield svc
@@ -160,8 +155,8 @@ object DamlSdk:
         for
           dar   <- ZIO.service[DarFile]
           mutex <- Docker.share("upload_dar" -> dar.packageId)(Semaphore.make(1))
-          alreadyExists = api.listPackageIds.map(_.toSet.contains(dar.packageId))
-          upload        = suspend(api.uploadDar(dar))
+          alreadyExists = Ledger.listPackageIds.map(_.toSet.contains(dar.packageId))
+          upload        = suspend(Ledger.uploadDar(dar))
           _ <- mutex.withPermit(upload.unlessZIO(alreadyExists))
         yield DeployedDar(dar)
       )
@@ -171,12 +166,12 @@ object DamlSdk:
     ZLayer.fromZIO(for
       partyCounter <- Docker.share("party_cnt")(Ref.Synchronized.make(0)).flatMap(_.updateAndGet(_ + 1))
       hints = parties.map(party => s"${party.prefix}_$partyCounter")
-      ids           <- ZIO.foreach(hints) { hint => api.allocateParty(hint) }
+      ids           <- ZIO.foreach(hints) { hint => Ledger.allocateParty(hint) }
       oauthInstance <- Docker.inspectMaybe[OAuth.Instance]
       ps <- ZIO.foreach(parties zip hints zip ids) {
         case ((p, hint), id) =>
           p._name.set(Some(hint)) *> p._id.set(Some(id))
-            *> ZIO.unless(oauthInstance.isEmpty) { api.grantRights(id) }.as(p)
+            *> ZIO.unless(oauthInstance.isEmpty) { Ledger.grantRights(id) }.as(p)
       }
     yield Parties(ps))
 
@@ -184,7 +179,7 @@ object DamlSdk:
   def allocatedParties(parties: Party*): RLayer[Docker & Service[Ledger], Parties] =
     ZLayer.fromZIO(
       for
-        knownParties <- api.listKnownParties
+        knownParties <- Ledger.listKnownParties
         ps <- ZIO.foreach(parties) { party =>
           ZIO
             .fromOption(knownParties.find(_.party.startsWith(s"${party.prefix}::")))
@@ -203,28 +198,28 @@ object DamlSdk:
       userId       <- user.id
       canActAs     <- ZIO.foreach(user.canActAs)(_.id)
       canReadAs    <- ZIO.foreach(user.canReadAs)(_.id)
-      _            <- api.createUser(userId, primaryParty, primaryParty +: canActAs, canReadAs, user.canReadAsAnyParty)
+      _ <- Ledger.createUser(userId, primaryParty, primaryParty +: canActAs, canReadAs, user.canReadAsAnyParty)
     yield user
 
   class PrunedTo(offset: String | Long)
 
   /** Prune ledger up to offset */
   def pruneLedger(upToOffset: String | Long): RLayer[Docker & Service[Ledger], PrunedTo] =
-    ZLayer.fromZIO(upToOffset.toOffset.flatMap(api.pruneLedger).as(PrunedTo(upToOffset)))
+    ZLayer.fromZIO(upToOffset.toOffset.flatMap(Ledger.pruneLedger).as(PrunedTo(upToOffset)))
 
   /** Run script and store result in the layer */
   def runScript[IN: upickle.default.Writer](
       name: String,
       args: Task[IN]
   ): ZLayer[Docker & Service[Ledger] & DarFile & FTEnv & Dpm, Throwable, Unit] =
-    ZLayer.scoped(for
+    ZLayer.fromZIO(for
       scriptDir         <- FTEnv.createUniqueDirectory(s"runscript-$name")
       ca                <- Docker.certificateAuthority
       cert              <- ca.generate("runscript")
       rootCaCrt         <- writeFile(scriptDir / "tls" / "root-ca.crt", ca.certificate.crt)
       participantPem    <- writeFile(scriptDir / "tls" / "participant.pem", cert.certificate.pem)
       participantCrt    <- writeFile(scriptDir / "tls" / "participant.crt", cert.certificate.crt)
-      ledger            <- ZIO.service[Service[Ledger]]
+      ledger            <- Ledger.container
       adminTokenService <- inspectMaybe[TokenService]
       dar               <- ZIO.service[DarFile]
       argsV             <- args
@@ -256,41 +251,4 @@ object DamlSdk:
 
   private def writeFile(file: os.Path, content: String): Task[os.Path] =
     ZIO.attemptBlocking(os.write(file, content, createFolders = true)).as(file)
-
-  ///////////////
-  // Internals //
-  ///////////////
-
-  private lazy val participantChannel: RLayer[Docker & Service[Ledger], ZManagedChannel] =
-    val authHeader = Metadata.Key.of("Authorization", Metadata.ASCII_STRING_MARSHALLER)
-    ZLayer.scoped(for
-      svc               <- Docker.inspect[Ledger]
-      adminTokenService <- inspectMaybe[TokenService]
-      ca                <- Docker.certificateAuthority
-      cert              <- ca.generate("participant")
-      mkBuilder = () =>
-        NettyChannelBuilder
-          .forAddress(svc.exposedAddress, svc.exposedPorts(CantonConf.participantPort))
-          .useTransportSecurity()
-          .sslContext(
-            GrpcSslContexts.forClient
-              .keyManager(cert.certificate.privateKey, cert.certificate.certificate)
-              .trustManager(ca.certificate.certificate)
-              .build()
-          )
-      interceptor = ZClientInterceptor.intercept { md =>
-        ZIO
-          .whenCase(adminTokenService) {
-            case Some(ts) => ts.getParticipantAdminToken.flatMap { token => md.put(authHeader, token) }
-          }
-          .orDie
-      }
-      channel <- ZManagedChannel(mkBuilder(), 128, interceptor).build
-    yield channel.get)
-
-  lazy val api = Api(participantChannel)
-
-  @SuppressWarnings(Array("org.wartremover.warts.AsInstanceOf"))
-  def inspectMaybe[T: Tag]: UIO[Option[T]] =
-    ZIO.environment[Any].mapAttempt(_.asInstanceOf[ZEnvironment[T]].get[T]).option
 end DamlSdk

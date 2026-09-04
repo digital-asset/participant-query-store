@@ -7,7 +7,7 @@ import com.digitalasset.pqs.SharedLedgerAndPostgresTest
 import com.digitalasset.pqs.functest.matchers.*
 import com.digitalasset.pqs.functest.table.*
 import com.digitalasset.pqs.services.daml.DamlSdk.onlyCantonVersion
-import com.digitalasset.pqs.services.daml.{DamlSdk, DamlSource, DarFile, Party}
+import com.digitalasset.pqs.services.daml.*
 import com.digitalasset.pqs.services.postgres.Postgres
 import com.digitalasset.pqs.services.pqs.Pqs
 import zio.jdbc.sqlInterpolator
@@ -135,7 +135,7 @@ object PipelineSpec extends SharedLedgerAndPostgresTest:
             .query[Array[Byte]]
             .selectOne
             .someOrFail(Throwable("no payload"))
-          expectedMetadata <- DamlSdk.api.getSingleCreatedBlob(Seq(aliceId), txId)
+          expectedMetadata <- Ledger.getSingleCreatedBlob(Seq(aliceId), txId)
         yield zio.test.assertTrue(storedMetadata.toSeq == expectedMetadata.toSeq)
     ,
     funcTest("created_at should be not null"):

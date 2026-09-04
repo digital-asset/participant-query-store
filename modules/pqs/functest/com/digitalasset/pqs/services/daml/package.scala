@@ -7,6 +7,7 @@ import com.digitalasset.pqs.utils.safeequals.=/=
 import com.digitalasset.transcode.schema.*
 import org.semver4j.Semver
 import zio.{FiberRef, Task, Unsafe}
+import zio.*
 
 package object daml:
   case class DamlSource(
@@ -70,4 +71,6 @@ package object daml:
 
   final case class Users(get: Seq[User])
 
-  trait Ledger
+  @SuppressWarnings(Array("org.wartremover.warts.AsInstanceOf"))
+  def inspectMaybe[T: Tag]: UIO[Option[T]] =
+    ZIO.environment[Any].mapAttempt(_.asInstanceOf[ZEnvironment[T]].get[T]).option

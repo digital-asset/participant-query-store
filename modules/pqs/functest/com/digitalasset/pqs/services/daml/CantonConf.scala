@@ -26,11 +26,11 @@ trait CantonConf:
   def twoSynchronizers(hostname: String): ZIO[Docker, Throwable, Seq[(Path, String | Array[Byte])]]
 
 object CantonConf:
-  val maxRequestSize: Int  = 30 * 1024 * 1024
-  val participantPort: Int = 6865
-  val adminApiPort: Int    = 6866
-  val participantAdmin     = "participant_admin"
-  val bootstrapCompleteMessage = "=== Bootstrapping complete ==="
+  val maxRequestSize: Int                  = 30 * 1024 * 1024
+  val participantPort: Int                 = 6865
+  val adminApiPort: Int                    = 6866
+  val participantAdmin                     = "participant_admin"
+  val bootstrapCompleteMessage             = "=== Bootstrapping complete ==="
   val cantonAdditionalCmds: Seq[Shellable] = Seq("daemon")
   val cantonEnvVarMap: Map[String, String] =
     Map(

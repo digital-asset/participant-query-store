@@ -8,7 +8,7 @@ import com.digitalasset.pqs.functest.{FTEnv, FuncTestStandalone}
 import com.digitalasset.pqs.functest.matchers.*
 import com.digitalasset.pqs.functest.table.*
 import com.digitalasset.pqs.services.daml.*
-import com.digitalasset.pqs.services.daml.DamlSdk.{onlyCantonVersion, onlyPostgresVersion}
+import com.digitalasset.pqs.services.daml.DamlSdk.onlyCantonVersion
 import com.digitalasset.pqs.services.postgres.*
 import com.digitalasset.pqs.services.pqs.{Pipeline, Pqs}
 import zio.*
@@ -139,7 +139,7 @@ object RpidTwoParticipantSpec extends FuncTestStandalone:
           v2Dar.get.packageId         | v1Dar.get.packageId   | "archived"
           v2Dar.get.packageId         | null                  | "archived"
         }
-  ) @@ onlyPostgresVersion(">=14") @@ onlyCantonVersion(">=3.5")
+  ) @@ onlyCantonVersion(">=3.5")
 
   /** Two-participant Canton layer with Postgres storage (required for ACS import).
     *
