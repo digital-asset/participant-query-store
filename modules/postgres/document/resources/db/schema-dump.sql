@@ -161,7 +161,7 @@ begin
     lock table __watermark in exclusive mode;
     select ix from latest_checkpoint() into latest_ix;
     call __delete_transactions_after(coalesce(latest_ix, 0));
-    update __watermark set instance_id = current_setting('scribe.instance');
+    update __watermark set instance_id = current_setting('pqs.instance');
 end
 $$;
 
@@ -333,9 +333,9 @@ declare
 begin
     select __current_writer() into current_writer;
     if current_writer is not null then
-        session_writer := current_setting('scribe.instance');
+        session_writer := current_setting('pqs.instance');
         if current_writer != session_writer then
-            raise exception 'Scribe writer instance has changed (old = %, new = %). Aborting...' , session_writer, current_writer;
+            raise exception 'PQS writer instance has changed (old = %, new = %). Aborting...' , session_writer, current_writer;
         end if;
     end if;
 end
@@ -794,7 +794,7 @@ CREATE FUNCTION public.active(qname text DEFAULT NULL::text, "offset" bigint DEF
     AS $$
 select c.*
 from __contracts(qname) c
-where c.life_ix @> __nearest_ix_floor("offset")
+where c.life_ix @> (select __nearest_ix_floor("offset"))
   and not c.divulged_only -- exclude contracts that were merely divulged
 $$;
 
@@ -860,7 +860,7 @@ select c.template_fqn,
        c.creation_package_id,
        c.contract_key_hash
 from __contracts(qname) c
-where c.archived_at_ix between __nearest_ix_ceil(from_offset) and __nearest_ix_floor(to_offset)
+where c.archived_at_ix between (select __nearest_ix_ceil(from_offset)) and (select __nearest_ix_floor(to_offset))
 $$;
 
 
@@ -896,7 +896,7 @@ CREATE FUNCTION public.creates(qname text DEFAULT NULL::text, from_offset bigint
     AS $$
     select c.*
     from __contracts(qname) c
-    where c.created_at_ix between __nearest_ix_ceil(from_offset) and __nearest_ix_floor(to_offset)
+    where c.created_at_ix between (select __nearest_ix_ceil(from_offset)) and (select __nearest_ix_floor(to_offset))
 $$;
 
 
@@ -909,7 +909,7 @@ CREATE FUNCTION public.exercises(qname text DEFAULT NULL::text, from_offset bigi
     AS $$
     select e.*
     from __exercises(qname) e
-    where e.exercised_at_ix between __nearest_ix_ceil(from_offset) and __nearest_ix_floor(to_offset)
+    where e.exercised_at_ix between (select __nearest_ix_ceil(from_offset)) and (select __nearest_ix_floor(to_offset))
 $$;
 
 
@@ -1300,7 +1300,7 @@ begin
     select count(*) into affected_transactions from __transactions where ix > cutoff_ix;
     call __delete_transactions_after(cutoff_ix);
 
-    -- adjust watermark and invalidate the previous scribe instance
+    -- adjust watermark and invalidate the previous PQS instance
     update __watermark
     set "offset" = new_latest,
         ix       = cutoff_ix,
@@ -1378,7 +1378,7 @@ CREATE FUNCTION public.summary_active("offset" bigint DEFAULT public.latest_offs
     AS $$
 with stats as (select c.tpe_pk as tpe_pk, count(*) as count
                from __contracts c
-               where c.life_ix @> __nearest_ix_floor("offset")
+               where c.life_ix @> (select __nearest_ix_floor("offset"))
                  and not c.divulged_only -- exclude contracts that were merely divulged
                group by c.tpe_pk)
 select tpe.template_fqn,
@@ -1398,7 +1398,7 @@ CREATE FUNCTION public.summary_archives(from_offset bigint DEFAULT COALESCE(publ
     AS $$
     with stats as (select c.tpe_pk as tpe_pk, count(*) as count
                from __contracts c
-               where c.archived_at_ix between __nearest_ix_ceil(from_offset) and __nearest_ix_floor(to_offset)
+               where c.archived_at_ix between (select __nearest_ix_ceil(from_offset)) and (select __nearest_ix_floor(to_offset))
                group by c.tpe_pk)
     select tpe.template_fqn, tpe.payload_type, stats.count
     from stats
@@ -1415,7 +1415,7 @@ CREATE FUNCTION public.summary_creates(from_offset bigint DEFAULT public.oldest_
     AS $$
     with stats as (select c.tpe_pk as tpe_pk, count(*) as count
                from __contracts c
-               where c.created_at_ix between __nearest_ix_ceil(from_offset) and __nearest_ix_floor(to_offset)
+               where c.created_at_ix between (select __nearest_ix_ceil(from_offset)) and (select __nearest_ix_floor(to_offset))
                group by c.tpe_pk)
     select tpe.template_fqn, tpe.payload_type, stats.count
     from stats
@@ -1432,7 +1432,7 @@ CREATE FUNCTION public.summary_exercises(from_offset bigint DEFAULT COALESCE(pub
     AS $$
     with stats as (select e.tpe_pk as tpe_pk, count(*) as count
                from __exercises e
-               where e.exercised_at_ix between __nearest_ix_ceil(from_offset) and __nearest_ix_floor(to_offset)
+               where e.exercised_at_ix between (select __nearest_ix_ceil(from_offset)) and (select __nearest_ix_floor(to_offset))
                group by e.tpe_pk)
     select tpe.template_fqn, tpe.choice_fqn, tpe.choice, tpe.consuming, count
     from stats
@@ -1481,11 +1481,11 @@ CREATE FUNCTION public.summary_updates(from_offset bigint DEFAULT public.oldest_
     AS $$
     with creates as (select c.tpe_pk as tpe_pk, count(*) as count
                  from __contracts c
-                 where c.created_at_ix between __nearest_ix_ceil(from_offset) and __nearest_ix_floor(to_offset)
+                 where c.created_at_ix between (select __nearest_ix_ceil(from_offset)) and (select __nearest_ix_floor(to_offset))
                  group by c.tpe_pk),
          archives as (select c.tpe_pk as tpe_pk, count(*) as count
                  from __contracts c
-                 where c.archived_at_ix between __nearest_ix_ceil(from_offset) and __nearest_ix_floor(to_offset)
+                 where c.archived_at_ix between (select __nearest_ix_ceil(from_offset)) and (select __nearest_ix_floor(to_offset))
                  group by c.tpe_pk)
     select tpe.template_fqn,
            tpe.payload_type,

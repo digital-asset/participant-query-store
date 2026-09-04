@@ -3,15 +3,11 @@
 
 package com.digitalasset.pqs.services.postgres
 
-import com.digitalasset.pqs.docker.{Docker, Service}
-import com.digitalasset.pqs.functest.FTEnv
-import com.digitalasset.pqs.functest.table.{Cell, Row, Table}
 import com.digitalasset.pqs.specific.offsetSqlFragment
 import com.digitalasset.pqs.utils.safeequals.===
 import com.digitalasset.pqs.docker.{Docker, Service}
 import com.digitalasset.pqs.functest.FTEnv
 import com.digitalasset.pqs.functest.table.{Cell, Row, Table}
-import com.digitalasset.pqs.specific.offsetSqlFragment
 import org.postgresql.PGProperty
 import zio.*
 import zio.ZIO.{acquireRelease, attemptBlocking, logDebug}
