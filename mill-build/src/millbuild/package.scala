@@ -21,13 +21,18 @@ package object millbuild {
     val canton = "3.6.0-snapshot.20260818.20026.0.v41046c3b"
 
     val dockerClient = "3.4.0"
-    val flyway = "12.10.0"
+    val flyway = "13.4.0"
 
     // Think twice before changing this version, check with Canton's dependencies for a particular release line
     // for compatibility: https://github.com/DACH-NY/canton/blob/main/shared_dependencies.json
     val grpc  = "1.81.0"
 
-    // force specific version to address vulns
+    // Pulled transitively by Flyway
+    // Force specific version to address vulnerabilities
+    val jackson = "3.2.2"
+
+    // Pulled transitively by ZIO HTTP
+    // force specific version to address vulnerabilities
     val nettyVersion = "4.2.17.Final"
 
     val openTelemetryAgent = "2.28.1"
@@ -82,6 +87,11 @@ package object millbuild {
     object dockerClient {
       val core             = ivy"com.github.docker-java:docker-java-core:${V.dockerClient}"
       val zerodepTransport = ivy"com.github.docker-java:docker-java-transport-zerodep:${V.dockerClient}"
+    }
+
+    object jackson {
+      val core = s"tools.jackson.core:jackson.core:${V.jackson}"
+      val databind = s"tools.jackson.databind:jackson.databind:${V.jackson}"
     }
 
     object grpc {
@@ -149,7 +159,15 @@ package object millbuild {
 
     object flyway {
       val core           = ivy"org.flywaydb:flyway-core:${V.flyway}"
+        .exclude(
+          "tools.jackson.core" -> "jackson.core",
+          "tools.jackson.databind" -> "jackson.databind"
+        )
       val driverPostgres = ivy"org.flywaydb:flyway-database-postgresql:${V.flyway}"
+        .exclude(
+          "tools.jackson.core" -> "jackson.core",
+          "tools.jackson.databind" -> "jackson.databind"
+        )
     }
 
     val classgraph = ivy"io.github.classgraph:classgraph:4.8.174"
