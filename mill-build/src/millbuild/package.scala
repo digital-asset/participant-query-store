@@ -159,7 +159,15 @@ package object millbuild {
 
     object flyway {
       val core           = ivy"org.flywaydb:flyway-core:${V.flyway}"
+        .exclude(
+          "tools.jackson.core" -> "jackson.core",
+          "tools.jackson.databind" -> "jackson.databind"
+        )
       val driverPostgres = ivy"org.flywaydb:flyway-database-postgresql:${V.flyway}"
+        .exclude(
+          "tools.jackson.core" -> "jackson.core",
+          "tools.jackson.databind" -> "jackson.databind"
+        )
     }
 
     val classgraph = ivy"io.github.classgraph:classgraph:4.8.174"
