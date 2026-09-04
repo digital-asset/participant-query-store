@@ -21,7 +21,7 @@ package object millbuild {
     val canton = "3.6.0-snapshot.20260818.20026.0.v41046c3b"
 
     val dockerClient = "3.4.0"
-    val flyway = "12.10.0"
+    val flyway = "13.4.0"
 
     // Think twice before changing this version, check with Canton's dependencies for a particular release line
     // for compatibility: https://github.com/DACH-NY/canton/blob/main/shared_dependencies.json
