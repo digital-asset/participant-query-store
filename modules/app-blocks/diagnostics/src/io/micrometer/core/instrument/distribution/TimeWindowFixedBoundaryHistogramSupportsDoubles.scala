@@ -6,7 +6,6 @@ package io.micrometer.core.instrument.distribution
 import io.micrometer.core.instrument.Clock
 
 import java.util.Objects
-import java.{lang, util}
 
 /** A re-implementation of io.micrometer.core.instrument.distribution.TimeWindowFixedBoundaryHistogram that does not
   * truncate doubles during recording.
@@ -30,8 +29,7 @@ class TimeWindowFixedBoundaryHistogramSupportsDoubles(
 ) extends AbstractTimeWindowHistogram[FixedBoundaryHistogramSupportsDoubles, Unit](
       clock,
       config,
-      classOf[FixedBoundaryHistogramSupportsDoubles],
-      supportsAggregablePercentiles
+      classOf[FixedBoundaryHistogramSupportsDoubles]
     ):
   private val histogramBuckets    = distributionStatisticConfig.getHistogramBuckets(supportsAggregablePercentiles)
   private val percentileHistogram = distributionStatisticConfig.isPercentileHistogram
@@ -59,5 +57,5 @@ class TimeWindowFixedBoundaryHistogramSupportsDoubles(
 
   override def valueAtPercentile(percentile: Double): Double = 0.0
 
-  override def countsAtValues(values: util.Iterator[lang.Double]): util.Iterator[CountAtBucket] =
-    currentHistogram.countsAtValues(values)
+  override def countsAtBuckets(): Array[CountAtBucket] =
+    currentHistogram.getCountAtBuckets()

@@ -66,7 +66,7 @@ package object backend:
   }.flatten
 
   def instanceIdProp(instanceId: InstanceId): Map[String, String] = Map(
-    PGProperty.OPTIONS.getName -> s"-c pqs.instance=${instanceId}"
+    PGProperty.OPTIONS.getName -> s"-c scribe.instance=${instanceId}"
   )
 
   def sslprops(conf: TlsConfig): Map[String, String] =
