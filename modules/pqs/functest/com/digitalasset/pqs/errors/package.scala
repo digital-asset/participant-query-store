@@ -4,6 +4,7 @@
 package com.digitalasset.pqs
 
 import com.digitalasset.pqs.docker.{Docker, Service}
+import com.digitalasset.pqs.services.daml.CantonConf
 import com.digitalasset.pqs.services.daml.Ledger
 import com.digitalasset.pqs.services.oauth.OAuth
 import com.digitalasset.pqs.services.postgres.*
@@ -49,7 +50,7 @@ package object errors:
         _prefix = if prefix.isEmpty then prefix else s"${prefix}_".toUpperCase
         base = Map(
           s"PQS_${_prefix}LEDGER_HOST"       -> ledger.container.hostName,
-          s"PQS_${_prefix}LEDGER_PORT"       -> Ledger.participantPort,
+          s"PQS_${_prefix}LEDGER_PORT"       -> CantonConf.participantPort,
           s"PQS_${_prefix}LEDGER_TLS_KEY"    -> "/tls/client.pem",
           s"PQS_${_prefix}LEDGER_TLS_CERT"   -> "/tls/client.crt",
           s"PQS_${_prefix}LEDGER_TLS_CAFILE" -> "/tls/root-ca.crt"

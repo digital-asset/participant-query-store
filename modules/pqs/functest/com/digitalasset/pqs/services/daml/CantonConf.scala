@@ -21,7 +21,16 @@ trait CantonConf:
   val cantonDockerImage: String =
     s"europe-docker.pkg.dev/da-images/public-all/docker/canton-base:$version"
 
-  val bootstrapCompleteMessage             = "=== Bootstrapping complete ==="
+  def oneParticipant(hostname: String): ZIO[Docker, Throwable, Seq[(Path, String | Array[Byte])]]
+  def twoParticipantsConfigOnly(pgHost: String, pgPort: Int, dbP1: String, dbP2: String): String
+  def twoSynchronizers(hostname: String): ZIO[Docker, Throwable, Seq[(Path, String | Array[Byte])]]
+
+object CantonConf:
+  val maxRequestSize: Int  = 30 * 1024 * 1024
+  val participantPort: Int = 6865
+  val adminApiPort: Int    = 6866
+  val participantAdmin     = "participant_admin"
+  val bootstrapCompleteMessage = "=== Bootstrapping complete ==="
   val cantonAdditionalCmds: Seq[Shellable] = Seq("daemon")
   val cantonEnvVarMap: Map[String, String] =
     Map(
@@ -32,39 +41,16 @@ trait CantonConf:
     )
   val user = 1001
 
-  def apply(
-      hostname: String,
-      participantPort: Int,
-      domain: String,
-      publicApiPort: Int,
-      protocolVersion: Int,
-      maxRequestSize: Long = 4 * 1024 * 1024
-  ): ZIO[Docker, Throwable, Seq[(Path, String | Array[Byte])]]
-
-  def twoParticipantConfig(
-      protocolVersion: Int,
-      pgHost: String,
-      pgPort: Int,
-      dbP1: String,
-      dbP2: String
-  ): String
-
-  def twoSynchronizerConfig(
-      hostname: String,
-      protocolVersion: Int
-  ): ZIO[Docker, Throwable, Seq[(Path, String | Array[Byte])]]
-
-object CantonConf:
   def apply(): ZIO[FTEnv, Throwable, CantonConf] =
     for {
-      cantonVersion <- FTEnv.cantonVersion
-      ver           <- ZIO.attempt(Semver.parse(cantonVersion))
-      _             <- logInfo(s"Using canton version $ver, major.minor ${ver.getMajor}.${ver.getMinor}")
+      cantonVersion   <- FTEnv.cantonVersion
+      protocolVersion <- FTEnv.protocolVersion
+      ver             <- ZIO.attempt(Semver.parse(cantonVersion))
+      _               <- logInfo(s"Using canton version $ver, major.minor ${ver.getMajor}.${ver.getMinor}")
     } yield (ver.getMajor, ver.getMinor) match {
-      case (3, 4) => Canton34(cantonVersion)
-      case (3, 5) => Canton35Plus(cantonVersion)
-      case (3, 6) => Canton35Plus(cantonVersion)
-      case _      => sys.error(s"unsupported Canton version $ver")
+      case (3, 4)          => Canton34(cantonVersion, protocolVersion)
+      case (3, 5) | (3, 6) => Canton35Plus(cantonVersion, protocolVersion)
+      case _               => sys.error(s"unsupported Canton version $ver")
     }
 
   val layer: ZLayer[FTEnv, Throwable, CantonConf] =
@@ -103,23 +89,15 @@ object CantonConf:
   )
 
   private def oauthCantonConfig(oauthInstance: Option[Service[OAuth.Instance]]): String =
-    if oauthInstance.isDefined then
-      s"""|        auth-services = [{
-          |          type = jwt-rs-256-crt
-          |          certificate = "/data/oauth-certificate.crt"
-          |        }]
-          |""".stripMargin
+    if oauthInstance.isDefined then s"""|        auth-services = [{
+                                        |          type = jwt-rs-256-crt
+                                        |          certificate = "/data/oauth-certificate.crt"
+                                        |        }]
+                                        |""".stripMargin
     else ""
 
-  final case class Canton34(version: String) extends CantonConf:
-    override def apply(
-        hostname: String,
-        participantPort: Int,
-        synchronizer: String,
-        publicApiPort: Int,
-        protocolVersion: Int,
-        maxRequestSize: Long
-    ): ZIO[Docker, Throwable, Seq[(Path, String | Array[Byte])]] =
+  final case class Canton34(version: String, protocolVersion: Int) extends CantonConf:
+    override def oneParticipant(hostname: String): ZIO[Docker, Throwable, Seq[(Path, String | Array[Byte])]] =
       for (oauthInstance, collectorInstance, certFiles) <- commonSetup(hostname)
       yield
         val config =
@@ -255,7 +233,7 @@ object CantonConf:
               |  nodes.local.start()
               |
               |  val synchronizerId = bootstrap.synchronizer(
-              |    synchronizerName = "$synchronizer",
+              |    synchronizerName = "synchronizer1",
               |    sequencers = Seq(sequencer1),
               |    mediators = Seq(mediator1),
               |    synchronizerOwners = Seq(sequencer1),
@@ -268,9 +246,9 @@ object CantonConf:
               |    .propose_update(synchronizerId.logical, _.update(reconciliationInterval = initialReconciliationInterval))
               |
               |  logger.info("=== connecting to synchronizer ===")
-              |  participant1.synchronizers.connect_local(sequencer1, alias = "$synchronizer")
+              |  participant1.synchronizers.connect_local(sequencer1, alias = "synchronizer1")
               |  utils.retry_until_true {
-              |      participant1.synchronizers.active("$synchronizer")
+              |      participant1.synchronizers.active("synchronizer1")
               |  }
               |  logger.info("=== finished connecting to synchronizer ===")
               |
@@ -283,30 +261,15 @@ object CantonConf:
 
         certFiles ++ Seq(os.root / "app" / "app.conf" -> config, os.root / "app" / "bootstrap.sc" -> bootstrap)
 
-    override def twoParticipantConfig(
-        protocolVersion: Int,
-        pgHost: String,
-        pgPort: Int,
-        dbP1: String,
-        dbP2: String
-    ): String = throw new NotImplementedError("not tested on Canton 3.4")
+    override def twoParticipantsConfigOnly(pgHost: String, pgPort: Int, dbP1: String, dbP2: String): String =
+      throw new NotImplementedError("not tested on Canton 3.4")
 
-    override def twoSynchronizerConfig(
-        hostname: String,
-        protocolVersion: Int
-    ): ZIO[Docker, Throwable, Seq[(Path, String | Array[Byte])]] =
+    override def twoSynchronizers(hostname: String): ZIO[Docker, Throwable, Seq[(Path, String | Array[Byte])]] =
       ZIO.fail(new NotImplementedError("not tested on Canton 3.4"))
   end Canton34
 
-  final case class Canton35Plus(version: String) extends CantonConf:
-    override def apply(
-        hostname: String,
-        participantPort: Int,
-        synchronizer: String,
-        publicApiPort: Int,
-        protocolVersion: Int,
-        maxRequestSize: Long = 4 * 1024 * 1024
-    ) =
+  final case class Canton35Plus(version: String, protocolVersion: Int) extends CantonConf:
+    override def oneParticipant(hostname: String) =
       for (oauthInstance, collectorInstance, certFiles) <- commonSetup(hostname)
       yield
         val config =
@@ -439,7 +402,7 @@ object CantonConf:
               |  nodes.local.start()
               |
               |  val synchronizerId = bootstrap.synchronizer(
-              |    synchronizerName = "$synchronizer",
+              |    synchronizerName = "synchronizer1",
               |    sequencers = Seq(sequencer1),
               |    mediators = Seq(mediator1),
               |    synchronizerOwners = Seq(sequencer1),
@@ -465,9 +428,9 @@ object CantonConf:
               |    ))
               |
               |  logger.info("=== connecting to synchronizer ===")
-              |  participant1.synchronizers.connect_local(sequencer1, alias = "$synchronizer")
+              |  participant1.synchronizers.connect_local(sequencer1, alias = "synchronizer1")
               |  utils.retry_until_true {
-              |      participant1.synchronizers.active("$synchronizer")
+              |      participant1.synchronizers.active("synchronizer1")
               |  }
               |  logger.info("=== finished connecting to synchronizer ===")
               |
@@ -484,13 +447,7 @@ object CantonConf:
               |""".stripMargin
         certFiles ++ Seq(os.root / "app" / "app.conf" -> config, os.root / "app" / "bootstrap.sc" -> bootstrap)
 
-    override def twoParticipantConfig(
-        protocolVersion: Int,
-        pgHost: String,
-        pgPort: Int,
-        dbP1: String,
-        dbP2: String
-    ): String =
+    override def twoParticipantsConfigOnly(pgHost: String, pgPort: Int, dbP1: String, dbP2: String): String =
       s"""_storage {
          |  type = postgres
          |  config {
@@ -527,7 +484,7 @@ object CantonConf:
          |  participants {
          |    ${participantWithPGStorage("participant1", dbP1, 10012, 7865, protocolVersion)}
          |    
-         |    ${participantWithPGStorage("participant2", dbP2, 10014, Ledger.participantPort, protocolVersion)}
+         |    ${participantWithPGStorage("participant2", dbP2, 10014, participantPort, protocolVersion)}
          |  }
          |
          |  sequencers {
@@ -540,10 +497,7 @@ object CantonConf:
          |}
          |""".stripMargin
 
-    override def twoSynchronizerConfig(
-        hostname: String,
-        protocolVersion: Int
-    ): ZIO[Docker, Throwable, Seq[(Path, String | Array[Byte])]] =
+    override def twoSynchronizers(hostname: String): ZIO[Docker, Throwable, Seq[(Path, String | Array[Byte])]] =
       for (oauthInstance, collectorInstance, certFiles) <- commonSetup(hostname)
       yield
         val config =
@@ -574,7 +528,7 @@ object CantonConf:
               |      http-ledger-api.enabled = false
               |      ledger-api {
               |        address = "0.0.0.0"
-              |        port = ${Ledger.participantPort}
+              |        port = $participantPort
               |        ${oauthCantonConfig(oauthInstance)}
               |        tls {
               |          cert-chain-file = "/tls/participant.crt"
@@ -647,7 +601,7 @@ object CantonConf:
               |}
               |""".stripMargin
         certFiles ++ Seq(
-          os.root / "app" / "app.conf" -> config,
+          os.root / "app" / "app.conf"     -> config,
           os.root / "app" / "bootstrap.sc" -> bootstrap
         )
   end Canton35Plus
