@@ -8,7 +8,7 @@ import com.digitalasset.pqs.functest.{FTEnv, FuncTestStandalone}
 import com.digitalasset.pqs.functest.matchers.*
 import com.digitalasset.pqs.functest.table.*
 import com.digitalasset.pqs.services.daml.*
-import com.digitalasset.pqs.services.daml.DamlSdk.{onlyCantonVersion, onlyPostgresVersion}
+import com.digitalasset.pqs.services.daml.DamlSdk.onlyCantonVersion
 import com.digitalasset.pqs.services.postgres.*
 import com.digitalasset.pqs.services.pqs.{Pipeline, Pqs}
 import zio.*
@@ -139,7 +139,7 @@ object RpidTwoParticipantSpec extends FuncTestStandalone:
           v2Dar.get.packageId         | v1Dar.get.packageId   | "archived"
           v2Dar.get.packageId         | null                  | "archived"
         }
-  ) @@ onlyPostgresVersion(">=14") @@ onlyCantonVersion(">=3.5")
+  ) @@ onlyCantonVersion(">=3.5")
 
   /** Two-participant Canton layer with Postgres storage (required for ACS import).
     *
@@ -164,20 +164,16 @@ object RpidTwoParticipantSpec extends FuncTestStandalone:
     ZLayer
       .fromZIO(
         for
-          ftEnv <- ZIO.service[FTEnv]
-          pg    <- ZIO.service[Postgres]
+          showCantonLogs <- FTEnv.showCantonLogs
+          pg             <- ZIO.service[Postgres]
           pgHostname = pg.container.hostName
           cnt <- Docker.share("rpid_canton_cnt")(Ref.Synchronized.make(0)).flatMap(_.updateAndGet(_ + 1))
           hostname = s"rpid-canton-$cnt"
           dbP1     = s"canton_p1_$cnt"
           dbP2     = s"canton_p2_$cnt"
-          dbSeq    = s"canton_seq_$cnt"
-          dbMed    = s"canton_med_$cnt"
           _ <- pg.adminDatabase.transaction(
             sql"""CREATE DATABASE "${Syntax(dbP1)}"""".execute *>
-              sql"""CREATE DATABASE "${Syntax(dbP2)}"""".execute *>
-              sql"""CREATE DATABASE "${Syntax(dbSeq)}"""".execute *>
-              sql"""CREATE DATABASE "${Syntax(dbMed)}"""".execute
+              sql"""CREATE DATABASE "${Syntax(dbP2)}"""".execute
           )
           ca              <- Docker.certificateAuthority
           participantCert <- ca.generate("participant", Seq(hostname, "localhost", "127.0.0.1", "0.0.0.0"))
@@ -196,15 +192,7 @@ object RpidTwoParticipantSpec extends FuncTestStandalone:
             os.root / "tls" / "pg-client.der"    -> pgClientCert.certificate.der
           )
           cantonConf <- CantonConf()
-          appConf = cantonConf.twoParticipantConfig(
-            ftEnv.cantonProtocolVersion,
-            pgHostname,
-            Postgres.port,
-            dbP1,
-            dbP2,
-            dbSeq,
-            dbMed
-          )
+          appConf     = cantonConf.twoParticipantsConfigOnly(pgHostname, Postgres.port, dbP1, dbP2)
           bootstrapSc = bootstrapScript("rpiddomain")
           prepopulateFiles = certFiles ++ Seq(
             os.root / "app" / "app.conf"     -> appConf,
@@ -215,14 +203,14 @@ object RpidTwoParticipantSpec extends FuncTestStandalone:
           svc = Docker
             .service[Ledger](
               image = cantonConf.cantonDockerImage,
-              exposePorts = Set(Ledger.participantPort),
+              exposePorts = Set(CantonConf.participantPort),
               prepopulateFiles = prepopulateFiles,
               hostname = Some(hostname),
-              env = cantonConf.cantonEnvVarMap,
+              env = CantonConf.cantonEnvVarMap,
               user = Some(1001),
-              suppressOutput = !ftEnv.showCantonLogs
+              suppressOutput = !showCantonLogs
             )("daemon")
-            .tap(_.get.blockUntilStdOut(_.contains("=== Bootstrapping complete ===")))
+            .tap(_.get.blockUntilStdOut(_.contains(CantonConf.bootstrapCompleteMessage)))
         yield svc
       )
       .flatten >+> (DamlSdk.allocatedParties(alice) ++ ZLayer.succeed(DeployedDar(v2Dar)))
@@ -384,7 +372,7 @@ object RpidTwoParticipantSpec extends FuncTestStandalone:
        |    participant2.parties.list(filterParticipant = participant2.id.filterString).exists(_.party == alice)
        |  }
        |
-       |  logger.info("=== Bootstrapping complete ===")
+       |  logger.info("${CantonConf.bootstrapCompleteMessage}")
        |}
        |""".stripMargin
 

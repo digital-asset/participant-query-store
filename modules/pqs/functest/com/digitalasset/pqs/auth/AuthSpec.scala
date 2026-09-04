@@ -184,7 +184,7 @@ object AuthSpec extends SharedLedgerAndPostgresAndAuthTest:
       And:
         user.id `is` userId.capture
       And:
-        DamlSdk.api.participantId `is` participantId.capture
+        Ledger.participantId `is` participantId.capture
 
       When:
         Pqs.runPipeline(
@@ -218,7 +218,7 @@ object AuthSpec extends SharedLedgerAndPostgresAndAuthTest:
       And:
         user.id `is` userId.capture
       And:
-        DamlSdk.api.participantId `is` participantId.capture
+        Ledger.participantId `is` participantId.capture
 
       When:
         Pqs.runPipeline(
@@ -251,7 +251,7 @@ object AuthSpec extends SharedLedgerAndPostgresAndAuthTest:
       And:
         user.id `is` userId.capture
       And:
-        DamlSdk.api.participantId `is` participantId.capture
+        Ledger.participantId `is` participantId.capture
 
       When:
         Pqs.runPipeline(

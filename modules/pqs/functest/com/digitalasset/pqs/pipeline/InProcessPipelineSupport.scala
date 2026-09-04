@@ -14,6 +14,7 @@ import com.digitalasset.pqs.postgres.backend
 import com.digitalasset.pqs.postgres.document.DocumentPostgres
 import com.digitalasset.pqs.postgres.document.SqlSchema
 import com.digitalasset.pqs.services.daml.Ledger
+import com.digitalasset.pqs.services.daml.CantonConf
 import com.digitalasset.pqs.services.postgres.*
 import com.digitalasset.transcode.codec.json.JsonCodec
 import com.digitalasset.transcode.schema.IdentifierFilter
@@ -95,7 +96,7 @@ object InProcessPipelineSupport:
 
       damlConfig = DamlConfig(
         host = cantonInfo.exposedAddress,
-        port = cantonInfo.exposedPorts(Ledger.participantPort),
+        port = cantonInfo.exposedPorts(CantonConf.participantPort),
         tls = DamlTlsConfig(
           caCertificate = Some(caCertFile.toIO),
           privateKey = Some(clientKeyFile.toIO),
@@ -123,7 +124,7 @@ object InProcessPipelineSupport:
       )
 
       _ <- ZIO.logInfo(
-        s"Built ConfigPipeline: Canton=${cantonInfo.exposedAddress}:${cantonInfo.exposedPorts(Ledger.participantPort)}, Postgres=${pgInfo.exposedAddress}:${pgInfo.exposedPorts(Postgres.port)}/${dbName.name}"
+        s"Built ConfigPipeline: Canton=${cantonInfo.exposedAddress}:${cantonInfo.exposedPorts(CantonConf.participantPort)}, Postgres=${pgInfo.exposedAddress}:${pgInfo.exposedPorts(Postgres.port)}/${dbName.name}"
       )
     yield Main.ConfigPipeline(
       pipeline = pipelineConfig,
