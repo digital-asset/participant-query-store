@@ -5,6 +5,7 @@ package com.digitalasset.pqs.services
 
 import com.digitalasset.transcode.schema.*
 import org.semver4j.Semver
+import zio.*
 
 package object daml:
   case class DamlSource(
@@ -42,4 +43,6 @@ package object daml:
 
   type ParticipantId = String
 
-  trait Ledger
+  @SuppressWarnings(Array("org.wartremover.warts.AsInstanceOf"))
+  def inspectMaybe[T: Tag]: UIO[Option[T]] =
+    ZIO.environment[Any].mapAttempt(_.asInstanceOf[ZEnvironment[T]].get[T]).option

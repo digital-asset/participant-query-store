@@ -36,11 +36,45 @@ import com.digitalasset.pqs.grpc.ZManagedChannel
 import com.digitalasset.pqs.utils.safeequals.{===, =/=}
 import com.google.protobuf.ByteString
 import zio.stream.ZStream
-import zio.{Chunk, Schedule, ZLayer, durationInt}
+import zio.*
+import io.grpc.Metadata
+import zio.RLayer
+import io.grpc.netty.shaded.io.grpc.netty.NettyChannelBuilder
+import com.digitalasset.pqs.grpc.ZClientInterceptor
+import io.grpc.netty.shaded.io.grpc.netty.GrpcSslContexts
 
-case class Api(
-    channel: ZLayer[Docker & Service[Ledger], Throwable, ZManagedChannel]
-) {
+trait Ledger
+
+object Ledger:
+  val container  = ZIO.service[Service[Ledger]]
+  val authHeader = Metadata.Key.of("Authorization", Metadata.ASCII_STRING_MARSHALLER)
+  private val channel: RLayer[Docker & Service[Ledger], ZManagedChannel] = ZLayer.scoped(
+    for
+      svc               <- Ledger.container
+      adminTokenService <- inspectMaybe[TokenService]
+      ca                <- Docker.certificateAuthority
+      cert              <- ca.generate("participant")
+      mkBuilder = () =>
+        NettyChannelBuilder
+          .forAddress(svc.exposedAddress, svc.exposedPorts(CantonConf.participantPort))
+          .useTransportSecurity()
+          .sslContext(
+            GrpcSslContexts.forClient
+              .keyManager(cert.certificate.privateKey, cert.certificate.certificate)
+              .trustManager(ca.certificate.certificate)
+              .build()
+          )
+      interceptor = ZClientInterceptor.intercept { md =>
+        ZIO
+          .whenCase(adminTokenService) {
+            case Some(ts) => ts.getParticipantAdminToken.flatMap { token => md.put(authHeader, token) }
+          }
+          .orDie
+      }
+      channel <- ZManagedChannel(mkBuilder(), 128, interceptor).build
+    yield channel.get
+  )
+
   private val svc = channel >>> (
     PartyManagementServiceClient.live
       ++ UserManagementServiceClient.live
@@ -112,7 +146,7 @@ case class Api(
     PackageManagementServiceClient.listKnownPackages(ListKnownPackagesRequest()).map(_.packageDetails.map(_.packageId))
   )
 
-  def uploadDar(dar: DarFile) = svc(
+  def uploadDar(dar: DarFile) = svc.apply(
     PackageManagementServiceClient.uploadDarFile(
       UploadDarFileRequest.defaultInstance.withDarFile(ByteString.copyFrom(dar.darBytes))
     )
@@ -169,4 +203,3 @@ case class Api(
       .logError
       .retry(Schedule.spaced(1.second))
   )
-}
