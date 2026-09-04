@@ -161,7 +161,7 @@ begin
     lock table __watermark in exclusive mode;
     select ix from latest_checkpoint() into latest_ix;
     call __delete_transactions_after(coalesce(latest_ix, 0));
-    update __watermark set instance_id = current_setting('pqs.instance');
+    update __watermark set instance_id = current_setting('scribe.instance');
 end
 $$;
 
@@ -333,7 +333,7 @@ declare
 begin
     select __current_writer() into current_writer;
     if current_writer is not null then
-        session_writer := current_setting('pqs.instance');
+        session_writer := current_setting('scribe.instance');
         if current_writer != session_writer then
             raise exception 'PQS writer instance has changed (old = %, new = %). Aborting...' , session_writer, current_writer;
         end if;
