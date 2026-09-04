@@ -49,6 +49,11 @@ trait CantonConf:
       dbP2: String
   ): String
 
+  def twoSynchronizerConfig(
+      hostname: String,
+      protocolVersion: Int
+  ): ZIO[Docker, Throwable, Seq[(Path, String | Array[Byte])]]
+
 object CantonConf:
   def apply(): ZIO[FTEnv, Throwable, CantonConf] =
     for {
@@ -97,14 +102,14 @@ object CantonConf:
     ) ++ maybeOAuthCert.fold(Seq.empty) { cert => Seq(os.root / "data" / "oauth-certificate.crt" -> cert) }
   )
 
-  def oauthCantonConfig(oauthInstance: Option[Service[OAuth.Instance]]): String =
-    s"${oauthInstance.fold("") { oauth =>
-        s"""        auth-services = [{
-           |          type = jwt-rs-256-crt
-           |          certificate = "/data/oauth-certificate.crt"
-           |        }]
-           |""".stripMargin
-      }}"
+  private def oauthCantonConfig(oauthInstance: Option[Service[OAuth.Instance]]): String =
+    if oauthInstance.isDefined then
+      s"""|        auth-services = [{
+          |          type = jwt-rs-256-crt
+          |          certificate = "/data/oauth-certificate.crt"
+          |        }]
+          |""".stripMargin
+    else ""
 
   final case class Canton34(version: String) extends CantonConf:
     override def apply(
@@ -114,7 +119,7 @@ object CantonConf:
         publicApiPort: Int,
         protocolVersion: Int,
         maxRequestSize: Long
-    ) =
+    ): ZIO[Docker, Throwable, Seq[(Path, String | Array[Byte])]] =
       for (oauthInstance, collectorInstance, certFiles) <- commonSetup(hostname)
       yield
         val config =
@@ -285,6 +290,12 @@ object CantonConf:
         dbP1: String,
         dbP2: String
     ): String = throw new NotImplementedError("not tested on Canton 3.4")
+
+    override def twoSynchronizerConfig(
+        hostname: String,
+        protocolVersion: Int
+    ): ZIO[Docker, Throwable, Seq[(Path, String | Array[Byte])]] =
+      ZIO.fail(new NotImplementedError("not tested on Canton 3.4"))
   end Canton34
 
   final case class Canton35Plus(version: String) extends CantonConf:
@@ -528,6 +539,117 @@ object CantonConf:
          |  }
          |}
          |""".stripMargin
+
+    override def twoSynchronizerConfig(
+        hostname: String,
+        protocolVersion: Int
+    ): ZIO[Docker, Throwable, Seq[(Path, String | Array[Byte])]] =
+      for (oauthInstance, collectorInstance, certFiles) <- commonSetup(hostname)
+      yield
+        val config =
+          s"""|canton {
+              |  features {
+              |    enable-preview-commands = yes
+              |    enable-testing-commands = yes
+              |  }
+              |  parameters {
+              |    manual-start = no
+              |    non-standard-config = yes
+              |    timeouts.processing.verify-active = 40.seconds
+              |    timeouts.processing.slow-future-warn = 20.seconds
+              |  }
+              |
+              |  monitoring.logging.delay-logging-threshold = 40.seconds
+              |
+              |  participants {
+              |    participant1 {
+              |      storage.type = memory
+              |      admin-api {
+              |        address = "0.0.0.0"
+              |        port = 10012
+              |      }
+              |      init {
+              |        ledger-api.max-deduplication-duration = 0s
+              |      }
+              |      http-ledger-api.enabled = false
+              |      ledger-api {
+              |        address = "0.0.0.0"
+              |        port = ${Ledger.participantPort}
+              |        ${oauthCantonConfig(oauthInstance)}
+              |        tls {
+              |          cert-chain-file = "/tls/participant.crt"
+              |          private-key-file = "/tls/participant.pem"
+              |          trust-collection-file = "/tls/root-ca.crt"
+              |          client-auth {
+              |            type = require
+              |            admin-client {
+              |              cert-chain-file = "/tls/admin-client.crt"
+              |              private-key-file = "/tls/admin-client.pem"
+              |            }
+              |          }
+              |        }
+              |      }
+              |      parameters {
+              |        initial-protocol-version = $protocolVersion
+              |        minimum-protocol-version = $protocolVersion
+              |      }
+              |      topology.broadcast-batch-size = 1
+              |    }
+              |  }
+              |
+              |  sequencers {
+              |    ${sequencer("sequencer1")}
+              |    ${sequencer("sequencer2", 5010, 5011)}
+              |  }
+              |
+              |  mediators {
+              |    ${mediator("mediator1")}
+              |    ${mediator("mediator2", 5012)}
+              |  }
+              |${collectorInstance.fold("")(monitoring)}
+              |}
+              |""".stripMargin
+        val bootstrap =
+          s"""|import com.digitalasset.canton.version.ProtocolVersion
+              |import com.digitalasset.canton.config
+              |
+              |def main() = {
+              |  nodes.local.start()
+              |
+              |  val synchronizer1Id = bootstrap.synchronizer(
+              |    synchronizerName = "synchronizer1",
+              |    sequencers = Seq(sequencer1),
+              |    mediators = Seq(mediator1),
+              |    synchronizerOwners = Seq(sequencer1),
+              |    synchronizerThreshold = PositiveInt.one,
+              |    staticSynchronizerParameters = StaticSynchronizerParameters.defaultsWithoutKMS(ProtocolVersion.forSynchronizer)
+              |  )
+              |  val synchronizer2Id = bootstrap.synchronizer(
+              |    synchronizerName = "synchronizer2",
+              |    sequencers = Seq(sequencer2),
+              |    mediators = Seq(mediator2),
+              |    synchronizerOwners = Seq(sequencer2),
+              |    synchronizerThreshold = PositiveInt.one,
+              |    staticSynchronizerParameters = StaticSynchronizerParameters.defaultsWithoutKMS(ProtocolVersion.forSynchronizer)
+              |  )
+              |
+              |  val longReconciliationInterval = config.PositiveDurationSeconds.ofHours(24 * 365 * 10)
+              |  sequencer1.topology.synchronizer_parameters
+              |    .propose_update(synchronizer1Id.logical, _.update(reconciliationInterval = longReconciliationInterval))
+              |  sequencer2.topology.synchronizer_parameters
+              |    .propose_update(synchronizer2Id.logical, _.update(reconciliationInterval = longReconciliationInterval))
+              |
+              |  participant1.synchronizers.connect_local(sequencer1, alias = "synchronizer1")
+              |  participant1.synchronizers.connect_local(sequencer2, alias = "synchronizer2")
+              |  utils.retry_until_true { participant1.synchronizers.active("synchronizer1") }
+              |  utils.retry_until_true { participant1.synchronizers.active("synchronizer2") }
+              |  participant1.health.ping(participant1)
+              |}
+              |""".stripMargin
+        certFiles ++ Seq(
+          os.root / "app" / "app.conf" -> config,
+          os.root / "app" / "bootstrap.sc" -> bootstrap
+        )
   end Canton35Plus
 
   // PG storage is required by the ACS import test in RpidTwoParticipantSpec
@@ -573,26 +695,26 @@ object CantonConf:
         |    }
         |""".stripMargin
 
-  private def sequencer(name: String): String =
+  private def sequencer(name: String, publicApiPort: Int = 5008, adminApiPort: Int = 5009): String =
     s"""|$name {
         |      storage.type = memory
         |      public-api {
         |        address = "0.0.0.0"
-        |        port = 5008
+        |        port = $publicApiPort
         |      }
         |      admin-api {
         |        address = "0.0.0.0"
-        |        port = 5009
+        |        port = $adminApiPort
         |      }
         |    }
         |""".stripMargin
 
-private def mediator(name: String): String =
+private def mediator(name: String, adminApiPort: Int = 5007): String =
   s"""|$name {
       |      storage.type = memory
       |      admin-api {
       |        address = "0.0.0.0"
-      |        port = 5007
+      |        port = $adminApiPort
       |      }
       |    }
       |""".stripMargin
