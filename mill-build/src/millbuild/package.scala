@@ -27,7 +27,12 @@ package object millbuild {
     // for compatibility: https://github.com/DACH-NY/canton/blob/main/shared_dependencies.json
     val grpc  = "1.81.0"
 
-    // force specific version to address vulns
+    // Pulled transitively by Flyway
+    // Force specific version to address vulnerabilities
+    val jackson = "3.2.2"
+
+    // Pulled transitively by ZIO HTTP
+    // force specific version to address vulnerabilities
     val nettyVersion = "4.2.17.Final"
 
     val openTelemetryAgent = "2.28.1"
@@ -82,6 +87,11 @@ package object millbuild {
     object dockerClient {
       val core             = ivy"com.github.docker-java:docker-java-core:${V.dockerClient}"
       val zerodepTransport = ivy"com.github.docker-java:docker-java-transport-zerodep:${V.dockerClient}"
+    }
+
+    object jackson {
+      val core = ivy"tools.jackson.core:jackson-core:${V.jackson}"
+      val databind = ivy"tools.jackson.core:jackson-databind:${V.jackson}"
     }
 
     object grpc {
@@ -148,8 +158,9 @@ package object millbuild {
     val wartRemover = ivy"org.wartremover::wartremover:3.2.0"
 
     object flyway {
-      val core           = ivy"org.flywaydb:flyway-core:${V.flyway}"
-      val driverPostgres = ivy"org.flywaydb:flyway-database-postgresql:${V.flyway}"
+      val core           = ivy"org.flywaydb:flyway-core:${V.flyway}".excludeOrg("tools.jackson.core")
+      val driverPostgres =
+        ivy"org.flywaydb:flyway-database-postgresql:${V.flyway}".excludeOrg("tools.jackson.core")
     }
 
     val classgraph = ivy"io.github.classgraph:classgraph:4.8.174"
