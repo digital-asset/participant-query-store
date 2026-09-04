@@ -37,7 +37,7 @@ object SchemaDumpSpec extends SharedLedgerAndPostgresTest:
   private val regenerate = sys.env.get("REGENERATE_SCHEMA_DUMP").flatMap(_.toBooleanOption).exists(identity)
 
   private val staleMessage =
-    s"The reference SQL dump ($target) is stale: regenerate it with `REGENERATE_SCHEMA_DUMP=true mill scribe.functest.testOnly " +
+    s"The reference SQL dump ($target) is stale: regenerate it with `REGENERATE_SCHEMA_DUMP=true mill pqs.functest.testOnly " +
       s"${getClass.getName}` and commit it"
 
   // We need to drop the copyright header of the checked-in schema before comparing the schema dumps
