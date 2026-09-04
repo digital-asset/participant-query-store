@@ -71,8 +71,3 @@ package object daml:
   final case class Users(get: Seq[User])
 
   trait Ledger
-
-  object Ledger:
-    val participantPort: Int = 6865
-    val adminApiPort: Int    = 6866
-    val participantAdmin     = "participant_admin"

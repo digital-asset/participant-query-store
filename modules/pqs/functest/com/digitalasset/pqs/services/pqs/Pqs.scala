@@ -7,7 +7,7 @@ import com.digitalasset.pqs.docker
 import com.digitalasset.pqs.docker.*
 import com.digitalasset.pqs.functest.FuncTest
 import com.digitalasset.pqs.postgres.document.Prune
-import com.digitalasset.pqs.services.daml.{DeployedDar, Ledger, Parties}
+import com.digitalasset.pqs.services.daml.*
 import com.digitalasset.pqs.services.o11y.Collector
 import com.digitalasset.pqs.services.oauth.OAuth
 import com.digitalasset.pqs.services.postgres.*
@@ -181,7 +181,7 @@ trait Pqs {
                                         then dar.dar.packageInfo.map((name, _, _) => s"$name:*").mkString("|")
                                         else dar.dar.packageInfo.map((_, _, id) => s"$id:*").mkString("|")),
         "SOURCE_LEDGER_HOST"         -> ledger.container.hostName,
-        "SOURCE_LEDGER_PORT"         -> Ledger.participantPort,
+        "SOURCE_LEDGER_PORT"         -> CantonConf.participantPort,
         "TARGET_POSTGRES_HOST"       -> pg.container.hostName,
         "TARGET_POSTGRES_PORT"       -> Postgres.port,
         "TARGET_POSTGRES_DATABASE"   -> dbName.name,

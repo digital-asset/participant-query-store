@@ -164,8 +164,8 @@ object RpidTwoParticipantSpec extends FuncTestStandalone:
     ZLayer
       .fromZIO(
         for
-          ftEnv <- ZIO.service[FTEnv]
-          pg    <- ZIO.service[Postgres]
+          showCantonLogs <- FTEnv.showCantonLogs
+          pg             <- ZIO.service[Postgres]
           pgHostname = pg.container.hostName
           cnt <- Docker.share("rpid_canton_cnt")(Ref.Synchronized.make(0)).flatMap(_.updateAndGet(_ + 1))
           hostname = s"rpid-canton-$cnt"
@@ -192,13 +192,7 @@ object RpidTwoParticipantSpec extends FuncTestStandalone:
             os.root / "tls" / "pg-client.der"    -> pgClientCert.certificate.der
           )
           cantonConf <- CantonConf()
-          appConf = cantonConf.twoParticipantConfig(
-            ftEnv.cantonProtocolVersion,
-            pgHostname,
-            Postgres.port,
-            dbP1,
-            dbP2
-          )
+          appConf     = cantonConf.twoParticipantsConfigOnly(pgHostname, Postgres.port, dbP1, dbP2)
           bootstrapSc = bootstrapScript("rpiddomain")
           prepopulateFiles = certFiles ++ Seq(
             os.root / "app" / "app.conf"     -> appConf,
@@ -209,14 +203,14 @@ object RpidTwoParticipantSpec extends FuncTestStandalone:
           svc = Docker
             .service[Ledger](
               image = cantonConf.cantonDockerImage,
-              exposePorts = Set(Ledger.participantPort),
+              exposePorts = Set(CantonConf.participantPort),
               prepopulateFiles = prepopulateFiles,
               hostname = Some(hostname),
-              env = cantonConf.cantonEnvVarMap,
+              env = CantonConf.cantonEnvVarMap,
               user = Some(1001),
-              suppressOutput = !ftEnv.showCantonLogs
+              suppressOutput = !showCantonLogs
             )("daemon")
-            .tap(_.get.blockUntilStdOut(_.contains("=== Bootstrapping complete ===")))
+            .tap(_.get.blockUntilStdOut(_.contains(CantonConf.bootstrapCompleteMessage)))
         yield svc
       )
       .flatten >+> (DamlSdk.allocatedParties(alice) ++ ZLayer.succeed(DeployedDar(v2Dar)))
@@ -378,7 +372,7 @@ object RpidTwoParticipantSpec extends FuncTestStandalone:
        |    participant2.parties.list(filterParticipant = participant2.id.filterString).exists(_.party == alice)
        |  }
        |
-       |  logger.info("=== Bootstrapping complete ===")
+       |  logger.info("${CantonConf.bootstrapCompleteMessage}")
        |}
        |""".stripMargin
 

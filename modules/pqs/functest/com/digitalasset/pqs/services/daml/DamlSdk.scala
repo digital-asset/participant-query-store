@@ -13,6 +13,7 @@ import com.digitalasset.pqs.services.oauth.OAuth
 import io.grpc.Metadata
 import io.grpc.netty.shaded.io.grpc.netty.{GrpcSslContexts, NettyChannelBuilder}
 import org.semver4j.Semver
+import os.Path
 import zio.ZIO.{attemptBlocking, logInfo, suspend}
 import zio.test.{Spec, TestAspectAtLeastR}
 import zio.*
@@ -23,8 +24,6 @@ import java.util.zip.ZipInputStream
 import scala.util.Using
 
 object DamlSdk:
-  private val maxRequestSize: Int = 30 * 1024 * 1024
-
   ////////////
   // Layers //
   ////////////
@@ -121,10 +120,13 @@ object DamlSdk:
         spec.whenZIO(ZIO.service[FTEnv].map(env => f(env.config)).map(matcher))
 
   val ledger: RLayer[FTEnv & Docker, Service[Ledger]] =
-    CantonConf.layer >+> canton("canton")
+    CantonConf.layer >+> canton(_.oneParticipant(_))
+
+  val multiSyncLedger: RLayer[FTEnv & Docker, Service[Ledger]] =
+    CantonConf.layer >+> canton(_.twoSynchronizers(_))
 
   private def canton(
-      prefix: String,
+      cantonFiles: (CantonConf, String) => ZIO[Docker, Throwable, Seq[(Path, String | Array[Byte])]],
       suppressOutput: Boolean = true
   ): RLayer[FTEnv & CantonConf & Docker, Service[Ledger]] =
     ZLayer
@@ -132,22 +134,22 @@ object DamlSdk:
         for
           version         <- FTEnv.cantonVersion
           protocolVersion <- FTEnv.cantonProtocolVersion
-          cnt             <- Docker.share(s"${prefix}_cnt")(Ref.Synchronized.make(0)).flatMap(_.updateAndGet(_ + 1))
-          hostname = s"$prefix-$cnt"
+          cnt             <- Docker.share(s"canton_cnt")(Ref.Synchronized.make(0)).flatMap(_.updateAndGet(_ + 1))
+          hostname = s"canton-$cnt"
           cantonConf <- ZIO.service[CantonConf]
-          files      <- cantonConf(hostname, Ledger.participantPort, "mydomain", 5081, protocolVersion, maxRequestSize)
+          files      <- cantonFiles(cantonConf, hostname)
           ftEnv      <- ZIO.service[FTEnv]
           svc = Docker
             .service[Ledger](
               image = cantonConf.cantonDockerImage,
-              exposePorts = Set(Ledger.participantPort),
+              exposePorts = Set(CantonConf.participantPort),
               prepopulateFiles = files,
               hostname = Some(hostname),
-              env = cantonConf.cantonEnvVarMap,
-              user = Some(cantonConf.user),
+              env = CantonConf.cantonEnvVarMap,
+              user = Some(CantonConf.user),
               suppressOutput = !ftEnv.showCantonLogs
-            )(cantonConf.cantonAdditionalCmds*)
-            .tap(_.get.blockUntilStdOut(_.contains(cantonConf.bootstrapCompleteMessage)))
+            )(CantonConf.cantonAdditionalCmds*)
+            .tap(_.get.blockUntilStdOut(_.contains(CantonConf.bootstrapCompleteMessage)))
         yield svc
       )
       .flatten
@@ -239,10 +241,10 @@ object DamlSdk:
       _ <- Dpm.runScript(
         packageDir = dar.mainPackageDir,
         ledgerHost = ledger.exposedAddress,
-        ledgerPort = ledger.exposedPorts(Ledger.participantPort),
+        ledgerPort = ledger.exposedPorts(CantonConf.participantPort),
         scriptName = name,
         darPath = dar.darPath,
-        maxRequestSize = maxRequestSize,
+        maxRequestSize = CantonConf.maxRequestSize,
         inputFile = inputFile,
         outputFile = outputFile,
         crt = participantCrt,
@@ -268,7 +270,7 @@ object DamlSdk:
       cert              <- ca.generate("participant")
       mkBuilder = () =>
         NettyChannelBuilder
-          .forAddress(svc.exposedAddress, svc.exposedPorts(Ledger.participantPort))
+          .forAddress(svc.exposedAddress, svc.exposedPorts(CantonConf.participantPort))
           .useTransportSecurity()
           .sslContext(
             GrpcSslContexts.forClient

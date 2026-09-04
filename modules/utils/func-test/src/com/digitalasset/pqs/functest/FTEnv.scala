@@ -24,6 +24,7 @@ final class FTEnv(
     yield dir
 
 object FTEnv:
+  val showCantonLogs                        = ZIO.service[FTEnv].map(_.showCantonLogs)
   val cantonVersion                         = ZIO.service[FTEnv].map(_.config.cantonVersion)
   val protocolVersion                       = ZIO.service[FTEnv].map(_.config.cantonProtocolVersion)
   val cantonProtocolVersion                 = ZIO.service[FTEnv].map(_.config.cantonProtocolVersion)

@@ -158,7 +158,7 @@ case class Api(
   def grantRights(partyId: String) = svc(
     UserManagementServiceClient.grantUserRights(
       GrantUserRightsRequest.defaultInstance
-        .withUserId(Ledger.participantAdmin)
+        .withUserId(CantonConf.participantAdmin)
         .addRights(user_management_service.Right(Kind.CanActAs(user_management_service.Right.CanActAs(partyId))))
     )
   )
