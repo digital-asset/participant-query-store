@@ -13,7 +13,6 @@ import zio.{ExitCode, ZLayer}
 import scala.language.{implicitConversions, postfixOps}
 
 object OAuthAudienceBasedTokenSpec extends SharedLedgerAndPostgresAndAuthTest:
-  private val alice = Party("Alice")
   private val pingPong = DamlSource(
     "PingPong" -> """module PingPong where
                     |
@@ -36,9 +35,8 @@ object OAuthAudienceBasedTokenSpec extends SharedLedgerAndPostgresAndAuthTest:
 
   def spec = suite("OAuthAudienceBasedToken")(
     funcTest("pipeline should fail for audience with wrong participantId"):
-      val user    = User(primaryParty = alice)
-      val userId  = Capture[String]
-      val aliceId = Capture[String]
+      val alice = Party("Alice")
+      val user  = User(primaryParty = alice)
       Given:
         (DamlSdk.dar(pingPong) ++ DamlSdk.parties(alice) ++ Postgres.database)
           >+> DamlSdk.deploy >+> DamlSdk.runScript("PingPong:transact1", alice.id)
@@ -52,18 +50,12 @@ object OAuthAudienceBasedTokenSpec extends SharedLedgerAndPostgresAndAuthTest:
       And:
         DamlSdk.runScript("PingPong:transact1", alice.id)
 
-      And:
-        alice.id `is` aliceId.capture
-
-      And:
-        user.id `is` userId.capture
-
       When:
         runPqs(
           "pipeline",
           "ledger",
           "postgres-document",
-          s"--pipeline-oauth-clientid=$userId",
+          s"--pipeline-oauth-clientid=${user.id}",
           "--pipeline-oauth-parameters-audience=https://daml.com/jwt/aud/participant/WRONG_PARTICIPANT",
           "--pipeline-ledger-stop=Latest"
         )

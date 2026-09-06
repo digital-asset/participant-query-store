@@ -17,10 +17,6 @@ import zio.test.Assertion.anything
 import scala.language.implicitConversions
 
 object DivulgedContractsSpec extends SharedLedgerAndPostgresTest:
-  private val alice = Party("Alice")
-  private val bob   = Party("Bob")
-  private val bank1 = Party("Bank1")
-  private val bank2 = Party("Bank2")
   private val damlSource = DamlSource(
     "AssetApp" ->
       """module AssetApp where
@@ -115,9 +111,10 @@ object DivulgedContractsSpec extends SharedLedgerAndPostgresTest:
         |""".stripMargin
   )
 
-  private val context = DamlSdk.dar(damlSource) ++ DamlSdk.parties(alice, bob, bank1, bank2) ++ Postgres.database
-    >+> DamlSdk.deploy
-    >+> DamlSdk.runScript("AssetApp:transact1", alice.id <&> bob.id <&> bank1.id <&> bank2.id)
+  private def context(alice: Party, bob: Party, bank1: Party, bank2: Party) =
+    DamlSdk.dar(damlSource) ++ DamlSdk.parties(alice, bob, bank1, bank2) ++ Postgres.database
+      >+> DamlSdk.deploy
+      >+> DamlSdk.runScript("AssetApp:transact1", (alice.id, bob.id, bank1.id, bank2.id))
 
   private def run(source: String, partyHint: String) =
     Pqs.runPipeline(
@@ -129,13 +126,14 @@ object DivulgedContractsSpec extends SharedLedgerAndPostgresTest:
 
   def spec = suite("Divulged contracts")(
     funcTest("TransactionStream: divulged contracts are NOT present") {
-      val bobHint = Capture[String]
+      val alice = Party("Alice")
+      val bob   = Party("Bob")
+      val bank1 = Party("Bank1")
+      val bank2 = Party("Bank2")
       Given:
-        context
-      And:
-        bob.name `is` bobHint.capture
+        context(alice, bob, bank1, bank2)
       When:
-        run(source = "TransactionStream", partyHint = bobHint.get)
+        run(source = "TransactionStream", partyHint = bob.name)
       Expect:
         Postgres query {
           sql"select count(*) from creates('AssetApp:SimpleAsset') where divulged_only"
@@ -151,26 +149,21 @@ object DivulgedContractsSpec extends SharedLedgerAndPostgresTest:
     },
     funcTest("TransactionTreeStream: divulged contracts are present") {
       // IMPORTANT: divulgences are only shipped in TransactionTreeStream from SDK 3.4+
-      val bobHint = Capture[String]
-      val bobId   = Capture[String]
-      val aliceId = Capture[String]
+      val alice = Party("Alice")
+      val bob   = Party("Bob")
+      val bank1 = Party("Bank1")
+      val bank2 = Party("Bank2")
       Given:
-        context
-      And:
-        bob.name `is` bobHint.capture
-      And:
-        bob.id `is` bobId.capture
-      And:
-        alice.id `is` aliceId.capture
+        context(alice, bob, bank1, bank2)
       When:
-        run(source = "TransactionTreeStream", partyHint = bobHint.get)
+        run(source = "TransactionTreeStream", partyHint = bob.name)
       Expect:
         Postgres query { // Alice's assets get divulged to Bob
           sql"""select count(c.*)
                 from creates('AssetApp:SimpleAsset') c
                 where c.divulged_only
-                  and c.stakeholders @> array[${aliceId.toString}]::text[]
-                  and c.witnesses @> array[${bobId.toString}]::text[]"""
+                  and c.stakeholders @> array[${alice.id}]::text[]
+                  and c.witnesses @> array[${bob.id}]::text[]"""
         } `returns` table { 2 }
       And:
         Postgres query {
@@ -224,15 +217,16 @@ object DivulgedContractsSpec extends SharedLedgerAndPostgresTest:
         }
     },
     funcTest("TransactionTreeStream: pruning of divulged contracts") {
-      val bobHint        = Capture[String]
+      val alice          = Party("Alice")
+      val bob            = Party("Bob")
+      val bank1          = Party("Bank1")
+      val bank2          = Party("Bank2")
       val earlier_offset = Capture[Long]
       val later_offset   = Capture[Long]
       Given:
-        context
-      And:
-        bob.name `is` bobHint.capture
+        context(alice, bob, bank1, bank2)
       When:
-        run(source = "TransactionTreeStream", partyHint = bobHint.get)
+        run(source = "TransactionTreeStream", partyHint = bob.name)
       Expect:
         Postgres query {
           sql"select template_fqn, created_at_offset from creates() where divulged_only order by create_event_id"
@@ -262,29 +256,21 @@ object DivulgedContractsSpec extends SharedLedgerAndPostgresTest:
 
   private def contractsPartiesPropagationSpec(source: String) =
     funcTest(s"$source: should record stakeholders and witnesses on contracts") {
-      val bobHint = Capture[String]
-      val bobId   = Capture[String]
-      val bank1Id = Capture[String]
-      val bank2Id = Capture[String]
+      val alice = Party("Alice")
+      val bob   = Party("Bob")
+      val bank1 = Party("Bank1")
+      val bank2 = Party("Bank2")
       Given:
-        context
-      And:
-        bob.name `is` bobHint.capture
-      And:
-        bob.id `is` bobId.capture
-      And:
-        bank1.id `is` bank1Id.capture
-      And:
-        bank2.id `is` bank2Id.capture
+        context(alice, bob, bank1, bank2)
       When:
-        run(source = source, partyHint = bobHint.get)
+        run(source = source, partyHint = bob.name)
       Expect:
         Postgres query {
           sql"""select c.payload->>'asset', c.signatories, c.observers, c.stakeholders, c.witnesses
                 from creates('AssetApp:SimpleAsset') c
                 order by c.create_event_id limit 1"""
         } `returns` table {
-          "1 USD" | s"{$bank2Id}" | s"{$bobId}" | s"{$bank2Id,$bobId}" | s"{$bobId}"
+          "1 USD" | s"{${bank2.id}}" | s"{${bob.id}}" | s"{${bank2.id},${bob.id}}" | s"{${bob.id}}"
         }
       And:
         Postgres query {
@@ -292,7 +278,7 @@ object DivulgedContractsSpec extends SharedLedgerAndPostgresTest:
                 from archives('AssetApp:SimpleAsset') a
                 order by a.create_event_id limit 1;"""
         } `returns` table { // archives explicitly blinded wrt witnesses
-          "1 USD" | s"{$bank2Id}" | s"{$bobId}" | s"{$bank2Id,$bobId}" | s"{}"
+          "1 USD" | s"{${bank2.id}}" | s"{${bob.id}}" | s"{${bank2.id},${bob.id}}" | s"{}"
         }
       And:
         Postgres query {
@@ -300,25 +286,20 @@ object DivulgedContractsSpec extends SharedLedgerAndPostgresTest:
                 from active('AssetApp:SimpleAsset') a
                 order by a.create_event_id limit 1;"""
         } `returns` table {
-          "1 EUR" | s"{$bank1Id}" | s"{$bobId}" | s"{$bank1Id,$bobId}" | s"{$bobId}"
+          "1 EUR" | s"{${bank1.id}}" | s"{${bob.id}}" | s"{${bank1.id},${bob.id}}" | s"{${bob.id}}"
         }
     }
 
   private val exercisesPartiesPropagationSpec =
     funcTest("TransactionTreeStream: should record stakeholders and witnesses on exercises") {
-      val bobHint = Capture[String]
-      val bobId   = Capture[String]
-      val aliceId = Capture[String]
+      val alice = Party("Alice")
+      val bob   = Party("Bob")
+      val bank1 = Party("Bank1")
+      val bank2 = Party("Bank2")
       Given:
-        context
-      And:
-        bob.name `is` bobHint.capture
-      And:
-        bob.id `is` bobId.capture
-      And:
-        alice.id `is` aliceId.capture
+        context(alice, bob, bank1, bank2)
       When:
-        run(source = "TransactionTreeStream", partyHint = bobHint.get)
+        run(source = "TransactionTreeStream", partyHint = bob.name)
       Expect:
         Postgres query {
           sql"""select e.argument->>'toBeAllocated', e.signatories, e.observers, e.stakeholders,
@@ -326,6 +307,6 @@ object DivulgedContractsSpec extends SharedLedgerAndPostgresTest:
                 from exercises('AssetApp:ProposeSimpleDvP:Accept') e
                 order by e.exercise_event_id limit 1"""
         } `returns` table {
-          anything | s"{$aliceId}" | s"{$bobId}" | s"{$aliceId,$bobId}" | s"{$bobId}" | s"{$bobId}"
+          anything | s"{${alice.id}}" | s"{${bob.id}}" | s"{${alice.id},${bob.id}}" | s"{${bob.id}}" | s"{${bob.id}}"
         }
     }

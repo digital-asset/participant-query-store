@@ -12,7 +12,6 @@ import com.digitalasset.pqs.services.postgres.Database.*
 import com.digitalasset.pqs.services.postgres.Postgres
 import com.digitalasset.pqs.services.pqs.{Pipeline, Pqs}
 import com.digitalasset.transcode.schema.PackageName
-import zio.ZIO
 import zio.jdbc.sqlInterpolator
 import zio.schema.internal.SourceLocation
 import zio.test.Assertion.anything
@@ -171,7 +170,7 @@ object ContractUpgradesSupportSpec extends SharedLedgerAndPostgresTest:
           __exercises() `returns` Table.empty
 
         And:
-          DamlSdk.dar(pingUpgrade) >+> DamlSdk.runScript("Ping:setLabel", alice.id <&> ZIO.succeed(cId1.get))
+          DamlSdk.dar(pingUpgrade) >+> DamlSdk.runScript("Ping:setLabel", (alice.id, cId1.get))
 
         And:
           Pqs.runPipeline(
@@ -322,7 +321,7 @@ object ContractUpgradesSupportSpec extends SharedLedgerAndPostgresTest:
           }
 
         And:
-          DamlSdk.runScript("Ping:setLabel", alice.id <&> ZIO.succeed(cId1.get))
+          DamlSdk.runScript("Ping:setLabel", (alice.id, cId1.get))
 
         And:
           Pqs.runPipeline(

@@ -23,7 +23,6 @@ import scala.language.implicitConversions
 
 object RedactionSpec extends SharedLedgerAndPostgresTest {
   val redactionId = "some_reason"
-  lazy val alice  = Party("Alice")
   lazy val interfaces = DamlSource(
     "Interfaces" -> """module Interfaces where
                       |
@@ -93,14 +92,16 @@ object RedactionSpec extends SharedLedgerAndPostgresTest {
                    |""".stripMargin
   )
 
-  def context(dataSource: TransactionApi) = DamlSdk.dar(pingDaml) ++ DamlSdk.parties(alice) ++ Postgres.database
-    >+> DamlSdk.deploy
-    >+> DamlSdk.runScript("Pings:setup", alice.id)
-    >+> Pqs.runPipeline(
-      s"--pipeline-datasource=$dataSource",
-      "--pipeline-ledger-start=Genesis",
-      "--pipeline-ledger-stop=Latest"
-    )
+  def context(dataSource: TransactionApi) =
+    val alice = Party("Alice")
+    DamlSdk.dar(pingDaml) ++ DamlSdk.parties(alice) ++ Postgres.database
+      >+> DamlSdk.deploy
+      >+> DamlSdk.runScript("Pings:setup", alice.id)
+      >+> Pqs.runPipeline(
+        s"--pipeline-datasource=$dataSource",
+        "--pipeline-ledger-start=Genesis",
+        "--pipeline-ledger-stop=Latest"
+      )
 
   def spec =
     suite("redaction")(
@@ -261,6 +262,7 @@ object RedactionSpec extends SharedLedgerAndPostgresTest {
             )
       },
       funcTest("can redact keys and key hashes") {
+        val alice       = Party("Alice")
         val archivedCid = Capture[String]
         Given:
           DamlSdk.dar(withKey) ++ DamlSdk.parties(alice) ++ Postgres.database

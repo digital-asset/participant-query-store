@@ -18,7 +18,6 @@ import scala.language.{implicitConversions, postfixOps}
 
 object SchemaSpec extends SharedLedgerAndPostgresTest:
   private val templateMatcher = s"%-$specName-%"
-  val alice                   = Party("Alice")
   val interfaces = DamlSource(
     "Interfaces" -> """module Interfaces where
                       |
@@ -59,7 +58,8 @@ object SchemaSpec extends SharedLedgerAndPostgresTest:
                     |""".stripMargin
   ).dependsOn(interfaces)
 
-  private val context = DamlSdk.dar(pingPong) ++ DamlSdk.parties(alice) ++ Postgres.database >+> DamlSdk.deploy
+  private def context =
+    DamlSdk.dar(pingPong) ++ DamlSdk.parties(Party("Alice")) ++ Postgres.database >+> DamlSdk.deploy
 
   def spec = suite("schema spec")(
     funcTest("postgres document schema is created"):

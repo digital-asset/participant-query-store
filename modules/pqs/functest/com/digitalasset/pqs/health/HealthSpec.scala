@@ -17,7 +17,6 @@ import zio.json.ast.Json
 import scala.language.{implicitConversions, postfixOps}
 
 object HealthSpec extends SharedLedgerAndPostgresTest:
-  private val alice = Party("Alice")
   private val pingPong = DamlSource(
     "PingPong" -> """module PingPong where
                     |
@@ -37,9 +36,11 @@ object HealthSpec extends SharedLedgerAndPostgresTest:
                     |  submit alice $ createCmd Ping with sender = alice, receiver = alice
                     |""".stripMargin
   )
-  private val context = DamlSdk.dar(pingPong) ++ DamlSdk.parties(alice) ++ Postgres.database
-    >+> DamlSdk.deploy
-    >+> DamlSdk.runScript("PingPong:transact1", alice.id)
+  private def context =
+    val alice = Party("Alice")
+    DamlSdk.dar(pingPong) ++ DamlSdk.parties(alice) ++ Postgres.database
+      >+> DamlSdk.deploy
+      >+> DamlSdk.runScript("PingPong:transact1", alice.id)
 
   def spec = suite("health")(
     funcTest("livez"):

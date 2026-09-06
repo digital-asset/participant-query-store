@@ -10,12 +10,11 @@ import com.digitalasset.pqs.services.daml.{DamlSdk, DamlSource, Party}
 import com.digitalasset.pqs.services.postgres.Postgres
 import com.digitalasset.pqs.services.pqs.Pqs
 import zio.jdbc.sqlInterpolator
-import zio.{ExitCode, ZIO, ZLayer}
+import zio.{ExitCode, ZLayer}
 
 import scala.language.implicitConversions
 
 object JsonEncodingsSpec extends SharedLedgerAndPostgresTest:
-  val alice = Party("Alice")
   val pingPong = DamlSource(
     "PingPong" -> """module PingPong where
                     |
@@ -41,17 +40,16 @@ object JsonEncodingsSpec extends SharedLedgerAndPostgresTest:
                     |""".stripMargin
   )
 
-  private val context = DamlSdk.dar(pingPong) ++ DamlSdk.parties(alice) ++ Postgres.database >+> DamlSdk.deploy
+  private def context(alice: Party) =
+    DamlSdk.dar(pingPong) ++ DamlSdk.parties(alice) ++ Postgres.database
+      >+> DamlSdk.deploy
+      >+> DamlSdk.runScript("PingPong:addValues", (alice.id, "test", "1", "1"))
 
   def spec = suite("json encoding")(
     funcTest("include nullable fields"):
+      val alice = Party("Alice")
       Given:
-        context
-      And:
-        DamlSdk.runScript(
-          "PingPong:addValues",
-          alice.id <&> ZIO.succeed("test") <&> ZIO.succeed("1") <&> ZIO.succeed("1")
-        )
+        context(alice)
       And:
         DamlSdk.runScript(
           "PingPong:addNulls",
@@ -66,25 +64,18 @@ object JsonEncodingsSpec extends SharedLedgerAndPostgresTest:
       Expect:
         Pqs.exitCode `is` ExitCode.success
 
-      lazy val aliceId = Capture[String]
-      And:
-        alice.id `is` aliceId.capture
       Then:
         Postgres.`query` {
           sql"""select payload from active('PingPong:Ping') order by payload"""
         } `returns` table {
-          s"""{"text": null, "int64": null, "party": "$aliceId", "numeric": null}""" |
-            s"""{"text": "test", "int64": "1", "party": "$aliceId", "numeric": "1.0000000000"}"""
+          s"""{"text": null, "int64": null, "party": "${alice.id}", "numeric": null}""" |
+            s"""{"text": "test", "int64": "1", "party": "${alice.id}", "numeric": "1.0000000000"}"""
         }.transpose
     ,
     funcTest("exclude nullable fields"):
+      val alice = Party("Alice")
       Given:
-        context
-      And:
-        DamlSdk.runScript(
-          "PingPong:addValues",
-          alice.id <&> ZIO.succeed("test") <&> ZIO.succeed("1") <&> ZIO.succeed("1")
-        )
+        context(alice)
       And:
         DamlSdk.runScript(
           "PingPong:addNulls",
@@ -99,25 +90,18 @@ object JsonEncodingsSpec extends SharedLedgerAndPostgresTest:
       Expect:
         Pqs.exitCode `is` ExitCode.success
 
-      lazy val aliceId = Capture[String]
-      And:
-        alice.id `is` aliceId.capture
       Then:
         Postgres.`query` {
           sql"""select payload from active('PingPong:Ping') order by payload"""
         } `returns` table {
-          s"""{"text": null, "party": "$aliceId"}""" |
-            s"""{"text": "test", "int64": "1", "party": "$aliceId", "numeric": "1.0000000000"}"""
+          s"""{"text": null, "party": "${alice.id}"}""" |
+            s"""{"text": "test", "int64": "1", "party": "${alice.id}", "numeric": "1.0000000000"}"""
         }.transpose
     ,
     funcTest("encode numerics as numbers"):
+      val alice = Party("Alice")
       Given:
-        context
-      And:
-        DamlSdk.runScript(
-          "PingPong:addValues",
-          alice.id <&> ZIO.succeed("test") <&> ZIO.succeed("1") <&> ZIO.succeed("1")
-        )
+        context(alice)
 
       When:
         Pqs.runPipeline(
@@ -127,24 +111,17 @@ object JsonEncodingsSpec extends SharedLedgerAndPostgresTest:
       Expect:
         Pqs.exitCode `is` ExitCode.success
 
-      lazy val aliceId = Capture[String]
-      And:
-        alice.id `is` aliceId.capture
       Then:
         Postgres.`query` {
           sql"""select payload from active('PingPong:Ping') order by payload"""
         } `returns` table {
-          s"""{"text": "test", "int64": "1", "party": "$aliceId", "numeric": 1}"""
+          s"""{"text": "test", "int64": "1", "party": "${alice.id}", "numeric": 1}"""
         }
     ,
     funcTest("encode int64 as numbers"):
+      val alice = Party("Alice")
       Given:
-        context
-      And:
-        DamlSdk.runScript(
-          "PingPong:addValues",
-          alice.id <&> ZIO.succeed("test") <&> ZIO.succeed("1") <&> ZIO.succeed("1")
-        )
+        context(alice)
 
       When:
         Pqs.runPipeline(
@@ -154,13 +131,10 @@ object JsonEncodingsSpec extends SharedLedgerAndPostgresTest:
       Expect:
         Pqs.exitCode `is` ExitCode.success
 
-      lazy val aliceId = Capture[String]
-      And:
-        alice.id `is` aliceId.capture
       Then:
         Postgres.`query` {
           sql"""select payload from active('PingPong:Ping') order by payload"""
         } `returns` table {
-          s"""{"text": "test", "int64": 1, "party": "$aliceId", "numeric": "1.0000000000"}"""
+          s"""{"text": "test", "int64": 1, "party": "${alice.id}", "numeric": "1.0000000000"}"""
         }
   )

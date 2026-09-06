@@ -15,8 +15,6 @@ import com.digitalasset.transcode.schema.packageName
 import scala.language.{implicitConversions, postfixOps}
 
 object FailedInterfaceViewsSpec extends SharedLedgerAndPostgresTest:
-  private val issuer = Party("Issuer")
-  private val owner  = Party("Owner")
 
   private val assetV1 = DamlSource(
     "InterfacesV1" -> """module InterfacesV1 where
@@ -109,6 +107,8 @@ object FailedInterfaceViewsSpec extends SharedLedgerAndPostgresTest:
     funcTest(
       s"Failed interface views are gracefully ignored - ${if acsStream then "ACS stream" else "updates stream"} handling"
     ) {
+      val issuer       = Party("Issuer")
+      val owner        = Party("Owner")
       val token        = createToken(if acsStream then "acs-stream" else "updates-stream")
       val tokenUpgrade = createTokenUpgrade(token)
 
@@ -125,7 +125,7 @@ object FailedInterfaceViewsSpec extends SharedLedgerAndPostgresTest:
         DamlSdk.runScript("Token:create", issuer.id)
 
       When:
-        DamlSdk.dar(tokenUpgrade) >+> DamlSdk.deploy >+> DamlSdk.runScript("Token:create", issuer.id <&> owner.id)
+        DamlSdk.dar(tokenUpgrade) >+> DamlSdk.deploy >+> DamlSdk.runScript("Token:create", (issuer.id, owner.id))
       And:
         tokenV2Dar.captureFromService
 

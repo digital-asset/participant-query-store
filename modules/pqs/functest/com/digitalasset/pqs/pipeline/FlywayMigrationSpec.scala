@@ -17,7 +17,6 @@ import zio.test.Assertion.*
   * Canton instance.
   */
 object FlywayMigrationSpec extends FuncTestStandalone:
-  private val alice = Party("Alice")
 
   private val pingPong = DamlSource(
     "PingPong" -> """module PingPong where
@@ -82,6 +81,7 @@ object FlywayMigrationSpec extends FuncTestStandalone:
 
   def spec = suite("FlyMigrationSpec")(
     funcTest("Migrate from 3.4.6 to main") {
+      val alice      = Party("Alice")
       val instanceId = Capture[String]
       Given:
         DamlSdk.ledger ++ Postgres.instance
@@ -143,6 +143,7 @@ object FlywayMigrationSpec extends FuncTestStandalone:
           .returns(table(not(isNull) && not(equalTo(instanceId.get))))
     } @@ DamlSdk.onlyDamlLfVersion("<=2.2"),
     funcTest("V042 clears the interface key hashes written by 3.5.7") {
+      val alice = Party("Alice")
       // Rows come back in creation order: A and B share the key (alice, 42) and so share a hash, C has
       // (alice, 43). Each capture is paired with a not-null check, because a null would otherwise be
       // captured happily and then satisfy the post-migration check too. Capture asserts equality on

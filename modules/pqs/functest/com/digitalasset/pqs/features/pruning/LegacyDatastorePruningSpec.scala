@@ -19,7 +19,6 @@ import zio.test.Assertion.*
 import scala.language.implicitConversions
 
 object LegacyDatastorePruningSpec extends SharedLedgerAndPostgresTest:
-  lazy val alice = Party("Alice")
   lazy val pingDaml = DamlSource(
     "Pings" -> """module Pings where
                  |
@@ -54,14 +53,16 @@ object LegacyDatastorePruningSpec extends SharedLedgerAndPostgresTest:
   private val templateRef = s"$packageName:Pings:Ping"
   private val choiceRef   = s"$templateRef:ChangeLabel"
 
-  val context = DamlSdk.dar(pingDaml) ++ DamlSdk.parties(alice) ++ Postgres.database
-    >+> DamlSdk.deploy
-    >+> DamlSdk.runScript("Pings:setup", alice.id)
-    >+> Pqs.runPipeline(
-      "--pipeline-datasource=TransactionTreeStream",
-      "--pipeline-ledger-start=Genesis",
-      "--pipeline-ledger-stop=Latest"
-    )
+  def context =
+    val alice = Party("Alice")
+    DamlSdk.dar(pingDaml) ++ DamlSdk.parties(alice) ++ Postgres.database
+      >+> DamlSdk.deploy
+      >+> DamlSdk.runScript("Pings:setup", alice.id)
+      >+> Pqs.runPipeline(
+        "--pipeline-datasource=TransactionTreeStream",
+        "--pipeline-ledger-start=Genesis",
+        "--pipeline-ledger-stop=Latest"
+      )
 
   extension (offset: Capture[OffsetType])
     def max(other: Capture[OffsetType]) = if offset.get > other.get then offset else other

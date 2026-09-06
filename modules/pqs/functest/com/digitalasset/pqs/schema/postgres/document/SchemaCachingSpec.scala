@@ -17,7 +17,6 @@ import scala.language.{implicitConversions, postfixOps}
 /** This must remain standalone to ensure log capture is not polluted by other concurrent tests.
   */
 object SchemaCachingSpec extends FuncTestStandalone:
-  val alice = Party("Alice")
   val interfaces = DamlSource(
     "Interfaces" -> """module Interfaces where
                       |
@@ -60,6 +59,7 @@ object SchemaCachingSpec extends FuncTestStandalone:
 
   def spec = suite("schema caching spec")(
     funcTest("schema is cached"):
+      val alice = Party("Alice")
       Given:
         DamlSdk.dar(pingPong) ++ DamlSdk.ledger ++ Postgres.instance
       And:

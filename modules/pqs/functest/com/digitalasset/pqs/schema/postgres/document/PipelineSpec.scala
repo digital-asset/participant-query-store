@@ -17,8 +17,6 @@ import zio.{Chunk, ExitCode, ZIO}
 import scala.language.implicitConversions
 
 object PipelineSpec extends SharedLedgerAndPostgresTest:
-  val alice = Party("Alice")
-  val bob   = Party("Bob")
   val pingPong = DamlSource(
     "PingPong" -> """module PingPong where
                     |
@@ -53,13 +51,17 @@ object PipelineSpec extends SharedLedgerAndPostgresTest:
   private val templateRef = s"$packageName:PingPong:Ping"
   private val archiveRef  = s"$templateRef:Archive"
 
+  def context(alice: Party, bob: Party, testText: String) =
+    DamlSdk.dar(pingPong) ++ DamlSdk.parties(alice, bob) ++ Postgres.database
+      >+> DamlSdk.deploy
+      >+> DamlSdk.runScript("PingPong:transact1", (alice.id, bob.id, testText))
+
   def spec = suite("pipeline")(
     funcTest("single transaction"):
+      val alice = Party("Alice")
+      val bob   = Party("Bob")
       Given:
-        DamlSdk.dar(pingPong) ++ DamlSdk.parties(alice, bob) ++ Postgres.database
-          >+> DamlSdk.deploy
-      And:
-        DamlSdk.runScript("PingPong:transact1", alice.id <&> bob.id <&> ZIO.succeed("test"))
+        context(alice, bob, "test")
       When:
         Pqs.runPipeline("--pipeline-ledger-stop=Latest")
       And:
@@ -71,26 +73,18 @@ object PipelineSpec extends SharedLedgerAndPostgresTest:
       And:
         Postgres.query(sql"select instance_id from __watermark").returns(table(not(isNull)))
 
-      lazy val aliceId = Capture[String]
-      lazy val bobId   = Capture[String]
-      And:
-        alice.id.is(aliceId.capture)
-      And:
-        bob.id.is(bobId.capture)
       Then:
         Postgres
           .query(sql"""select payload from active($templateRef)""".query[String].selectOne)
-          .returns(Some(s"""{"text": "test", "sender": "$aliceId", "receiver": "$bobId"}"""))
+          .returns(Some(s"""{"text": "test", "sender": "${alice.id}", "receiver": "${bob.id}"}"""))
     ,
     funcTest("special characters in payload are stored"):
+      val alice = Party("Alice")
+      val bob   = Party("Bob")
       //        lazy val testText         = "aя麤\t\r\n\f\u0009 \"" + (0 to 255).map(_.toChar).mkString // TODO fix this, see https://www.postgresql.org/docs/current/datatype-json.html
       lazy val testText = "aя麤\t\r\n\f\u0009 \"" + (1 to 255).map(_.toChar).mkString
       Given:
-        DamlSdk.dar(pingPong)
-      And:
-        DamlSdk.deploy ++ DamlSdk.parties(alice, bob) ++ Postgres.database
-      And:
-        DamlSdk.runScript("PingPong:transact1", alice.id <&> bob.id <&> ZIO.succeed(testText))
+        context(alice, bob, testText)
 
       When:
         Pqs.runPipeline("--pipeline-ledger-stop=Latest")
@@ -106,13 +100,11 @@ object PipelineSpec extends SharedLedgerAndPostgresTest:
             .map(ujson.read(_).obj("text").str) `returns` testText
     ,
     funcTest("metadata is stored"):
+      val alice         = Party("Alice")
+      val bob           = Party("Bob")
       lazy val testText = (1 to 255).map(_.toChar).mkString
       Given:
-        DamlSdk.dar(pingPong)
-      And:
-        DamlSdk.deploy ++ DamlSdk.parties(alice, bob) ++ Postgres.database
-      And:
-        DamlSdk.runScript("PingPong:transact1", alice.id <&> bob.id <&> ZIO.succeed(testText))
+        context(alice, bob, testText)
 
       When:
         Pqs.runPipeline(
@@ -126,7 +118,6 @@ object PipelineSpec extends SharedLedgerAndPostgresTest:
       And:
         for
           packageId <- ZIO.service[DarFile].map(_.packageId)
-          aliceId   <- alice.id
           txId <- Postgres `query` sql"select transaction_id from __transactions"
             .query[String]
             .selectAll
@@ -135,16 +126,14 @@ object PipelineSpec extends SharedLedgerAndPostgresTest:
             .query[Array[Byte]]
             .selectOne
             .someOrFail(Throwable("no payload"))
-          expectedMetadata <- DamlSdk.api.getSingleCreatedBlob(Seq(aliceId), txId)
+          expectedMetadata <- DamlSdk.api.getSingleCreatedBlob(Seq(alice.id), txId)
         yield zio.test.assertTrue(storedMetadata.toSeq == expectedMetadata.toSeq)
     ,
     funcTest("created_at should be not null"):
+      val alice = Party("Alice")
+      val bob   = Party("Bob")
       Given:
-        DamlSdk.dar(pingPong)
-      And:
-        DamlSdk.deploy ++ DamlSdk.parties(alice, bob) ++ Postgres.database
-      And:
-        DamlSdk.runScript("PingPong:transact1", alice.id <&> bob.id <&> ZIO.succeed("test"))
+        context(alice, bob, "test")
       When:
         Pqs.runPipeline("--pipeline-ledger-stop=Latest")
       Expect:
@@ -155,12 +144,10 @@ object PipelineSpec extends SharedLedgerAndPostgresTest:
         }
     ,
     funcTest("simple archive in tree stream"):
+      val alice = Party("Alice")
+      val bob   = Party("Bob")
       Given:
-        DamlSdk.dar(pingPong)
-      And:
-        DamlSdk.deploy ++ DamlSdk.parties(alice, bob) ++ Postgres.database
-      And:
-        DamlSdk.runScript("PingPong:transact2", alice.id <&> bob.id <&> ZIO.succeed("test"))
+        context(alice, bob, "test")
 
       When:
         Pqs.runPipeline(
@@ -177,12 +164,10 @@ object PipelineSpec extends SharedLedgerAndPostgresTest:
         Postgres `query` sql"""select count(*) from exercises($archiveRef)""" `returns` table { 1 }
     ,
     funcTest("paid_traffic_cost is populated for submitting participant") {
+      val alice = Party("Alice")
+      val bob   = Party("Bob")
       Given:
-        DamlSdk.dar(pingPong)
-      And:
-        DamlSdk.deploy ++ DamlSdk.parties(alice, bob) ++ Postgres.database
-      And:
-        DamlSdk.runScript("PingPong:transact1", alice.id <&> bob.id <&> ZIO.succeed("test"))
+        context(alice, bob, "test")
       When:
         Pqs.runPipeline("--pipeline-ledger-start=Genesis", "--pipeline-ledger-stop=Latest")
       Expect:
@@ -193,12 +178,10 @@ object PipelineSpec extends SharedLedgerAndPostgresTest:
         } `returns` isSome(isGreaterThanEqualTo(1L))
     } @@ onlyCantonVersion(">=3.5"),
     funcTest("can write to non-public schema"):
+      val alice = Party("Alice")
+      val bob   = Party("Bob")
       Given:
-        DamlSdk.dar(pingPong)
-      And:
-        DamlSdk.deploy ++ DamlSdk.parties(alice, bob) ++ Postgres.database
-      And:
-        DamlSdk.runScript("PingPong:transact1", alice.id <&> bob.id <&> ZIO.succeed("test"))
+        context(alice, bob, "test")
 
       When:
         Pqs.runPipeline(

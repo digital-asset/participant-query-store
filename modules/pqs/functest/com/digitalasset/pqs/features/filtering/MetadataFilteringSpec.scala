@@ -16,7 +16,6 @@ import zio.jdbc.sqlInterpolator
 import scala.language.implicitConversions
 
 object MetadataFilteringSpec extends SharedLedgerAndPostgresTest:
-  private val alice = Party("Alice")
   private val interfaces = DamlSource(
     "Interfaces" -> """module Interfaces where
                       |
@@ -67,7 +66,8 @@ object MetadataFilteringSpec extends SharedLedgerAndPostgresTest:
                   |""".stripMargin
   ).dependsOn(interfaces)
 
-  private val context =
+  private def context =
+    val alice = Party("Alice")
     DamlSdk.dar(sample) ++ DamlSdk.parties(alice) ++ Postgres.database
       >+> DamlSdk.deploy >+> DamlSdk.runScript("Sample:setup", alice.id)
 

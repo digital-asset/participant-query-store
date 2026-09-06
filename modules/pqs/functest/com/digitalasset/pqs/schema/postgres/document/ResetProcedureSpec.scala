@@ -18,7 +18,6 @@ import zio.test.Assertion.*
 import scala.language.implicitConversions
 
 object ResetProcedureSpec extends SharedLedgerAndPostgresTest:
-  lazy val alice = Party("Alice")
   lazy val pingDaml = DamlSource(
     "Pings" -> """module Pings where
                  |
@@ -48,14 +47,16 @@ object ResetProcedureSpec extends SharedLedgerAndPostgresTest:
                  |""".stripMargin
   )
 
-  val context = DamlSdk.dar(pingDaml) ++ DamlSdk.parties(alice) ++ Postgres.database
-    >+> DamlSdk.deploy
-    >+> DamlSdk.runScript("Pings:setup", alice.id)
-    >+> Pqs.runPipeline(
-      "--pipeline-datasource=TransactionTreeStream",
-      "--pipeline-ledger-start=Genesis",
-      "--pipeline-ledger-stop=Latest"
-    )
+  def context =
+    val alice = Party("Alice")
+    DamlSdk.dar(pingDaml) ++ DamlSdk.parties(alice) ++ Postgres.database
+      >+> DamlSdk.deploy
+      >+> DamlSdk.runScript("Pings:setup", alice.id)
+      >+> Pqs.runPipeline(
+        "--pipeline-datasource=TransactionTreeStream",
+        "--pipeline-ledger-start=Genesis",
+        "--pipeline-ledger-stop=Latest"
+      )
 
   def spec = suite("reset procedure")(
     funcTest("validate_reset_offset"):

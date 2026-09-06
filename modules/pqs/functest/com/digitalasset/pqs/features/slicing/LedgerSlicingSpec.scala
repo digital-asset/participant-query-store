@@ -19,7 +19,6 @@ import zio.{ExitCode, ZLayer}
 import scala.language.{implicitConversions, postfixOps}
 
 object LedgerSlicingSpec extends SharedLedgerAndPostgresTest:
-  private val alice = Party("Alice")
   private val pingPong = DamlSource(
     "PingPong" -> """module PingPong where
                     |
@@ -39,15 +38,16 @@ object LedgerSlicingSpec extends SharedLedgerAndPostgresTest:
                     |  submit alice $ createCmd Ping with sender = alice, receiver = alice
                     |""".stripMargin
   )
-  private val context =
+  private def context(alice: Party) =
     DamlSdk.dar(pingPong) >+> DamlSdk.deploy
       ++ DamlSdk.parties(alice) ++ Postgres.database
       >+> DamlSdk.runScript("PingPong:transact1", alice.id)
 
   def spec = suite("slicing")(
     funcTest("on empty datastore"):
+      val alice = Party("Alice")
       Given:
-        context
+        context(alice)
       When:
         Pqs.runPipeline("--pipeline-ledger-start=Genesis", "--pipeline-ledger-stop=Latest")
       Expect:
@@ -58,15 +58,17 @@ object LedgerSlicingSpec extends SharedLedgerAndPostgresTest:
         Pqs.stdout `is` stringContaining("Starting from Genesis")
     ,
     funcTest("on empty datastore, ongoing"):
+      val alice = Party("Alice")
       Given:
-        context >+> Pqs.pipeline("--pipeline-ledger-start=Genesis", "--pipeline-ledger-stop=Never")
+        context(alice) >+> Pqs.pipeline("--pipeline-ledger-start=Genesis", "--pipeline-ledger-stop=Never")
       Expect:
         checkpointsQuery `is` table { anything | 1L | anything | 1L } retryUntilTimeout
     ,
     funcTest("on non-empty datastore"):
+      val alice      = Party("Alice")
       val checkpoint = Capture[OffsetType]
       Given:
-        context
+        context(alice)
       When:
         Pqs.runPipeline("--pipeline-ledger-start=Genesis", "--pipeline-ledger-stop=Latest")
       Expect:
@@ -86,9 +88,10 @@ object LedgerSlicingSpec extends SharedLedgerAndPostgresTest:
         checkpointsQuery `returns` table { checkpoint | 1L | checkpoint | 1L }
     ,
     funcTest("idempotent repeated run"):
+      val alice          = Party("Alice")
       val lastCheckpoint = Capture[OffsetType]
       Given:
-        context
+        context(alice)
       When:
         Pqs.runPipeline("--pipeline-ledger-start=Genesis", "--pipeline-ledger-stop=Latest")
       Expect:
@@ -111,9 +114,10 @@ object LedgerSlicingSpec extends SharedLedgerAndPostgresTest:
         checkpointsQuery `returns` table { lastCheckpoint | 1L | lastCheckpoint | 1L }
     ,
     funcTest("second run with new transaction in the ledger"):
+      val alice          = Party("Alice")
       val lastCheckpoint = Capture[OffsetType]
       Given:
-        context
+        context(alice)
       When:
         Pqs.runPipeline("--pipeline-ledger-start=Genesis", "--pipeline-ledger-stop=Latest")
       Expect:

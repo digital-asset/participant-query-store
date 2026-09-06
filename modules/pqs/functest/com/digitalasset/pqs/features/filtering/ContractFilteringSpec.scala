@@ -16,7 +16,6 @@ import scala.language.implicitConversions
 
 object ContractFilteringSpec extends SharedLedgerAndPostgresTest:
   private val templateMatcher = s"%-$specName-%"
-  private val alice           = Party("Alice")
   private val interfaces = DamlSource(
     "Interfaces" -> """module Interfaces where
                       |
@@ -151,7 +150,8 @@ object ContractFilteringSpec extends SharedLedgerAndPostgresTest:
                      |""".stripMargin
   ).dependsOn(interfaces)
 
-  private val context =
+  private def context =
+    val alice = Party("Alice")
     (DamlSdk.dar(templates) ++ DamlSdk.parties(alice) ++ Postgres.database)
       >+> DamlSdk.deploy >+> DamlSdk.runScript("Templates:setup", alice.id)
 

@@ -21,7 +21,6 @@ private enum TxSource:
   case TransactionStream, TransactionTreeStream
 
 object GrafanaSetupSpec extends SharedLedgerAndPostgresTest:
-  private val alice = Party("Alice")
   private val pingPong = DamlSource(
     "PingPong" ->
       """module PingPong where
@@ -42,7 +41,8 @@ object GrafanaSetupSpec extends SharedLedgerAndPostgresTest:
         |  submit alice $ createCmd Ping with sender = alice, receiver = alice
         |""".stripMargin
   )
-  private lazy val upAndRunning =
+  private def upAndRunning =
+    val alice = Party("Alice")
     (Loki.instance ++ Prometheus.instance ++ Tempo.instance >>> (Collector.instance ++ Grafana.instance))
       ++ (Postgres.database ++ DamlSdk.dar(pingPong) ++ DamlSdk.parties(alice))
       >+> DamlSdk.deploy

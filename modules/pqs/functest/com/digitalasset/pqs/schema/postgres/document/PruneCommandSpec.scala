@@ -20,7 +20,6 @@ import java.time.format.DateTimeFormatterBuilder
 import scala.language.implicitConversions
 
 object PruneCommandSpec extends SharedLedgerAndPostgresTest:
-  lazy val alice = Party("Alice")
   lazy val pingDaml = DamlSource(
     "Pings" -> """module Pings where
                  |
@@ -50,16 +49,18 @@ object PruneCommandSpec extends SharedLedgerAndPostgresTest:
                  |""".stripMargin
   )
 
-  val context = DamlSdk.dar(pingDaml) ++ DamlSdk.parties(alice) ++ Postgres.database
-    >+> DamlSdk.deploy
-    >+> DamlSdk.runScript("Pings:setup", alice.id)
-    >+> Pqs
-      .pipeline(
-        "--pipeline-datasource=TransactionTreeStream",
-        "--pipeline-ledger-start=Genesis",
-        "--pipeline-ledger-stop=Latest"
-      )
-      .tap(_.get.exitCode)
+  def context =
+    val alice = Party("Alice")
+    DamlSdk.dar(pingDaml) ++ DamlSdk.parties(alice) ++ Postgres.database
+      >+> DamlSdk.deploy
+      >+> DamlSdk.runScript("Pings:setup", alice.id)
+      >+> Pqs
+        .pipeline(
+          "--pipeline-datasource=TransactionTreeStream",
+          "--pipeline-ledger-start=Genesis",
+          "--pipeline-ledger-stop=Latest"
+        )
+        .tap(_.get.exitCode)
 
   def spec = suite("postgres-document prune")(
     funcTest("dry run with valid offset"):

@@ -19,7 +19,6 @@ import scala.language.{implicitConversions, postfixOps}
 /** This must remain standalone to ensure the package store is not polluted by other concurrent tests.
   */
 object PackageNameSupportSpec extends FuncTestStandalone:
-  private val alice = Party("Alice")
 
   private val interfaces = DamlSource(
     "Interfaces" -> """module Interfaces where
@@ -101,7 +100,8 @@ object PackageNameSupportSpec extends FuncTestStandalone:
   def spec = suite("Package Name Support")(
     suite("transactions")(
       funcTest("Package Names are correctly handled when using transactions.") {
-        val dar = Capture[DeployedDar]
+        val alice = Party("Alice")
+        val dar   = Capture[DeployedDar]
         Given:
           DamlSdk.dar(ping.withVersion("0.0.0")) ++ DamlSdk.ledger ++ Postgres.instance
         And:
@@ -226,7 +226,8 @@ object PackageNameSupportSpec extends FuncTestStandalone:
     ),
     suite("transaction trees")(
       funcTest("Package Names are correctly handled when using transaction trees."):
-        val dar = Capture[DeployedDar]
+        val alice = Party("Alice")
+        val dar   = Capture[DeployedDar]
         Given:
           DamlSdk.dar(ping.withVersion("0.0.0")) ++ DamlSdk.ledger ++ Postgres.instance
         And:

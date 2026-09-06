@@ -68,10 +68,9 @@ object RpidTwoParticipantSpec extends FuncTestStandalone:
         |""".stripMargin
   ).upgrades(packageV1)
 
-  private val alice = Party("Alice")
-
   def spec = suite("RpidTwoParticipantSpec")(
     funcTest("creation_package_id differs from representative_package_id in two-participant setup"):
+      val alice      = Party("Alice")
       lazy val v1Dar = Capture[DarFile]
       lazy val v2Dar = Capture[DarFile]
       Given:
@@ -85,7 +84,7 @@ object RpidTwoParticipantSpec extends FuncTestStandalone:
       And:
         v2Dar.captureFromService
       And:
-        cantonParticipantWithACSImportContract(v1Dar.get, v2Dar.get) ++ Postgres.database
+        cantonParticipantWithACSImportContract(alice, v1Dar.get, v2Dar.get) ++ Postgres.database
       When:
         Pqs.pipeline(
           "--pipeline-datasource=TransactionStream",
@@ -158,6 +157,7 @@ object RpidTwoParticipantSpec extends FuncTestStandalone:
     * This results in participant2 having a contract with v2 as representative package and v1 as creation package.
     */
   private def cantonParticipantWithACSImportContract(
+      alice: Party,
       v1Dar: DarFile,
       v2Dar: DarFile
   ): RLayer[FTEnv & Docker & Postgres, Service[Ledger] & DeployedDar & Parties] =

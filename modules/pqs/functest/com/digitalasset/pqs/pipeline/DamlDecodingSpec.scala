@@ -13,7 +13,6 @@ import zio.test.Assertion.*
 import scala.language.implicitConversions
 
 object DamlDecodingSpec extends SharedLedgerAndPostgresTest:
-  private val alice = Party("Alice")
 
   private val void = DamlSource(
     "Void" -> """|module Void where
@@ -47,7 +46,8 @@ object DamlDecodingSpec extends SharedLedgerAndPostgresTest:
 
   def spec = suite("DamlDecodingSpec")(
     funcTest("Decode payload of ContractId Void") {
-      val cid = Capture[String]
+      val alice = Party("Alice")
+      val cid   = Capture[String]
       Given:
         DamlSdk.dar(void) >+> DamlSdk.deploy
           ++ DamlSdk.parties(alice)

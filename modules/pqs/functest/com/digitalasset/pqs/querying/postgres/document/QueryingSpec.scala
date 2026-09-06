@@ -21,7 +21,6 @@ import scala.language.implicitConversions
 
 object QueryingSpec extends SharedLedgerAndPostgresTest:
 
-  private val alice = Party("Alice")
   private val interfaces = DamlSource(
     "Interfaces" -> """module Interfaces where
                       |
@@ -119,14 +118,16 @@ object QueryingSpec extends SharedLedgerAndPostgresTest:
                                         from __transactions
                                         where "offset" between oldest_offset() and latest_offset();"""
 
-  private val upAndRunning = DamlSdk.dar(nameRegistry) ++ DamlSdk.parties(alice) ++ Postgres.database
-    >+> DamlSdk.deploy
-    >+> DamlSdk.runScript("NameRegistry:setup", alice.id)
-    >+> Pqs.runPipeline(
-      "--pipeline-ledger-start=Genesis",
-      "--pipeline-ledger-stop=Latest",
-      "--pipeline-datasource=TransactionTreeStream"
-    )
+  private def upAndRunning =
+    val alice = Party("Alice")
+    DamlSdk.dar(nameRegistry) ++ DamlSdk.parties(alice) ++ Postgres.database
+      >+> DamlSdk.deploy
+      >+> DamlSdk.runScript("NameRegistry:setup", alice.id)
+      >+> Pqs.runPipeline(
+        "--pipeline-ledger-start=Genesis",
+        "--pipeline-ledger-stop=Latest",
+        "--pipeline-datasource=TransactionTreeStream"
+      )
 
   def spec = suite("Querying")(
     suite("time management")(

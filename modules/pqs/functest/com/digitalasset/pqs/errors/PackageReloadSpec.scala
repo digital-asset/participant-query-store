@@ -15,7 +15,6 @@ import zio.internal.stacktracer.SourceLocation
 import scala.language.{implicitConversions, postfixOps}
 
 object PackageReloadSpec extends SharedLedgerAndPostgresTest:
-  private val alice = Party("Alice")
 
   // Use SourceLocation to create a unique name for the package
   private def createInterfaces(using location: SourceLocation) = DamlSource(
@@ -108,6 +107,7 @@ object PackageReloadSpec extends SharedLedgerAndPostgresTest:
     // subscription), silently preventing new package discovery.
     // Also verifies /readyz stays Ok through the reload.
     funcTest("Recover when a new dar is deployed with selective metadata filter") {
+      val alice      = Party("Alice")
       val interfaces = createInterfaces
       val ping       = createPing(interfaces)
       val pong       = createPong
@@ -149,6 +149,7 @@ object PackageReloadSpec extends SharedLedgerAndPostgresTest:
     // This verifies that WildcardFilter is emitted alongside InterfaceFilters when
     // includesAll=true, keeping the subscription open for new package discovery.
     funcTest("Discover new packages when interfaces are present at startup") {
+      val alice      = Party("Alice")
       val interfaces = createInterfaces
       val ping       = createPing(interfaces)
       val pong       = createPong
@@ -189,6 +190,7 @@ object PackageReloadSpec extends SharedLedgerAndPostgresTest:
     // verifies that new package discovery remains stable after the transition from
     // template-only to template+interface subscriptions.
     funcTest("Discover new packages after interfaces are introduced mid-stream") {
+      val alice       = Party("Alice")
       val interfaces  = createInterfaces
       val ping        = createPing(interfaces)
       val pong        = createPong

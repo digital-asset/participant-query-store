@@ -22,7 +22,6 @@ import scala.language.{implicitConversions, postfixOps}
 // NOTE: It is not yet confirmed whether this is the intended long-term behaviour. This test
 // documents the current behaviour so we can revisit the decision later.
 object InterfaceRowsUseTemplatePackageIdSpec extends SharedLedgerAndPostgresTest:
-  private val alice = Party("Alice")
 
   // Interface defined in a standalone package — its package ID should NOT appear on any rows
   private val pingIface = DamlSource(
@@ -78,6 +77,7 @@ object InterfaceRowsUseTemplatePackageIdSpec extends SharedLedgerAndPostgresTest
 
   def spec = suite("Interface rows use the underlying template package ID")(
     funcTest("public contract queries keep the template package ID on interface rows") {
+      val alice    = Party("Alice")
       val ifaceDar = Capture[DeployedDar]
       Given:
         (DamlSdk.dar(pingIface) >+> DamlSdk.deploy)

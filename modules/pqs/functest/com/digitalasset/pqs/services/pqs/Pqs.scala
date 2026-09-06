@@ -172,7 +172,7 @@ trait Pqs {
       dbName            <- ZIO.service[Database]
       parties           <- ZIO.service[Parties]
       dar               <- ZIO.service[DeployedDar]
-      partyNames        <- ZIO.foreach(parties.get)(_.id)
+      partyIds = parties.get.map(_.id)
 
       unprefixedBase = Map(
         "SOURCE_LEDGER_CACHEDIR" -> "/ft/pqs-cache",
@@ -197,7 +197,7 @@ trait Pqs {
         "LOGGER_LEVEL"               -> "Info"
       )
 
-      unprefixedOauth = oauthInstance.fold(Map("PIPELINE_FILTER_PARTIES" -> partyNames.mkString("|"))) { oauth =>
+      unprefixedOauth = oauthInstance.fold(Map("PIPELINE_FILTER_PARTIES" -> partyIds.mkString("|"))) { oauth =>
         Map(
           "PIPELINE_OAUTH_CLIENTSECRET" -> "clientsecret",
           "PIPELINE_OAUTH_ENDPOINT"     -> s"https://${oauth.container.hostName}:${OAuth.port}/issuer1/token",

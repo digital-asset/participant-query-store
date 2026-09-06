@@ -17,7 +17,6 @@ import zio.test.Assertion.anything
 import scala.language.{implicitConversions, postfixOps}
 
 object AmbiguousPackageNameSupportSpec extends SharedLedgerAndPostgresTest:
-  private val alice = Party("Alice")
   private val ping = DamlSource(
     "Ping" -> """module Ping where
                 |
@@ -89,7 +88,8 @@ object AmbiguousPackageNameSupportSpec extends SharedLedgerAndPostgresTest:
   def spec = suite("Ambiguous Package Name Support")(
     suite("transactions")(
       funcTest("Ambiguous Package Names are correctly handled when using transactions.") {
-        val dar = Capture[DeployedDar]
+        val alice = Party("Alice")
+        val dar   = Capture[DeployedDar]
         Given:
           (DamlSdk.dar(ping.withVersion("0.0.0")) >+> DamlSdk.deploy) ++ DamlSdk.parties(alice) ++ Postgres.database
         And:
@@ -214,7 +214,8 @@ object AmbiguousPackageNameSupportSpec extends SharedLedgerAndPostgresTest:
     ),
     suite("transaction trees")(
       funcTest("Ambiguous Package Names are correctly handled when using transaction trees."):
-        val dar = Capture[DeployedDar]
+        val alice = Party("Alice")
+        val dar   = Capture[DeployedDar]
         Given:
           (DamlSdk.dar(ping.withVersion("0.0.0")) >+> DamlSdk.deploy) ++ DamlSdk.parties(alice) ++ Postgres.database
         And:

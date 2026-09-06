@@ -20,7 +20,6 @@ import scala.language.implicitConversions
 /** This must remain standalone because it prunes the ledger.
   */
 object PrunedDataAccessSpec extends FuncTestStandalone:
-  private val alice = Party("Alice")
   private val pingPong = DamlSource(
     "PingPong" -> """module PingPong where
                     |
@@ -48,6 +47,7 @@ object PrunedDataAccessSpec extends FuncTestStandalone:
 
   def spec = suite("PrunedDataAccess")(
     funcTest("pipeline should fail on pruned ledger with start = Genesis"):
+      val alice     = Party("Alice")
       val pruneUpTo = Capture[OffsetType]
       Given:
         (DamlSdk.dar(pingPong) ++ DamlSdk.ledger ++ Postgres.instance)

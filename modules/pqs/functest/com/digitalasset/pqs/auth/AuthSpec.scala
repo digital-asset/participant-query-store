@@ -17,9 +17,6 @@ import zio.test.*
 import scala.language.implicitConversions
 
 object AuthSpec extends SharedLedgerAndPostgresAndAuthTest:
-  private val alice   = Party("Alice")
-  private val bob     = Party("Bob")
-  private val charlie = Party("Charlie")
   private val pingPong = DamlSource(
     "PingPong" -> """module PingPong where
                     |
@@ -40,19 +37,18 @@ object AuthSpec extends SharedLedgerAndPostgresAndAuthTest:
                     |""".stripMargin
   )
 
-  private val context =
-    (DamlSdk.dar(pingPong) >+> DamlSdk.deploy) ++ DamlSdk.parties(alice, bob, charlie) ++ Postgres.database
+  private def context(parties: Party*) =
+    (DamlSdk.dar(pingPong) >+> DamlSdk.deploy) ++ DamlSdk.parties(parties*) ++ Postgres.database
 
   def spec = suite("auth")(
     funcTest("no party filter"):
-      val user      = User(primaryParty = alice, canActAs = Seq(bob))
-      val userId    = Capture[String]
-      val aliceId   = Capture[String]
-      val bobId     = Capture[String]
-      val charlieId = Capture[String]
+      val alice   = Party("Alice")
+      val bob     = Party("Bob")
+      val charlie = Party("Charlie")
+      val user    = User(primaryParty = alice, canActAs = Seq(bob))
 
       Given:
-        context
+        context(alice, bob, charlie)
 
       And:
         DamlSdk.users(user)
@@ -61,39 +57,29 @@ object AuthSpec extends SharedLedgerAndPostgresAndAuthTest:
         DamlSdk.runScript("PingPong:transact1", alice.id)
           ++ DamlSdk.runScript("PingPong:transact1", bob.id)
 
-      And:
-        alice.id `is` aliceId.capture
-
-      And:
-        bob.id `is` bobId.capture
-
-      And:
-        user.id `is` userId.capture
-
       When:
         Pqs.runPipeline(
-          s"--pipeline-oauth-clientid=$userId",
+          s"--pipeline-oauth-clientid=${user.id}",
           "--pipeline-ledger-stop=Latest"
         )
 
       And:
-        Pqs.stdout `is` stringContaining(s"Starting pipeline on behalf of '$aliceId,$bobId'")
+        Pqs.stdout `is` stringContaining(s"Starting pipeline on behalf of '${alice.id},${bob.id}'")
 
       And:
-        partiesQuery `returns` table { aliceId | bobId }.transpose
+        partiesQuery `returns` table { alice.id | bob.id }.transpose
 
       Expect:
         Pqs.exitCode `is` ExitCode.success
     ,
     funcTest("with party filter"):
-      val user      = User(primaryParty = alice, canActAs = Seq(bob, charlie))
-      val userId    = Capture[String]
-      val aliceId   = Capture[String]
-      val bobId     = Capture[String]
-      val charlieId = Capture[String]
+      val alice   = Party("Alice")
+      val bob     = Party("Bob")
+      val charlie = Party("Charlie")
+      val user    = User(primaryParty = alice, canActAs = Seq(bob, charlie))
 
       Given:
-        context
+        context(alice, bob, charlie)
 
       And:
         DamlSdk.users(user)
@@ -103,40 +89,31 @@ object AuthSpec extends SharedLedgerAndPostgresAndAuthTest:
           ++ DamlSdk.runScript("PingPong:transact1", bob.id)
           ++ DamlSdk.runScript("PingPong:transact1", charlie.id)
 
-      And:
-        alice.id `is` aliceId.capture
-
-      And:
-        charlie.id `is` charlieId.capture
-
-      And:
-        user.id `is` userId.capture
-
       When:
         Pqs.runPipeline(
-          s"--pipeline-oauth-clientid=$userId",
+          s"--pipeline-oauth-clientid=${user.id}",
           "--pipeline-ledger-stop=Latest",
-          s"--pipeline-filter-parties=$aliceId | $charlieId"
+          s"--pipeline-filter-parties=${alice.id} | ${charlie.id}"
         )
 
       And:
-        Pqs.stdout `is` stringContaining(s"Starting pipeline on behalf of '$aliceId,$charlieId'")
+        Pqs.stdout `is` stringContaining(s"Starting pipeline on behalf of '${alice.id},${charlie.id}'")
 
       And:
         partiesQuery `returns` table {
-          aliceId | charlieId
+          alice.id | charlie.id
         }.transpose
 
       Expect:
         Pqs.exitCode `is` ExitCode.success
     ,
     funcTest("static access token"):
-      val user    = User(primaryParty = alice)
-      val token   = Capture[String]
-      val aliceId = Capture[String]
+      val alice = Party("Alice")
+      val user  = User(primaryParty = alice)
+      val token = Capture[String]
 
       Given:
-        context
+        context(alice)
 
       And:
         DamlSdk.users(user)
@@ -145,10 +122,7 @@ object AuthSpec extends SharedLedgerAndPostgresAndAuthTest:
         DamlSdk.runScript("PingPong:transact1", alice.id)
 
       And:
-        alice.id `is` aliceId.capture
-
-      And:
-        TokenService.getToken(aliceId.get) `is` token.capture
+        TokenService.getToken(alice.id) `is` token.capture
 
       When:
         Pqs.runPipeline(
@@ -157,38 +131,33 @@ object AuthSpec extends SharedLedgerAndPostgresAndAuthTest:
         )
 
       And:
-        Pqs.stdout `is` stringContaining(s"Starting pipeline on behalf of '$aliceId'")
+        Pqs.stdout `is` stringContaining(s"Starting pipeline on behalf of '${alice.id}'")
 
       And:
         partiesQuery `returns` table {
-          aliceId
+          alice.id
         }
 
       Expect:
         Pqs.exitCode `is` ExitCode.success
     ,
     funcTest("audience based token"):
+      val alice         = Party("Alice")
       val user          = User(primaryParty = alice)
-      val userId        = Capture[String]
-      val aliceId       = Capture[String]
       val participantId = Capture[String]
 
       Given:
-        context
+        context(alice)
       And:
         DamlSdk.users(user)
       And:
         DamlSdk.runScript("PingPong:transact1", alice.id)
       And:
-        alice.id `is` aliceId.capture
-      And:
-        user.id `is` userId.capture
-      And:
         DamlSdk.api.participantId `is` participantId.capture
 
       When:
         Pqs.runPipeline(
-          s"--pipeline-oauth-clientid=$userId",
+          s"--pipeline-oauth-clientid=${user.id}",
           s"--pipeline-oauth-parameters-audience=https://daml.com/jwt/aud/participant/${participantId.get}",
           "--pipeline-ledger-stop=Latest",
           "--pipeline-oauth-scope=None"
@@ -197,32 +166,27 @@ object AuthSpec extends SharedLedgerAndPostgresAndAuthTest:
       Then:
         Pqs.exitCode `is` ExitCode.success
       And:
-        Pqs.stdout `is` stringContaining(s"Starting pipeline on behalf of '$aliceId'")
+        Pqs.stdout `is` stringContaining(s"Starting pipeline on behalf of '${alice.id}'")
       And:
-        partiesQuery `returns` table { aliceId }
+        partiesQuery `returns` table { alice.id }
     ,
     funcTest("scope based token - default scope"):
-      val participantId = Capture[String]
+      val alice         = Party("Alice")
       val user          = User(primaryParty = alice)
-      val userId        = Capture[String]
-      val aliceId       = Capture[String]
+      val participantId = Capture[String]
 
       Given:
-        context
+        context(alice)
       And:
         DamlSdk.users(user)
       And:
         DamlSdk.runScript("PingPong:transact1", alice.id)
       And:
-        alice.id `is` aliceId.capture
-      And:
-        user.id `is` userId.capture
-      And:
         DamlSdk.api.participantId `is` participantId.capture
 
       When:
         Pqs.runPipeline(
-          s"--pipeline-oauth-clientid=$userId",
+          s"--pipeline-oauth-clientid=${user.id}",
           "--pipeline-oauth-scope=Default",
           "--pipeline-ledger-stop=Latest"
         )
@@ -230,32 +194,27 @@ object AuthSpec extends SharedLedgerAndPostgresAndAuthTest:
       Then:
         Pqs.exitCode `is` ExitCode.success
       And:
-        Pqs.stdout `is` stringContaining(s"Starting pipeline on behalf of '$aliceId'")
+        Pqs.stdout `is` stringContaining(s"Starting pipeline on behalf of '${alice.id}'")
       And:
-        partiesQuery `returns` table { aliceId }
+        partiesQuery `returns` table { alice.id }
     ,
     funcTest("scope based token - custom scope"):
-      val participantId = Capture[String]
+      val alice         = Party("Alice")
       val user          = User(primaryParty = alice)
-      val userId        = Capture[String]
-      val aliceId       = Capture[String]
+      val participantId = Capture[String]
 
       Given:
-        context
+        context(alice)
       And:
         DamlSdk.users(user)
       And:
         DamlSdk.runScript("PingPong:transact1", alice.id)
       And:
-        alice.id `is` aliceId.capture
-      And:
-        user.id `is` userId.capture
-      And:
         DamlSdk.api.participantId `is` participantId.capture
 
       When:
         Pqs.runPipeline(
-          s"--pipeline-oauth-clientid=$userId",
+          s"--pipeline-oauth-clientid=${user.id}",
           "--pipeline-oauth-scope=myScope1 myScope2",
           "--pipeline-ledger-stop=Latest",
           // TODO fix mock-oauth2-server impl to allow use scope parameter in mappings
@@ -265,19 +224,17 @@ object AuthSpec extends SharedLedgerAndPostgresAndAuthTest:
       Then:
         Pqs.exitCode `is` ExitCode.success
       And:
-        Pqs.stdout `is` stringContaining(s"Starting pipeline on behalf of '$aliceId'")
+        Pqs.stdout `is` stringContaining(s"Starting pipeline on behalf of '${alice.id}'")
       And:
-        partiesQuery `returns` table { aliceId }
+        partiesQuery `returns` table { alice.id }
     ,
     funcTest("preempt expiry"):
-      val user      = User(primaryParty = alice, canActAs = Seq(bob))
-      val userId    = Capture[String]
-      val aliceId   = Capture[String]
-      val bobId     = Capture[String]
-      val charlieId = Capture[String]
+      val alice = Party("Alice")
+      val bob   = Party("Bob")
+      val user  = User(primaryParty = alice, canActAs = Seq(bob))
 
       Given:
-        context
+        context(alice, bob)
 
       And:
         DamlSdk.users(user)
@@ -286,57 +243,38 @@ object AuthSpec extends SharedLedgerAndPostgresAndAuthTest:
         DamlSdk.runScript("PingPong:transact1", alice.id)
           ++ DamlSdk.runScript("PingPong:transact1", bob.id)
 
-      And:
-        alice.id `is` aliceId.capture
-
-      And:
-        bob.id `is` bobId.capture
-
-      And:
-        user.id `is` userId.capture
-
       When:
         Pqs.runPipeline(
-          s"--pipeline-oauth-clientid=$userId",
+          s"--pipeline-oauth-clientid=${user.id}",
           "--pipeline-ledger-stop=Latest",
           "--pipeline-oauth-preemptexpiry=PT30S"
         )
 
       And:
-        Pqs.stdout `is` stringContaining(s"Starting pipeline on behalf of '$aliceId,$bobId'")
+        Pqs.stdout `is` stringContaining(s"Starting pipeline on behalf of '${alice.id},${bob.id}'")
 
       And:
         partiesQuery `returns` table {
-          aliceId | bobId
+          alice.id | bob.id
         }.transpose
 
       Expect:
         Pqs.exitCode `is` ExitCode.success
     ,
     funcTest("retry on AccessTokenExpired") {
-      val user      = User(primaryParty = alice, canActAs = Seq(charlie))
-      val userId    = Capture[String]
-      val aliceId   = Capture[String]
-      val charlieId = Capture[String]
+      val alice   = Party("Alice")
+      val charlie = Party("Charlie")
+      val user    = User(primaryParty = alice, canActAs = Seq(charlie))
 
       Given:
-        context
+        context(alice, charlie)
 
       And:
         DamlSdk.users(user)
 
-      And:
-        alice.id `is` aliceId.capture
-
-      And:
-        charlie.id `is` charlieId.capture
-
-      And:
-        user.id `is` userId.capture
-
       When:
         Pqs.pipeline(
-          s"--pipeline-oauth-clientid=$userId",
+          s"--pipeline-oauth-clientid=${user.id}",
           "--pipeline-ledger-start=Oldest",
           "--pipeline-ledger-stop=Never",
           "--pipeline-oauth-preemptexpiry=PT30S"
@@ -350,7 +288,7 @@ object AuthSpec extends SharedLedgerAndPostgresAndAuthTest:
 
       And:
         partiesQuery `returns` table {
-          aliceId
+          alice.id
         }
 
       And:
@@ -358,55 +296,46 @@ object AuthSpec extends SharedLedgerAndPostgresAndAuthTest:
 
       And:
         partiesQuery `returns` table {
-          aliceId | charlieId
+          alice.id | charlie.id
         }.transpose
     },
     funcTest("can read all parties when user rights is set as any party (sdk 3+)") {
-      val user      = User(primaryParty = alice, canReadAsAnyParty = true)
-      val userId    = Capture[String]
-      val aliceId   = Capture[String]
-      val bobId     = Capture[String]
-      val charlieId = Capture[String]
+      val alice   = Party("Alice")
+      val bob     = Party("Bob")
+      val charlie = Party("Charlie")
+      val user    = User(primaryParty = alice, canReadAsAnyParty = true)
 
       Given:
-        shared >+> context
+        context(alice)
       And:
         DamlSdk.users(user)
       And:
         DamlSdk.runScript("PingPong:transact1", alice.id)
           ++ DamlSdk.runScript("PingPong:transact1", bob.id)
           ++ DamlSdk.runScript("PingPong:transact1", charlie.id)
-      And:
-        alice.id `is` aliceId.capture
-      And:
-        bob.id `is` bobId.capture
-      And:
-        charlie.id `is` charlieId.capture
-      And:
-        user.id `is` userId.capture
       When:
         Pqs.runPipeline(
-          s"--pipeline-oauth-clientid=$userId",
+          s"--pipeline-oauth-clientid=${user.id}",
           "--pipeline-ledger-stop=Latest"
         )
       Expect:
         Pqs.exitCode `is` ExitCode.success
       And:
         partiesQuery `returns` table {
-          aliceId | bobId | charlieId
+          alice.id | bob.id | charlie.id
         }.transpose
       And:
         Postgres `query` sql"""select count(*) from active('PingPong:Ping')""" `returns` table { 3 }
     },
     funcTest("static access token can read all parties when user rights is set as any party (sdk 3+)") {
-      val user      = User(primaryParty = alice, canReadAsAnyParty = true)
-      val token     = Capture[String]
-      val aliceId   = Capture[String]
-      val bobId     = Capture[String]
-      val charlieId = Capture[String]
+      val alice   = Party("Alice")
+      val bob     = Party("Bob")
+      val charlie = Party("Charlie")
+      val user    = User(primaryParty = alice, canReadAsAnyParty = true)
+      val token   = Capture[String]
 
       Given:
-        shared >+> context
+        context(alice, bob, charlie)
       And:
         DamlSdk.users(user)
       And:
@@ -414,13 +343,7 @@ object AuthSpec extends SharedLedgerAndPostgresAndAuthTest:
           ++ DamlSdk.runScript("PingPong:transact1", bob.id)
           ++ DamlSdk.runScript("PingPong:transact1", charlie.id)
       And:
-        alice.id `is` aliceId.capture
-      And:
-        bob.id `is` bobId.capture
-      And:
-        charlie.id `is` charlieId.capture
-      And:
-        TokenService.getToken(aliceId.get) `is` token.capture
+        TokenService.getToken(alice.id) `is` token.capture
       When:
         Pqs.runPipeline(
           s"--pipeline-oauth-accesstoken=${token.get}",
@@ -432,7 +355,7 @@ object AuthSpec extends SharedLedgerAndPostgresAndAuthTest:
         Pqs.exitCode `is` ExitCode.success
       And:
         partiesQuery `returns` table {
-          aliceId | bobId | charlieId
+          alice.id | bob.id | charlie.id
         }.transpose
       And:
         Postgres `query` sql"""select count(*) from active('PingPong:Ping')""" `returns` table { 3 }

@@ -60,7 +60,7 @@ object PipelineUpdateSpec extends SharedLedgerAndPostgresTest:
       And:
         DamlSdk.deploy ++ DamlSdk.parties(alice, bob) ++ Postgres.database
       And:
-        DamlSdk.runScript("PingPong:transact1", alice.id <&> bob.id <&> ZIO.succeed("test"))
+        DamlSdk.runScript("PingPong:transact1", (alice.id, bob.id, "test"))
       When:
         Pqs.runPipeline("--pipeline-ledger-stop=Latest")
       And:
@@ -94,7 +94,7 @@ object PipelineUpdateSpec extends SharedLedgerAndPostgresTest:
           }
           .returns(0)
       And:
-        DamlSdk.runScript("PingPong:transact1", alice.id <&> bob.id <&> ZIO.succeed("test"))
+        DamlSdk.runScript("PingPong:transact1", (alice.id, bob.id, "test"))
       And:
         Pqs.attemptPipeline(
           "--pipeline-ledger-start=Latest",
@@ -126,7 +126,7 @@ object PipelineUpdateSpec extends SharedLedgerAndPostgresTest:
       Expect:
         Postgres.query(sql"select count(*) from __contracts").returns(table(0))
       When:
-        DamlSdk.runScript("PingPong:transact1", alice.id <&> bob.id <&> ZIO.succeed("test"))
+        DamlSdk.runScript("PingPong:transact1", (alice.id, bob.id, "test"))
       When:
         ZLayer.fromZIO {
           for {
@@ -180,7 +180,7 @@ object PipelineUpdateSpec extends SharedLedgerAndPostgresTest:
       Expect:
         Postgres.query(sql"select count(*) from __contracts").returns(table(0))
       When:
-        DamlSdk.runScript("PingPong:transact1", alice.id <&> bob.id <&> ZIO.succeed("test"))
+        DamlSdk.runScript("PingPong:transact1", (alice.id, bob.id, "test"))
       When:
         ZLayer.fromZIO {
           for {

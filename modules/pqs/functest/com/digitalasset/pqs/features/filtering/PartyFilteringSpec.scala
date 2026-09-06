@@ -17,9 +17,6 @@ import scala.language.implicitConversions
 /** This test needs to be standalone because it uses a wildcard filter on parties
   */
 object PartyFilteringSpec extends FuncTestStandalone:
-  private val alice   = Party("Alice")
-  private val bob     = Party("Bob")
-  private val charlie = Party("Charlie")
   private val pingPong = DamlSource(
     "PingPong" -> """module PingPong where
                     |
@@ -40,68 +37,51 @@ object PartyFilteringSpec extends FuncTestStandalone:
                     |""".stripMargin
   )
 
-  private val context = DamlSdk.dar(pingPong) ++ DamlSdk.ledger ++ Postgres.instance
-    >+> DamlSdk.deploy ++ DamlSdk.parties(alice, bob, charlie) ++ Postgres.database
+  private def context(parties: Party*) =
+    DamlSdk.dar(pingPong) ++ DamlSdk.ledger ++ Postgres.instance
+      >+> DamlSdk.deploy ++ DamlSdk.parties(parties*) ++ Postgres.database
 
   def spec = suite("filtering")(
     funcTest("with filter"):
-      val aliceId     = Capture[String]
-      val aliceHint   = Capture[String]
-      val charlieId   = Capture[String]
-      val charlieHint = Capture[String]
+      val alice   = Party("Alice")
+      val bob     = Party("Bob")
+      val charlie = Party("Charlie")
 
       Given:
-        context
+        context(alice, bob, charlie)
       And:
         DamlSdk.runScript("PingPong:transact1", alice.id)
           ++ DamlSdk.runScript("PingPong:transact1", bob.id)
           ++ DamlSdk.runScript("PingPong:transact1", charlie.id)
-      And:
-        alice.id `is` aliceId.capture
-
-      And:
-        alice.name `is` aliceHint.capture
-
-      And:
-        charlie.id `is` charlieId.capture
-
-      And:
-        charlie.name `is` charlieHint.capture
 
       When:
         Pqs.runPipeline(
           "--pipeline-ledger-stop=Latest",
-          s"--pipeline-filter-parties=($aliceHint::* | $charlieHint::*)"
+          s"--pipeline-filter-parties=(${alice.name}::* | ${charlie.name}::*)"
         )
 
       And:
-        Pqs.stdout `is` stringContaining(s"Starting pipeline on behalf of '$aliceId,$charlieId'")
+        Pqs.stdout `is` stringContaining(s"Starting pipeline on behalf of '${alice.id},${charlie.id}'")
 
       And:
         partiesQuery `returns` table {
-          aliceId | charlieId
+          alice.id | charlie.id
         }.transpose
 
       Expect:
         Pqs.exitCode `is` ExitCode.success
     ,
     funcTest("with wildcard (*)") {
-      val aliceId   = Capture[String]
-      val charlieId = Capture[String]
-      val bobId     = Capture[String]
+      val alice   = Party("Alice")
+      val bob     = Party("Bob")
+      val charlie = Party("Charlie")
 
       Given:
-        context
+        context(alice, bob, charlie)
       And:
         DamlSdk.runScript("PingPong:transact1", alice.id)
           ++ DamlSdk.runScript("PingPong:transact1", bob.id)
           ++ DamlSdk.runScript("PingPong:transact1", charlie.id)
-      And:
-        alice.id `is` aliceId.capture
-      And:
-        bob.id `is` bobId.capture
-      And:
-        charlie.id `is` charlieId.capture
       When:
         Pqs.runPipeline(
           "--pipeline-ledger-stop=Latest",
@@ -113,7 +93,7 @@ object PartyFilteringSpec extends FuncTestStandalone:
         Pqs.exitCode `is` ExitCode.success
       And:
         partiesQuery `returns` table {
-          aliceId | bobId | charlieId
+          alice.id | bob.id | charlie.id
         }.transpose
       And:
         Postgres `query` sql"""select count(*) from active('PingPong:Ping')""" `returns` table { 3 }

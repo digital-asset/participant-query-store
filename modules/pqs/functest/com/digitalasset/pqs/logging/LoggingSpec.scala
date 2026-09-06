@@ -12,7 +12,6 @@ import com.digitalasset.pqs.services.pqs.Pqs
 import zio.test.Assertion.not
 
 object LoggingSpec extends SharedLedgerAndPostgresTest:
-  val alice = Party("Alice")
   val pingPong = DamlSource(
     "PingPong" -> """module PingPong where
                     |
@@ -26,13 +25,16 @@ object LoggingSpec extends SharedLedgerAndPostgresTest:
                     |""".stripMargin
   )
 
+  def context =
+    val alice = Party("Alice")
+    DamlSdk.dar(pingPong) ++ DamlSdk.parties(alice) ++ Postgres.database
+      >+> DamlSdk.deploy
+
   def spec = suite("Logging")(
     suite("console-based logging")(
       funcTest("--logger-level Info --logger-format Plain --logger-pattern Plain (defaults)"):
         Given:
-          DamlSdk.dar(pingPong)
-        And:
-          DamlSdk.deploy ++ DamlSdk.parties(alice) ++ Postgres.database
+          context
         When:
           runPipeline()
         Then:
@@ -41,10 +43,9 @@ object LoggingSpec extends SharedLedgerAndPostgresTest:
           )
       ,
       funcTest("--logger-level Info --logger-format Plain --logger-pattern Standard"):
+        val alice = Party("Alice")
         Given:
-          DamlSdk.dar(pingPong)
-        And:
-          DamlSdk.deploy ++ DamlSdk.parties(alice) ++ Postgres.database
+          context
         When:
           runPipeline(
             "--logger-pattern=Standard"
@@ -56,9 +57,7 @@ object LoggingSpec extends SharedLedgerAndPostgresTest:
       ,
       funcTest("--logger-pattern Structured"):
         Given:
-          DamlSdk.dar(pingPong)
-        And:
-          DamlSdk.deploy ++ DamlSdk.parties(alice) ++ Postgres.database
+          context
         When:
           runPipeline(
             "--logger-pattern=Structured"
@@ -70,9 +69,7 @@ object LoggingSpec extends SharedLedgerAndPostgresTest:
       ,
       funcTest("--logger-pattern <custom_pattern>"):
         Given:
-          DamlSdk.dar(pingPong)
-        And:
-          DamlSdk.deploy ++ DamlSdk.parties(alice) ++ Postgres.database
+          context
         When:
           runPipeline(
             "--logger-pattern=%label{location}{%name} %label{level}{%level} %message"
@@ -84,9 +81,7 @@ object LoggingSpec extends SharedLedgerAndPostgresTest:
       ,
       funcTest("--logger-format Json"):
         Given:
-          DamlSdk.dar(pingPong)
-        And:
-          DamlSdk.deploy ++ DamlSdk.parties(alice) ++ Postgres.database
+          context
         When:
           runPipeline(
             "--logger-format=Json"
@@ -100,9 +95,7 @@ object LoggingSpec extends SharedLedgerAndPostgresTest:
       ,
       funcTest("--logger-format Json --logger-pattern Standard"):
         Given:
-          DamlSdk.dar(pingPong)
-        And:
-          DamlSdk.deploy ++ DamlSdk.parties(alice) ++ Postgres.database
+          context
         When:
           runPipeline(
             "--logger-format=Json",
@@ -115,9 +108,7 @@ object LoggingSpec extends SharedLedgerAndPostgresTest:
       ,
       funcTest("--logger-format Json --logger-pattern Structured"):
         Given:
-          DamlSdk.dar(pingPong)
-        And:
-          DamlSdk.deploy ++ DamlSdk.parties(alice) ++ Postgres.database
+          context
         When:
           runPipeline(
             "--logger-format=Json",
@@ -130,9 +121,7 @@ object LoggingSpec extends SharedLedgerAndPostgresTest:
       ,
       funcTest("--logger-level Debug"):
         Given:
-          DamlSdk.dar(pingPong)
-        And:
-          DamlSdk.deploy ++ DamlSdk.parties(alice) ++ Postgres.database
+          context
         val dar = Capture[DarFile]
         And:
           dar.captureFromService
@@ -147,9 +136,7 @@ object LoggingSpec extends SharedLedgerAndPostgresTest:
       ,
       funcTest("--logger-level Debug --logger-mappings-com.digitalasset.pqs.grpc Info"):
         Given:
-          DamlSdk.dar(pingPong)
-        And:
-          DamlSdk.deploy ++ DamlSdk.parties(alice) ++ Postgres.database
+          context
         val dar = Capture[DarFile]
         And:
           dar.captureFromService

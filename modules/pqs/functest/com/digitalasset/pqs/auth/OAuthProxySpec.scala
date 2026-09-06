@@ -71,10 +71,8 @@ object OAuthProxySpec
       >+> DamlSdk.dar(pingPong)
       >+> DamlSdk.deploy
 
-  private val alice = Party("Alice")
-
-  private val context =
-    Postgres.database ++ DamlSdk.parties(alice)
+  private def context =
+    Postgres.database ++ DamlSdk.parties(Party("Alice"))
 
   private val proxyUrl =
     Docker.inspect[ForwardProxy.Instance].map(i => s"http://${i.container.hostName}:${ForwardProxy.port}")

@@ -173,7 +173,7 @@ object DamlSdk:
       oauthInstance <- Docker.inspectMaybe[OAuth.Instance]
       ps <- ZIO.foreach(parties zip hints zip ids) {
         case ((p, hint), id) =>
-          p._name.set(Some(hint)) *> p._id.set(Some(id))
+          ZIO.attempt(p.set(id, hint))
             *> ZIO.unless(oauthInstance.isEmpty) { api.grantRights(id) }.as(p)
       }
     yield Parties(ps))
@@ -184,10 +184,12 @@ object DamlSdk:
       for
         knownParties <- api.listKnownParties
         ps <- ZIO.foreach(parties) { party =>
-          ZIO
-            .fromOption(knownParties.find(_.party.startsWith(s"${party.prefix}::")))
-            .flatMap(details => party._name.set(Some(party.prefix)) *> party._id.set(Some(details.party)).as(party))
-            .orElseFail(Throwable(s"Allocated party ${party.prefix} not found on participant"))
+          ZIO.attempt {
+            val details = knownParties
+              .find(_.party.startsWith(s"${party.prefix}::"))
+              .getOrElse(throw RuntimeException(s"Allocated party ${party.prefix} not found on participant"))
+            party.set(details.party, party.prefix)
+          }
         }
       yield Parties(ps)
     )
@@ -195,14 +197,16 @@ object DamlSdk:
   def users(users: daml.User*): RLayer[Docker & Service[Ledger], Users] =
     ZLayer.fromZIO(ZIO.foreach(users)(createUser).map(Users.apply))
 
-  private def createUser(user: daml.User) =
-    for
-      primaryParty <- user.primaryParty.id
-      userId       <- user.id
-      canActAs     <- ZIO.foreach(user.canActAs)(_.id)
-      canReadAs    <- ZIO.foreach(user.canReadAs)(_.id)
-      _            <- api.createUser(userId, primaryParty, primaryParty +: canActAs, canReadAs, user.canReadAsAnyParty)
-    yield user
+  private def createUser(user: daml.User): ZIO[Docker & Service[Ledger], Throwable, User] =
+    api
+      .createUser(
+        user.id,
+        user.primaryParty.id,
+        user.primaryParty.id +: user.canActAs.map(_.id),
+        user.canReadAs.map(_.id),
+        user.canReadAsAnyParty
+      )
+      .as(user)
 
   class PrunedTo(offset: String | Long)
 
@@ -213,7 +217,7 @@ object DamlSdk:
   /** Run script and store result in the layer */
   def runScript[IN: upickle.default.Writer](
       name: String,
-      args: Task[IN]
+      args: => IN
   ): ZLayer[Docker & Service[Ledger] & DarFile & FTEnv & Dpm, Throwable, Unit] =
     ZLayer.scoped(for
       scriptDir         <- FTEnv.createUniqueDirectory(s"runscript-$name")
@@ -225,9 +229,8 @@ object DamlSdk:
       ledger            <- ZIO.service[Service[Ledger]]
       adminTokenService <- inspectMaybe[TokenService]
       dar               <- ZIO.service[DarFile]
-      argsV             <- args
       version           <- FTEnv.damlSdkVersion
-      inputJson         <- ZIO.attempt(upickle.default.write(argsV, escapeUnicode = true))
+      inputJson         <- ZIO.attempt(upickle.default.write(args, escapeUnicode = true))
       inputFile         <- writeFile(scriptDir / "input.json", inputJson)
       outputFile = scriptDir / "output.json"
       participantAdminToken <- ZIO.whenCase(adminTokenService) {

@@ -24,7 +24,6 @@ import scala.language.{implicitConversions, postfixOps}
   * sharing the same infrastructure.
   */
 object ReadyzResilienceSpec extends FuncTestStandalone:
-  private val alice = Party("Alice")
   private val ping = DamlSource(
     "Ping" -> """module Ping where
                 |
@@ -47,6 +46,7 @@ object ReadyzResilienceSpec extends FuncTestStandalone:
 
   def spec = suite("readyz resilience")(
     funcTest("Postgres failure and recovery"):
+      val alice = Party("Alice")
       Given:
         DamlSdk.dar(ping) ++ DamlSdk.ledger ++ Postgres.instance
       And:
@@ -79,6 +79,7 @@ object ReadyzResilienceSpec extends FuncTestStandalone:
           .retryUntilTimeout(50.seconds)
     ,
     funcTest("Canton failure and recovery"):
+      val alice = Party("Alice")
       Given:
         DamlSdk.dar(ping) ++ DamlSdk.ledger ++ Postgres.instance
       And:

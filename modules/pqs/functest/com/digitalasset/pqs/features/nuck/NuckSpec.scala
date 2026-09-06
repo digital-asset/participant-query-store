@@ -15,7 +15,6 @@ import zio.test.Assertion.*
 import scala.language.implicitConversions
 
 object NuckSpec extends SharedLedgerAndPostgresTest:
-  private val alice = Party("Alice")
 
   private val iKeyed = DamlSource(
     "IKeyed" -> """module IKeyed where
@@ -57,7 +56,7 @@ object NuckSpec extends SharedLedgerAndPostgresTest:
                    |""".stripMargin
   ).dependsOn(iKeyed)
 
-  private val context =
+  private def context(alice: Party) =
     DamlSdk.dar(withKey) ++ DamlSdk.parties(alice) ++ Postgres.database
       >+> DamlSdk.deploy >+> DamlSdk.runScript("WithKey:setup", alice.id)
 
@@ -66,9 +65,10 @@ object NuckSpec extends SharedLedgerAndPostgresTest:
 
   def spec = suite("Non-Unique Contract Keys")(
     funcTest("Two contracts with the same key are both stored and queryable") {
+      val alice           = Party("Alice")
       val contractKeyHash = Capture[String]
       Given:
-        context
+        context(alice)
       And:
         Pqs.runPipeline(
           "--pipeline-datasource=TransactionStream",
@@ -79,14 +79,12 @@ object NuckSpec extends SharedLedgerAndPostgresTest:
 
       // Looking up contracts by key "(alice, 42)" returns A and B, but not C.
       Expect:
-        alice.id.flatMap { aliceId =>
-          lookupByKey(aliceId, 42).returns(
-            table {
-              anything | contractKeyHash.capture | "A"
-              anything | contractKeyHash.capture | "B"
-            }
-          )
-        }
+        lookupByKey(alice.id, 42).returns(
+          table {
+            anything | contractKeyHash.capture | "A"
+            anything | contractKeyHash.capture | "B"
+          }
+        )
       // Only template rows carry the key hash, so this lookup - which does not pin the entity -
       // returns one row per contract.
       Expect:
@@ -98,8 +96,9 @@ object NuckSpec extends SharedLedgerAndPostgresTest:
         )
     },
     funcTest("Interface rows store neither the contract key nor its hash") {
+      val alice = Party("Alice")
       Given:
-        context
+        context(alice)
       And:
         Pqs.runPipeline(
           "--pipeline-datasource=TransactionStream",
@@ -112,7 +111,6 @@ object NuckSpec extends SharedLedgerAndPostgresTest:
       // both, because they describe the underlying template, not the interface view.
       Expect:
         for
-          aliceId <- alice.id
           stored <- Postgres
             .query(
               sql"""select contract_key is null, contract_key_hash is null
@@ -127,17 +125,15 @@ object NuckSpec extends SharedLedgerAndPostgresTest:
         )
 
       Expect:
-        alice.id.flatMap { aliceId =>
-          keyColumnsOf(templateFqn).returns(
-            table {
-              "key owner" | "key k" | "key hash"  | "label"
-              ---         | ---     | ---         | ---
-              aliceId     | "42"    | not(isNull) | "A"
-              aliceId     | "43"    | not(isNull) | "C"
-              aliceId     | "42"    | not(isNull) | "B"
-            }
-          )
-        }
+        keyColumnsOf(templateFqn).returns(
+          table {
+            "key owner" | "key k" | "key hash"  | "label"
+            ---         | ---     | ---         | ---
+            alice.id    | "42"    | not(isNull) | "A"
+            alice.id    | "43"    | not(isNull) | "C"
+            alice.id    | "42"    | not(isNull) | "B"
+          }
+        )
 
       Expect:
         keyColumnsOf(interfaceFqn).returns(
