@@ -14,7 +14,7 @@ import com.digitalasset.pqs.postgres.document.model.{EntityTypePk, PackagePk, Wa
 import com.digitalasset.pqs.postgres.document.specific
 import com.digitalasset.pqs.postgres.document.specific.*
 import com.digitalasset.transcode.Codec
-import com.digitalasset.transcode.schema.{Identifier, ChoiceName, Dictionary, PackageId}
+import com.digitalasset.transcode.schema.{ChoiceName, Dictionary, Identifier, PackageId}
 import io.github.classgraph.ClassGraph
 import org.flywaydb.core.Flyway
 import org.flywaydb.core.api.ResourceProvider

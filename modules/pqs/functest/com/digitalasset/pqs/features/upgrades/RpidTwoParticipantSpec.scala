@@ -171,13 +171,9 @@ object RpidTwoParticipantSpec extends FuncTestStandalone:
           hostname = s"rpid-canton-$cnt"
           dbP1     = s"canton_p1_$cnt"
           dbP2     = s"canton_p2_$cnt"
-          dbSeq    = s"canton_seq_$cnt"
-          dbMed    = s"canton_med_$cnt"
           _ <- pg.adminDatabase.transaction(
             sql"""CREATE DATABASE "${Syntax(dbP1)}"""".execute *>
-              sql"""CREATE DATABASE "${Syntax(dbP2)}"""".execute *>
-              sql"""CREATE DATABASE "${Syntax(dbSeq)}"""".execute *>
-              sql"""CREATE DATABASE "${Syntax(dbMed)}"""".execute
+              sql"""CREATE DATABASE "${Syntax(dbP2)}"""".execute
           )
           ca              <- Docker.certificateAuthority
           participantCert <- ca.generate("participant", Seq(hostname, "localhost", "127.0.0.1", "0.0.0.0"))
@@ -201,9 +197,7 @@ object RpidTwoParticipantSpec extends FuncTestStandalone:
             pgHostname,
             Postgres.port,
             dbP1,
-            dbP2,
-            dbSeq,
-            dbMed
+            dbP2
           )
           bootstrapSc = bootstrapScript("rpiddomain")
           prepopulateFiles = certFiles ++ Seq(

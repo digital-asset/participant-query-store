@@ -3,10 +3,11 @@
 
 package com.digitalasset.pqs.services.postgres
 
+import com.digitalasset.pqs.specific.offsetSqlFragment
+import com.digitalasset.pqs.utils.safeequals.===
 import com.digitalasset.pqs.docker.{Docker, Service}
 import com.digitalasset.pqs.functest.FTEnv
 import com.digitalasset.pqs.functest.table.{Cell, Row, Table}
-import com.digitalasset.pqs.specific.offsetSqlFragment
 import org.postgresql.PGProperty
 import zio.*
 import zio.ZIO.{acquireRelease, attemptBlocking, logDebug}
@@ -204,6 +205,38 @@ object Postgres:
   def reverseWatermark(transactionIx: Long): ZIO[Database, Throwable, Long] = query(
     sql"""update __watermark set "offset" = tx."offset", ix = tx.ix, instance_id = 'reverse-watermark' from __transactions tx where tx.ix = $transactionIx""".update
   )
+
+  /** Returns the SQL schema dump (DDL only, no data/roles/ownership) of the currently connected PQS database as text,
+    * by running `pg_dump` inside the already running Postgres container (the equivalent of `docker exec`).
+    */
+  def dumpSchema: ZIO[Postgres & Database, Throwable, String] =
+    for
+      pg     <- ZIO.service[Postgres]
+      dbName <- ZIO.serviceWith[Database](_.name)
+      result <- pg.exec(
+        "pg_dump",
+        "--username=postgres",
+        s"--dbname=$dbName",
+        // Use a dummy restrict-key tag to ensure determinism in tests
+        "--restrict-key=onlyfortestingpqs",
+        "--schema-only",
+        "--no-owner",
+        "--no-privileges",
+        "--no-comments"
+      )
+      _ <- ZIO
+        .fail(RuntimeException(s"pg_dump failed with exit code ${result.exitCode.code}: ${result.stdErr}"))
+        .unless(result.exitCode === ExitCode.success)
+    yield result.stdOut
+
+  /** Dumps the schema (DDL only, no data/roles/ownership) of the currently connected database to the given local file.
+    * Useful to eyeball how the schema looks like once all Flyway migrations have been applied.
+    */
+  def dumpSchemaTo(target: os.Path): ZIO[Postgres & Database, Throwable, Unit] =
+    dumpSchema.flatMap(content =>
+      attemptBlocking(os.write.over(target, content, createFolders = true))
+        *> logDebug(s"Dumped database schema to $target")
+    )
 
   /////////////////
   // Session API //

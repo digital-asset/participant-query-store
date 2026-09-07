@@ -102,7 +102,9 @@ object model {
     case Events       extends Table("__events")
     case Contracts    extends Table("__contracts")
     case Exercises    extends Table("__exercises")
-    case Archives     extends Table("__archives")
+    // As opposed to the tables above, __archives is a view with an `instead of insert` trigger
+    // `__insert_archive_trg` that updates the underlying __contracts row instead of inserting.
+    case Archives extends Table("__archives")
 
   final class Transaction(tx: specific.Transaction, val span: Option[DetachedSpan] = None) extends Copy:
     val _table                   = Table.Transactions

@@ -169,7 +169,7 @@ object `package` extends RootModule { root =>
         "class com.fasterxml.** extends java.lang.Enum { *; } ",
         "class io.netty.util.concurrent.ConcurrentSkipListIntObjMultimap { *; }",
         "class tools.jackson.databind.** extends java.lang.Enum { *; }",
-        
+
       )
     }
 
@@ -373,6 +373,8 @@ object `package` extends RootModule { root =>
         L.commons.text,
         L.flyway.core,
         L.flyway.driverPostgres,
+        L.jackson.core,
+        L.jackson.databind,
         L.classgraph,
         L.transcode.json
       )

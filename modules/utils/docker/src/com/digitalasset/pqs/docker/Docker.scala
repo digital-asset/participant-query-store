@@ -3,13 +3,13 @@
 
 package com.digitalasset.pqs.docker
 
-import com.digitalasset.pqs.docker.Client.{run, stream}
+import com.digitalasset.pqs.docker.Client.{run, streamMap}
 import com.digitalasset.pqs.docker.tls.CertificateAuthority
 import com.digitalasset.pqs.utils.safeequals.===
 import com.github.dockerjava.api.DockerClient
-import com.github.dockerjava.api.command.InspectContainerResponse
+import com.github.dockerjava.api.command.{InspectContainerResponse, InspectExecResponse}
 import com.github.dockerjava.api.model.StreamType.{STDERR, STDOUT}
-import com.github.dockerjava.api.model.{ExposedPort, Frame, HostConfig, Mount, MountType, PortBinding}
+import com.github.dockerjava.api.model.{ExposedPort, HostConfig, Mount, MountType, PortBinding, StreamType}
 import org.apache.commons.compress.archivers.tar.{TarArchiveEntry, TarArchiveInputStream, TarArchiveOutputStream}
 import org.apache.commons.io.output.ByteArrayOutputStream
 import os.Shellable
@@ -18,6 +18,7 @@ import zio.ZIO.*
 import zio.stream.ZPipeline
 
 import java.nio.charset.StandardCharsets.UTF_8
+import java.util.concurrent.TimeoutException
 import scala.jdk.CollectionConverters.*
 import scala.util.Try
 
@@ -163,15 +164,14 @@ object Docker:
             client
               .statsCmd(c.getId)
               .withNoStream(true)
-              .stream
-              .runHead
-              .map(stats =>
+              .streamMap(s =>
                 (for
-                  s <- stats
                   m <- Option(s.getMemoryStats)
                   u <- Option(m.getUsage)
                 yield u.longValue).getOrElse(0L)
               )
+              .runHead
+              .map(_.getOrElse(0L))
               .timeout(5.seconds)
               .map(_.getOrElse(0L))
           }
@@ -273,6 +273,54 @@ object Docker:
       yield ()
 
     ///////////////
+
+    /** Runs a command inside an already running container (the equivalent of `docker exec`), capturing its standard
+      * output, standard error and exit code.
+      */
+    private def exec(containerId: String, cmd: Seq[Shellable])(implicit trace: Trace): Task[ExecResult] =
+      val unpackedCmd = cmd.flatMap(_.value)
+      for
+        _ <- logDebug(s"Executing in container $containerId: [${unpackedCmd.mkString(" ")}]")
+        execId <- client
+          .execCreateCmd(containerId)
+          .withCmd(unpackedCmd*)
+          // No tty, so stdout and stderr are not merged
+          .withTty(false)
+          .withAttachStdout(true)
+          .withAttachStderr(true)
+          .run
+          .map(_.getId)
+        output <- client
+          .execStartCmd(execId)
+          // Clone the payload to avoid issues with docker-java reusing the underlying byte buffer (see stream documentation in Client.scala)
+          .streamMap(frame => (frame.getStreamType, frame.getPayload.clone()))
+          .runCollect
+          .map { frames =>
+            def collect(queriedStreamType: StreamType) =
+              new String(
+                frames.view
+                  .filter { case (streamType, _) => streamType === queriedStreamType }
+                  .flatMap { case (_, payload) => payload }
+                  .toArray,
+                UTF_8
+              )
+            (collect(STDOUT), collect(STDERR))
+          }
+        // The exec may briefly still be flagged as running once its output stream has ended,
+        // in which case the exit code is not available yet.
+        finished = Schedule.recurUntil[InspectExecResponse](r => !Option(r.isRunning).exists(_.booleanValue))
+        backoff  = Schedule.exponential(1.milli, 2) || Schedule.spaced(100.millis)
+        response <- client
+          .inspectExecCmd(execId)
+          .run
+          .repeat(finished <* backoff)
+          .timeoutFail(new TimeoutException("Timeout while waiting for pg_dump to complete"))(60.seconds)
+        (stdOut, stdErr) = output
+      yield ExecResult(
+        ExitCode(Option(response.getExitCodeLong).fold(sys.error("Unexpected null exit code"))(_.intValue)),
+        stdOut,
+        stdErr
+      )
 
     private def getFileContents(containerId: String, path: os.Path)(implicit trace: Trace): Task[Array[Byte]] =
       acquireReleaseWith( // acquire
@@ -464,8 +512,7 @@ object Docker:
         exitCode <- zio.Promise.make[Throwable, ExitCode]
         _ <- client
           .waitContainerCmd(container.containerId)
-          .stream
-          .map(_.getStatusCode.toInt)
+          .streamMap(_.getStatusCode.toInt)
           .runHead
           .someOrElse(1)
           .flatMap { waitCode =>
@@ -512,8 +559,10 @@ object Docker:
           else portMap(info).keySet.map(k => k -> k).toMap
 
         // std IO
-        process = (f: PartialFunction[Frame, Array[Byte]], g: String => StdIO) =>
-          ZPipeline.collect(f.andThen(Chunk.fromArray))
+        process = (streamType: StreamType, g: String => StdIO) =>
+          ZPipeline.collect[(StreamType, Array[Byte]), Chunk[Byte]] {
+            case (tpe, payload) if tpe === streamType => Chunk.fromArray(payload)
+          }
             >>> ZPipeline.flattenChunks
             >>> ZPipeline.utf8Decode
             >>> ZPipeline.splitLines
@@ -525,9 +574,10 @@ object Docker:
           .withStdErr(true)
           .withFollowStream(true)
           .withTailAll()
-          .stream
-        stdErr = ioStream.via(process({ case f if f.getStreamType === STDERR => f.getPayload }, StdErr.apply))
-        stdOut = ioStream.via(process({ case f if f.getStreamType === STDOUT => f.getPayload }, StdOut.apply))
+          // The payload must be copied inside the callback, see `stream`.
+          .streamMap(frame => (frame.getStreamType, frame.getPayload.clone()))
+        stdErr = ioStream.via(process(STDERR, StdErr.apply))
+        stdOut = ioStream.via(process(STDOUT, StdOut.apply))
         io     = stdErr merge stdOut
 
         _ <- ZIO.when(!suppressOutput)(io.foreach(logStdIO).forkScoped)
@@ -537,7 +587,8 @@ object Docker:
         exposedPorts,
         io,
         exitCode.await,
-        getFileContents(container.containerId, _)
+        getFileContents(container.containerId, _),
+        exec(container.containerId, _)
       )
 
     private def pullImageIfNecessary(image: String)(implicit trace: Trace) = ZIO.unlessZIO(
@@ -545,15 +596,14 @@ object Docker:
     )(
       client
         .pullImageCmd(image)
-        .stream
-        .foreach(rr =>
-          Option(rr.getProgressDetail).fold {
-            logInfo(rr.getStatus)
-          } { pd =>
+        // Render the message inside the callback; Left is logged at info, Right at debug.
+        .streamMap { rr =>
+          Option(rr.getProgressDetail).fold[Either[String, String]](Left(rr.getStatus)) { pd =>
             val perc = if Option(pd.getTotal).isEmpty then "" else f", ${100.0 * pd.getCurrent / pd.getTotal}%2.2f%%"
-            logDebug(s"${rr.getId} - ${rr.getStatus}$perc")
+            Right(s"${rr.getId} - ${rr.getStatus}$perc")
           }
-        )
+        }
+        .foreach(_.fold(logInfo(_), logDebug(_)))
     )
   end Impl
 

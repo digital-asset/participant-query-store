@@ -37,6 +37,20 @@ Follow the same steps as adding a new function (above), but edit `R__50_views.sq
 	- `DROP PROCEDURE ...`
 	- `DROP VIEW ...`
 
+## SQL Schema snapshot
+
+[`../schema-dump.sql`](../schema-dump.sql) is a checked-in, generated SQL schema snapshot of the full PQS Postgres schema (DDL only,
+no data) after all migrations in this directory have been applied and is meant to serve as a single file to read/`git diff` to understand
+what the database looks like on a live system.
+
+The SQL dump is kept up-to-date automatically by `SchemaDumpSpec`, which fails if the checked-in file has
+drifted from what the current migrations actually produce. After updating any of the migration files, regenerate the SQL schema dump
+by running:
+
+```bash
+REGENERATE_SCHEMA_DUMP=true mill pqs.functest.testOnly com.digitalasset.pqs.schema.postgres.document.SchemaDumpSpec
+```
+
 # Which release?
 
 To get release version to schema version correspondence, issue the following command:

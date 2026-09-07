@@ -33,12 +33,19 @@ object Client:
       attemptBlocking(cmd.exec()).refineToOrDie[DockerException]
 
   extension [T <: AsyncDockerCmd[T, U], U](cmd: AsyncDockerCmd[T, U])
-    def stream(implicit trace: Trace): ZStream[Any, Throwable, U] =
-      ZStream.asyncInterrupt[Any, Throwable, U] { emit =>
+    /** Streams the command's results, applying `f` to each item inside the docker-java callback.
+      *
+      * Note: `f` must deep-copy anything docker-java may recycle, because an item is not necessarily safe to touch once
+      * the callback has returned. In particular [[com.github.dockerjava.api.model.Frame]]: as of docker-java 3.4.0
+      * `FramedInputStreamConsumer.accept` recycles a byte buffer passed into every forwarded Frame. If callers then
+      * don't copy the frame's payload within onNext, the new onNext will override the previous frame's payload.
+      */
+    def streamMap[V](f: U => V)(implicit trace: Trace): ZStream[Any, Throwable, V] =
+      ZStream.asyncInterrupt[Any, Throwable, V] { emit =>
         var interruptHandler = Option.empty[Closeable]
         cmd.exec(new ResultCallback[U] {
           def onStart(closeable: Closeable): Unit = interruptHandler = Some(closeable)
-          def onNext(item: U): Unit               = emit single item
+          def onNext(item: U): Unit               = emit single f(item)
           def onError(miserably: Throwable): Unit = emit fail miserably
           def onComplete(): Unit                  = emit.end
           def close(): Unit                       = {}
