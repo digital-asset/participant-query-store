@@ -373,6 +373,8 @@ object `package` extends RootModule { root =>
         L.commons.text,
         L.flyway.core,
         L.flyway.driverPostgres,
+        L.jackson.core,
+        L.jackson.databind,
         L.classgraph,
         L.transcode.json
       )

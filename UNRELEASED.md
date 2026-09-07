@@ -11,3 +11,5 @@ _Write summary of release_
 ### Bug fixes
 
 ### Minor Improvements
+
+- Bump Flyway to 13.4.0.
