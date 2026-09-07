@@ -98,6 +98,7 @@ jobs:
       - uses: ./.github/actions/nix
       - uses: ./.github/actions/gen-version
       - run: make populate-blackduck-dir
+      - run: ls -alhR .blackduck-input/
       - name: Blackduck Scan
         run: blackduck_scan -p "${GITHUB_REPOSITORY_OWNER}_${GITHUB_REPOSITORY#*/}" -b "$GITHUB_REF_NAME" -c MAJOR,CRITICAL,BLOCKER
         env:
