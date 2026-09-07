@@ -306,7 +306,8 @@ object AuthSpec extends SharedLedgerAndPostgresAndAuthTest:
       val user    = User(primaryParty = alice, canReadAsAnyParty = true)
 
       Given:
-        context(alice)
+        // Rerun the shared layer to get a fresh Canton instance for this test
+        shared >+> context(alice, bob, charlie)
       And:
         DamlSdk.users(user)
       And:
@@ -335,7 +336,8 @@ object AuthSpec extends SharedLedgerAndPostgresAndAuthTest:
       val token   = Capture[String]
 
       Given:
-        context(alice, bob, charlie)
+        // Rerun the shared layer to get a fresh Canton instance for this test
+        shared >+> context(alice, bob, charlie)
       And:
         DamlSdk.users(user)
       And:
