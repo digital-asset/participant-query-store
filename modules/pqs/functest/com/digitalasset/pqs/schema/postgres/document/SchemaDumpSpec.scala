@@ -3,7 +3,8 @@
 
 package com.digitalasset.pqs.schema.postgres.document
 
-import com.digitalasset.pqs.{SharedLedgerAndPostgresTest, Dars}
+import com.digitalasset.pqs.services.daml.DamlSdk.onlyPostgresVersion
+import com.digitalasset.pqs.{Dars, SharedLedgerAndPostgresTest}
 import com.digitalasset.pqs.services.daml.{DamlSdk, Party}
 import com.digitalasset.pqs.services.postgres.Postgres
 import com.digitalasset.pqs.services.pqs.Pqs
@@ -61,4 +62,12 @@ object SchemaDumpSpec extends SharedLedgerAndPostgresTest:
           yield assertTrue(exists) && (assert(current)(
             Assertion.equalTo(copyrightHeaderRegex.replaceFirstIn(checkedIn, ""))
           ) ?? staleMessage)
-  )
+  ) @@ {
+    // Only run the test against the PG version the schema is generated with (for convenience, the default Postgres version in the build.sc)
+    // to ensure determinism in comparison of with the checked-in schema dump.
+    //
+    // NOTE: Update this range when the default Postgres version in the build.sc changes
+    onlyPostgresVersion(
+      ">=17.0 <18.0.0"
+    )
+  }
