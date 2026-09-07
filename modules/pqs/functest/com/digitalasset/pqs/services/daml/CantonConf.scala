@@ -587,31 +587,31 @@ object CantonConf:
         |    }
         |""".stripMargin
 
-private def mediator(name: String): String =
-  s"""|$name {
-      |      storage.type = memory
-      |      admin-api {
-      |        address = "0.0.0.0"
-      |        port = 5007
-      |      }
-      |    }
-      |""".stripMargin
+  private def mediator(name: String): String =
+    s"""|$name {
+        |      storage.type = memory
+        |      admin-api {
+        |        address = "0.0.0.0"
+        |        port = 5007
+        |      }
+        |    }
+        |""".stripMargin
 
-private def monitoring(collector: Service[Collector.Instance]): String =
-  s"""  monitoring {
-     |    tracing {
-     |      propagation = enabled
-     |      tracer {
-     |        exporter {
-     |          type = otlp
-     |          address = ${collector.container.hostName}
-     |          port = ${Collector.Instance.otlp}
-     |        }
-     |        sampler {
-     |          type = always-on
-     |          parent-based = true
-     |        }
-     |      }
-     |    }
-     |  }
-     |""".stripMargin
+  private def monitoring(collector: Service[Collector.Instance]): String =
+    s"""|  monitoring {
+        |    tracing {
+        |      propagation = enabled
+        |      tracer {
+        |        exporter {
+        |          type = otlp
+        |          address = ${collector.container.hostName}
+        |          port = ${Collector.Instance.otlp}
+        |        }
+        |        sampler {
+        |          type = always-on
+        |          parent-based = true
+        |        }
+        |      }
+        |    }
+        |  }
+        |""".stripMargin
