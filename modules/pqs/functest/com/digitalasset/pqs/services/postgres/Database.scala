@@ -35,20 +35,21 @@ object Database:
   def __exercises() = Postgres `query`
     sql"""select package_pk, tpe_pk, contract_tpe_pk, contract_id, argument ->> 'newLabel' from __exercises order by exercised_at_ix, tpe_pk"""
 
-  def active(qname: Option[String] = None, additionalColumns: Seq[String] = Seq.empty) = Postgres `query` {
-    val select =
-      SqlFragment.select((Seq("package_id", "template_fqn", "payload_type", "contract_id") ++ additionalColumns)*)
-    sql"""$select from active($qname) order by created_at_ix, template_fqn, payload_type desc"""
-  }
+  def active(qname: Option[String] = None, extraColumns: Seq[String] = Seq.empty) =
+    selectContracts(sql"active($qname)", extraColumns)
 
-  def archives(qname: Option[String] = None) = Postgres `query`
-    sql"""select package_id, template_fqn, payload_type, contract_id from archives($qname) order by created_at_ix, template_fqn, payload_type desc"""
+  def archives(qname: Option[String] = None, extraColumns: Seq[String] = Seq.empty) =
+    selectContracts(sql"archives($qname)", extraColumns)
 
-  def creates(qname: Option[String] = None) = Postgres `query`
-    sql"""select package_id, template_fqn, payload_type, contract_id from creates($qname) order by created_at_ix, template_fqn, payload_type desc"""
+  def creates(qname: Option[String] = None, extraColumns: Seq[String] = Seq.empty) =
+    selectContracts(sql"creates($qname)", extraColumns)
 
   def exercises(qname: Option[String] = None) = Postgres `query`
     sql"""select package_id, template_fqn, choice_fqn, choice, contract_id, argument ->> 'newLabel' from exercises($qname) order by exercised_at_ix, template_fqn, choice_fqn"""
 
   def transactionCount() =
     Postgres.query(sql"select count(*) from __transactions".query[Long].selectOne).someOrElse(0L)
+
+  private def selectContracts(table: SqlFragment, extraColumns: Seq[String]) =
+    val select = SqlFragment.select((Seq("package_id", "template_fqn", "payload_type", "contract_id") ++ extraColumns)*)
+    Postgres.query(sql"$select from $table order by created_at_ix, template_fqn, payload_type desc")

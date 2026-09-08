@@ -171,12 +171,12 @@ object FailedInterfaceViewsSpec extends SharedLedgerAndPostgresTest:
         //       Reason for using it: There's no discriminator on which we can order the returned result so that they are stable for ACS-populated events.
         //       More generally this is due to the fact the created_at_ix, the creation offset and record time depend on how the events were ingested
         Expect:
-          active(additionalColumns = Seq("payload")).map { tbl =>
+          active(extraColumns = Seq("payload")).map { tbl =>
             zio.test.assert(tbl.rows.toList)(matchesTableUnordered(expectedPayloadsTbl))
           }
       else
         Expect:
-          active(additionalColumns = Seq("payload")) `returns` expectedPayloadsTbl retryUntilTimeout
+          active(extraColumns = Seq("payload")) `returns` expectedPayloadsTbl retryUntilTimeout
 
       Expect:
         ZIO.from(cid1_assetV2_payload.get) `is` stringMatching(

@@ -165,7 +165,7 @@ object DamlSdk:
           hostname = Some(hostname),
           env = CantonConf.cantonEnvVarMap,
           user = Some(CantonConf.user),
-          suppressOutput = false
+          suppressOutput = !showCantonLogs
         )(CantonConf.cantonAdditionalCmds*)
         .build
       svc = env.get[Service[Ledger]]
