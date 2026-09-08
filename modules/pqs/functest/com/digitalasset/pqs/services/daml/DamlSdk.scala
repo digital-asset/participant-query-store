@@ -118,42 +118,42 @@ object DamlSdk:
         spec.whenZIO(ZIO.service[FTEnv].map(env => f(env.config)).map(matcher))
 
   val ledger: RLayer[FTEnv & Docker, Service[Ledger]] = ZLayer.scoped(
-    for 
-      conf <- CantonConf()
+    for
+      conf     <- CantonConf()
       hostname <- cantonHostname
-      files <- conf.oneParticipant(hostname)
-      svc <- canton(hostname, conf.cantonDockerImage, files)
+      files    <- conf.oneParticipant(hostname)
+      svc      <- canton(hostname, conf.cantonDockerImage, files)
     yield svc
   )
 
   def multiSyncLedger(sync1: Synchronizer, sync2: Synchronizer): RLayer[FTEnv & Docker, Service[Ledger]] =
     ZLayer.scoped(
-      for 
-        conf <- CantonConf()
+      for
+        conf     <- CantonConf()
         hostname <- cantonHostname
-        files <- conf.twoSynchronizers(hostname, sync1, sync2)
-        svc <- canton(hostname, conf.cantonDockerImage, files)
+        files    <- conf.twoSynchronizers(hostname, sync1, sync2)
+        svc      <- canton(hostname, conf.cantonDockerImage, files)
       yield svc
     ) >+>
-    ZLayer.fromZIO (
-      // Register the synchronizer IDs right after the ledger started
-      for
-         allSynchronizers <- Ledger.getAllSynchronizers
-         _ <- ZIO.foreach(Seq(sync1, sync2)) { sync =>
-          allSynchronizers.find(s => s.synchronizerAlias === sync.name) match
-            case Some(connectedSync) => ZIO.attempt(sync.set(connectedSync.synchronizerId))
-            case None => ZIO.fail(RuntimeException(s"Synchronizer ${sync.name} is not connected"))
-        }
-      yield ()
-    )
+      ZLayer.fromZIO(
+        // Register the synchronizer IDs right after the ledger started
+        for
+          allSynchronizers <- Ledger.getAllSynchronizers
+          _ <- ZIO.foreach(Seq(sync1, sync2)) { sync =>
+            allSynchronizers.find(s => s.synchronizerAlias === sync.name) match
+              case Some(connectedSync) => ZIO.attempt(sync.set(connectedSync.synchronizerId))
+              case None                => ZIO.fail(RuntimeException(s"Synchronizer ${sync.name} is not connected"))
+          }
+        yield ()
+      )
 
   private val cantonHostname =
     Docker.share(s"canton_cnt")(Ref.Synchronized.make(0)).flatMap(_.updateAndGet(_ + 1)).map(cnt => s"canton-$cnt")
 
   private def canton(
-    hostname: String,
-    dockerImage: String,
-    cantonFiles: Seq[(Path, String | Array[Byte])],
+      hostname: String,
+      dockerImage: String,
+      cantonFiles: Seq[(Path, String | Array[Byte])]
   ): ZIO[FTEnv & (Docker & Scope), Throwable, Service[Ledger]] =
     for
       showCantonLogs <- FTEnv.showCantonLogs
@@ -197,16 +197,18 @@ object DamlSdk:
   private def allocateMany(partySynchronizers: Seq[(Party, Seq[String])]): RLayer[Docker & Service[Ledger], Parties] =
     ZLayer.fromZIO(
       for
-        partyCounter <- Docker.share("party_cnt")(Ref.Synchronized.make(0)).flatMap(_.updateAndGet(_ + 1))
+        partyCounter  <- Docker.share("party_cnt")(Ref.Synchronized.make(0)).flatMap(_.updateAndGet(_ + 1))
         oauthInstance <- Docker.inspectMaybe[OAuth.Instance]
-        parties           <- ZIO.foreach(partySynchronizers) { (party, synchronizers) =>
+        parties <- ZIO.foreach(partySynchronizers) { (party, synchronizers) =>
           val hint = s"${party.prefix}_$partyCounter"
           for
             ids <- ZIO.foreach(synchronizers)(syncId => Ledger.allocateParty(syncId, hint))
-            id  <- ids.distinct match
+            id <- ids.distinct match
               case Seq(single) => ZIO.succeed(single)
-              case _           => 
-                val error = RuntimeException(s"Expected identical party ids across synchronizers for $hint, got: ${ids.mkString(", ")}")
+              case _ =>
+                val error = RuntimeException(
+                  s"Expected identical party ids across synchronizers for $hint, got: ${ids.mkString(", ")}"
+                )
                 ZIO.fail(error)
             _ <- ZIO.attempt(party.set(id, hint))
             _ <- ZIO.unless(oauthInstance.isEmpty) { Ledger.grantRights(id) }

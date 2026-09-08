@@ -254,7 +254,7 @@ object Ledger:
       .logError
       .retry(Schedule.spaced(1.second))
   )
-  
+
   private def submitAndWaitForTransaction(actAs: Party, sync: Synchronizer, command: Command) = svc {
     val commands = Commands.defaultInstance
       .withCommandId(UUID.randomUUID.toString)
@@ -271,7 +271,7 @@ object Ledger:
     val parts = templateQname.split(':')
     Identifier(dar.packageId, parts(0), parts(1))
   }
-  
+
   /** ACS-delta transaction updates from Genesis, as the given identifier filter sees them. */
   private def updatesFromGenesis(parties: Seq[Party], filter: CumulativeFilter.IdentifierFilter) =
     val updateFormat = UpdateFormat.defaultInstance

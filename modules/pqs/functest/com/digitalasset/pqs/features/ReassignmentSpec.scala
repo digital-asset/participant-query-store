@@ -28,13 +28,13 @@ object ReassignmentSpec extends FuncTest[Service[Ledger] & Postgres & DeployedDa
   private val sync1 = Synchronizer("synchronizer1")
   private val sync2 = Synchronizer("synchronizer2")
 
-  val shared = 
+  val shared =
     DamlSdk.dar(pingPong) ++ DamlSdk.multiSyncLedger(sync1, sync2) ++ Postgres.instance
-    >+> DamlSdk.uploadAndVetDar(sync1, sync2)
+      >+> DamlSdk.uploadAndVetDar(sync1, sync2)
 
   def spec = suite("Multi-Sync")(
     funcTest("Contract is created, reassigned and archived") {
-      val alice = Party("Alice")
+      val alice      = Party("Alice")
       val contractId = Capture[String]
       Given:
         DamlSdk.allocateParties(alice -> Seq(sync1, sync2))

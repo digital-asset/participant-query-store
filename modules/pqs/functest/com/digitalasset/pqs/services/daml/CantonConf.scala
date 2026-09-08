@@ -24,9 +24,9 @@ trait CantonConf:
   def oneParticipant(hostname: String): ZIO[Docker, Throwable, Seq[(Path, String | Array[Byte])]]
   def twoParticipantsConfigOnly(pgHost: String, pgPort: Int, dbP1: String, dbP2: String): String
   def twoSynchronizers(
-    hostname: String,
-    sync1: Synchronizer,
-    sync2: Synchronizer,
+      hostname: String,
+      sync1: Synchronizer,
+      sync2: Synchronizer
   ): ZIO[Docker, Throwable, Seq[(Path, String | Array[Byte])]]
 
 object CantonConf:
@@ -268,7 +268,11 @@ object CantonConf:
     override def twoParticipantsConfigOnly(pgHost: String, pgPort: Int, dbP1: String, dbP2: String): String =
       throw new NotImplementedError("not tested on Canton 3.4")
 
-    override def twoSynchronizers(hostname: String, sync1: Synchronizer, sync2: Synchronizer): ZIO[Docker, Throwable, Seq[(Path, String | Array[Byte])]] =
+    override def twoSynchronizers(
+        hostname: String,
+        sync1: Synchronizer,
+        sync2: Synchronizer
+    ): ZIO[Docker, Throwable, Seq[(Path, String | Array[Byte])]] =
       ZIO.fail(new NotImplementedError("not tested on Canton 3.4"))
   end Canton34
 
@@ -501,7 +505,11 @@ object CantonConf:
          |}
          |""".stripMargin
 
-    override def twoSynchronizers(hostname: String, sync1: Synchronizer, sync2: Synchronizer): ZIO[Docker, Throwable, Seq[(Path, String | Array[Byte])]] =
+    override def twoSynchronizers(
+        hostname: String,
+        sync1: Synchronizer,
+        sync2: Synchronizer
+    ): ZIO[Docker, Throwable, Seq[(Path, String | Array[Byte])]] =
       for (oauthInstance, collectorInstance, certFiles) <- commonSetup(hostname)
       yield
         val config =
