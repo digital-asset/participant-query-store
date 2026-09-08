@@ -126,8 +126,10 @@ object PipelineSpec extends SharedLedgerAndPostgresTest:
             .query[Array[Byte]]
             .selectOne
             .someOrFail(Throwable("no payload"))
-          expectedMetadata <- Ledger.getSingleCreatedBlob(Seq(alice.id), txId)
-        yield zio.test.assertTrue(storedMetadata.toSeq == expectedMetadata.toSeq)
+          createdEvent <- Ledger.getSingleCreatedEvent(Seq(alice), txId)
+        yield
+          val eventBlob = createdEvent.createdEventBlob.toByteArray.toSeq
+          zio.test.assert(eventBlob)(not(isEmpty) && equalTo(storedMetadata.toSeq))
     ,
     funcTest("created_at should be not null"):
       val alice = Party("Alice")

@@ -23,7 +23,11 @@ trait CantonConf:
 
   def oneParticipant(hostname: String): ZIO[Docker, Throwable, Seq[(Path, String | Array[Byte])]]
   def twoParticipantsConfigOnly(pgHost: String, pgPort: Int, dbP1: String, dbP2: String): String
-  def twoSynchronizers(hostname: String): ZIO[Docker, Throwable, Seq[(Path, String | Array[Byte])]]
+  def twoSynchronizers(
+    hostname: String,
+    sync1: Synchronizer,
+    sync2: Synchronizer,
+  ): ZIO[Docker, Throwable, Seq[(Path, String | Array[Byte])]]
 
 object CantonConf:
   val maxRequestSize: Int                  = 30 * 1024 * 1024
@@ -264,7 +268,7 @@ object CantonConf:
     override def twoParticipantsConfigOnly(pgHost: String, pgPort: Int, dbP1: String, dbP2: String): String =
       throw new NotImplementedError("not tested on Canton 3.4")
 
-    override def twoSynchronizers(hostname: String): ZIO[Docker, Throwable, Seq[(Path, String | Array[Byte])]] =
+    override def twoSynchronizers(hostname: String, sync1: Synchronizer, sync2: Synchronizer): ZIO[Docker, Throwable, Seq[(Path, String | Array[Byte])]] =
       ZIO.fail(new NotImplementedError("not tested on Canton 3.4"))
   end Canton34
 
@@ -497,7 +501,7 @@ object CantonConf:
          |}
          |""".stripMargin
 
-    override def twoSynchronizers(hostname: String): ZIO[Docker, Throwable, Seq[(Path, String | Array[Byte])]] =
+    override def twoSynchronizers(hostname: String, sync1: Synchronizer, sync2: Synchronizer): ZIO[Docker, Throwable, Seq[(Path, String | Array[Byte])]] =
       for (oauthInstance, collectorInstance, certFiles) <- commonSetup(hostname)
       yield
         val config =
@@ -571,7 +575,7 @@ object CantonConf:
               |  nodes.local.start()
               |
               |  val synchronizer1Id = bootstrap.synchronizer(
-              |    synchronizerName = "synchronizer1",
+              |    synchronizerName = "${sync1.name}",
               |    sequencers = Seq(sequencer1),
               |    mediators = Seq(mediator1),
               |    synchronizerOwners = Seq(sequencer1),
@@ -579,7 +583,7 @@ object CantonConf:
               |    staticSynchronizerParameters = StaticSynchronizerParameters.defaultsWithoutKMS(ProtocolVersion.forSynchronizer)
               |  )
               |  val synchronizer2Id = bootstrap.synchronizer(
-              |    synchronizerName = "synchronizer2",
+              |    synchronizerName = "${sync2.name}",
               |    sequencers = Seq(sequencer2),
               |    mediators = Seq(mediator2),
               |    synchronizerOwners = Seq(sequencer2),
@@ -593,10 +597,22 @@ object CantonConf:
               |  sequencer2.topology.synchronizer_parameters
               |    .propose_update(synchronizer2Id.logical, _.update(reconciliationInterval = longReconciliationInterval))
               |
-              |  participant1.synchronizers.connect_local(sequencer1, alias = "synchronizer1")
-              |  participant1.synchronizers.connect_local(sequencer2, alias = "synchronizer2")
-              |  utils.retry_until_true { participant1.synchronizers.active("synchronizer1") }
-              |  utils.retry_until_true { participant1.synchronizers.active("synchronizer2") }
+              |  participant1.synchronizers.connect_local(sequencer1, alias = "${sync1.name}")
+              |  participant1.topology.synchronizer_trust_certificates.propose(
+              |    participant1,
+              |    synchronizer1Id.logical,
+              |    featureFlags = Seq(SynchronizerTrustCertificate.ParticipantTopologyFeatureFlag.EnableMultiSynchronizer),
+              |  )
+              |
+              |  participant1.synchronizers.connect_local(sequencer2, alias = "${sync2.name}")
+              |  participant1.topology.synchronizer_trust_certificates.propose(
+              |    participant1,
+              |    synchronizer2Id.logical,
+              |    featureFlags = Seq(SynchronizerTrustCertificate.ParticipantTopologyFeatureFlag.EnableMultiSynchronizer),
+              |  )
+              |
+              |  utils.retry_until_true { participant1.synchronizers.active("${sync1.name}") }
+              |  utils.retry_until_true { participant1.synchronizers.active("${sync2.name}") }
               |  participant1.health.ping(participant1)
               |}
               |""".stripMargin

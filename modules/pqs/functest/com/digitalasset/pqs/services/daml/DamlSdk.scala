@@ -9,6 +9,7 @@ import com.digitalasset.pqs.functest.{Dpm, FTConfig, FTEnv}
 import com.digitalasset.pqs.services.daml
 import com.digitalasset.pqs.services.daml.specific.toOffset
 import com.digitalasset.pqs.services.oauth.OAuth
+import com.digitalasset.pqs.utils.safeequals.*
 import org.semver4j.Semver
 import os.Path
 import zio.ZIO.{attemptBlocking, logInfo, suspend}
@@ -116,64 +117,103 @@ object DamlSdk:
       def some[R >: Nothing <: FTEnv, E >: Nothing <: Any](spec: Spec[R, E])(implicit trace: Trace): Spec[R, E] =
         spec.whenZIO(ZIO.service[FTEnv].map(env => f(env.config)).map(matcher))
 
-  val ledger: RLayer[FTEnv & Docker, Service[Ledger]] =
-    CantonConf.layer >+> canton(_.oneParticipant(_))
+  val ledger: RLayer[FTEnv & Docker, Service[Ledger]] = ZLayer.scoped(
+    for 
+      conf <- CantonConf()
+      hostname <- cantonHostname
+      files <- conf.oneParticipant(hostname)
+      svc <- canton(hostname, conf.cantonDockerImage, files)
+    yield svc
+  )
 
-  val multiSyncLedger: RLayer[FTEnv & Docker, Service[Ledger]] =
-    CantonConf.layer >+> canton(_.twoSynchronizers(_))
+  def multiSyncLedger(sync1: Synchronizer, sync2: Synchronizer): RLayer[FTEnv & Docker, Service[Ledger]] =
+    ZLayer.scoped(
+      for 
+        conf <- CantonConf()
+        hostname <- cantonHostname
+        files <- conf.twoSynchronizers(hostname, sync1, sync2)
+        svc <- canton(hostname, conf.cantonDockerImage, files)
+      yield svc
+    ) >+>
+    ZLayer.fromZIO (
+      // Register the synchronizer IDs right after the ledger started
+      for
+         allSynchronizers <- Ledger.getAllSynchronizers
+         _ <- ZIO.foreach(Seq(sync1, sync2)) { sync =>
+          allSynchronizers.find(s => s.synchronizerAlias === sync.name) match
+            case Some(connectedSync) => ZIO.attempt(sync.set(connectedSync.synchronizerId))
+            case None => ZIO.fail(RuntimeException(s"Synchronizer ${sync.name} is not connected"))
+        }
+      yield ()
+    )
+
+  private val cantonHostname =
+    Docker.share(s"canton_cnt")(Ref.Synchronized.make(0)).flatMap(_.updateAndGet(_ + 1)).map(cnt => s"canton-$cnt")
 
   private def canton(
-      cantonFiles: (CantonConf, String) => ZIO[Docker, Throwable, Seq[(Path, String | Array[Byte])]],
-      suppressOutput: Boolean = true
-  ): RLayer[FTEnv & CantonConf & Docker, Service[Ledger]] =
-    ZLayer
-      .fromZIO(
-        for
-          cnt <- Docker.share(s"canton_cnt")(Ref.Synchronized.make(0)).flatMap(_.updateAndGet(_ + 1))
-          hostname = s"canton-$cnt"
-          cantonConf     <- ZIO.service[CantonConf]
-          files          <- cantonFiles(cantonConf, hostname)
-          showCantonLogs <- FTEnv.showCantonLogs
-          svc = Docker
-            .service[Ledger](
-              image = cantonConf.cantonDockerImage,
-              exposePorts = Set(CantonConf.participantPort),
-              prepopulateFiles = files,
-              hostname = Some(hostname),
-              env = CantonConf.cantonEnvVarMap,
-              user = Some(CantonConf.user),
-              suppressOutput = !showCantonLogs
-            )(CantonConf.cantonAdditionalCmds*)
-            .tap(_.get.blockUntilStdOut(_.contains(CantonConf.bootstrapCompleteMessage)))
-        yield svc
-      )
-      .flatten
+    hostname: String,
+    dockerImage: String,
+    cantonFiles: Seq[(Path, String | Array[Byte])],
+  ): ZIO[FTEnv & (Docker & Scope), Throwable, Service[Ledger]] =
+    for
+      showCantonLogs <- FTEnv.showCantonLogs
+      env <- Docker
+        .service[Ledger](
+          image = dockerImage,
+          exposePorts = Set(CantonConf.participantPort),
+          prepopulateFiles = cantonFiles,
+          hostname = Some(hostname),
+          env = CantonConf.cantonEnvVarMap,
+          user = Some(CantonConf.user),
+          suppressOutput = false
+        )(CantonConf.cantonAdditionalCmds*)
+        .build
+      svc = env.get[Service[Ledger]]
+      _ <- svc.blockUntilStdOut(_.contains(CantonConf.bootstrapCompleteMessage))
+    yield svc
 
-  val deploy: RLayer[Docker & Service[Ledger] & DarFile, DeployedDar] =
-    ZLayer
-      .fromZIO(
-        for
-          dar   <- ZIO.service[DarFile]
-          mutex <- Docker.share("upload_dar" -> dar.packageId)(Semaphore.make(1))
-          alreadyExists = Ledger.listPackageIds.map(_.toSet.contains(dar.packageId))
-          upload        = suspend(Ledger.uploadDar(dar))
-          _ <- mutex.withPermit(upload.unlessZIO(alreadyExists))
-        yield DeployedDar(dar)
-      )
+  val deploy: RLayer[Docker & Service[Ledger] & DarFile, DeployedDar] = uploadAndVetDar()
+
+  def uploadAndVetDar(synchronizers: Synchronizer*): RLayer[Docker & Service[Ledger] & DarFile, DeployedDar] =
+    ZLayer.fromZIO(
+      for
+        dar   <- ZIO.service[DarFile]
+        mutex <- Docker.share("upload_dar" -> dar.packageId)(Semaphore.make(1))
+        alreadyExists = Ledger.listPackageIds.map(_.toSet.contains(dar.packageId))
+        // Force vetting if synchronizers is unspecified
+        upload = suspend(Ledger.uploadDar(dar, withVetting = synchronizers.isEmpty))
+        _ <- mutex.withPermit(upload.unlessZIO(alreadyExists))
+        _ <- ZIO.foreach(synchronizers)(sync => Ledger.vetDar(dar, sync))
+      yield DeployedDar(dar)
+    )
+
+  def parties(parties: Party*): RLayer[Docker & Service[Ledger], Parties] =
+    allocateMany(parties.map(_ -> Seq("")))
+
+  def allocateParties(partySynchronizers: (Party, Seq[Synchronizer])*): RLayer[Docker & Service[Ledger], Parties] =
+    allocateMany(partySynchronizers.map((p, ss) => (p, ss.map(_.id))))
 
   /** Allocate parties on ledger and wrap them in a layer */
-  def parties(parties: Party*): RLayer[Docker & Service[Ledger], Parties] =
-    ZLayer.fromZIO(for
-      partyCounter <- Docker.share("party_cnt")(Ref.Synchronized.make(0)).flatMap(_.updateAndGet(_ + 1))
-      hints = parties.map(party => s"${party.prefix}_$partyCounter")
-      ids           <- ZIO.foreach(hints) { hint => Ledger.allocateParty(hint) }
-      oauthInstance <- Docker.inspectMaybe[OAuth.Instance]
-      ps <- ZIO.foreach(parties zip hints zip ids) {
-        case ((p, hint), id) =>
-          ZIO.attempt(p.set(id, hint))
-            *> ZIO.unless(oauthInstance.isEmpty) { Ledger.grantRights(id) }.as(p)
-      }
-    yield Parties(ps))
+  private def allocateMany(partySynchronizers: Seq[(Party, Seq[String])]): RLayer[Docker & Service[Ledger], Parties] =
+    ZLayer.fromZIO(
+      for
+        partyCounter <- Docker.share("party_cnt")(Ref.Synchronized.make(0)).flatMap(_.updateAndGet(_ + 1))
+        oauthInstance <- Docker.inspectMaybe[OAuth.Instance]
+        parties           <- ZIO.foreach(partySynchronizers) { (party, synchronizers) =>
+          val hint = s"${party.prefix}_$partyCounter"
+          for
+            ids <- ZIO.foreach(synchronizers)(syncId => Ledger.allocateParty(syncId, hint))
+            id  <- ids.distinct match
+              case Seq(single) => ZIO.succeed(single)
+              case _           => 
+                val error = RuntimeException(s"Expected identical party ids across synchronizers for $hint, got: ${ids.mkString(", ")}")
+                ZIO.fail(error)
+            _ <- ZIO.attempt(party.set(id, hint))
+            _ <- ZIO.unless(oauthInstance.isEmpty) { Ledger.grantRights(id) }
+          yield party
+        }
+      yield Parties(parties)
+    )
 
   /** Discover already-allocated parties on the participant by prefix match. */
   def allocatedParties(parties: Party*): RLayer[Docker & Service[Ledger], Parties] =

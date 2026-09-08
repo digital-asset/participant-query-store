@@ -39,7 +39,8 @@ package object daml:
     val packageId: PackageId     = packageInfo.map((name, version, id) => name -> id).toMap.apply(source.name)
     def packageName: PackageName = source.name
 
-  case class DeployedDar(dar: DarFile)
+  case class DeployedDar(dar: DarFile):
+    export dar.*
 
   type ParticipantId = String
 
