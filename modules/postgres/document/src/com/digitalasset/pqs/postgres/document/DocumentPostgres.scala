@@ -11,7 +11,6 @@ import com.digitalasset.pqs.o11y.traces
 import com.digitalasset.pqs.o11y.traces.given
 import com.digitalasset.pqs.postgres.backend.*
 import com.digitalasset.pqs.postgres.document.model.{EntityTypePk, PackagePk, Watermark}
-import com.digitalasset.pqs.postgres.document.specific
 import com.digitalasset.pqs.postgres.document.specific.*
 import com.digitalasset.transcode.Codec
 import com.digitalasset.transcode.schema.{ChoiceName, Dictionary, Identifier, PackageId}
@@ -41,7 +40,7 @@ object DocumentPostgres:
       pgCfg: PostgresConfig,
       instanceId: InstanceId,
       doBaseline: Boolean
-  ): ZIO[ZConnectionPool & SqlSchema.Service, Throwable, Unit] =
+  ): ZIO[ZConnectionPool & SqlSchema, Throwable, Unit] =
     traces.span("apply schema") {
       logInfo("Applying schema") *>
         ZIO.attemptBlocking {
@@ -92,7 +91,7 @@ object DocumentPostgres:
     }
       *> traces.span("apply mappings") {
         logInfo("Applying mappings") *>
-          ZIO.serviceWithZIO[SqlSchema.Service](schema =>
+          ZIO.serviceWithZIO[SqlSchema](schema =>
             logTrace(schema.mappings) *> transaction(schema.mappings.execute)
           )
       }
@@ -105,7 +104,7 @@ object DocumentPostgres:
         poolConfig <- ZIO.service[PostgresConfig]
         instanceId <- ZIO.service[InstanceId]
         pool       <- ZIO.service[ZConnectionPool]
-        schema     <- ZIO.service[SqlSchema.Service]
+        schema     <- ZIO.service[SqlSchema]
         codec      <- ZIO.service[Dictionary[Codec[Value]]]
 
         _ <- applySchema(poolConfig, instanceId, config.baseline) when config.autoApply // initialize schema if needed
@@ -183,7 +182,7 @@ object DocumentPostgres:
       config: SchemaConfig,
       poolConfig: PostgresConfig,
       pool: ZConnectionPool,
-      schema: SqlSchema.Service,
+      schema: SqlSchema,
       codec: Dictionary[Codec[Value]],
       getEntityPk: Identifier => EntityTypePk,
       getExercisePk: (Identifier, ChoiceName) => EntityTypePk,

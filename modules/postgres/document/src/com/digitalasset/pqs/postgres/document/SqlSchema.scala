@@ -9,9 +9,10 @@ import io.github.classgraph.{ClassGraph, Resource}
 import java.nio.charset.StandardCharsets
 import scala.util.Using
 
+final case class SqlSchema(schema: String, mappings: String)
+
 object SqlSchema extends SchemaVisitor.Unit:
-  type Result = Service
-  case class Service(schema: String, mappings: String)
+  type Result = SqlSchema
 
   def collect(entities: Seq[Template[Unit]]) =
     val packages = entities
@@ -19,7 +20,7 @@ object SqlSchema extends SchemaVisitor.Unit:
       .distinctBy(_.packageId)
       .map(id => (id.packageId, id.packageName, id.packageVersion))
     val getPackageName = packages.map((id, name, version) => id -> name).toMap.apply
-    Service(
+    SqlSchema(
       schema = migrations,
       mappings = (packages.map(initPackage) ++ entities.flatMap(initEntity(getPackageName))).mkString(
         s"-- DAML<=>PG mappings${System.lineSeparator}do $$$$ begin${System.lineSeparator}",

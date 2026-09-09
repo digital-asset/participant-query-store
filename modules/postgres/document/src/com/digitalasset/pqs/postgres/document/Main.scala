@@ -76,7 +76,7 @@ object Main extends ComposableApp:
       )
 
   private def showSchema(config: ZLayer[Any, Throwable, ConfigSchemaShow]) =
-    serviceWithZIO[document.SqlSchema.Service] { s =>
+    serviceWithZIO[document.SqlSchema] { s =>
       logInfo("Displaying required datastore schema") *>
         logTrace(s"Schema:${System.lineSeparator}${s.schema}") *>
         logTrace(s"Mappings:${System.lineSeparator}${s.mappings}") *>
