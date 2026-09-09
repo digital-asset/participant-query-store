@@ -185,7 +185,6 @@ object Ledger:
     val unassignCommand = ReassignmentCommand.Command.UnassignCommand(
       UnassignCommand(contractId, source.id, target.id)
     )
-    val eventFormat = buildEventFormat(Seq(submitter), wildcardFilter(false))
     for
       unassignResp <- submitAndWaitForReassignment(submitter, unassignCommand)
       reassignmentId = unassignResp.getReassignment.events(0).getUnassigned.reassignmentId
@@ -261,13 +260,15 @@ object Ledger:
     for
       commandId <- nextCommandId
       resp <- CommandServiceClient.submitAndWaitForReassignment(
-        SubmitAndWaitForReassignmentRequest.defaultInstance.withReassignmentCommands(
-          ReassignmentCommands.defaultInstance
-            .withUserId(submitter.name)
-            .withSubmitter(submitter.id)
-            .withCommandId(commandId)
-            .addCommands(ReassignmentCommand(command))
-        )
+        SubmitAndWaitForReassignmentRequest.defaultInstance
+          .withEventFormat(buildEventFormat(Seq(submitter), wildcardFilter(false)))
+          .withReassignmentCommands(
+            ReassignmentCommands.defaultInstance
+              .withUserId(submitter.name)
+              .withSubmitter(submitter.id)
+              .withCommandId(commandId)
+              .addCommands(ReassignmentCommand(command))
+          )
       )
     yield resp
 
