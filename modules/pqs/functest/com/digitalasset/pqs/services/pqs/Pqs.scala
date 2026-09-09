@@ -118,7 +118,7 @@ trait Pqs {
   def prune(extraArgs: String*): ZLayer[
     Docker & Parties & Postgres & Database & Service[Ledger] & DeployedDar,
     Throwable,
-    Service[Prune.Service]
+    Service[Prune]
   ] =
     val layer = ZLayer.fromZIO {
       for
@@ -148,17 +148,16 @@ trait Pqs {
       yield (daDiagnostics ++ namespaced) -> files
     }
     layer.flatMap(env =>
-      Docker
-        .service[Prune.Service](
-          image = localPqsDockerImage,
-          env = env.get._1,
-          prepopulateFiles = env.get._2
-        )(
-          "datastore",
-          "postgres-document",
-          "prune",
-          extraArgs
-        )
+      Docker.service[Prune](
+        image = localPqsDockerImage,
+        env = env.get._1,
+        prepopulateFiles = env.get._2
+      )(
+        "datastore",
+        "postgres-document",
+        "prune",
+        extraArgs
+      )
     )
 
   private val conf = ZLayer.fromZIO(

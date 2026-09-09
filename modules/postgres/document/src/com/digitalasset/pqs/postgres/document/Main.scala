@@ -97,7 +97,7 @@ object Main extends ComposableApp:
       )
 
   private def prune(config: ZLayer[Any, Throwable, ConfigPrune]) =
-    serviceWithZIO[document.Prune.Service](_.run)
+    serviceWithZIO[document.Prune](_.run)
       .provide(
         com.digitalasset.pqs.appversion.LogVersion,
         config.project(_.prune) >>> Prune.layer,
@@ -131,7 +131,7 @@ object Main extends ComposableApp:
   )
 
   private final case class ConfigPrune(
-      prune: Prune.Config,
+      prune: PruneConfig,
       postgres: backend.PostgresConfig,
       logger: FileLogging.Config
   )

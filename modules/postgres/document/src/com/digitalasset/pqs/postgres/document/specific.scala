@@ -4,7 +4,7 @@
 package com.digitalasset.pqs.postgres.document
 
 import com.digitalasset.canonical
-import com.digitalasset.canonical.specific.{EventId, NodeId, Offset,}
+import com.digitalasset.canonical.specific.{EventId, NodeId, Offset}
 import com.digitalasset.canonical.{ContractId, DomainId, Party}
 import com.digitalasset.pqs.postgres.document.model.given
 import com.digitalasset.pqs.postgres.document.{IdPlaceholder, model}
