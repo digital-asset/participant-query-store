@@ -456,6 +456,9 @@ object CantonConf:
         certFiles ++ Seq(os.root / "app" / "app.conf" -> config, os.root / "app" / "bootstrap.sc" -> bootstrap)
 
     override def twoParticipantsConfigOnly(pgHost: String, pgPort: Int, dbP1: String, dbP2: String): String =
+      def pgStorage(db: String) =
+        s"""|storage = $${_storage}
+            |      storage.config.properties.databaseName = "$db"""".stripMargin
       s"""_storage {
          |  type = postgres
          |  config {
@@ -490,9 +493,9 @@ object CantonConf:
          |  monitoring.logging.delay-logging-threshold = 40.seconds
          |
          |  participants {
-         |    ${participantWithPGStorage("participant1", dbP1, 10012, 7865, protocolVersion)}
+         |    ${participant("participant1", 10012, 7865, protocolVersion, pgStorage(dbP1))}
          |    
-         |    ${participantWithPGStorage("participant2", dbP2, 10014, participantPort, protocolVersion)}
+         |    ${participant("participant2", 10014, participantPort, protocolVersion, pgStorage(dbP2))}
          |  }
          |
          |  sequencers {
@@ -528,39 +531,7 @@ object CantonConf:
               |  monitoring.logging.delay-logging-threshold = 40.seconds
               |
               |  participants {
-              |    participant1 {
-              |      storage.type = memory
-              |      admin-api {
-              |        address = "0.0.0.0"
-              |        port = 10012
-              |      }
-              |      init {
-              |        ledger-api.max-deduplication-duration = 0s
-              |      }
-              |      http-ledger-api.enabled = false
-              |      ledger-api {
-              |        address = "0.0.0.0"
-              |        port = $participantPort
-              |        ${oauthCantonConfig(oauthInstance)}
-              |        tls {
-              |          cert-chain-file = "/tls/participant.crt"
-              |          private-key-file = "/tls/participant.pem"
-              |          trust-collection-file = "/tls/root-ca.crt"
-              |          client-auth {
-              |            type = require
-              |            admin-client {
-              |              cert-chain-file = "/tls/admin-client.crt"
-              |              private-key-file = "/tls/admin-client.pem"
-              |            }
-              |          }
-              |        }
-              |      }
-              |      parameters {
-              |        initial-protocol-version = $protocolVersion
-              |        minimum-protocol-version = $protocolVersion
-              |      }
-              |      topology.broadcast-batch-size = 1
-              |    }
+              |    ${participant("participant1", 10012, participantPort, protocolVersion, "storage.type = memory")}
               |  }
               |
               |  sequencers {
@@ -630,17 +601,15 @@ object CantonConf:
         )
   end Canton35Plus
 
-  // PG storage is required by the ACS import test in RpidTwoParticipantSpec
-  private def participantWithPGStorage(
+  private def participant(
       name: String,
-      db: String,
       adminApiPort: Int,
       ledgerApiPort: Int,
-      protocolVersion: Int
+      protocolVersion: Int,
+      storage: String
   ): String =
     s"""|$name {
-        |      storage = $${_storage}
-        |      storage.config.properties.databaseName = "$db"
+        |      $storage
         |      admin-api {
         |        address = "0.0.0.0"
         |        port = $adminApiPort

@@ -246,8 +246,7 @@ object Ledger:
       commandId <- nextCommandId
       resp <- CommandServiceClient.submitAndWaitForTransaction(
         SubmitAndWaitForTransactionRequest.defaultInstance.withCommands(
-          Commands
-            .defaultInstance
+          Commands.defaultInstance
             .withCommandId(commandId)
             .withUserId(actAs.name)
             .withActAs(Seq(actAs.id))
@@ -263,8 +262,7 @@ object Ledger:
       commandId <- nextCommandId
       resp <- CommandServiceClient.submitAndWaitForReassignment(
         SubmitAndWaitForReassignmentRequest.defaultInstance.withReassignmentCommands(
-          ReassignmentCommands
-            .defaultInstance
+          ReassignmentCommands.defaultInstance
             .withUserId(submitter.name)
             .withSubmitter(submitter.id)
             .withCommandId(commandId)
