@@ -114,8 +114,10 @@ object model {
     val ix: Long                 = tx.ix
     val offset: Offset           = tx.offset
 
-  type EntityTypePk = Long
-  type PackagePk    = Long
+  opaque type EntityTypePk <: Long = Long
+  inline def EntityTypePk(value: Long): EntityTypePk = value
+
+  type PackagePk = Long
 
   final class Event(ev: specific.Event) extends Copy:
     val _table = Table.Events

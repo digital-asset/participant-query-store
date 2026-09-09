@@ -15,6 +15,7 @@ import com.digitalasset.pqs.postgres.document.model.{EntityTypePk, PackagePk, Wa
 import com.digitalasset.pqs.postgres.document.specific.*
 import com.digitalasset.transcode.Codec
 import com.digitalasset.transcode.schema.*
+import com.digitalasset.zio.daml.DamlSchema
 import io.github.classgraph.ClassGraph
 import org.flywaydb.core.Flyway
 import org.flywaydb.core.api.ResourceProvider
@@ -42,9 +43,9 @@ final case class DocumentPostgres(
     pool: ZConnectionPool,
     schema: SqlSchema,
     codec: Dictionary[Codec[Value]],
-    getEntityPk: Identifier => EntityTypePk,
-    getExercisePk: (Identifier, ChoiceName) => EntityTypePk,
-    getImplementsPks: Identifier => Chunk[EntityTypePk],
+    entityPkMap: Map[Identifier, EntityTypePk],
+    exercisePkMap: Map[(Identifier, ChoiceName), EntityTypePk],
+    getImplementsPks: Map[Identifier, Chunk[EntityTypePk]],
     packageMap: Map[PackageId, PackagePk],
     placeholders: IdPlaceholder.Factory
 ) extends Datastore:
@@ -313,7 +314,7 @@ final case class DocumentPostgres(
     val pk = placeholders.mk
 
     def mkArchives(eventPk: IdPlaceholder, txIx: Long, contractId: ContractId, templateId: Identifier) =
-      val templateType = getEntityPk(templateId)
+      val templateType = entityPkMap(templateId)
       val interfaces   = getImplementsPks(templateId)
       (interfaces :+ templateType).map { entityType =>
         model.Archive(
@@ -355,7 +356,7 @@ final case class DocumentPostgres(
           model.Contract(
             Contract(
               qualifiedName = templateQualifiedName,
-              entityType = getEntityPk(entityId),
+              entityType = entityPkMap(entityId),
               createEventPk = pk,
               createdAtIx = txIx,
               contractId = cid,
@@ -413,8 +414,8 @@ final case class DocumentPostgres(
         val exercise = model.Exercise(
           Exercise(
             qualifiedName = tid.qualifiedName,
-            entityType = getExercisePk(entityId, choice),
-            contractEntityType = getEntityPk(entityId),
+            entityType = exercisePkMap(entityId, choice),
+            contractEntityType = entityPkMap(entityId),
             exerciseEventPk = pk,
             exercisedAt = txIx,
             contractId = cid,
@@ -498,6 +499,7 @@ object DocumentPostgres:
   val live = ZLayer.scoped {
     traces.root("process metadata and schema") {
       for
+        damlSchema <- ZIO.service[DamlSchema]
         config     <- ZIO.service[SchemaConfig]
         poolConfig <- ZIO.service[PostgresConfig]
         instanceId <- ZIO.service[InstanceId]
@@ -511,11 +513,13 @@ object DocumentPostgres:
           sql"""select p.id, ct.module_name, ct.entity_name, ct.pk as pk
               from __contract_tpe ct, __packages p
               where ct.package_name = p.name"""
-            .query[(String, String, String, EntityTypePk)]
+            .query[(String, String, String, Long)]
             .selectAll
         }
-        entityTypesMap = entities.map((pkg, module, entity, pk) => (pkg, module, entity) -> pk).toMap
-        getEntityType  = (id: Identifier) => entityTypesMap(id.packageId, id.moduleName, id.entityName)
+        entityPks <- ZIO.foreach(entities)((pkg, m, e, pk) =>
+          damlSchema.toIdentifier(pkg, m, e).map(_ -> EntityTypePk(pk))
+        )
+        entityPkMap: Map[Identifier, EntityTypePk] = entityPks.toMap
         _ <- logInfo(s"Initialised ${entities.size} entity types")
         _ <- logDebug(pprint(entities, height = Int.MaxValue).toString)
 
@@ -523,24 +527,23 @@ object DocumentPostgres:
           sql"""select p.id, et.module_name, et.entity_name, et.choice, et.pk as pk
               from __exercise_tpe et, __packages p
               where et.package_name = p.name"""
-            .query[(String, String, String, String, EntityTypePk)]
+            .query[(String, String, String, String, Long)]
             .selectAll
         }
-        exercisesTypesMap = exercises
-          .map((pkg, module, entity, choice, pk) => (pkg, module, entity, choice) -> pk)
-          .toMap
-        getExerciseType = (id: Identifier, choice: ChoiceName) =>
-          exercisesTypesMap(id.packageId, id.moduleName, id.entityName, choice)
+        exercisePks <-
+          ZIO.foreach(exercises)((pkg, m, e, c, pk) =>
+            damlSchema.toIdentifier(pkg, m, e).map(id => (id, ChoiceName(c)) -> EntityTypePk(pk))
+          )
         _ <- logInfo(s"Initialised ${exercises.size} exercise types")
         _ <- logDebug(pprint(exercises, height = Int.MaxValue).toString)
 
         implementsRelations <- transaction {
           sql"select template_pk, interface_pk from __contract_implements"
-            .query[(EntityTypePk, EntityTypePk)]
+            .query[(Long, Long)]
             .selectAll
         }
-        implementsMap = implementsRelations.groupMap(_._1)(_._2)
-        getImplements = (id: Identifier) => Chunk.from(implementsMap.get(getEntityType(id))).flatten
+        implementsMap = implementsRelations
+          .groupMap((template, _) => EntityTypePk(template))((_, interface) => EntityTypePk(interface))
         _ <- logInfo(s"Initialised ${implementsMap.size} contract<->interface mappings")
         _ <- logDebug(pprint(implementsMap, height = Int.MaxValue).toString)
 
@@ -567,9 +570,9 @@ object DocumentPostgres:
         pool,
         schema,
         codec,
-        getEntityType,
-        getExerciseType,
-        getImplements,
+        entityPkMap,
+        exercisePks.toMap,
+        entityPkMap.flatMap((id, pk) => implementsMap.get(pk).map(id -> _)),
         packageMap,
         placeholders
       )

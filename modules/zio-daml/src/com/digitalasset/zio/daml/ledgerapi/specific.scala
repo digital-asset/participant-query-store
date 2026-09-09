@@ -9,7 +9,7 @@ import com.digitalasset.canonical.specific.{Event, EventId, TransactionEvent}
 import com.digitalasset.transcode.{Codec, schema}
 import com.digitalasset.transcode.schema.*
 import com.digitalasset.pqs.utils.safeequals.=/=
-import com.digitalasset.zio.daml.KnownEntityIdentifiers
+import com.digitalasset.zio.daml.DamlSchema
 import com.google.rpc.error_details.{ErrorInfo, RequestInfo, ResourceInfo, RetryInfo}
 import io.grpc.Status.Code
 import scalapb.TimestampConverters
@@ -23,7 +23,7 @@ object specific:
       event: com.daml.ledger.api.v2.event.Event,
       offsetLong: Long,
       rights: UserRight
-  )(using Codecs, KnownEntityIdentifiers): Task[TransactionEvent] = event.event match
+  )(using Codecs, DamlSchema): Task[TransactionEvent] = event.event match
     case com.daml.ledger.api.v2.event.Event.Event.Created(evt) =>
       convertCreatedEvent(evt)
     case com.daml.ledger.api.v2.event.Event.Event.Archived(evt) =>
@@ -35,7 +35,7 @@ object specific:
 
   def convertCreatedEvent(
       evt: com.daml.ledger.api.v2.event.CreatedEvent
-  )(using Codecs, KnownEntityIdentifiers): Task[Event.Created] =
+  )(using Codecs, DamlSchema): Task[Event.Created] =
     for {
       templateId <- evt.getTemplateId.toIdentifier(Some(evt.representativePackageId))
       template = evt.createArguments.map { tmpl => (templateId, tmpl) }
@@ -68,7 +68,7 @@ object specific:
   private def convertInterfaceView(
       contractId: String,
       view: com.daml.ledger.api.v2.event.InterfaceView
-  )(using Codecs, KnownEntityIdentifiers): Task[Option[(schema.Identifier, com.daml.ledger.api.v2.value.Record)]] =
+  )(using Codecs, DamlSchema): Task[Option[(schema.Identifier, com.daml.ledger.api.v2.value.Record)]] =
     view match {
       case com.daml.ledger.api.v2.event
             .InterfaceView(Some(interfaceId), Some(viewStatus), Some(viewValue), _implementationPackageId)
@@ -102,7 +102,7 @@ object specific:
 
   private def convertArchivedEvent(
       evt: com.daml.ledger.api.v2.event.ArchivedEvent
-  )(using KnownEntityIdentifiers): Task[Event.Archived] =
+  )(using DamlSchema): Task[Event.Archived] =
     for templateId <- evt.getTemplateId.toIdentifier()
     yield Event.Archived(
       eventId = EventId(evt.offset, evt.nodeId),
@@ -112,7 +112,7 @@ object specific:
 
   private def convertExercisedEvent(
       evt: com.daml.ledger.api.v2.event.ExercisedEvent
-  )(using Codecs, KnownEntityIdentifiers): Task[Event.Exercised] =
+  )(using Codecs, DamlSchema): Task[Event.Exercised] =
     val entityIdentifier = evt.interfaceId.getOrElse(evt.getTemplateId)
     for
       entitySchemaId <- entityIdentifier.toIdentifier()

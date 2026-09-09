@@ -3,15 +3,15 @@
 
 package com.digitalasset.zio.daml.ledgerapi
 
-import com.digitalasset.zio.daml.KnownEntityIdentifiers
+import com.digitalasset.zio.daml.DamlSchema
 import zio.ZIO
 import zio.ZIO.{logDebug, logInfo}
 
 object logFilterContents:
-  def apply(knownIds: KnownEntityIdentifiers) = {
-    val ids = knownIds.filtered
+  def apply(damlSchema: DamlSchema) = {
+    val ids = damlSchema.filtered
     val summary =
-      if knownIds.includesAll then
+      if damlSchema.includesAll then
         s"Contract filter: wildcard (all ${ids.templates.size} templates, ${ids.interfaces.size} interfaces)"
       else s"Contract filter inclusive of ${ids.templates.size} templates and ${ids.interfaces.size} interfaces"
     logInfo(summary)

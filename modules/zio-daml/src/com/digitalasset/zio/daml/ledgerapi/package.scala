@@ -12,8 +12,7 @@ import com.digitalasset.daml.lf.language.Ast
 import com.digitalasset.pqs.configuration.filter.PartyFilterParser.PartyFilter
 import com.digitalasset.pqs.utils.safeequals.===
 import com.digitalasset.transcode.schema
-import com.digitalasset.transcode.schema.*
-import zio.{IO, Task, ZIO}
+import zio.{Task, ZIO}
 
 import scala.collection.immutable.ListSet
 import scala.reflect.Selectable.reflectiveSelectable
@@ -112,34 +111,34 @@ package object ledgerapi:
       )
     )
 
-  def mkEventFormat(userRights: UserRight, knownIds: KnownEntityIdentifiers): EventFormat =
+  def mkEventFormat(userRights: UserRight, damlSchema: DamlSchema): EventFormat =
     val entityFilter =
-      if knownIds.includesAll then
-        val metadataTemplates = knownIds.metadata.diff(knownIds.interfaces)
+      if damlSchema.includesAll then
+        val metadataTemplates = damlSchema.metadata.diff(damlSchema.interfaces)
         Filters.of(
           Seq(
             CumulativeFilter.of(
               CumulativeFilter.IdentifierFilter.WildcardFilter(
-                WildcardFilter(includeCreatedEventBlob = knownIds.includesAllMetadata)
+                WildcardFilter(includeCreatedEventBlob = damlSchema.includesAllMetadata)
               )
             )
           )
           // Selective metadata: add TemplateFilter for templates needing blobs
           // WildcardFilter(blob=false) handles delivery; these add blob via OR
-            ++ (if !knownIds.includesAllMetadata then
+            ++ (if !damlSchema.includesAllMetadata then
                   metadataTemplates.map(id => templateCumulativeFilter(id, includeBlob = true)).toSeq
                 else Seq.empty)
-            ++ knownIds.interfaces
-              .map(id => interfaceCumulativeFilter(id, includeBlob = knownIds.metadata.contains(id)))
+            ++ damlSchema.interfaces
+              .map(id => interfaceCumulativeFilter(id, includeBlob = damlSchema.metadata.contains(id)))
               .toSeq
         )
       else
         Filters.of(
           (
-            knownIds.filtered.templates
-              .map(id => templateCumulativeFilter(id, includeBlob = knownIds.filtered.metadata.contains(id)))
-              ++ knownIds.filtered.interfaces
-                .map(id => interfaceCumulativeFilter(id, includeBlob = knownIds.filtered.metadata.contains(id)))
+            damlSchema.filtered.templates
+              .map(id => templateCumulativeFilter(id, includeBlob = damlSchema.filtered.metadata.contains(id)))
+              ++ damlSchema.filtered.interfaces
+                .map(id => interfaceCumulativeFilter(id, includeBlob = damlSchema.filtered.metadata.contains(id)))
           ).toSeq
         )
     userRights match
@@ -153,28 +152,9 @@ package object ledgerapi:
     private[ledgerapi] def toRefId: com.daml.ledger.api.v2.value.Identifier =
       com.daml.ledger.api.v2.value.Identifier(s"#${id.packageName}", id.moduleName, id.entityName)
 
-  extension (id: schema.Identifier)(using identifiers: KnownEntityIdentifiers)
-    private def isIncluded: Boolean         = identifiers.filtered.entities.contains(id)
-    private def isMetadataIncluded: Boolean = identifiers.filtered.metadata.contains(id)
-
-  extension (id: com.daml.ledger.api.v2.value.Identifier)(using identifiers: KnownEntityIdentifiers)
-    private def toIdentifier(
-        representativePackageId: Option[String] = None
-    ): IO[UnknownDamlPackageException, schema.Identifier] =
-      val effectivePackageId = representativePackageId.getOrElse(id.packageId)
-      ZIO
-        .fromOption(
-          identifiers.byPackageId.get(
-            (PackageId(effectivePackageId), ModuleName(id.moduleName), EntityName(id.entityName))
-          )
-        )
-        .orElseFail(
-          new UnknownDamlPackageException(
-            effectivePackageId,
-            id.moduleName,
-            id.entityName
-          )
-        )
+  extension (id: schema.Identifier)(using damlSchema: DamlSchema)
+    private def isIncluded: Boolean         = damlSchema.filtered.entities.contains(id)
+    private def isMetadataIncluded: Boolean = damlSchema.filtered.metadata.contains(id)
 
   extension (x: Long)
     def toOffset: Offset = x match

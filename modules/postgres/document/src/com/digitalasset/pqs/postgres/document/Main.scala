@@ -67,7 +67,7 @@ object Main extends ComposableApp:
         config.project(_.schema),
         backend.instanceId,
         backend.connectionPool,
-        DamlSchema.schema,
+        DamlSchema.layer,
         config.project(_.filter.contracts),
         DamlSchema.produce(document.SqlSchema)
       )
@@ -88,7 +88,7 @@ object Main extends ComposableApp:
         TokenService.live,
         config.project(_.ledger) >>> daml.Channel.live,
         config.project(_.ledger) >>> FileCache.live,
-        DamlSchema.schema,
+        DamlSchema.layer,
         config.project(_.filter.contracts),
         DamlSchema.produce(document.SqlSchema)
       )
