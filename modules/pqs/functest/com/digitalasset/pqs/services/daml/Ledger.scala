@@ -34,8 +34,6 @@ import io.grpc.Metadata
 import zio.stream.ZStream
 import zio.*
 
-import java.util.UUID
-
 sealed trait Ledger
 
 object Ledger:
@@ -184,29 +182,17 @@ object Ledger:
     yield response
 
   def reassign(contractId: String, submitter: Party, source: Synchronizer, target: Synchronizer) = svc {
-    val baseCommands = ReassignmentCommands.defaultInstance
-      .withCommandId(UUID.randomUUID.toString)
-      .withUserId(submitter.name)
-      .withSubmitter(submitter.id)
     val unassignCommand = ReassignmentCommand.Command.UnassignCommand(
       UnassignCommand(contractId, source.id, target.id)
     )
     val eventFormat = buildEventFormat(Seq(submitter), wildcardFilter(false))
     for
-      unassignResp <- CommandServiceClient.submitAndWaitForReassignment(
-        SubmitAndWaitForReassignmentRequest.defaultInstance
-          .withReassignmentCommands(baseCommands.addCommands(ReassignmentCommand(unassignCommand)))
-          .withEventFormat(eventFormat)
-      )
+      unassignResp <- submitAndWaitForReassignment(submitter, unassignCommand)
       reassignmentId = unassignResp.getReassignment.events(0).getUnassigned.reassignmentId
       assignCommand = ReassignmentCommand.Command.AssignCommand(
         AssignCommand(reassignmentId, source.id, target.id)
       )
-      _ <- CommandServiceClient.submitAndWaitForReassignment(
-        SubmitAndWaitForReassignmentRequest.defaultInstance.withReassignmentCommands(
-          baseCommands.addCommands(ReassignmentCommand(assignCommand))
-        )
-      )
+      _ <- submitAndWaitForReassignment(submitter, assignCommand)
     yield ()
   }
 
@@ -256,16 +242,36 @@ object Ledger:
   )
 
   private def submitAndWaitForTransaction(actAs: Party, sync: Synchronizer, command: Command) = svc {
-    val commands = Commands.defaultInstance
-      .withCommandId(UUID.randomUUID.toString)
-      .withUserId(actAs.name)
-      .withActAs(Seq(actAs.id))
-      .withSynchronizerId(sync.id)
-      .addCommands(command)
-    CommandServiceClient.submitAndWaitForTransaction(
-      SubmitAndWaitForTransactionRequest.defaultInstance.withCommands(commands)
-    )
+    for
+      commandId <- nextCommandId
+      resp <- CommandServiceClient.submitAndWaitForTransaction(
+        SubmitAndWaitForTransactionRequest.defaultInstance.withCommands(
+          Commands
+            .defaultInstance
+            .withCommandId(commandId)
+            .withUserId(actAs.name)
+            .withActAs(Seq(actAs.id))
+            .withSynchronizerId(sync.id)
+            .addCommands(command)
+        )
+      )
+    yield resp
   }
+
+  private def submitAndWaitForReassignment(submitter: Party, command: ReassignmentCommand.Command) =
+    for
+      commandId <- nextCommandId
+      resp <- CommandServiceClient.submitAndWaitForReassignment(
+        SubmitAndWaitForReassignmentRequest.defaultInstance.withReassignmentCommands(
+          ReassignmentCommands
+            .defaultInstance
+            .withUserId(submitter.name)
+            .withSubmitter(submitter.id)
+            .withCommandId(commandId)
+            .addCommands(ReassignmentCommand(command))
+        )
+      )
+    yield resp
 
   private def toIdentifier(templateQname: String) = ZIO.service[DeployedDar].mapAttempt { dar =>
     val parts = templateQname.split(':')
@@ -291,3 +297,5 @@ object Ledger:
 
   private def wildcardFilter(includeCreatedEventBlob: Boolean) =
     CumulativeFilter.IdentifierFilter.WildcardFilter(WildcardFilter(includeCreatedEventBlob))
+
+  private def nextCommandId: UIO[String] = Random.nextUUID.map(_.toString)
