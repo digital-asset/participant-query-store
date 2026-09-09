@@ -111,8 +111,8 @@ final case class DocumentPostgres(
               .as(Chunk.empty)
         } *> ZIO.attempt {
           chunk.collect {
-            case evt: canonical.specific.Event.Created      => insertEvent(Genesis._2, evt)
-            case offset: Offset.Absolute => Chunk(model.Watermark(Genesis._2, offset, Seq.empty))
+            case evt: canonical.specific.Event.Created => insertEvent(Genesis._2, evt)
+            case offset: Offset.Absolute               => Chunk(model.Watermark(Genesis._2, offset, Seq.empty))
           }
         } @@ trackConvert
       )
@@ -122,8 +122,8 @@ final case class DocumentPostgres(
   private def convertTransactionEventsToStatements(n: Int) =
     val trackConvert = latency("pipeline_convert_transaction", "Latency of converting transactions")
     type TX = (
-      canonical.specific.Transaction[canonical.specific.Event | TreeEvent | ReassignmentEvent],
-      Datastore.TransactionIndex
+        canonical.specific.Transaction[canonical.specific.Event | TreeEvent | ReassignmentEvent],
+        Datastore.TransactionIndex
     )
     ZPipeline
       .fromChannel(
@@ -491,9 +491,7 @@ object DocumentPostgres:
     }
       *> traces.span("apply mappings") {
         logInfo("Applying mappings") *>
-          ZIO.serviceWithZIO[SqlSchema](schema =>
-            logTrace(schema.mappings) *> transaction(schema.mappings.execute)
-          )
+          ZIO.serviceWithZIO[SqlSchema](schema => logTrace(schema.mappings) *> transaction(schema.mappings.execute))
       }
       <* logInfo("Schema and mappings applied")
 
