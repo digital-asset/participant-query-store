@@ -21,8 +21,10 @@ case class PostgresConfig(
     schema: String = "public",
     @describe("Postgres user name")
     username: String,
-    @describe("Postgres user password")
-    password: Secret,
+    @describe("Postgres user password (required for authMode Password)")
+    password: Option[Secret] = None,
+    @describe("Postgres authentication mode. Entra uses Azure AD credentials from the environment.")
+    authMode: PostgresConfig.AuthMode = PostgresConfig.AuthMode.Password,
     @describe("Maximum number of JDBC connections")
     maxConnections: Int = 16,
     @describe("Enable/disable TCP keep-alive probe")
@@ -35,6 +37,14 @@ case class PostgresConfig(
     @describe("Duration (ISO 8601) of interval between database connectivity probes (PT0S to disable)")
     probeInterval: ISO8601Duration = 30.seconds
 )
+
+object PostgresConfig:
+  sealed trait AuthMode
+  object AuthMode:
+    case object Password extends AuthMode
+    case object Entra    extends AuthMode
+  end AuthMode
+end PostgresConfig
 
 case class SchemaConfig(
     @describe("Apply metadata inferred schema on startup")

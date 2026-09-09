@@ -182,7 +182,14 @@ Run 'pqs COMMAND --help[-verbose]' for more information on a command."""
             "  --target-postgres-maxconnections int",
             "Maximum number of JDBC connections (default: 16)"
           ),
-          paddedOptionLine("  --target-postgres-password string", "Postgres user password"),
+          paddedOptionLine(
+            "  --target-postgres-authmode enum",
+            "Postgres authentication mode. Entra uses Azure AD credentials from the environment. (default: Password)"
+          ),
+          paddedOptionLine(
+            "  --target-postgres-password string",
+            "Postgres user password (required for authMode Password) (optional)"
+          ),
           paddedOptionLine("  --target-postgres-username string", "Postgres user name"),
           paddedOptionLine("  --target-postgres-schema string", "Postgres schema (default: public)"),
           paddedOptionLine("  --target-postgres-database string", "Postgres database (default: postgres)"),
@@ -434,7 +441,17 @@ Run 'pqs COMMAND --help[-verbose]' for more information on a command."""
           ),
           paddedOptionLine("", " + Environment variable: PQS_TARGET_POSTGRES_MAXCONNECTIONS"),
           paddedOptionLine("", " + System property:      target.postgres.maxConnections"),
-          paddedOptionLine("  --target-postgres-password string", "Postgres user password"),
+          paddedOptionLine(
+            "  --target-postgres-authmode enum",
+            "Postgres authentication mode. Entra uses Azure AD credentials from the environment. (default: Password)"
+          ),
+          paddedOptionLine("", " + Environment variable: PQS_TARGET_POSTGRES_AUTHMODE"),
+          paddedOptionLine("", " + System property:      target.postgres.authMode"),
+          paddedOptionLine("", " + Enumeration values:   Password, Entra"),
+          paddedOptionLine(
+            "  --target-postgres-password string",
+            "Postgres user password (required for authMode Password) (optional)"
+          ),
           paddedOptionLine("", " + Environment variable: PQS_TARGET_POSTGRES_PASSWORD"),
           paddedOptionLine("", " + System property:      target.postgres.password"),
           paddedOptionLine("  --target-postgres-username string", "Postgres user name"),

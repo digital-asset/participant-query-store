@@ -53,7 +53,7 @@ object DocumentPostgres:
                 "org.postgresql.Driver",
                 s"jdbc:postgresql://${pgCfg.host}:${pgCfg.port}/${pgCfg.database}?currentSchema=${pgCfg.schema}",
                 pgCfg.username,
-                pgCfg.password.value,
+                pgCfg.password.fold("")(_.value),
                 (sslprops(pgCfg.tls) ++ instanceIdProp(instanceId)).asJava
               )
             )

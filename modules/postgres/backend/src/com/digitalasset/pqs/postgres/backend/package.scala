@@ -4,6 +4,8 @@
 package com.digitalasset.pqs.postgres
 
 import com.digitalasset.pqs.o11y.traces
+import com.digitalasset.pqs.postgres.backend.PostgresConfig.AuthMode
+import com.digitalasset.pqs.utils.safeequals.===
 import com.digitalasset.pqs.postgres.backend.TlsConfig.SslMode
 import org.postgresql.PGProperty
 import zio.jdbc.*
@@ -49,7 +51,10 @@ package object backend:
 
   val connectionPool: ZLayer[PostgresConfig & InstanceId, Throwable, ZConnectionPool] = ZLayer.fromZIO {
     for
-      conf       <- ZIO.service[PostgresConfig]
+      conf <- ZIO.service[PostgresConfig]
+      _ <- ZIO
+        .fail(new IllegalArgumentException("Postgres password is required when authMode is Password"))
+        .when(conf.authMode === AuthMode.Password && conf.password.isEmpty)
       instanceId <- ZIO.service[InstanceId]
     yield zio.jdbc.shims.postgres.connectionPool(
       conf.host,
@@ -57,17 +62,33 @@ package object backend:
       conf.database,
       Map(
         PGProperty.USER.getName             -> conf.username,
-        PGProperty.PASSWORD.getName         -> conf.password.value,
+        PGProperty.PASSWORD.getName         -> conf.password.fold("")(_.value),
         PGProperty.TCP_KEEP_ALIVE.getName   -> conf.keepAlive.toString,
         PGProperty.APPLICATION_NAME.getName -> conf.appName,
         PGProperty.CURRENT_SCHEMA.getName   -> conf.schema
-      ) ++ sslprops(conf.tls) ++ instanceIdProp(instanceId)
+      ) ++ sslprops(conf.tls) ++ instanceIdProp(instanceId) ++ entraProps(conf.authMode)
     )
   }.flatten
 
   def instanceIdProp(instanceId: InstanceId): Map[String, String] = Map(
     PGProperty.OPTIONS.getName -> s"-c scribe.instance=${instanceId}"
   )
+
+  /** Under Entra, the azure-identity-extensions JDBC plugin is registered as the authentication plugin. It acquires an
+    * Azure AD access token via `DefaultAzureCredential`, whose chain resolves to the concrete credential from the
+    * standard `AZURE_*` env vars (workload identity, client secret, managed identity, CLI, ...). `sslmode=require` is
+    * forced so the bearer token is not sent over an unencrypted connection.
+    */
+  def entraProps(authMode: AuthMode): Map[String, String] =
+    val authPlugin =
+      "com.azure.identity.extensions.jdbc.postgresql.AzurePostgresqlAuthenticationPlugin"
+    authMode match
+      case AuthMode.Entra =>
+        Map(
+          PGProperty.SSL_MODE.getName     -> "require",
+          "authenticationPluginClassName" -> authPlugin
+        )
+      case AuthMode.Password => Map.empty
 
   def sslprops(conf: TlsConfig): Map[String, String] =
     sslmode(conf) ++ sslrootcert(conf) ++ sslcert(conf) ++ sslkey(conf)
