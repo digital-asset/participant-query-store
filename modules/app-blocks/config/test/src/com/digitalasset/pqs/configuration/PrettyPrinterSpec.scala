@@ -19,7 +19,8 @@ object PrettyPrinterSpec extends ZIOSpecDefault:
       pool: ZConnectionPoolConfig,
       host: String = "localhost",
       port: Int = 5432,
-      mode: PostgresConfig.Mode = PostgresConfig.Mode.ApplySchema
+      mode: PostgresConfig.Mode = PostgresConfig.Mode.ApplySchema,
+      properties: Map[String, String] = Map.empty
   )
 
   case class PipelineConfig(
@@ -45,7 +46,7 @@ object PrettyPrinterSpec extends ZIOSpecDefault:
       val actual = zio.config.magnolia.descriptor[DummyConfig].prettyOptions("PREFIX")
       test("finds every individual option") {
         zio.test.assert(actual)(
-          hasSize(equalTo(6)) &&
+          hasSize(equalTo(7)) &&
             contains(
               OptionInfo(
                 "Ledger party identifier",
@@ -115,6 +116,18 @@ object PrettyPrinterSpec extends ZIOSpecDefault:
                 Some("localhost"),
                 Some("PREFIX_POSTGRES_HOST"),
                 Some("postgres.host"),
+                Nil
+              )
+            ) &&
+            contains(
+              OptionInfo(
+                "",
+                "--postgres-properties-<key>",
+                None,
+                Some("string"),
+                None,
+                Some("PREFIX_POSTGRES_PROPERTIES_<KEY>"),
+                Some("postgres.properties.<key>"),
                 Nil
               )
             )

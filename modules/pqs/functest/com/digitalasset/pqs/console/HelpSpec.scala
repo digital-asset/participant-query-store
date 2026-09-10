@@ -86,7 +86,7 @@ Run 'pqs COMMAND --help[-verbose]' for more information on a command."""
           paddedOptionLine("  --pipeline-oauth-proxy-user string", "Proxy server username (optional)"),
           paddedOptionLine("  --pipeline-oauth-accesstoken string", "Access token (optional)"),
           paddedOptionLine("  --pipeline-oauth-scope [enum | string]", "Token scope (default: Default)"),
-          paddedOptionLine("  --pipeline-oauth-parameters map", "Custom parameters"),
+          paddedOptionLine("  --pipeline-oauth-parameters-<key> string", "Custom parameters"),
           paddedOptionLine(
             "  --pipeline-oauth-preemptexpiry string",
             "The duration (ISO 8601) prior to expiry of current, for a new token to be requested (default: PT1M)"
@@ -148,10 +148,11 @@ Run 'pqs COMMAND --help[-verbose]' for more information on a command."""
             "HTTP port to use to expose application health info (default: 8080)"
           ),
           paddedOptionLine("  --logger-level enum", "Log level (default: Info)"),
-          paddedOptionLine("  --logger-mappings map", "Custom mappings for log levels"),
+          paddedOptionLine("  --logger-mappings-<key> string", "Custom mappings for log levels"),
           paddedOptionLine("  --logger-format enum", "Log output format (default: Plain)"),
           paddedOptionLine("  --logger-pattern [enum | string]", "Log pattern (default: Plain)"),
           paddedOptionLine("  --target-postgres-host string", "Postgres host (default: localhost)"),
+          paddedOptionLine("  --target-postgres-properties-<key> string", "Additional pgjdbc connection properties"),
           paddedOptionLine(
             "  --target-postgres-probeinterval string",
             "Duration (ISO 8601) of interval between database connectivity probes (PT0S to disable) (default: PT30S)"
@@ -284,9 +285,9 @@ Run 'pqs COMMAND --help[-verbose]' for more information on a command."""
           paddedOptionLine("", " + Environment variable: PQS_PIPELINE_OAUTH_SCOPE"),
           paddedOptionLine("", " + System property:      pipeline.oauth.scope"),
           paddedOptionLine("", " + Enumeration values:   Default, None"),
-          paddedOptionLine("  --pipeline-oauth-parameters map", "Custom parameters"),
-          paddedOptionLine("", " + Environment variable: PQS_PIPELINE_OAUTH_PARAMETERS"),
-          paddedOptionLine("", " + System property:      pipeline.oauth.parameters"),
+          paddedOptionLine("  --pipeline-oauth-parameters-<key> string", "Custom parameters"),
+          paddedOptionLine("", " + Environment variable: PQS_PIPELINE_OAUTH_PARAMETERS_<KEY>"),
+          paddedOptionLine("", " + System property:      pipeline.oauth.parameters.<key>"),
           paddedOptionLine(
             "  --pipeline-oauth-preemptexpiry string",
             "The duration (ISO 8601) prior to expiry of current, for a new token to be requested (default: PT1M)"
@@ -371,9 +372,9 @@ Run 'pqs COMMAND --help[-verbose]' for more information on a command."""
           paddedOptionLine("", " + Environment variable: PQS_LOGGER_LEVEL"),
           paddedOptionLine("", " + System property:      logger.level"),
           paddedOptionLine("", " + Enumeration values:   All, Fatal, Error, Warning, Info, Debug, Trace, None"),
-          paddedOptionLine("  --logger-mappings map", "Custom mappings for log levels"),
-          paddedOptionLine("", " + Environment variable: PQS_LOGGER_MAPPINGS"),
-          paddedOptionLine("", " + System property:      logger.mappings"),
+          paddedOptionLine("  --logger-mappings-<key> string", "Custom mappings for log levels"),
+          paddedOptionLine("", " + Environment variable: PQS_LOGGER_MAPPINGS_<KEY>"),
+          paddedOptionLine("", " + System property:      logger.mappings.<key>"),
           paddedOptionLine("  --logger-format enum", "Log output format (default: Plain)"),
           paddedOptionLine("", " + Environment variable: PQS_LOGGER_FORMAT"),
           paddedOptionLine("", " + System property:      logger.format"),
@@ -385,6 +386,9 @@ Run 'pqs COMMAND --help[-verbose]' for more information on a command."""
           paddedOptionLine("  --target-postgres-host string", "Postgres host (default: localhost)"),
           paddedOptionLine("", " + Environment variable: PQS_TARGET_POSTGRES_HOST"),
           paddedOptionLine("", " + System property:      target.postgres.host"),
+          paddedOptionLine("  --target-postgres-properties-<key> string", "Additional pgjdbc connection properties"),
+          paddedOptionLine("", " + Environment variable: PQS_TARGET_POSTGRES_PROPERTIES_<KEY>"),
+          paddedOptionLine("", " + System property:      target.postgres.properties.<key>"),
           paddedOptionLine(
             "  --target-postgres-probeinterval string",
             "Duration (ISO 8601) of interval between database connectivity probes (PT0S to disable) (default: PT30S)"
