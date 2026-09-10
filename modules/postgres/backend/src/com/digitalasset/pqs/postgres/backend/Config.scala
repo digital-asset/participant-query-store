@@ -33,7 +33,10 @@ case class PostgresConfig(
     @describe("Application name for Postgres connections")
     appName: String = "pqs",
     @describe("Duration (ISO 8601) of interval between database connectivity probes (PT0S to disable)")
-    probeInterval: ISO8601Duration = 30.seconds
+    probeInterval: ISO8601Duration = 30.seconds,
+    // Advanced escape hatch: user-provided entries override PQS-managed keys (e.g. sslmode, options).
+    @describe("Additional pgjdbc connection properties")
+    properties: Map[String, String] = Map.empty
 )
 
 case class SchemaConfig(

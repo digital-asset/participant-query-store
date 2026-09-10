@@ -61,7 +61,7 @@ package object backend:
         PGProperty.TCP_KEEP_ALIVE.getName   -> conf.keepAlive.toString,
         PGProperty.APPLICATION_NAME.getName -> conf.appName,
         PGProperty.CURRENT_SCHEMA.getName   -> conf.schema
-      ) ++ sslprops(conf.tls) ++ instanceIdProp(instanceId)
+      ) ++ sslprops(conf.tls) ++ instanceIdProp(instanceId) ++ conf.properties
     )
   }.flatten
 

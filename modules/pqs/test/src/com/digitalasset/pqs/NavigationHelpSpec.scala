@@ -87,6 +87,7 @@ Options:
   --schema-autoapply boolean           Apply metadata inferred schema on startup (default: true)
   --schema-baseline boolean            Baseline existing database schema during apply (default: false)
   --postgres-host string               Postgres host (default: localhost)
+  --postgres-properties map            Additional pgjdbc connection properties
   --postgres-probeinterval string      Duration (ISO 8601) of interval between database connectivity probes (PT0S to disable) (default: PT30S)
   --postgres-appname string            Application name for Postgres connections (default: pqs)
   --postgres-buffersize int            Buffer size for transactions processing (default: 128)
@@ -185,6 +186,9 @@ Options:
   --postgres-host string               Postgres host (default: localhost)
                                         + Environment variable: PQS_POSTGRES_HOST
                                         + System property:      postgres.host
+  --postgres-properties map            Additional pgjdbc connection properties
+                                        + Environment variable: PQS_POSTGRES_PROPERTIES
+                                        + System property:      postgres.properties
   --postgres-probeinterval string      Duration (ISO 8601) of interval between database connectivity probes (PT0S to disable) (default: PT30S)
                                         + Environment variable: PQS_POSTGRES_PROBEINTERVAL
                                         + System property:      postgres.probeInterval
@@ -419,6 +423,7 @@ Options:
   --logger-pattern [enum | string]    Log pattern (default: Plain)
   --logger-level enum                 Log level (default: Info)
   --postgres-host string              Postgres host (default: localhost)
+  --postgres-properties map           Additional pgjdbc connection properties
   --postgres-probeinterval string     Duration (ISO 8601) of interval between database connectivity probes (PT0S to disable) (default: PT30S)
   --postgres-appname string           Application name for Postgres connections (default: pqs)
   --postgres-buffersize int           Buffer size for transactions processing (default: 128)
@@ -472,6 +477,9 @@ Options:
   --postgres-host string              Postgres host (default: localhost)
                                        + Environment variable: PQS_POSTGRES_HOST
                                        + System property:      postgres.host
+  --postgres-properties map           Additional pgjdbc connection properties
+                                       + Environment variable: PQS_POSTGRES_PROPERTIES
+                                       + System property:      postgres.properties
   --postgres-probeinterval string     Duration (ISO 8601) of interval between database connectivity probes (PT0S to disable) (default: PT30S)
                                        + Environment variable: PQS_POSTGRES_PROBEINTERVAL
                                        + System property:      postgres.probeInterval
@@ -610,6 +618,7 @@ Options:
         paddedOptionLine("  --logger-format enum", "Log output format (default: Plain)"),
         paddedOptionLine("  --logger-pattern [enum | string]", "Log pattern (default: Plain)"),
         paddedOptionLine("  --target-postgres-host string", "Postgres host (default: localhost)"),
+        paddedOptionLine("  --target-postgres-properties map", "Additional pgjdbc connection properties"),
         paddedOptionLine(
           "  --target-postgres-probeinterval string",
           "Duration (ISO 8601) of interval between database connectivity probes (PT0S to disable) (default: PT30S)"
@@ -836,6 +845,9 @@ Options:
         paddedOptionLine("  --target-postgres-host string", "Postgres host (default: localhost)"),
         paddedOptionLine("", " + Environment variable: PQS_TARGET_POSTGRES_HOST"),
         paddedOptionLine("", " + System property:      target.postgres.host"),
+        paddedOptionLine("  --target-postgres-properties map", "Additional pgjdbc connection properties"),
+        paddedOptionLine("", " + Environment variable: PQS_TARGET_POSTGRES_PROPERTIES"),
+        paddedOptionLine("", " + System property:      target.postgres.properties"),
         paddedOptionLine(
           "  --target-postgres-probeinterval string",
           "Duration (ISO 8601) of interval between database connectivity probes (PT0S to disable) (default: PT30S)"
