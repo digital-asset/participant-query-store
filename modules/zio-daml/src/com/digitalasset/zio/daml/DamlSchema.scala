@@ -122,7 +122,7 @@ final class DamlSchema(
     (inconsistentIncluded, inconsistentExcluded)
 
 object DamlSchema:
-  val layer: ZLayer[ZManagedChannel & FileCache & ContractFilter, Throwable, DamlSchema] =
+  val layer: ZLayer[ZManagedChannel & FileCache & ContractFilter & MetadataFilter, Throwable, DamlSchema] =
     PackageService.live >>> ZLayer.fromZIO(DamlSchema.getSchema)
 
   def produce(sp: SchemaVisitor)(implicit tag: Tag[sp.Result]): ZLayer[DamlSchema, Throwable, sp.Result] =
@@ -144,11 +144,12 @@ object DamlSchema:
     packageService <- service[PackageService]
     fileCache      <- service[FileCache]
     contractFilter <- service[ContractFilter]
+    metadataFilter <- service[MetadataFilter]
     packageIds     <- packageService.listPackages
     key = s"descriptors-${packageIds.distinct.sorted.hashCode().toHexString}"
     schema <- fileCache.cache(key)(Schema.deserialize, Schema.serialize)(getSchemaFromLedger)
     _      <- logDebug(Debug.showDescriptorsFlat(schema))
-  yield DamlSchema(schema, contractFilter, MetadataFilter(IdentifierFilter.AcceptAll))
+  yield DamlSchema(schema, contractFilter, metadataFilter)
 
   private def getSchemaFromLedger = for
     packageService <- service[PackageService]
