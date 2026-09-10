@@ -84,6 +84,10 @@ final class DamlSchema(
       val effectivePackageId = representativePackageId.getOrElse(id.packageId)
       this.toIdentifier(effectivePackageId, id.moduleName, id.entityName)
 
+  extension (id: Identifier)
+    def isIncluded: Boolean         = filtered.entities.contains(id)
+    def isMetadataIncluded: Boolean = filtered.metadata.contains(id)
+
   private def interfaceImplementationsIntegrityAction: Task[Set[Identifier]] =
     val (inconsistentIncluded, inconsistentExcluded) = findMissingInterfaceImplementations
     logInfo(

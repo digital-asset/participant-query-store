@@ -152,10 +152,6 @@ package object ledgerapi:
     private[ledgerapi] def toRefId: com.daml.ledger.api.v2.value.Identifier =
       com.daml.ledger.api.v2.value.Identifier(s"#${id.packageName}", id.moduleName, id.entityName)
 
-  extension (id: schema.Identifier)(using damlSchema: DamlSchema)
-    private def isIncluded: Boolean         = damlSchema.filtered.entities.contains(id)
-    private def isMetadataIncluded: Boolean = damlSchema.filtered.metadata.contains(id)
-
   extension (x: Long)
     def toOffset: Offset = x match
       case 0L    => Offset.Genesis
