@@ -67,52 +67,53 @@ Run 'pqs datastore postgres-document schema COMMAND --help[-verbose]' for more i
 Infer required database schema, apply it to data store and quit
 
 Options:
-  --config file                        Path to configuration overrides via an external HOCON file (optional)
-  --ledger-host string                 Ledger API host (default: localhost)
-  --ledger-cachedir file               Cache Directory (default: /tmp/pqs)
-  --ledger-buffersize int              Buffer size for gRPC channel (default: 128)
-  --ledger-keepalive-time string       Duration (ISO 8601) of interval between ping frames (PT0S to disable) (default: PT40S)
-  --ledger-keepalive-timeout string    Duration (ISO 8601) of timeout for a ping frame to be acknowledged (default: PT20S)
-  --ledger-auth enum                   Authorisation mode (default: NoAuth)
-  --ledger-tls-cafile file             Trusted Certificate Authority (CA) certificate (optional)
-  --ledger-tls-cert file               Client's certificate (leave empty if embedded into private key file) (optional)
-  --ledger-tls-key file                Client's private key (leave empty for server-only TLS) (optional)
-  --ledger-port int                    Ledger API port (default: 6865)
-  --logger-destination file            Log output file (default: output.log)
-  --logger-mappings map                Custom mappings for log levels
-  --logger-format enum                 Log output format (default: Plain)
-  --logger-pattern [enum | string]     Log pattern (default: Plain)
-  --logger-level enum                  Log level (default: Info)
-  --filter-contracts string            Filter expression determining which templates and interfaces to include (default: *)
-  --schema-autoapply boolean           Apply metadata inferred schema on startup (default: true)
-  --schema-baseline boolean            Baseline existing database schema during apply (default: false)
-  --postgres-host string               Postgres host (default: localhost)
-  --postgres-probeinterval string      Duration (ISO 8601) of interval between database connectivity probes (PT0S to disable) (default: PT30S)
-  --postgres-appname string            Application name for Postgres connections (default: pqs)
-  --postgres-buffersize int            Buffer size for transactions processing (default: 128)
-  --postgres-tls-mode enum             SSL mode required for Postgres connectivity (default: Disable)
-  --postgres-tls-cert file             Client's certificate (optional)
-  --postgres-tls-key file              Client's private key (optional)
-  --postgres-tls-cafile file           Trusted Certificate Authority (CA) certificate (optional)
-  --postgres-keepalive boolean         Enable/disable TCP keep-alive probe (default: true)
-  --postgres-maxconnections int        Maximum number of JDBC connections (default: 16)
-  --postgres-password string           Postgres user password
-  --postgres-username string           Postgres user name
-  --postgres-schema string             Postgres schema (default: public)
-  --postgres-database string           Postgres database (default: postgres)
-  --postgres-port int                  Postgres port (default: 5432)
-  --oauth-clientid string              Client's identifier (optional)
-  --oauth-proxy-url uri                Proxy server URL (optional)
-  --oauth-proxy-password string        Proxy server password (optional)
-  --oauth-proxy-user string            Proxy server username (optional)
-  --oauth-accesstoken string           Access token (optional)
-  --oauth-scope [enum | string]        Token scope (default: Default)
-  --oauth-parameters map               Custom parameters
-  --oauth-preemptexpiry string         The duration (ISO 8601) prior to expiry of current, for a new token to be requested (default: PT1M)
-  --oauth-cafile file                  Trusted Certificate Authority (CA) certificate (optional)
-  --oauth-endpoint uri                 Token endpoint URL (optional)
-  --oauth-issuer uri                   OIDC-compliant issuer URL (optional)
-  --oauth-clientsecret string          Client's secret (optional)
+  --config file                         Path to configuration overrides via an external HOCON file (optional)
+  --ledger-host string                  Ledger API host (default: localhost)
+  --ledger-cachedir file                Cache Directory (default: /tmp/pqs)
+  --ledger-buffersize int               Buffer size for gRPC channel (default: 128)
+  --ledger-keepalive-time string        Duration (ISO 8601) of interval between ping frames (PT0S to disable) (default: PT40S)
+  --ledger-keepalive-timeout string     Duration (ISO 8601) of timeout for a ping frame to be acknowledged (default: PT20S)
+  --ledger-auth enum                    Authorisation mode (default: NoAuth)
+  --ledger-tls-cafile file              Trusted Certificate Authority (CA) certificate (optional)
+  --ledger-tls-cert file                Client's certificate (leave empty if embedded into private key file) (optional)
+  --ledger-tls-key file                 Client's private key (leave empty for server-only TLS) (optional)
+  --ledger-port int                     Ledger API port (default: 6865)
+  --logger-destination file             Log output file (default: output.log)
+  --logger-mappings-<key> string        Custom mappings for log levels
+  --logger-format enum                  Log output format (default: Plain)
+  --logger-pattern [enum | string]      Log pattern (default: Plain)
+  --logger-level enum                   Log level (default: Info)
+  --filter-contracts string             Filter expression determining which templates and interfaces to include (default: *)
+  --schema-autoapply boolean            Apply metadata inferred schema on startup (default: true)
+  --schema-baseline boolean             Baseline existing database schema during apply (default: false)
+  --postgres-host string                Postgres host (default: localhost)
+  --postgres-properties-<key> string    Additional pgjdbc connection properties
+  --postgres-probeinterval string       Duration (ISO 8601) of interval between database connectivity probes (PT0S to disable) (default: PT30S)
+  --postgres-appname string             Application name for Postgres connections (default: pqs)
+  --postgres-buffersize int             Buffer size for transactions processing (default: 128)
+  --postgres-tls-mode enum              SSL mode required for Postgres connectivity (default: Disable)
+  --postgres-tls-cert file              Client's certificate (optional)
+  --postgres-tls-key file               Client's private key (optional)
+  --postgres-tls-cafile file            Trusted Certificate Authority (CA) certificate (optional)
+  --postgres-keepalive boolean          Enable/disable TCP keep-alive probe (default: true)
+  --postgres-maxconnections int         Maximum number of JDBC connections (default: 16)
+  --postgres-password string            Postgres user password
+  --postgres-username string            Postgres user name
+  --postgres-schema string              Postgres schema (default: public)
+  --postgres-database string            Postgres database (default: postgres)
+  --postgres-port int                   Postgres port (default: 5432)
+  --oauth-clientid string               Client's identifier (optional)
+  --oauth-proxy-url uri                 Proxy server URL (optional)
+  --oauth-proxy-password string         Proxy server password (optional)
+  --oauth-proxy-user string             Proxy server username (optional)
+  --oauth-accesstoken string            Access token (optional)
+  --oauth-scope [enum | string]         Token scope (default: Default)
+  --oauth-parameters-<key> string       Custom parameters
+  --oauth-preemptexpiry string          The duration (ISO 8601) prior to expiry of current, for a new token to be requested (default: PT1M)
+  --oauth-cafile file                   Trusted Certificate Authority (CA) certificate (optional)
+  --oauth-endpoint uri                  Token endpoint URL (optional)
+  --oauth-issuer uri                    OIDC-compliant issuer URL (optional)
+  --oauth-clientsecret string           Client's secret (optional)
 """
     },
     verify(App, Array("datastore", "postgres-document", "schema", "apply", HelpVerboseFlag)) {
@@ -121,150 +122,153 @@ Options:
 Infer required database schema, apply it to data store and quit
 
 Options:
-  --config file                        Path to configuration overrides via an external HOCON file (optional)
-                                        + Environment variable: PQS_CONFIG
-                                        + System property:      config
-  --ledger-host string                 Ledger API host (default: localhost)
-                                        + Environment variable: PQS_LEDGER_HOST
-                                        + System property:      ledger.host
-  --ledger-cachedir file               Cache Directory (default: /tmp/pqs)
-                                        + Environment variable: PQS_LEDGER_CACHEDIR
-                                        + System property:      ledger.cacheDir
-  --ledger-buffersize int              Buffer size for gRPC channel (default: 128)
-                                        + Environment variable: PQS_LEDGER_BUFFERSIZE
-                                        + System property:      ledger.bufferSize
-  --ledger-keepalive-time string       Duration (ISO 8601) of interval between ping frames (PT0S to disable) (default: PT40S)
-                                        + Environment variable: PQS_LEDGER_KEEPALIVE_TIME
-                                        + System property:      ledger.keepAlive.time
-  --ledger-keepalive-timeout string    Duration (ISO 8601) of timeout for a ping frame to be acknowledged (default: PT20S)
-                                        + Environment variable: PQS_LEDGER_KEEPALIVE_TIMEOUT
-                                        + System property:      ledger.keepAlive.timeout
-  --ledger-auth enum                   Authorisation mode (default: NoAuth)
-                                        + Environment variable: PQS_LEDGER_AUTH
-                                        + System property:      ledger.auth
-                                        + Enumeration values:   OAuth, NoAuth
-  --ledger-tls-cafile file             Trusted Certificate Authority (CA) certificate (optional)
-                                        + Environment variable: PQS_LEDGER_TLS_CAFILE
-                                        + System property:      ledger.tls.cafile
-  --ledger-tls-cert file               Client's certificate (leave empty if embedded into private key file) (optional)
-                                        + Environment variable: PQS_LEDGER_TLS_CERT
-                                        + System property:      ledger.tls.cert
-  --ledger-tls-key file                Client's private key (leave empty for server-only TLS) (optional)
-                                        + Environment variable: PQS_LEDGER_TLS_KEY
-                                        + System property:      ledger.tls.key
-  --ledger-port int                    Ledger API port (default: 6865)
-                                        + Environment variable: PQS_LEDGER_PORT
-                                        + System property:      ledger.port
-  --logger-destination file            Log output file (default: output.log)
-                                        + Environment variable: PQS_LOGGER_DESTINATION
-                                        + System property:      logger.destination
-  --logger-mappings map                Custom mappings for log levels
-                                        + Environment variable: PQS_LOGGER_MAPPINGS
-                                        + System property:      logger.mappings
-  --logger-format enum                 Log output format (default: Plain)
-                                        + Environment variable: PQS_LOGGER_FORMAT
-                                        + System property:      logger.format
-                                        + Enumeration values:   Plain, PlainAsync, Json, JsonAsync
-  --logger-pattern [enum | string]     Log pattern (default: Plain)
-                                        + Environment variable: PQS_LOGGER_PATTERN
-                                        + System property:      logger.pattern
-                                        + Enumeration values:   Plain, Standard, Structured
-  --logger-level enum                  Log level (default: Info)
-                                        + Environment variable: PQS_LOGGER_LEVEL
-                                        + System property:      logger.level
-                                        + Enumeration values:   All, Fatal, Error, Warning, Info, Debug, Trace, None
-  --filter-contracts string            Filter expression determining which templates and interfaces to include (default: *)
-                                        + Environment variable: PQS_FILTER_CONTRACTS
-                                        + System property:      filter.contracts
-  --schema-autoapply boolean           Apply metadata inferred schema on startup (default: true)
-                                        + Environment variable: PQS_SCHEMA_AUTOAPPLY
-                                        + System property:      schema.autoApply
-  --schema-baseline boolean            Baseline existing database schema during apply (default: false)
-                                        + Environment variable: PQS_SCHEMA_BASELINE
-                                        + System property:      schema.baseline
-  --postgres-host string               Postgres host (default: localhost)
-                                        + Environment variable: PQS_POSTGRES_HOST
-                                        + System property:      postgres.host
-  --postgres-probeinterval string      Duration (ISO 8601) of interval between database connectivity probes (PT0S to disable) (default: PT30S)
-                                        + Environment variable: PQS_POSTGRES_PROBEINTERVAL
-                                        + System property:      postgres.probeInterval
-  --postgres-appname string            Application name for Postgres connections (default: pqs)
-                                        + Environment variable: PQS_POSTGRES_APPNAME
-                                        + System property:      postgres.appName
-  --postgres-buffersize int            Buffer size for transactions processing (default: 128)
-                                        + Environment variable: PQS_POSTGRES_BUFFERSIZE
-                                        + System property:      postgres.bufferSize
-  --postgres-tls-mode enum             SSL mode required for Postgres connectivity (default: Disable)
-                                        + Environment variable: PQS_POSTGRES_TLS_MODE
-                                        + System property:      postgres.tls.mode
-                                        + Enumeration values:   Disable, Require, VerifyCA, VerifyFull
-  --postgres-tls-cert file             Client's certificate (optional)
-                                        + Environment variable: PQS_POSTGRES_TLS_CERT
-                                        + System property:      postgres.tls.cert
-  --postgres-tls-key file              Client's private key (optional)
-                                        + Environment variable: PQS_POSTGRES_TLS_KEY
-                                        + System property:      postgres.tls.key
-  --postgres-tls-cafile file           Trusted Certificate Authority (CA) certificate (optional)
-                                        + Environment variable: PQS_POSTGRES_TLS_CAFILE
-                                        + System property:      postgres.tls.cafile
-  --postgres-keepalive boolean         Enable/disable TCP keep-alive probe (default: true)
-                                        + Environment variable: PQS_POSTGRES_KEEPALIVE
-                                        + System property:      postgres.keepAlive
-  --postgres-maxconnections int        Maximum number of JDBC connections (default: 16)
-                                        + Environment variable: PQS_POSTGRES_MAXCONNECTIONS
-                                        + System property:      postgres.maxConnections
-  --postgres-password string           Postgres user password
-                                        + Environment variable: PQS_POSTGRES_PASSWORD
-                                        + System property:      postgres.password
-  --postgres-username string           Postgres user name
-                                        + Environment variable: PQS_POSTGRES_USERNAME
-                                        + System property:      postgres.username
-  --postgres-schema string             Postgres schema (default: public)
-                                        + Environment variable: PQS_POSTGRES_SCHEMA
-                                        + System property:      postgres.schema
-  --postgres-database string           Postgres database (default: postgres)
-                                        + Environment variable: PQS_POSTGRES_DATABASE
-                                        + System property:      postgres.database
-  --postgres-port int                  Postgres port (default: 5432)
-                                        + Environment variable: PQS_POSTGRES_PORT
-                                        + System property:      postgres.port
-  --oauth-clientid string              Client's identifier (optional)
-                                        + Environment variable: PQS_OAUTH_CLIENTID
-                                        + System property:      oauth.clientId
-  --oauth-proxy-url uri                Proxy server URL (optional)
-                                        + Environment variable: PQS_OAUTH_PROXY_URL
-                                        + System property:      oauth.proxy.url
-  --oauth-proxy-password string        Proxy server password (optional)
-                                        + Environment variable: PQS_OAUTH_PROXY_PASSWORD
-                                        + System property:      oauth.proxy.password
-  --oauth-proxy-user string            Proxy server username (optional)
-                                        + Environment variable: PQS_OAUTH_PROXY_USER
-                                        + System property:      oauth.proxy.user
-  --oauth-accesstoken string           Access token (optional)
-                                        + Environment variable: PQS_OAUTH_ACCESSTOKEN
-                                        + System property:      oauth.accessToken
-  --oauth-scope [enum | string]        Token scope (default: Default)
-                                        + Environment variable: PQS_OAUTH_SCOPE
-                                        + System property:      oauth.scope
-                                        + Enumeration values:   Default, None
-  --oauth-parameters map               Custom parameters
-                                        + Environment variable: PQS_OAUTH_PARAMETERS
-                                        + System property:      oauth.parameters
-  --oauth-preemptexpiry string         The duration (ISO 8601) prior to expiry of current, for a new token to be requested (default: PT1M)
-                                        + Environment variable: PQS_OAUTH_PREEMPTEXPIRY
-                                        + System property:      oauth.preemptExpiry
-  --oauth-cafile file                  Trusted Certificate Authority (CA) certificate (optional)
-                                        + Environment variable: PQS_OAUTH_CAFILE
-                                        + System property:      oauth.cafile
-  --oauth-endpoint uri                 Token endpoint URL (optional)
-                                        + Environment variable: PQS_OAUTH_ENDPOINT
-                                        + System property:      oauth.endpoint
-  --oauth-issuer uri                   OIDC-compliant issuer URL (optional)
-                                        + Environment variable: PQS_OAUTH_ISSUER
-                                        + System property:      oauth.issuer
-  --oauth-clientsecret string          Client's secret (optional)
-                                        + Environment variable: PQS_OAUTH_CLIENTSECRET
-                                        + System property:      oauth.clientSecret
+  --config file                         Path to configuration overrides via an external HOCON file (optional)
+                                         + Environment variable: PQS_CONFIG
+                                         + System property:      config
+  --ledger-host string                  Ledger API host (default: localhost)
+                                         + Environment variable: PQS_LEDGER_HOST
+                                         + System property:      ledger.host
+  --ledger-cachedir file                Cache Directory (default: /tmp/pqs)
+                                         + Environment variable: PQS_LEDGER_CACHEDIR
+                                         + System property:      ledger.cacheDir
+  --ledger-buffersize int               Buffer size for gRPC channel (default: 128)
+                                         + Environment variable: PQS_LEDGER_BUFFERSIZE
+                                         + System property:      ledger.bufferSize
+  --ledger-keepalive-time string        Duration (ISO 8601) of interval between ping frames (PT0S to disable) (default: PT40S)
+                                         + Environment variable: PQS_LEDGER_KEEPALIVE_TIME
+                                         + System property:      ledger.keepAlive.time
+  --ledger-keepalive-timeout string     Duration (ISO 8601) of timeout for a ping frame to be acknowledged (default: PT20S)
+                                         + Environment variable: PQS_LEDGER_KEEPALIVE_TIMEOUT
+                                         + System property:      ledger.keepAlive.timeout
+  --ledger-auth enum                    Authorisation mode (default: NoAuth)
+                                         + Environment variable: PQS_LEDGER_AUTH
+                                         + System property:      ledger.auth
+                                         + Enumeration values:   OAuth, NoAuth
+  --ledger-tls-cafile file              Trusted Certificate Authority (CA) certificate (optional)
+                                         + Environment variable: PQS_LEDGER_TLS_CAFILE
+                                         + System property:      ledger.tls.cafile
+  --ledger-tls-cert file                Client's certificate (leave empty if embedded into private key file) (optional)
+                                         + Environment variable: PQS_LEDGER_TLS_CERT
+                                         + System property:      ledger.tls.cert
+  --ledger-tls-key file                 Client's private key (leave empty for server-only TLS) (optional)
+                                         + Environment variable: PQS_LEDGER_TLS_KEY
+                                         + System property:      ledger.tls.key
+  --ledger-port int                     Ledger API port (default: 6865)
+                                         + Environment variable: PQS_LEDGER_PORT
+                                         + System property:      ledger.port
+  --logger-destination file             Log output file (default: output.log)
+                                         + Environment variable: PQS_LOGGER_DESTINATION
+                                         + System property:      logger.destination
+  --logger-mappings-<key> string        Custom mappings for log levels
+                                         + Environment variable: PQS_LOGGER_MAPPINGS_<KEY>
+                                         + System property:      logger.mappings.<key>
+  --logger-format enum                  Log output format (default: Plain)
+                                         + Environment variable: PQS_LOGGER_FORMAT
+                                         + System property:      logger.format
+                                         + Enumeration values:   Plain, PlainAsync, Json, JsonAsync
+  --logger-pattern [enum | string]      Log pattern (default: Plain)
+                                         + Environment variable: PQS_LOGGER_PATTERN
+                                         + System property:      logger.pattern
+                                         + Enumeration values:   Plain, Standard, Structured
+  --logger-level enum                   Log level (default: Info)
+                                         + Environment variable: PQS_LOGGER_LEVEL
+                                         + System property:      logger.level
+                                         + Enumeration values:   All, Fatal, Error, Warning, Info, Debug, Trace, None
+  --filter-contracts string             Filter expression determining which templates and interfaces to include (default: *)
+                                         + Environment variable: PQS_FILTER_CONTRACTS
+                                         + System property:      filter.contracts
+  --schema-autoapply boolean            Apply metadata inferred schema on startup (default: true)
+                                         + Environment variable: PQS_SCHEMA_AUTOAPPLY
+                                         + System property:      schema.autoApply
+  --schema-baseline boolean             Baseline existing database schema during apply (default: false)
+                                         + Environment variable: PQS_SCHEMA_BASELINE
+                                         + System property:      schema.baseline
+  --postgres-host string                Postgres host (default: localhost)
+                                         + Environment variable: PQS_POSTGRES_HOST
+                                         + System property:      postgres.host
+  --postgres-properties-<key> string    Additional pgjdbc connection properties
+                                         + Environment variable: PQS_POSTGRES_PROPERTIES_<KEY>
+                                         + System property:      postgres.properties.<key>
+  --postgres-probeinterval string       Duration (ISO 8601) of interval between database connectivity probes (PT0S to disable) (default: PT30S)
+                                         + Environment variable: PQS_POSTGRES_PROBEINTERVAL
+                                         + System property:      postgres.probeInterval
+  --postgres-appname string             Application name for Postgres connections (default: pqs)
+                                         + Environment variable: PQS_POSTGRES_APPNAME
+                                         + System property:      postgres.appName
+  --postgres-buffersize int             Buffer size for transactions processing (default: 128)
+                                         + Environment variable: PQS_POSTGRES_BUFFERSIZE
+                                         + System property:      postgres.bufferSize
+  --postgres-tls-mode enum              SSL mode required for Postgres connectivity (default: Disable)
+                                         + Environment variable: PQS_POSTGRES_TLS_MODE
+                                         + System property:      postgres.tls.mode
+                                         + Enumeration values:   Disable, Require, VerifyCA, VerifyFull
+  --postgres-tls-cert file              Client's certificate (optional)
+                                         + Environment variable: PQS_POSTGRES_TLS_CERT
+                                         + System property:      postgres.tls.cert
+  --postgres-tls-key file               Client's private key (optional)
+                                         + Environment variable: PQS_POSTGRES_TLS_KEY
+                                         + System property:      postgres.tls.key
+  --postgres-tls-cafile file            Trusted Certificate Authority (CA) certificate (optional)
+                                         + Environment variable: PQS_POSTGRES_TLS_CAFILE
+                                         + System property:      postgres.tls.cafile
+  --postgres-keepalive boolean          Enable/disable TCP keep-alive probe (default: true)
+                                         + Environment variable: PQS_POSTGRES_KEEPALIVE
+                                         + System property:      postgres.keepAlive
+  --postgres-maxconnections int         Maximum number of JDBC connections (default: 16)
+                                         + Environment variable: PQS_POSTGRES_MAXCONNECTIONS
+                                         + System property:      postgres.maxConnections
+  --postgres-password string            Postgres user password
+                                         + Environment variable: PQS_POSTGRES_PASSWORD
+                                         + System property:      postgres.password
+  --postgres-username string            Postgres user name
+                                         + Environment variable: PQS_POSTGRES_USERNAME
+                                         + System property:      postgres.username
+  --postgres-schema string              Postgres schema (default: public)
+                                         + Environment variable: PQS_POSTGRES_SCHEMA
+                                         + System property:      postgres.schema
+  --postgres-database string            Postgres database (default: postgres)
+                                         + Environment variable: PQS_POSTGRES_DATABASE
+                                         + System property:      postgres.database
+  --postgres-port int                   Postgres port (default: 5432)
+                                         + Environment variable: PQS_POSTGRES_PORT
+                                         + System property:      postgres.port
+  --oauth-clientid string               Client's identifier (optional)
+                                         + Environment variable: PQS_OAUTH_CLIENTID
+                                         + System property:      oauth.clientId
+  --oauth-proxy-url uri                 Proxy server URL (optional)
+                                         + Environment variable: PQS_OAUTH_PROXY_URL
+                                         + System property:      oauth.proxy.url
+  --oauth-proxy-password string         Proxy server password (optional)
+                                         + Environment variable: PQS_OAUTH_PROXY_PASSWORD
+                                         + System property:      oauth.proxy.password
+  --oauth-proxy-user string             Proxy server username (optional)
+                                         + Environment variable: PQS_OAUTH_PROXY_USER
+                                         + System property:      oauth.proxy.user
+  --oauth-accesstoken string            Access token (optional)
+                                         + Environment variable: PQS_OAUTH_ACCESSTOKEN
+                                         + System property:      oauth.accessToken
+  --oauth-scope [enum | string]         Token scope (default: Default)
+                                         + Environment variable: PQS_OAUTH_SCOPE
+                                         + System property:      oauth.scope
+                                         + Enumeration values:   Default, None
+  --oauth-parameters-<key> string       Custom parameters
+                                         + Environment variable: PQS_OAUTH_PARAMETERS_<KEY>
+                                         + System property:      oauth.parameters.<key>
+  --oauth-preemptexpiry string          The duration (ISO 8601) prior to expiry of current, for a new token to be requested (default: PT1M)
+                                         + Environment variable: PQS_OAUTH_PREEMPTEXPIRY
+                                         + System property:      oauth.preemptExpiry
+  --oauth-cafile file                   Trusted Certificate Authority (CA) certificate (optional)
+                                         + Environment variable: PQS_OAUTH_CAFILE
+                                         + System property:      oauth.cafile
+  --oauth-endpoint uri                  Token endpoint URL (optional)
+                                         + Environment variable: PQS_OAUTH_ENDPOINT
+                                         + System property:      oauth.endpoint
+  --oauth-issuer uri                    OIDC-compliant issuer URL (optional)
+                                         + Environment variable: PQS_OAUTH_ISSUER
+                                         + System property:      oauth.issuer
+  --oauth-clientsecret string           Client's secret (optional)
+                                         + Environment variable: PQS_OAUTH_CLIENTSECRET
+                                         + System property:      oauth.clientSecret
 """
     },
     verify(App, Array("datastore", "postgres-document", "schema", "show", HelpFlag)) {
@@ -285,7 +289,7 @@ Options:
   --ledger-tls-key file                Client's private key (leave empty for server-only TLS) (optional)
   --ledger-port int                    Ledger API port (default: 6865)
   --logger-destination file            Log output file (default: output.log)
-  --logger-mappings map                Custom mappings for log levels
+  --logger-mappings-<key> string       Custom mappings for log levels
   --logger-format enum                 Log output format (default: Plain)
   --logger-pattern [enum | string]     Log pattern (default: Plain)
   --logger-level enum                  Log level (default: Info)
@@ -296,7 +300,7 @@ Options:
   --oauth-proxy-user string            Proxy server username (optional)
   --oauth-accesstoken string           Access token (optional)
   --oauth-scope [enum | string]        Token scope (default: Default)
-  --oauth-parameters map               Custom parameters
+  --oauth-parameters-<key> string      Custom parameters
   --oauth-preemptexpiry string         The duration (ISO 8601) prior to expiry of current, for a new token to be requested (default: PT1M)
   --oauth-cafile file                  Trusted Certificate Authority (CA) certificate (optional)
   --oauth-endpoint uri                 Token endpoint URL (optional)
@@ -347,9 +351,9 @@ Options:
   --logger-destination file            Log output file (default: output.log)
                                         + Environment variable: PQS_LOGGER_DESTINATION
                                         + System property:      logger.destination
-  --logger-mappings map                Custom mappings for log levels
-                                        + Environment variable: PQS_LOGGER_MAPPINGS
-                                        + System property:      logger.mappings
+  --logger-mappings-<key> string       Custom mappings for log levels
+                                        + Environment variable: PQS_LOGGER_MAPPINGS_<KEY>
+                                        + System property:      logger.mappings.<key>
   --logger-format enum                 Log output format (default: Plain)
                                         + Environment variable: PQS_LOGGER_FORMAT
                                         + System property:      logger.format
@@ -384,9 +388,9 @@ Options:
                                         + Environment variable: PQS_OAUTH_SCOPE
                                         + System property:      oauth.scope
                                         + Enumeration values:   Default, None
-  --oauth-parameters map               Custom parameters
-                                        + Environment variable: PQS_OAUTH_PARAMETERS
-                                        + System property:      oauth.parameters
+  --oauth-parameters-<key> string      Custom parameters
+                                        + Environment variable: PQS_OAUTH_PARAMETERS_<KEY>
+                                        + System property:      oauth.parameters.<key>
   --oauth-preemptexpiry string         The duration (ISO 8601) prior to expiry of current, for a new token to be requested (default: PT1M)
                                         + Environment variable: PQS_OAUTH_PREEMPTEXPIRY
                                         + System property:      oauth.preemptExpiry
@@ -410,29 +414,30 @@ Options:
 Prune transactions to a given offset inclusively
 
 Options:
-  --config file                       Path to configuration overrides via an external HOCON file (optional)
-  --prune-target string               Inclusive boundary up to which to prune. Can be an offset, timestamp (ISO 8601) or duration (ISO 8601)
-  --prune-mode enum                   Precomputes effects of pruning through dry-run, or actually runs it (default: DryRun)
-  --logger-destination file           Log output file (default: output.log)
-  --logger-mappings map               Custom mappings for log levels
-  --logger-format enum                Log output format (default: Plain)
-  --logger-pattern [enum | string]    Log pattern (default: Plain)
-  --logger-level enum                 Log level (default: Info)
-  --postgres-host string              Postgres host (default: localhost)
-  --postgres-probeinterval string     Duration (ISO 8601) of interval between database connectivity probes (PT0S to disable) (default: PT30S)
-  --postgres-appname string           Application name for Postgres connections (default: pqs)
-  --postgres-buffersize int           Buffer size for transactions processing (default: 128)
-  --postgres-tls-mode enum            SSL mode required for Postgres connectivity (default: Disable)
-  --postgres-tls-cert file            Client's certificate (optional)
-  --postgres-tls-key file             Client's private key (optional)
-  --postgres-tls-cafile file          Trusted Certificate Authority (CA) certificate (optional)
-  --postgres-keepalive boolean        Enable/disable TCP keep-alive probe (default: true)
-  --postgres-maxconnections int       Maximum number of JDBC connections (default: 16)
-  --postgres-password string          Postgres user password
-  --postgres-username string          Postgres user name
-  --postgres-schema string            Postgres schema (default: public)
-  --postgres-database string          Postgres database (default: postgres)
-  --postgres-port int                 Postgres port (default: 5432)
+  --config file                         Path to configuration overrides via an external HOCON file (optional)
+  --prune-target string                 Inclusive boundary up to which to prune. Can be an offset, timestamp (ISO 8601) or duration (ISO 8601)
+  --prune-mode enum                     Precomputes effects of pruning through dry-run, or actually runs it (default: DryRun)
+  --logger-destination file             Log output file (default: output.log)
+  --logger-mappings-<key> string        Custom mappings for log levels
+  --logger-format enum                  Log output format (default: Plain)
+  --logger-pattern [enum | string]      Log pattern (default: Plain)
+  --logger-level enum                   Log level (default: Info)
+  --postgres-host string                Postgres host (default: localhost)
+  --postgres-properties-<key> string    Additional pgjdbc connection properties
+  --postgres-probeinterval string       Duration (ISO 8601) of interval between database connectivity probes (PT0S to disable) (default: PT30S)
+  --postgres-appname string             Application name for Postgres connections (default: pqs)
+  --postgres-buffersize int             Buffer size for transactions processing (default: 128)
+  --postgres-tls-mode enum              SSL mode required for Postgres connectivity (default: Disable)
+  --postgres-tls-cert file              Client's certificate (optional)
+  --postgres-tls-key file               Client's private key (optional)
+  --postgres-tls-cafile file            Trusted Certificate Authority (CA) certificate (optional)
+  --postgres-keepalive boolean          Enable/disable TCP keep-alive probe (default: true)
+  --postgres-maxconnections int         Maximum number of JDBC connections (default: 16)
+  --postgres-password string            Postgres user password
+  --postgres-username string            Postgres user name
+  --postgres-schema string              Postgres schema (default: public)
+  --postgres-database string            Postgres database (default: postgres)
+  --postgres-port int                   Postgres port (default: 5432)
 """
     },
     verify(App, Array("datastore", "postgres-document", "prune", HelpVerboseFlag)) {
@@ -441,80 +446,83 @@ Options:
 Prune transactions to a given offset inclusively
 
 Options:
-  --config file                       Path to configuration overrides via an external HOCON file (optional)
-                                       + Environment variable: PQS_CONFIG
-                                       + System property:      config
-  --prune-target string               Inclusive boundary up to which to prune. Can be an offset, timestamp (ISO 8601) or duration (ISO 8601)
-                                       + Environment variable: PQS_PRUNE_TARGET
-                                       + System property:      prune.target
-  --prune-mode enum                   Precomputes effects of pruning through dry-run, or actually runs it (default: DryRun)
-                                       + Environment variable: PQS_PRUNE_MODE
-                                       + System property:      prune.mode
-                                       + Enumeration values:   DryRun, Force
-  --logger-destination file           Log output file (default: output.log)
-                                       + Environment variable: PQS_LOGGER_DESTINATION
-                                       + System property:      logger.destination
-  --logger-mappings map               Custom mappings for log levels
-                                       + Environment variable: PQS_LOGGER_MAPPINGS
-                                       + System property:      logger.mappings
-  --logger-format enum                Log output format (default: Plain)
-                                       + Environment variable: PQS_LOGGER_FORMAT
-                                       + System property:      logger.format
-                                       + Enumeration values:   Plain, PlainAsync, Json, JsonAsync
-  --logger-pattern [enum | string]    Log pattern (default: Plain)
-                                       + Environment variable: PQS_LOGGER_PATTERN
-                                       + System property:      logger.pattern
-                                       + Enumeration values:   Plain, Standard, Structured
-  --logger-level enum                 Log level (default: Info)
-                                       + Environment variable: PQS_LOGGER_LEVEL
-                                       + System property:      logger.level
-                                       + Enumeration values:   All, Fatal, Error, Warning, Info, Debug, Trace, None
-  --postgres-host string              Postgres host (default: localhost)
-                                       + Environment variable: PQS_POSTGRES_HOST
-                                       + System property:      postgres.host
-  --postgres-probeinterval string     Duration (ISO 8601) of interval between database connectivity probes (PT0S to disable) (default: PT30S)
-                                       + Environment variable: PQS_POSTGRES_PROBEINTERVAL
-                                       + System property:      postgres.probeInterval
-  --postgres-appname string           Application name for Postgres connections (default: pqs)
-                                       + Environment variable: PQS_POSTGRES_APPNAME
-                                       + System property:      postgres.appName
-  --postgres-buffersize int           Buffer size for transactions processing (default: 128)
-                                       + Environment variable: PQS_POSTGRES_BUFFERSIZE
-                                       + System property:      postgres.bufferSize
-  --postgres-tls-mode enum            SSL mode required for Postgres connectivity (default: Disable)
-                                       + Environment variable: PQS_POSTGRES_TLS_MODE
-                                       + System property:      postgres.tls.mode
-                                       + Enumeration values:   Disable, Require, VerifyCA, VerifyFull
-  --postgres-tls-cert file            Client's certificate (optional)
-                                       + Environment variable: PQS_POSTGRES_TLS_CERT
-                                       + System property:      postgres.tls.cert
-  --postgres-tls-key file             Client's private key (optional)
-                                       + Environment variable: PQS_POSTGRES_TLS_KEY
-                                       + System property:      postgres.tls.key
-  --postgres-tls-cafile file          Trusted Certificate Authority (CA) certificate (optional)
-                                       + Environment variable: PQS_POSTGRES_TLS_CAFILE
-                                       + System property:      postgres.tls.cafile
-  --postgres-keepalive boolean        Enable/disable TCP keep-alive probe (default: true)
-                                       + Environment variable: PQS_POSTGRES_KEEPALIVE
-                                       + System property:      postgres.keepAlive
-  --postgres-maxconnections int       Maximum number of JDBC connections (default: 16)
-                                       + Environment variable: PQS_POSTGRES_MAXCONNECTIONS
-                                       + System property:      postgres.maxConnections
-  --postgres-password string          Postgres user password
-                                       + Environment variable: PQS_POSTGRES_PASSWORD
-                                       + System property:      postgres.password
-  --postgres-username string          Postgres user name
-                                       + Environment variable: PQS_POSTGRES_USERNAME
-                                       + System property:      postgres.username
-  --postgres-schema string            Postgres schema (default: public)
-                                       + Environment variable: PQS_POSTGRES_SCHEMA
-                                       + System property:      postgres.schema
-  --postgres-database string          Postgres database (default: postgres)
-                                       + Environment variable: PQS_POSTGRES_DATABASE
-                                       + System property:      postgres.database
-  --postgres-port int                 Postgres port (default: 5432)
-                                       + Environment variable: PQS_POSTGRES_PORT
-                                       + System property:      postgres.port
+  --config file                         Path to configuration overrides via an external HOCON file (optional)
+                                         + Environment variable: PQS_CONFIG
+                                         + System property:      config
+  --prune-target string                 Inclusive boundary up to which to prune. Can be an offset, timestamp (ISO 8601) or duration (ISO 8601)
+                                         + Environment variable: PQS_PRUNE_TARGET
+                                         + System property:      prune.target
+  --prune-mode enum                     Precomputes effects of pruning through dry-run, or actually runs it (default: DryRun)
+                                         + Environment variable: PQS_PRUNE_MODE
+                                         + System property:      prune.mode
+                                         + Enumeration values:   DryRun, Force
+  --logger-destination file             Log output file (default: output.log)
+                                         + Environment variable: PQS_LOGGER_DESTINATION
+                                         + System property:      logger.destination
+  --logger-mappings-<key> string        Custom mappings for log levels
+                                         + Environment variable: PQS_LOGGER_MAPPINGS_<KEY>
+                                         + System property:      logger.mappings.<key>
+  --logger-format enum                  Log output format (default: Plain)
+                                         + Environment variable: PQS_LOGGER_FORMAT
+                                         + System property:      logger.format
+                                         + Enumeration values:   Plain, PlainAsync, Json, JsonAsync
+  --logger-pattern [enum | string]      Log pattern (default: Plain)
+                                         + Environment variable: PQS_LOGGER_PATTERN
+                                         + System property:      logger.pattern
+                                         + Enumeration values:   Plain, Standard, Structured
+  --logger-level enum                   Log level (default: Info)
+                                         + Environment variable: PQS_LOGGER_LEVEL
+                                         + System property:      logger.level
+                                         + Enumeration values:   All, Fatal, Error, Warning, Info, Debug, Trace, None
+  --postgres-host string                Postgres host (default: localhost)
+                                         + Environment variable: PQS_POSTGRES_HOST
+                                         + System property:      postgres.host
+  --postgres-properties-<key> string    Additional pgjdbc connection properties
+                                         + Environment variable: PQS_POSTGRES_PROPERTIES_<KEY>
+                                         + System property:      postgres.properties.<key>
+  --postgres-probeinterval string       Duration (ISO 8601) of interval between database connectivity probes (PT0S to disable) (default: PT30S)
+                                         + Environment variable: PQS_POSTGRES_PROBEINTERVAL
+                                         + System property:      postgres.probeInterval
+  --postgres-appname string             Application name for Postgres connections (default: pqs)
+                                         + Environment variable: PQS_POSTGRES_APPNAME
+                                         + System property:      postgres.appName
+  --postgres-buffersize int             Buffer size for transactions processing (default: 128)
+                                         + Environment variable: PQS_POSTGRES_BUFFERSIZE
+                                         + System property:      postgres.bufferSize
+  --postgres-tls-mode enum              SSL mode required for Postgres connectivity (default: Disable)
+                                         + Environment variable: PQS_POSTGRES_TLS_MODE
+                                         + System property:      postgres.tls.mode
+                                         + Enumeration values:   Disable, Require, VerifyCA, VerifyFull
+  --postgres-tls-cert file              Client's certificate (optional)
+                                         + Environment variable: PQS_POSTGRES_TLS_CERT
+                                         + System property:      postgres.tls.cert
+  --postgres-tls-key file               Client's private key (optional)
+                                         + Environment variable: PQS_POSTGRES_TLS_KEY
+                                         + System property:      postgres.tls.key
+  --postgres-tls-cafile file            Trusted Certificate Authority (CA) certificate (optional)
+                                         + Environment variable: PQS_POSTGRES_TLS_CAFILE
+                                         + System property:      postgres.tls.cafile
+  --postgres-keepalive boolean          Enable/disable TCP keep-alive probe (default: true)
+                                         + Environment variable: PQS_POSTGRES_KEEPALIVE
+                                         + System property:      postgres.keepAlive
+  --postgres-maxconnections int         Maximum number of JDBC connections (default: 16)
+                                         + Environment variable: PQS_POSTGRES_MAXCONNECTIONS
+                                         + System property:      postgres.maxConnections
+  --postgres-password string            Postgres user password
+                                         + Environment variable: PQS_POSTGRES_PASSWORD
+                                         + System property:      postgres.password
+  --postgres-username string            Postgres user name
+                                         + Environment variable: PQS_POSTGRES_USERNAME
+                                         + System property:      postgres.username
+  --postgres-schema string              Postgres schema (default: public)
+                                         + Environment variable: PQS_POSTGRES_SCHEMA
+                                         + System property:      postgres.schema
+  --postgres-database string            Postgres database (default: postgres)
+                                         + Environment variable: PQS_POSTGRES_DATABASE
+                                         + System property:      postgres.database
+  --postgres-port int                   Postgres port (default: 5432)
+                                         + Environment variable: PQS_POSTGRES_PORT
+                                         + System property:      postgres.port
 """
     },
     verify(App, Array("pipeline", HelpFlag)) {
@@ -544,7 +552,7 @@ Options:
         paddedOptionLine("  --pipeline-oauth-proxy-user string", "Proxy server username (optional)"),
         paddedOptionLine("  --pipeline-oauth-accesstoken string", "Access token (optional)"),
         paddedOptionLine("  --pipeline-oauth-scope [enum | string]", "Token scope (default: Default)"),
-        paddedOptionLine("  --pipeline-oauth-parameters map", "Custom parameters"),
+        paddedOptionLine("  --pipeline-oauth-parameters-<key> string", "Custom parameters"),
         paddedOptionLine(
           "  --pipeline-oauth-preemptexpiry string",
           "The duration (ISO 8601) prior to expiry of current, for a new token to be requested (default: PT1M)"
@@ -606,10 +614,11 @@ Options:
           "HTTP port to use to expose application health info (default: 8080)"
         ),
         paddedOptionLine("  --logger-level enum", "Log level (default: Info)"),
-        paddedOptionLine("  --logger-mappings map", "Custom mappings for log levels"),
+        paddedOptionLine("  --logger-mappings-<key> string", "Custom mappings for log levels"),
         paddedOptionLine("  --logger-format enum", "Log output format (default: Plain)"),
         paddedOptionLine("  --logger-pattern [enum | string]", "Log pattern (default: Plain)"),
         paddedOptionLine("  --target-postgres-host string", "Postgres host (default: localhost)"),
+        paddedOptionLine("  --target-postgres-properties-<key> string", "Additional pgjdbc connection properties"),
         paddedOptionLine(
           "  --target-postgres-probeinterval string",
           "Duration (ISO 8601) of interval between database connectivity probes (PT0S to disable) (default: PT30S)"
@@ -735,9 +744,9 @@ Options:
         paddedOptionLine("", " + Environment variable: PQS_PIPELINE_OAUTH_SCOPE"),
         paddedOptionLine("", " + System property:      pipeline.oauth.scope"),
         paddedOptionLine("", " + Enumeration values:   Default, None"),
-        paddedOptionLine("  --pipeline-oauth-parameters map", "Custom parameters"),
-        paddedOptionLine("", " + Environment variable: PQS_PIPELINE_OAUTH_PARAMETERS"),
-        paddedOptionLine("", " + System property:      pipeline.oauth.parameters"),
+        paddedOptionLine("  --pipeline-oauth-parameters-<key> string", "Custom parameters"),
+        paddedOptionLine("", " + Environment variable: PQS_PIPELINE_OAUTH_PARAMETERS_<KEY>"),
+        paddedOptionLine("", " + System property:      pipeline.oauth.parameters.<key>"),
         paddedOptionLine(
           "  --pipeline-oauth-preemptexpiry string",
           "The duration (ISO 8601) prior to expiry of current, for a new token to be requested (default: PT1M)"
@@ -822,9 +831,9 @@ Options:
         paddedOptionLine("", " + Environment variable: PQS_LOGGER_LEVEL"),
         paddedOptionLine("", " + System property:      logger.level"),
         paddedOptionLine("", " + Enumeration values:   All, Fatal, Error, Warning, Info, Debug, Trace, None"),
-        paddedOptionLine("  --logger-mappings map", "Custom mappings for log levels"),
-        paddedOptionLine("", " + Environment variable: PQS_LOGGER_MAPPINGS"),
-        paddedOptionLine("", " + System property:      logger.mappings"),
+        paddedOptionLine("  --logger-mappings-<key> string", "Custom mappings for log levels"),
+        paddedOptionLine("", " + Environment variable: PQS_LOGGER_MAPPINGS_<KEY>"),
+        paddedOptionLine("", " + System property:      logger.mappings.<key>"),
         paddedOptionLine("  --logger-format enum", "Log output format (default: Plain)"),
         paddedOptionLine("", " + Environment variable: PQS_LOGGER_FORMAT"),
         paddedOptionLine("", " + System property:      logger.format"),
@@ -836,6 +845,9 @@ Options:
         paddedOptionLine("  --target-postgres-host string", "Postgres host (default: localhost)"),
         paddedOptionLine("", " + Environment variable: PQS_TARGET_POSTGRES_HOST"),
         paddedOptionLine("", " + System property:      target.postgres.host"),
+        paddedOptionLine("  --target-postgres-properties-<key> string", "Additional pgjdbc connection properties"),
+        paddedOptionLine("", " + Environment variable: PQS_TARGET_POSTGRES_PROPERTIES_<KEY>"),
+        paddedOptionLine("", " + System property:      target.postgres.properties.<key>"),
         paddedOptionLine(
           "  --target-postgres-probeinterval string",
           "Duration (ISO 8601) of interval between database connectivity probes (PT0S to disable) (default: PT30S)"

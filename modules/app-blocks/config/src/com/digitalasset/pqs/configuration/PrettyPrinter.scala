@@ -17,8 +17,6 @@ object PrettyPrinter:
           case Section(title, rows) =>
             rows.toList.flatMap(go)
           case Property(path, descriptions, possibleValues) =>
-            val dottedPath = path.mkString(".")
-            val key        = dottedPathToCliFlag(dottedPath)
             val typ = descriptions
               .collectFirst { case `valueTypeRegex`(typeName) => typeName }
               .orElse {
@@ -32,15 +30,17 @@ object PrettyPrinter:
                     }
                     .orElse(Some("enum"))
               }
+            val pathWithKey = if typ.contains("map") then path :+ "<key>" else path
+            val dottedPath  = pathWithKey.mkString(".")
             val defval = descriptions
               .collectFirst { case `defaultValueRegex`(defaultValue) => defaultValue }
             val desc = descriptions.find(isCustomDescription).getOrElse("")
             List(
               OptionInfo(
                 desc,
-                key,
+                dottedPathToCliFlag(dottedPath),
                 None,
-                typ,
+                if typ.contains("map") then Some("string") else typ,
                 defval,
                 Some(dottedPathToEnvVar(envVarPrefix, dottedPath)),
                 Some(dottedPath),

@@ -107,14 +107,14 @@ package object configuration:
 
   private def getDescriptor[T: Descriptor] = for
     args <- ZIO.service[ZIOAppArgs]
-    cmdArgs = fromCommandLineArgs(args.getArgs.toList, Some('-'), Some(',')).mapKeys(_.toLowerCase())
+    cmdArgs = fromCommandLineArgs(args.getArgs.toList, Some('-'), Some(',')).mapParentKeys(_.toLowerCase())
     sysProp = fromSystemProps(Some('.'), Some(','))
     pqsEnv = fromSystemEnv(Some('_'), Some(','), _.startsWith(EnvVarPrefix))
       .at(PropertyTreePath.$(EnvVarPrefix))
-      .mapKeys(_.toUpperCase())
+      .mapParentKeys(_.toUpperCase())
     scribeEnv = fromSystemEnv(Some('_'), Some(','), _.startsWith(LegacyEnvVarPrefix))
       .at(PropertyTreePath.$(LegacyEnvVarPrefix))
-      .mapKeys(_.toUpperCase())
+      .mapParentKeys(_.toUpperCase())
     _ <- warnIfScribePrefixUsed
     env        = pqsEnv.orElse(scribeEnv)
     baseSource = cmdArgs <> sysProp <> env
@@ -123,5 +123,27 @@ package object configuration:
     _            <- configConfig.config.fold(ZIO.unit)(ensureConfigFileExists)
     source = configConfig.config.map(TypesafeConfigSource.fromHoconFile).fold(baseSource)(baseSource <> _)
   yield zio.config.magnolia.descriptor[T] from source
+
+  extension (configSource: ConfigSource)
+    /** Like `mapKeys(f)`, but preserves the last path segment verbatim.
+      *
+      * Needed for `Map[String, String]` fields (e.g. `--target-postgres-properties`) whose entry keys must keep their
+      * original case (pgjdbc requires e.g. `loginTimeout`, `ApplicationName`).
+      */
+    private def mapParentKeys(f: String => String): ConfigSource =
+      configSource match
+        case ConfigSource.OrElse(left, right) =>
+          ConfigSource.OrElse(left.mapParentKeys(f), right.mapParentKeys(f))
+        case reader @ ConfigSource.Reader(_, access) =>
+          def mapParentKeys(path: PropertyTreePath[String]): PropertyTreePath[String] =
+            path.path.lastOption match
+              case None       => path
+              case Some(last) => PropertyTreePath(path.path.dropRight(1).map(_.map(f)) :+ last)
+          def withPathTransform(g: PropertyTreePath[String] => PropertyTreePath[String]) =
+            reader.copy(access = access.map(_.map(fn => path => fn(g(path)))))
+          ConfigSource.OrElse(
+            withPathTransform(_.mapKeys(f)),
+            withPathTransform(mapParentKeys)
+          )
 
 end configuration
