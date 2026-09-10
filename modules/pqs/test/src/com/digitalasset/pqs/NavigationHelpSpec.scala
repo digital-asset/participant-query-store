@@ -96,7 +96,8 @@ Options:
   --postgres-tls-cafile file           Trusted Certificate Authority (CA) certificate (optional)
   --postgres-keepalive boolean         Enable/disable TCP keep-alive probe (default: true)
   --postgres-maxconnections int        Maximum number of JDBC connections (default: 16)
-  --postgres-password string           Postgres user password
+  --postgres-authmode enum             Postgres authentication mode. Entra uses Azure AD credentials from the environment. (default: Password)
+  --postgres-password string           Postgres user password (required for authMode Password) (optional)
   --postgres-username string           Postgres user name
   --postgres-schema string             Postgres schema (default: public)
   --postgres-database string           Postgres database (default: postgres)
@@ -213,7 +214,11 @@ Options:
   --postgres-maxconnections int        Maximum number of JDBC connections (default: 16)
                                         + Environment variable: PQS_POSTGRES_MAXCONNECTIONS
                                         + System property:      postgres.maxConnections
-  --postgres-password string           Postgres user password
+  --postgres-authmode enum             Postgres authentication mode. Entra uses Azure AD credentials from the environment. (default: Password)
+                                        + Environment variable: PQS_POSTGRES_AUTHMODE
+                                        + System property:      postgres.authMode
+                                        + Enumeration values:   Password, Entra
+  --postgres-password string           Postgres user password (required for authMode Password) (optional)
                                         + Environment variable: PQS_POSTGRES_PASSWORD
                                         + System property:      postgres.password
   --postgres-username string           Postgres user name
@@ -428,7 +433,8 @@ Options:
   --postgres-tls-cafile file          Trusted Certificate Authority (CA) certificate (optional)
   --postgres-keepalive boolean        Enable/disable TCP keep-alive probe (default: true)
   --postgres-maxconnections int       Maximum number of JDBC connections (default: 16)
-  --postgres-password string          Postgres user password
+  --postgres-authmode enum            Postgres authentication mode. Entra uses Azure AD credentials from the environment. (default: Password)
+  --postgres-password string          Postgres user password (required for authMode Password) (optional)
   --postgres-username string          Postgres user name
   --postgres-schema string            Postgres schema (default: public)
   --postgres-database string          Postgres database (default: postgres)
@@ -500,7 +506,11 @@ Options:
   --postgres-maxconnections int       Maximum number of JDBC connections (default: 16)
                                        + Environment variable: PQS_POSTGRES_MAXCONNECTIONS
                                        + System property:      postgres.maxConnections
-  --postgres-password string          Postgres user password
+  --postgres-authmode enum            Postgres authentication mode. Entra uses Azure AD credentials from the environment. (default: Password)
+                                       + Environment variable: PQS_POSTGRES_AUTHMODE
+                                       + System property:      postgres.authMode
+                                       + Enumeration values:   Password, Entra
+  --postgres-password string          Postgres user password (required for authMode Password) (optional)
                                        + Environment variable: PQS_POSTGRES_PASSWORD
                                        + System property:      postgres.password
   --postgres-username string          Postgres user name
@@ -640,7 +650,14 @@ Options:
           "  --target-postgres-maxconnections int",
           "Maximum number of JDBC connections (default: 16)"
         ),
-        paddedOptionLine("  --target-postgres-password string", "Postgres user password"),
+        paddedOptionLine(
+          "  --target-postgres-authmode enum",
+          "Postgres authentication mode. Entra uses Azure AD credentials from the environment. (default: Password)"
+        ),
+        paddedOptionLine(
+          "  --target-postgres-password string",
+          "Postgres user password (required for authMode Password) (optional)"
+        ),
         paddedOptionLine("  --target-postgres-username string", "Postgres user name"),
         paddedOptionLine("  --target-postgres-schema string", "Postgres schema (default: public)"),
         paddedOptionLine("  --target-postgres-database string", "Postgres database (default: postgres)"),
@@ -885,7 +902,17 @@ Options:
         ),
         paddedOptionLine("", " + Environment variable: PQS_TARGET_POSTGRES_MAXCONNECTIONS"),
         paddedOptionLine("", " + System property:      target.postgres.maxConnections"),
-        paddedOptionLine("  --target-postgres-password string", "Postgres user password"),
+        paddedOptionLine(
+          "  --target-postgres-authmode enum",
+          "Postgres authentication mode. Entra uses Azure AD credentials from the environment. (default: Password)"
+        ),
+        paddedOptionLine("", " + Environment variable: PQS_TARGET_POSTGRES_AUTHMODE"),
+        paddedOptionLine("", " + System property:      target.postgres.authMode"),
+        paddedOptionLine("", " + Enumeration values:   Password, Entra"),
+        paddedOptionLine(
+          "  --target-postgres-password string",
+          "Postgres user password (required for authMode Password) (optional)"
+        ),
         paddedOptionLine("", " + Environment variable: PQS_TARGET_POSTGRES_PASSWORD"),
         paddedOptionLine("", " + System property:      target.postgres.password"),
         paddedOptionLine("  --target-postgres-username string", "Postgres user name"),

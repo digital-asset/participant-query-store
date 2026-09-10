@@ -358,7 +358,8 @@ object `package` extends RootModule { root =>
         L.zio.zio,
         L.zio.streams,
         L.zio.jdbc,
-        L.jdbc.postgres
+        L.jdbc.postgres,
+        L.azure.identityExtensions
       )
 
       override def moduleDeps = Seq(
@@ -366,6 +367,8 @@ object `package` extends RootModule { root =>
         `app-blocks`.o11y,
         root.backend
       )
+
+      object test extends PqsTests
     }
 
     object document extends PqsModule {

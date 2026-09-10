@@ -150,6 +150,10 @@ package object millbuild {
       val postgres = ivy"org.postgresql:postgresql:42.7.11"
     }
 
+    object azure {
+      val identityExtensions = ivy"com.azure:azure-identity-extensions:1.2.2"
+    }
+
     object bouncyCastle {
       val prov = ivy"org.bouncycastle:bcprov-jdk18on:1.85.2"
       val pkix = ivy"org.bouncycastle:bcpkix-jdk18on:1.85"
