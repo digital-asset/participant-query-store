@@ -45,7 +45,7 @@ final case class DocumentPostgres(
     codec: Dictionary[Codec[Value]],
     entityPkMap: Map[Identifier, EntityTypePk],
     exercisePkMap: Map[(Identifier, ChoiceName), EntityTypePk],
-    getImplementsPks: Map[Identifier, Chunk[EntityTypePk]],
+    implementsPkMap: Map[Identifier, Chunk[EntityTypePk]],
     packageMap: Map[PackageId, PackagePk],
     placeholders: IdPlaceholder.Factory
 ) extends Datastore:
@@ -315,7 +315,7 @@ final case class DocumentPostgres(
 
     def mkArchives(eventPk: IdPlaceholder, txIx: Long, contractId: ContractId, templateId: Identifier) =
       val templateType = entityPkMap(templateId)
-      val interfaces   = getImplementsPks(templateId)
+      val interfaces   = implementsPkMap.getOrElse(templateId, Chunk.empty)
       (interfaces :+ templateType).map { entityType =>
         model.Archive(
           templateId.qualifiedName,
