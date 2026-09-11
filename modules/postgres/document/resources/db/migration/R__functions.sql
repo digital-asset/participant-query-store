@@ -982,6 +982,31 @@ begin
 end
 $$ language plpgsql;
 
+create or replace function print_create_index_for_contract(
+    name text,
+    qname text,
+    expression text,
+    index_type text,
+    index_opclass text default '',
+    use_concurrently boolean default true
+) returns text as $$
+declare
+    tpe_pk bigint;
+begin
+    select __contract_tpe4name(qname) tpe into tpe_pk;
+    return format(
+            'create index %sif not exists %I on %I using %s(%s %s)',
+            case when use_concurrently then 'concurrently ' else '' end,
+            '__contracts_' || tpe_pk || '_' || name || '_idx',
+            '__contracts_' || tpe_pk,
+            index_type,
+            expression,
+            index_opclass
+           );
+end
+$$ language plpgsql;
+comment on function print_create_index_for_contract is 'Returns sql statement that, when executed, will create index concurrently over payload on table partition for corresponding qualified Daml entity.';
+
 create or replace procedure create_index_for_contract(
     name text,
     qname text,
@@ -989,21 +1014,18 @@ create or replace procedure create_index_for_contract(
     index_type text,
     index_opclass text default ''
 ) as $$
-declare
-    tpe_pk bigint;
 begin
-    select __contract_tpe4name(qname) tpe into tpe_pk;
-    execute format(
-            'create index if not exists %I on %I using %s(%s %s)',
-            '__contracts_' || tpe_pk || '_' || name || '_idx',
-            '__contracts_' || tpe_pk,
-            index_type,
+    execute print_create_index_for_contract(
+            name,
+            qname,
             expression,
-            index_opclass
+            index_type,
+            index_opclass,
+            use_concurrently => false
             );
 end;
 $$ language plpgsql;
-comment on procedure create_index_for_contract is 'Create index over payload on table partition for corresponding qualified Daml entity.';
+comment on procedure create_index_for_contract is 'Create index over payload on table partition for corresponding qualified Daml entity, prefer print_create_index_for_contract for concurrent index creation.';
 
 create or replace function creates(
     qname text default null,
