@@ -63,16 +63,24 @@ object ReassignmentSpec extends FuncTest[Service[Ledger] & Postgres & DeployedDa
           "--pipeline-ledger-stop=Latest"
         )
 
-      val createdAtOffset  = Capture[OffsetType]
-      val archivedAtOffset = Capture[OffsetType]
+      val createdAtOffset    = Capture[OffsetType]
+      val unassignedAtOffset = Capture[OffsetType]
+      val assignedAtOffset   = Capture[OffsetType]
+      val archivedAtOffset   = Capture[OffsetType]
       Expect:
+        // `effective_at is null` rather than the timestamp itself: the value of a transaction's
+        // effective time is not predictable from the test, but which rows have one is exactly the
+        // decision being pinned. A reassignment has no ledger effective time and must store none.
         Postgres
-          .query(sql"""select "offset", domain_id from __transactions order by "offset"""")
+          .query(sql"""select "offset", domain_id, effective_at is null
+                       from __transactions order by "offset"""")
           .returns(
             table {
               // submitAndWait guarantees the causal order of these multi-sync transactions
-              createdAtOffset.capture  | null
-              archivedAtOffset.capture | null
+              createdAtOffset.capture    | null | false
+              unassignedAtOffset.capture | null | true
+              assignedAtOffset.capture   | null | true
+              archivedAtOffset.capture   | null | false
             }
           )
 
@@ -88,5 +96,28 @@ object ReassignmentSpec extends FuncTest[Service[Ledger] & Postgres & DeployedDa
           .returns(
             table(dar.get.packageId | s"${pingPong.name}:PingPong:Ping" | "template" | contractId | archivedAtOffset)
           )
+
+      Expect:
+        Postgres
+          .query(sql"""select e."type"::text, e.event_id::text
+                       from __events e join __transactions t on e.tx_ix = t.ix
+                       order by t."offset"""")
+          .returns(
+            table {
+              "create"   | s"($createdAtOffset,0)"
+              "unassign" | s"($unassignedAtOffset,0)"
+              "assign"   | s"($assignedAtOffset,0)"
+              "archive"  | s"($archivedAtOffset,0)"
+            }
+          )
+
+      Expect:
+        // A null effective_at must be ignored by this function's max(), not poison it. The answer
+        // stays the newest *transaction* at or before the cutoff — here the archive, which is also
+        // the newest row overall. Revisiting this function is a separate ticket; this assertion is
+        // what that ticket will change.
+        Postgres
+          .query(sql"select nearest_offset(now())")
+          .returns(table(archivedAtOffset))
     }
   ) @@ onlyCantonVersion(">=3.5")
