@@ -430,8 +430,34 @@ final case class DocumentPostgres(
         val archives = if consuming then mkArchives(pk, txIx, cid, tid) else Chunk.empty
         archives :+ exercise :+ evt
 
-      case rs: ReassignmentEvent =>
-        Chunk( /*TODO*/ )
+      // A reassignment event is recorded as an event only. The reassigned contract itself is not
+      // tracked yet, so no __contracts row is created or updated here — those arrive in M5 with the
+      // columns that make them correct (reassignment_counter, synchronizer_id, life_ix). Converting
+      // an assignment to Event.Created instead would write a second __contracts row for the same
+      // contract, which is the duplicated-contracts corruption the parent design calls out.
+      case evt: ReassignmentEvent.Unassigned =>
+        Chunk(
+          model.Event(
+            Event(
+              pk = pk,
+              txIx = txIx,
+              eventId = evt.eventId,
+              eventType = model.EventType.Unassign
+            )
+          )
+        )
+
+      case evt: ReassignmentEvent.Assigned =>
+        Chunk(
+          model.Event(
+            Event(
+              pk = pk,
+              txIx = txIx,
+              eventId = evt.eventId,
+              eventType = model.EventType.Assign
+            )
+          )
+        )
   }
 end DocumentPostgres
 
