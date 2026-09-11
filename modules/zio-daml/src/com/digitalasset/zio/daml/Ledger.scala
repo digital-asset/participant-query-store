@@ -9,18 +9,18 @@ import com.digitalasset.canonical.{ContractFilter, MetadataFilter, UserRight}
 import com.digitalasset.pqs.configuration.filter.PartyFilterParser.PartyFilter
 import com.digitalasset.pqs.grpc.ZManagedChannel
 import com.digitalasset.transcode.codec.proto.ProtobufCodec
-import com.digitalasset.transcode.schema.{Dictionary, Schema}
+import com.digitalasset.transcode.schema.Dictionary
 import com.digitalasset.zio.daml.ledgerapi.{PartiesService, StateService, UpdateService}
 import zio.{Tag, Task, ZLayer, stream}
 
 object Ledger:
-  val live: ZLayer[ZManagedChannel & Schema & ContractFilter & MetadataFilter & Auth, Throwable, Ledger] =
-    (KnownEntityIdentifiers.live ++ DamlSchema.produce(ProtobufCodec).update(_.matchByPackageId))
+  val live: ZLayer[ZManagedChannel & DamlSchema & ContractFilter & MetadataFilter & Auth, Throwable, Ledger] =
+    DamlSchema.produce(ProtobufCodec).update(_.matchByPackageId)
       >+> (PartiesService.live ++ StateService.live ++ UpdateService.live)
       >>> ZLayer.fromFunction(Ledger.apply)
 
 case class Ledger(
-    knownIdentifiers: KnownEntityIdentifiers,
+    damlSchema: DamlSchema,
     partiesService: PartiesService,
     stateService: StateService,
     updateService: UpdateService
