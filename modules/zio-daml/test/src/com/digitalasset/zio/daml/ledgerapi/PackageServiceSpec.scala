@@ -5,7 +5,6 @@ package com.digitalasset.zio.daml.ledgerapi
 
 import com.daml.ledger.api.v2.package_service
 import com.digitalasset.daml.lf.archive.DarParser
-import com.digitalasset.transcode.schema.{SchemaVisitor, Template}
 import com.digitalasset.zio.daml.FileCache
 import com.google.protobuf.ByteString
 import zio.*
@@ -39,10 +38,6 @@ object PackageServiceSpec extends ZIOSpecDefault:
       def listVettedPackages(request: package_service.ListVettedPackagesRequest) =
         ZIO.die(new NotImplementedError("listVettedPackages is not used by this test"))
 
-  private val schemaVisitor = new SchemaVisitor.Unit:
-    type Result = Seq[Template[Unit]]
-    def collect(entities: Seq[Template[Unit]]): Seq[Template[Unit]] = entities
-
   private val fileCache: RIO[Scope, FileCache] =
     for
       dir        <- ZIO.acquireRelease(ZIO.attempt(os.temp.dir()))(d => ZIO.attempt(os.remove.all(d)).ignore)
@@ -56,11 +51,11 @@ object PackageServiceSpec extends ZIOSpecDefault:
         cache       <- fileCache
         payloads = goodPackage + (badPackageId -> ByteString.copyFromUtf8("not a valid daml-lf archive"))
         service  = PackageService(stubClient(payloads), cache)
-        result <- service.processFromLf(schemaVisitor)
+        schema <- service.getSchema
         logs   <- ZTestLogger.logOutput
       yield assertTrue(
         // The decodable package's template is still processed.
-        result.exists(t =>
+        schema.entities.exists(t =>
           t.templateId.moduleName == "DecodableTestModule" && t.templateId.entityName == "DecodableTestTemplate"
         ),
         // The undecodable one is skipped with a warning rather than failing the whole thing.

@@ -4,7 +4,6 @@
 package com.digitalasset.zio.daml
 
 import com.digitalasset.canonical.{ContractFilter, MetadataFilter}
-import com.digitalasset.pqs.grpc.ZManagedChannel
 import com.digitalasset.pqs.utils.safeequals.===
 import com.digitalasset.zio.daml.ledgerapi.UnknownDamlPackageException
 import com.digitalasset.transcode.schema.*
@@ -122,8 +121,8 @@ final class DamlSchema(
     (inconsistentIncluded, inconsistentExcluded)
 
 object DamlSchema:
-  val layer: ZLayer[ZManagedChannel & FileCache & ContractFilter & MetadataFilter, Throwable, DamlSchema] =
-    PackageService.live >>> ZLayer.fromZIO(DamlSchema.getSchema)
+  val layer: ZLayer[PackageService & ContractFilter & MetadataFilter, Throwable, DamlSchema] =
+    ZLayer.fromZIO(DamlSchema.getSchema)
 
   def produce(sp: SchemaVisitor)(implicit tag: Tag[sp.Result]): ZLayer[DamlSchema, Throwable, sp.Result] =
     ZLayer.fromZIO(processFromDescriptors(sp))
@@ -140,23 +139,13 @@ object DamlSchema:
     result      <- fromEither(resultMaybe).mapError(Throwable(_))
   yield result
 
-  private def getSchema = for
+  private val getSchema = for
     packageService <- service[PackageService]
-    fileCache      <- service[FileCache]
     contractFilter <- service[ContractFilter]
     metadataFilter <- service[MetadataFilter]
-    packageIds     <- packageService.listPackages
-    key = s"descriptors-${packageIds.distinct.sorted.hashCode().toHexString}"
-    schema <- fileCache.cache(key)(Schema.deserialize, Schema.serialize)(getSchemaFromLedger)
-    _      <- logDebug(Debug.showDescriptorsFlat(schema))
+    schema         <- packageService.getSchema
+    _              <- logDebug(Debug.showDescriptorsFlat(schema))
   yield DamlSchema(schema, contractFilter, metadataFilter)
-
-  private def getSchemaFromLedger = for
-    packageService <- service[PackageService]
-    _              <- logInfo("Fetching schema descriptors from ledger")
-    result         <- packageService.processFromLf(DescriptorVisitor)
-    _              <- logDebug("Fetched schema descriptors from ledger")
-  yield result.useStrictPackageMatching(true)
 
   def pretty(ids: Iterable[Set[Identifier]]): String =
     ids.flatten.toSeq.distinct.sorted
