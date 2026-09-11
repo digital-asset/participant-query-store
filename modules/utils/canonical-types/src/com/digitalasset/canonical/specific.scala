@@ -49,7 +49,7 @@ object specific:
       transactionId: TransactionId,
       commandId: CommandId,
       workflowId: WorkflowId,
-      effectiveAt: Instant,
+      effectiveAt: Option[Instant],
       offset: Offset,
       events: Chunk[E],
       domainId: Option[DomainId] = None,

@@ -293,7 +293,7 @@ final case class DocumentPostgres(
         txIx,
         tx.offset,
         Some(tx.transactionId),
-        Some(tx.effectiveAt),
+        tx.effectiveAt,
         tx.domainId,
         Some(tx.workflowId),
         tx.remoteSpan,
