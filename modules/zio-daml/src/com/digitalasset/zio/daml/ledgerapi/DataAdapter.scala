@@ -10,8 +10,7 @@ import com.daml.ledger.api.v2.transaction_filter.TransactionShape
 import com.daml.ledger.api.v2.transaction_filter.TransactionShape.*
 import com.google.protobuf.timestamp.Timestamp
 
-private[ledgerapi] sealed trait DataAdapter[T]:
-  def source: T
+private[ledgerapi] sealed trait DataAdapter:
   def sourceType: String
   def transactionId: String
   def offset: Long
@@ -24,8 +23,7 @@ private[ledgerapi] sealed trait DataAdapter[T]:
   def eventsSize: Int
 
 private[ledgerapi] object DataAdapter:
-  final case class TransactionAdapter(tx: Transaction, txShape: TransactionShape) extends DataAdapter[Transaction]:
-    override def source: Transaction = tx
+  final case class TransactionAdapter(tx: Transaction, txShape: TransactionShape) extends DataAdapter:
     override def sourceType: String =
       val shape = txShape match
         case TRANSACTION_SHAPE_ACS_DELTA      => "ACS delta"
@@ -43,8 +41,7 @@ private[ledgerapi] object DataAdapter:
     override def traceContext: TraceContext                   = tx.getTraceContext
     override def eventsSize: Int                              = tx.events.size
 
-  final case class ReassignmentAdapter(reassignment: Reassignment) extends DataAdapter[Reassignment]:
-    override def source: Reassignment  = reassignment
+  final case class ReassignmentAdapter(reassignment: Reassignment) extends DataAdapter:
     override def sourceType: String    = "reassignment"
     override def transactionId: String = reassignment.updateId
     override def offset: Long          = reassignment.offset

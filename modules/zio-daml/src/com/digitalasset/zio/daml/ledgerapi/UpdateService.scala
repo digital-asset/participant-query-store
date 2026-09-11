@@ -122,7 +122,7 @@ case class UpdateService(
           updateServiceClient
             .getUpdates(req)
             .map(_.update)
-            .collect[DataAdapter[?]] {
+            .collect[DataAdapter] {
               case GetUpdatesResponse.Update.Transaction(value)  => TransactionAdapter(value, transactionShape)
               case GetUpdatesResponse.Update.Reassignment(value) => ReassignmentAdapter(value)
             }
@@ -137,20 +137,20 @@ case class UpdateService(
               }
             }
             .mapZIOPar(16) { (update, updateSpan, seenAt) =>
-              updateSpan.locally {
-                update match
-                  case adapter: TransactionAdapter =>
-                    process(adapter, updateSpan, seenAt) { tx =>
-                      ZIO.foreach(tx.events.to(Chunk))(convertEvent(_, tx.offset, rights)(using codecs, identifiers))
-                    }
-                  case adapter: ReassignmentAdapter =>
-                    process(adapter, updateSpan, seenAt) { rs =>
-                      ZIO.foreach(rs.events.to(Chunk))(convertReassignmentEvent(_, rs.offset)(using identifiers))
-                    }
-              }
+              updateSpan.locally(process(update, updateSpan, seenAt)(convertEvents(_, rights)))
             }
       )
     )
+
+  private def convertEvents(
+      update: DataAdapter,
+      rights: UserRight
+  ): Task[Chunk[TransactionEvent | ReassignmentEvent]] =
+    update match
+      case TransactionAdapter(tx, _) =>
+        ZIO.foreach(tx.events.to(Chunk))(convertEvent(_, tx.offset, rights)(using codecs, identifiers))
+      case ReassignmentAdapter(rs) =>
+        ZIO.foreach(rs.events.to(Chunk))(convertReassignmentEvent(_, rs.offset)(using identifiers))
 
   private def consumerSpan(name: String) =
     traces.attributes(
@@ -160,8 +160,8 @@ case class UpdateService(
       "messaging.operation.type"   -> "process"
     ) @@ traces.root(s"consume $name", SpanKind.CONSUMER)
 
-  private def process[T, E](tx: DataAdapter[T], txSpan: DetachedSpan, seenAt: Long)(
-      eventsConverter: T => Task[Chunk[E]]
+  private def process[E](tx: DataAdapter, txSpan: DetachedSpan, seenAt: Long)(
+      eventsConverter: DataAdapter => Task[Chunk[E]]
   ) =
     val remoteSpan = tx.traceContext.remoteSpanContext
     logs.tag("correlation_id" -> remoteSpan.getOrElse(SpanContext.getInvalid).getTraceId) {
@@ -189,7 +189,7 @@ case class UpdateService(
         _ <- logInfo(s"Converting ${tx.sourceType} ${tx.transactionId} $logAttrs")
         _ <- ZIO.whenCase(remoteSpan) { case Some(rs) => txSpan.addLink(rs, "target" -> "↥ ledger submission") }
         _ <- txSpan.addEvent(s"canonicalizing ${tx.sourceType}")
-        convertedEvents <- eventsConverter(tx.source)
+        convertedEvents <- eventsConverter(tx)
         canonicalTx <- ZIO.attempt {
           Transaction(
             transactionId = TransactionId(tx.transactionId),
