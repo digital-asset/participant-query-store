@@ -5,7 +5,7 @@ package com.digitalasset.zio.daml
 
 import com.digitalasset.auth.Auth
 import com.digitalasset.canonical.specific.{Event, Offset, Transaction, TransactionEvent}
-import com.digitalasset.canonical.{ContractFilter, MetadataFilter, UserRight}
+import com.digitalasset.canonical.UserRight
 import com.digitalasset.pqs.configuration.filter.PartyFilterParser.PartyFilter
 import com.digitalasset.pqs.grpc.ZManagedChannel
 import com.digitalasset.transcode.codec.proto.ProtobufCodec
@@ -14,7 +14,7 @@ import com.digitalasset.zio.daml.ledgerapi.{PartiesService, StateService, Update
 import zio.{Tag, Task, ZLayer, stream}
 
 object Ledger:
-  val live: ZLayer[ZManagedChannel & DamlSchema & ContractFilter & MetadataFilter & Auth, Throwable, Ledger] =
+  val live: ZLayer[ZManagedChannel & DamlSchema & Auth, Throwable, Ledger] =
     DamlSchema.produce(ProtobufCodec).update(_.matchByPackageId)
       >+> (PartiesService.live ++ StateService.live ++ UpdateService.live)
       >>> ZLayer.fromFunction(Ledger.apply)
