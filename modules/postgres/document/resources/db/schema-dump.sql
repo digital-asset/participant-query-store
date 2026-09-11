@@ -29,7 +29,9 @@ SET row_security = off;
 CREATE TYPE public.__event_type AS ENUM (
     'create',
     'archive',
-    'exercise'
+    'exercise',
+    'unassign',
+    'assign'
 );
 
 

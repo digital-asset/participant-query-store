@@ -5,6 +5,7 @@ package com.digitalasset
 
 import com.digitalasset.transcode.schema
 import com.digitalasset.transcode.schema.IdentifierFilter
+import com.digitalasset.canonical.specific.EventId
 import zio.Chunk
 import zio.config.magnolia.Descriptor
 
@@ -39,17 +40,40 @@ package object canonical:
   given metadataFilterDescriptor: Descriptor[MetadataFilter] =
     Descriptor.from(identifierFilterDescriptor.transform(MetadataFilter(_), _.filter))
 
-  case class ReassignmentEvent(
-      unassignId: String,
-      source: DomainId,
-      target: DomainId,
-      submitter: Party,
-      reassignmentCounter: Long,
-      contractId: ContractId,
-      templateId: schema.Identifier,
-      witnessParties: Chunk[Party],
-      assignmentExclusivity: Option[Instant]
-  )
+  /** An event of a `Reassignment` update.
+    *
+    * Deliberately outside the `Event` hierarchy in `specific.scala`: the Ledger API models transaction events and
+    * reassignment events as siblings under "update", with no common supertype, and so does PQS.
+    */
+  sealed trait ReassignmentEvent
+  object ReassignmentEvent:
+    final case class Unassigned(
+        eventId: EventId,
+        reassignmentId: String,
+        source: DomainId,
+        target: DomainId,
+        // Empty if the unassignment happened offline via the repair service
+        submitter: Option[Party],
+        reassignmentCounter: Long,
+        contractId: ContractId,
+        templateId: schema.Identifier,
+        witnesses: Chunk[Party],
+        // Before this time only the submitter of the unassignment can initiate the assignment
+        assignmentExclusivity: Option[Instant]
+    ) extends ReassignmentEvent
+
+    final case class Assigned(
+        eventId: EventId,
+        reassignmentId: String,
+        source: DomainId,
+        target: DomainId,
+        // Empty if the assignment happened offline via the repair service
+        submitter: Option[Party],
+        reassignmentCounter: Long,
+        contractId: ContractId,
+        templateId: schema.Identifier,
+        witnesses: Chunk[Party]
+    ) extends ReassignmentEvent
 
   enum UserRight:
     case AsParties(parties: Set[Party])
