@@ -10,6 +10,7 @@ _Write summary of release_
 
 This release includes the following SQL migrations:
 - _V042__Clear_contract_key_hash_for_interface_views.sql_: clears `contract_key_hash` on interface view rows already stored. Scans `__contracts` once and rewrites only the interface rows that still hold a hash. **[Impact: < 1 min]**
+- _V043__Add_reassignment_event_types.sql_: adds the `assign` and `unassign` labels to the `__event_type` enum. Metadata-only, no table is scanned or rewritten. **[Impact: < 1 min]**
 
 
 ## What's New
@@ -27,6 +28,12 @@ This release includes the following SQL migrations:
 - *BREAKING*: The `org.opencontainers.image.ref.name` label is updated from `scribe` to `participant-query-store`.
 - *BREAKING*: The `OTEL_SERVICE_NAME` environment variable is updated from `scribe` to `pqs`.
 - *BREAKING*: All metrics and attributes prefixes are renamed from `scribe` to `pqs`.
+
+### Reassignment updates are ingested
+
+- PQS now subscribes to reassignments in addition to transactions. Every `Reassignment` received from the ledger is recorded in `__transactions`, and its `Assigned` and `Unassigned` events are recorded in `__events` with the new `assign` and `unassign` types.
+- As a result, the `transactions` view also returns reassignment updates. Their `effective_at` is **null**: a reassignment has no ledger effective time, because no Daml code is interpreted for it. Queries that filter on `effective_at` therefore return transactions only, and `nearest_offset(timestamptz)` — which `prune --before` and `prune --duration` use to resolve their target — still answers with the newest transaction at or before the cutoff.
+- Contracts are not affected: a reassigned contract keeps a single `__contracts` row and is not yet tracked per synchronizer, so `active`, `creates` and `archives` are unchanged.
 
 ### Bug fixes
 
