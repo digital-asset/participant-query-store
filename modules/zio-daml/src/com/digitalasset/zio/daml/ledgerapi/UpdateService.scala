@@ -32,7 +32,7 @@ import scala.reflect.Selectable.reflectiveSelectable
 
 object UpdateService:
   val live: ZLayer[
-    ZManagedChannel & Codecs & KnownEntityIdentifiers,
+    ZManagedChannel & Codecs & DamlSchema,
     Throwable,
     UpdateService
   ] =
@@ -42,7 +42,7 @@ object UpdateService:
 case class UpdateService(
     updateServiceClient: UpdateServiceClient,
     codecs: Codecs,
-    identifiers: KnownEntityIdentifiers
+    identifiers: DamlSchema
 ):
 
   private val txLagGauge = Metric

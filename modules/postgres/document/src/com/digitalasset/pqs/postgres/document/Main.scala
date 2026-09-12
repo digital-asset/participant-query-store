@@ -5,14 +5,15 @@ package com.digitalasset.pqs.postgres.document
 
 import com.digitalasset.auth
 import com.digitalasset.auth.{Auth, TokenService}
-import com.digitalasset.canonical.{ContractFilter, given}
+import com.digitalasset.canonical.{ContractFilter, MetadataFilter, given}
 import com.digitalasset.pqs.app.*
 import com.digitalasset.pqs.configuration
 import com.digitalasset.pqs.logging.FileLogging
 import com.digitalasset.pqs.postgres.{backend, document}
 import com.digitalasset.transcode.schema.IdentifierFilter
 import com.digitalasset.zio.daml
-import com.digitalasset.zio.daml.{DamlSchema, FileCache, LedgerScope}
+import com.digitalasset.zio.daml.{DamlSchema, LedgerScope}
+import com.digitalasset.zio.daml.ledgerapi.PackageService
 import zio.Console.printLine
 import zio.ZIO.{logInfo, logTrace, serviceWithZIO}
 import zio.config.magnolia.{Descriptor, describe}
@@ -62,13 +63,13 @@ object Main extends ComposableApp:
         (config.project(_.ledger.auth) ++ config.project(_.oauth)) >>> Auth.live(LedgerScope),
         TokenService.live,
         config.project(_.ledger) >>> daml.Channel.live,
-        config.project(_.ledger) >>> FileCache.live,
         config.project(_.postgres),
         config.project(_.schema),
         backend.instanceId,
         backend.connectionPool,
-        DamlSchema.schema,
         config.project(_.filter.contracts),
+        ZLayer.succeed(MetadataFilter(IdentifierFilter.AcceptAll)),
+        config.project(_.ledger) >>> PackageService.live >>> DamlSchema.layer,
         DamlSchema.produce(document.SqlSchema)
       )
       .bootstrap(
@@ -87,9 +88,9 @@ object Main extends ComposableApp:
         (config.project(_.ledger.auth) ++ config.project(_.oauth)) >>> Auth.live(LedgerScope),
         TokenService.live,
         config.project(_.ledger) >>> daml.Channel.live,
-        config.project(_.ledger) >>> FileCache.live,
-        DamlSchema.schema,
         config.project(_.filter.contracts),
+        ZLayer.succeed(MetadataFilter(IdentifierFilter.AcceptAll)),
+        config.project(_.ledger) >>> PackageService.live >>> DamlSchema.layer,
         DamlSchema.produce(document.SqlSchema)
       )
       .bootstrap(
