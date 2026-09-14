@@ -539,11 +539,11 @@ object DocumentPostgres:
 
         implementsRelations <- transaction {
           sql"select template_pk, interface_pk from __contract_implements"
-            .query[(Long, Long)]
+            .query[(EntityTypePk, EntityTypePk)]
             .selectAll
         }
         implementsMap = implementsRelations
-          .groupMap((template, _) => EntityTypePk(template))((_, interface) => EntityTypePk(interface))
+          .groupMap((template, _) => template)((_, interface) => interface)
         _ <- logInfo(s"Initialised ${implementsMap.size} contract<->interface mappings")
         _ <- logDebug(pprint(implementsMap, height = Int.MaxValue).toString)
 

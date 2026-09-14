@@ -14,7 +14,7 @@ import org.apache.commons.text.translate.LookupTranslator
 import org.postgresql.PGConnection
 import ujson.Value
 import zio.ZIO.logTrace
-import zio.jdbc.ZConnection
+import zio.jdbc.{JdbcDecoder, ZConnection}
 import zio.jdbc.shims.postgres.PGRestorableConnection
 import zio.metrics.{Metric, MetricLabel}
 import zio.{Chunk, ChunkBuilder, ZIO}
@@ -115,7 +115,9 @@ object model {
     val offset: Offset           = tx.offset
 
   opaque type EntityTypePk <: Long = Long
-  inline def EntityTypePk(value: Long): EntityTypePk = value
+  object EntityTypePk:
+    inline def apply(value: Long): EntityTypePk = value
+    given JdbcDecoder[EntityTypePk] = JdbcDecoder.longDecoder.map(apply)
 
   type PackagePk = Long
 
