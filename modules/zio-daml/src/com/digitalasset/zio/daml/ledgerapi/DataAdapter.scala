@@ -49,8 +49,7 @@ private[ledgerapi] object DataAdapter:
     override def workflowId: String    = reassignment.workflowId
     // A Reassignment carries no ledger effective time: no Daml code is interpreted, so there is
     // nothing for one to be the answer to. `record_time` is a different quantity, set by the
-    // synchronizer rather than the submitting participant, and is deliberately not substituted
-    // here — see `Effective time` in the design.
+    // synchronizer rather than the submitting participant, and is deliberately not substituted here
     override def effectiveAt: Option[Timestamp]               = None
     override def externalTransactionHash: Option[Array[Byte]] = None // no such field on a Reassignment
     override def paidTrafficCost: Option[Long]                = reassignment.paidTrafficCost

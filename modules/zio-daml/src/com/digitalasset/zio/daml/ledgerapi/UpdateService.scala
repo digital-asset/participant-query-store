@@ -55,8 +55,7 @@ case class UpdateService(
 
   // TODO(record-time): lag is measured from the ledger effective time, which only a transaction
   // has, so a reassignment never contributes to it. `record_time` is present on every update and
-  // would let this gauge cover them too — revisit once it is ingested. See
-  // `.ai/features/multi-sync-support/2026-09-11 - TICKET - Store record_time and revisit nearest_offset.md`.
+  // would let this gauge cover them too — revisit once it is ingested.
   inline private def lag(chunk: Iterable[{ def effectiveAt: Option[Timestamp] }]): UIO[Option[Duration]] =
     zio.Clock.instant.map(now =>
       // The first update that has an effective time, not simply the first update: a chunk headed by
@@ -177,8 +176,7 @@ case class UpdateService(
         // TODO(record-time): a reassignment has no ledger effective time, so its span carries no
         // time at all. Both update kinds do carry `record_time` and `synchronizer_id` on the wire;
         // add them here as `daml.record_time` and `daml.synchronizer_id` once those are ingested,
-        // so every update kind is traceable against the database. See
-        // `.ai/features/multi-sync-support/2026-09-11 - TICKET - Store record_time and revisit nearest_offset.md`.
+        // so every update kind is traceable against the database.
         _ <- ZIO.foreachDiscard(tx.effectiveAt.toList) { ts =>
           txSpan.addAttributes("daml.effective_at" -> TimestampConverters.asJavaInstant(ts).toString)
         }

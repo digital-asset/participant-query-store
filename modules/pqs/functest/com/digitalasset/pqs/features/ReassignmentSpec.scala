@@ -115,7 +115,7 @@ object ReassignmentSpec extends FuncTest[Service[Ledger] & Postgres & DeployedDa
         // A null effective_at must be ignored by this function's max(), not poison it. The answer
         // stays the newest *transaction* at or before the cutoff — here the archive, which is also
         // the newest row overall. Revisiting this function is a separate ticket; this assertion is
-        // what that ticket will change.
+        // what that ticket will change - https://github.com/digital-asset/participant-query-store/issues/74
         Postgres
           .query(sql"select nearest_offset(now())")
           .returns(table(archivedAtOffset))

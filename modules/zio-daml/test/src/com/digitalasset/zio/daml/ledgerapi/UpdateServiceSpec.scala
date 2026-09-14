@@ -278,7 +278,6 @@ object UpdateServiceSpec extends ZIOSpecDefault:
             tx.commandId == CommandId("command-1"),
             tx.workflowId == WorkflowId("workflow-1"),
             tx.offset == offset(first),
-            // A Reassignment has no ledger effective time, and the canonical model says so.
             tx.effectiveAt.isEmpty,
             tx.domainId.isEmpty,
             tx.events == Chunk(

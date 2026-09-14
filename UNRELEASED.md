@@ -32,8 +32,6 @@ This release includes the following SQL migrations:
 ### Reassignment updates are ingested
 
 - PQS now subscribes to reassignments in addition to transactions. Every `Reassignment` received from the ledger is recorded in `__transactions`, and its `Assigned` and `Unassigned` events are recorded in `__events` with the new `assign` and `unassign` types.
-- As a result, the `transactions` view also returns reassignment updates. Their `effective_at` is **null**: a reassignment has no ledger effective time, because no Daml code is interpreted for it. Queries that filter on `effective_at` therefore return transactions only, and `nearest_offset(timestamptz)` — which `prune --before` and `prune --duration` use to resolve their target — still answers with the newest transaction at or before the cutoff.
-- Contracts are not affected: a reassigned contract keeps a single `__contracts` row and is not yet tracked per synchronizer, so `active`, `creates` and `archives` are unchanged.
 
 ### Bug fixes
 
