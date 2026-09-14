@@ -112,12 +112,18 @@ object ReassignmentSpec extends FuncTest[Service[Ledger] & Postgres & DeployedDa
           )
 
       Expect:
-        // A null effective_at must be ignored by this function's max(), not poison it. The answer
-        // stays the newest *transaction* at or before the cutoff — here the archive, which is also
-        // the newest row overall. Revisiting this function is a separate ticket; this assertion is
-        // what that ticket will change - https://github.com/digital-asset/participant-query-store/issues/74
+        // A cutoff that falls between the unassign and the assign: later than the create's
+        // effective time, earlier than the archive's, so the only rows at or before it are the
+        // create and the two reassignments. The reassignments carry a null effective_at, so this
+        // function cannot see them — its max() ignores them rather than being poisoned by them,
+        // and the answer is the create rather than the newer unassign. A boundary falling in a
+        // reassignment-only stretch of history is therefore not targetable, which is what
+        // https://github.com/digital-asset/participant-query-store/issues/74 will revisit.
         Postgres
-          .query(sql"select nearest_offset(now())")
-          .returns(table(archivedAtOffset))
+          .query(sql"""select nearest_offset(
+                         (select min(effective_at) + (max(effective_at) - min(effective_at)) / 2
+                          from __transactions)
+                       )""")
+          .returns(table(createdAtOffset))
     }
   ) @@ onlyCantonVersion(">=3.5")

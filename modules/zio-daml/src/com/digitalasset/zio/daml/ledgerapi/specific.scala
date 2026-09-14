@@ -20,9 +20,7 @@ object specific:
   type Codecs = Dictionary[Codec[com.digitalasset.transcode.codec.proto.Value]]
 
   def convertEvent(
-      event: com.daml.ledger.api.v2.event.Event,
-      offsetLong: Long,
-      rights: UserRight
+      event: com.daml.ledger.api.v2.event.Event
   )(using Codecs, DamlSchema): Task[TransactionEvent] = event.event match
     case com.daml.ledger.api.v2.event.Event.Event.Created(evt) =>
       convertCreatedEvent(evt)
@@ -34,13 +32,12 @@ object specific:
       ZIO.fail(new RuntimeException(s"Unsupported event type: ${unsupported.getClass}"))
 
   def convertReassignmentEvent(
-      event: com.daml.ledger.api.v2.reassignment.ReassignmentEvent,
-      offsetLong: Long
+      event: com.daml.ledger.api.v2.reassignment.ReassignmentEvent
   )(using DamlSchema): Task[ReassignmentEvent] = event.event match
     case com.daml.ledger.api.v2.reassignment.ReassignmentEvent.Event.Unassigned(evt) =>
-      convertUnassignedEvent(evt, offsetLong)
+      convertUnassignedEvent(evt)
     case com.daml.ledger.api.v2.reassignment.ReassignmentEvent.Event.Assigned(evt) =>
-      convertAssignedEvent(evt, offsetLong)
+      convertAssignedEvent(evt)
     case unsupported =>
       ZIO.fail(new RuntimeException(s"Unsupported reassignment event type: ${unsupported.getClass}"))
 
@@ -122,15 +119,11 @@ object specific:
     )
 
   private def convertUnassignedEvent(
-      evt: com.daml.ledger.api.v2.reassignment.UnassignedEvent,
-      offsetLong: Long
+      evt: com.daml.ledger.api.v2.reassignment.UnassignedEvent
   )(using DamlSchema): Task[ReassignmentEvent.Unassigned] =
     for templateId <- evt.getTemplateId.toIdentifier()
     yield ReassignmentEvent.Unassigned(
-      // The offset comes from the enclosing Reassignment rather than from the event's own field,
-      // so event_id always agrees with the __transactions row, and so that the id does not depend
-      // on UnassignedEvent.offset/node_id, which are later additions to that message.
-      eventId = EventId(offsetLong, evt.nodeId),
+      eventId = EventId(evt.offset, evt.nodeId),
       reassignmentId = evt.reassignmentId,
       source = DomainId(evt.source),
       target = DomainId(evt.target),
@@ -143,17 +136,15 @@ object specific:
     )
 
   private def convertAssignedEvent(
-      evt: com.daml.ledger.api.v2.reassignment.AssignedEvent,
-      offsetLong: Long
+      evt: com.daml.ledger.api.v2.reassignment.AssignedEvent
   )(using DamlSchema): Task[ReassignmentEvent.Assigned] =
-    // Unlike UnassignedEvent, an AssignedEvent has no offset or node_id of its own: the proto puts
-    // them on the embedded created event ("The offset of this event refers to the offset of the
-    // assignment, while the node_id is the index of within the batch"). The contract's identity
-    // lives there too.
+    // An AssignedEvent has no offset or node_id of its own: the proto puts them on the embedded
+    // created event ("The offset of this event refers to the offset of the assignment, while the
+    // node_id is the index of within the batch"). The contract's identity lives there too.
     val created = evt.getCreatedEvent
     for templateId <- created.getTemplateId.toIdentifier()
     yield ReassignmentEvent.Assigned(
-      eventId = EventId(offsetLong, created.nodeId),
+      eventId = EventId(created.offset, created.nodeId),
       reassignmentId = evt.reassignmentId,
       source = DomainId(evt.source),
       target = DomainId(evt.target),

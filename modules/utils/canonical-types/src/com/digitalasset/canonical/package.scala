@@ -45,14 +45,24 @@ package object canonical:
     * Deliberately outside the `Event` hierarchy in `specific.scala`: the Ledger API models transaction events and
     * reassignment events as siblings under "update", with no common supertype, and so does PQS.
     */
-  sealed trait ReassignmentEvent
+  sealed trait ReassignmentEvent:
+    def eventId: EventId
+    def reassignmentId: String
+    def source: DomainId
+    def target: DomainId
+    // Empty if the reassignment happened offline via the repair service
+    def submitter: Option[Party]
+    def reassignmentCounter: Long
+    def contractId: ContractId
+    def templateId: schema.Identifier
+    def witnesses: Chunk[Party]
+
   object ReassignmentEvent:
     final case class Unassigned(
         eventId: EventId,
         reassignmentId: String,
         source: DomainId,
         target: DomainId,
-        // Empty if the unassignment happened offline via the repair service
         submitter: Option[Party],
         reassignmentCounter: Long,
         contractId: ContractId,
@@ -67,7 +77,6 @@ package object canonical:
         reassignmentId: String,
         source: DomainId,
         target: DomainId,
-        // Empty if the assignment happened offline via the repair service
         submitter: Option[Party],
         reassignmentCounter: Long,
         contractId: ContractId,

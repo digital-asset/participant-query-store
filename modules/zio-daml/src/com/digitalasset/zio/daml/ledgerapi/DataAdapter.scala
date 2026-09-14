@@ -10,7 +10,8 @@ import com.daml.ledger.api.v2.transaction_filter.TransactionShape
 import com.daml.ledger.api.v2.transaction_filter.TransactionShape.*
 import com.google.protobuf.timestamp.Timestamp
 
-private[ledgerapi] sealed trait DataAdapter:
+private[ledgerapi] sealed trait DataAdapter[T]:
+  def source: T
   def sourceType: String
   def transactionId: String
   def offset: Long
@@ -23,7 +24,8 @@ private[ledgerapi] sealed trait DataAdapter:
   def eventsSize: Int
 
 private[ledgerapi] object DataAdapter:
-  final case class TransactionAdapter(tx: Transaction, txShape: TransactionShape) extends DataAdapter:
+  final case class TransactionAdapter(tx: Transaction, txShape: TransactionShape) extends DataAdapter[Transaction]:
+    override def source: Transaction = tx
     override def sourceType: String =
       val shape = txShape match
         case TRANSACTION_SHAPE_ACS_DELTA      => "ACS delta"
@@ -35,13 +37,14 @@ private[ledgerapi] object DataAdapter:
     override def offset: Long                                 = tx.offset
     override def commandId: String                            = tx.commandId
     override def workflowId: String                           = tx.workflowId
-    override def effectiveAt: Option[Timestamp]               = tx.effectiveAt
+    override def effectiveAt: Option[Timestamp]               = Some(tx.getEffectiveAt)
     override def externalTransactionHash: Option[Array[Byte]] = extractors.externalTransactionHash(tx)
     override def paidTrafficCost: Option[Long]                = tx.paidTrafficCost
     override def traceContext: TraceContext                   = tx.getTraceContext
     override def eventsSize: Int                              = tx.events.size
 
-  final case class ReassignmentAdapter(reassignment: Reassignment) extends DataAdapter:
+  final case class ReassignmentAdapter(reassignment: Reassignment) extends DataAdapter[Reassignment]:
+    override def source: Reassignment  = reassignment
     override def sourceType: String    = "reassignment"
     override def transactionId: String = reassignment.updateId
     override def offset: Long          = reassignment.offset
