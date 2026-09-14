@@ -15,7 +15,7 @@ import com.digitalasset.pqs.postgres.document.model.{EntityTypePk, PackagePk, Wa
 import com.digitalasset.pqs.postgres.document.specific.*
 import com.digitalasset.transcode.Codec
 import com.digitalasset.transcode.schema.*
-import com.digitalasset.zio.daml.DamlSchema
+import com.digitalasset.zio.daml.{DamlSchema, JsonCodecs}
 import io.github.classgraph.ClassGraph
 import org.flywaydb.core.Flyway
 import org.flywaydb.core.api.ResourceProvider
@@ -38,7 +38,6 @@ import scala.language.implicitConversions
 import scala.util.Using
 
 final case class DocumentPostgres(
-    config: SchemaConfig,
     poolConfig: PostgresConfig,
     pool: ZConnectionPool,
     schema: SqlSchema,
@@ -52,7 +51,7 @@ final case class DocumentPostgres(
   import com.digitalasset.pqs.postgres.document.specific.offsetEncoder
 
   private val Genesis: Datastore.Checkpoint = (Offset.Genesis, 0L)
-  private val env                           = ZEnvironment(pool) ++ ZEnvironment(config) ++ ZEnvironment(poolConfig)
+  private val env                           = ZEnvironment(pool) ++ ZEnvironment(poolConfig)
   private val tx                            = ZLayer.succeedEnvironment(env) >>> transaction
   private val BatchEntitiesThreshold        = 10_000
   private val BatchReleaseWindow            = 200.millis
@@ -439,62 +438,18 @@ end DocumentPostgres
 object DocumentPostgres:
   def applySchema(
       pgCfg: PostgresConfig,
-      instanceId: InstanceId,
       doBaseline: Boolean
-  ): ZIO[ZConnectionPool & SqlSchema, Throwable, Unit] =
+  ): ZIO[InstanceId & ZConnectionPool & SqlSchema, Throwable, Unit] =
     traces.span("apply schema") {
-      logInfo("Applying schema") *>
-        ZIO.attemptBlocking {
-          Flyway
-            .configure()
-            .dataSource(
-              DriverDataSource(
-                Thread.currentThread().getContextClassLoader,
-                "org.postgresql.Driver",
-                s"jdbc:postgresql://${pgCfg.host}:${pgCfg.port}/${pgCfg.database}?currentSchema=${pgCfg.schema}",
-                pgCfg.username,
-                pgCfg.password.value,
-                (sslprops(pgCfg.tls) ++ instanceIdProp(instanceId)).asJava
-              )
-            )
-            .baselineOnMigrate(doBaseline)
-            .baselineVersion("001")
-            .baselineDescription("Baseline initial schema")
-            .resourceProvider(new ResourceProvider {
-              @SuppressWarnings(Array("org.wartremover.warts.Null"))
-              def getResource(name: String): LoadableResource = null
-              @SuppressWarnings(Array("org.wartremover.warts.TryPartial"))
-              def getResources(prefix: String, suffixes: Array[String]): util.Collection[LoadableResource] =
-                Using
-                  .Manager { use =>
-                    val pathPrefix = "db/migration"
-                    val scanResult = use(ClassGraph().acceptPaths(pathPrefix).scan())
-                    Seq(suffixes*)
-                      .flatMap(suffix => scanResult.getResourcesWithExtension(suffix).asScala.toSeq)
-                      .sortBy(_.getPath)
-                      .map(x =>
-                        new LoadableResource {
-                          private val contents              = use(x).getContentAsString
-                          def read(): Reader                = StringReader(contents)
-                          def getAbsolutePath: String       = x.getURL.toString
-                          def getAbsolutePathOnDisk: String = x.getClasspathElementFile.getAbsolutePath
-                          def getFilename: String           = x.getPath.split('/').last
-                          def getRelativePath: String       = x.getPath.drop(pathPrefix.length + 1)
-                        }
-                      )
-                  }
-                  .get
-                  .asJava
-            })
-            .load()
-            .migrate()
-        }
-    }
-      *> traces.span("apply mappings") {
-        logInfo("Applying mappings") *>
-          ZIO.serviceWithZIO[SqlSchema](schema => logTrace(schema.mappings) *> transaction(schema.mappings.execute))
-      }
-      <* logInfo("Schema and mappings applied")
+      for
+        _          <- logInfo("Applying schema")
+        instanceId <- ZIO.service[InstanceId]
+        _          <- ZIO.attemptBlocking(migrateSchema(pgCfg, instanceId, doBaseline))
+      yield ()
+    } *> traces.span("apply mappings") {
+      logInfo("Applying mappings") *>
+        ZIO.serviceWithZIO[SqlSchema](schema => logTrace(schema.mappings) *> transaction(schema.mappings.execute))
+    } <* logInfo("Schema and mappings applied")
 
   val live = ZLayer.scoped {
     traces.root("process metadata and schema") {
@@ -502,12 +457,11 @@ object DocumentPostgres:
         damlSchema <- ZIO.service[DamlSchema]
         config     <- ZIO.service[SchemaConfig]
         poolConfig <- ZIO.service[PostgresConfig]
-        instanceId <- ZIO.service[InstanceId]
         pool       <- ZIO.service[ZConnectionPool]
         schema     <- ZIO.service[SqlSchema]
-        codec      <- ZIO.service[Dictionary[Codec[Value]]]
+        codec      <- ZIO.service[JsonCodecs]
 
-        _ <- applySchema(poolConfig, instanceId, config.baseline) when config.autoApply // initialize schema if needed
+        _ <- applySchema(poolConfig, config.baseline) when config.autoApply // initialize schema if needed
 
         entities <- transaction {
           sql"""select p.id, ct.module_name, ct.entity_name, ct.pk as pk
@@ -574,7 +528,6 @@ object DocumentPostgres:
         _ <- logDebug(s"Initialised last PK in `__events` table: $lastId")
         placeholders = IdPlaceholder.factory(lastId + 1)
       yield DocumentPostgres(
-        config,
         poolConfig,
         pool,
         schema,
@@ -587,4 +540,49 @@ object DocumentPostgres:
       )
     }
   }
+
+  private def migrateSchema(pgCfg: PostgresConfig, instanceId: InstanceId, doBaseline: Boolean): Unit =
+    Flyway
+      .configure()
+      .dataSource(
+        DriverDataSource(
+          Thread.currentThread().getContextClassLoader,
+          "org.postgresql.Driver",
+          s"jdbc:postgresql://${pgCfg.host}:${pgCfg.port}/${pgCfg.database}?currentSchema=${pgCfg.schema}",
+          pgCfg.username,
+          pgCfg.password.value,
+          (sslprops(pgCfg.tls) ++ instanceIdProp(instanceId)).asJava
+        )
+      )
+      .baselineOnMigrate(doBaseline)
+      .baselineVersion("001")
+      .baselineDescription("Baseline initial schema")
+      .resourceProvider(new ResourceProvider {
+        @SuppressWarnings(Array("org.wartremover.warts.Null"))
+        def getResource(name: String): LoadableResource = null
+        @SuppressWarnings(Array("org.wartremover.warts.TryPartial"))
+        def getResources(prefix: String, suffixes: Array[String]): util.Collection[LoadableResource] =
+          Using
+            .Manager { use =>
+              val pathPrefix = "db/migration"
+              val scanResult = use(ClassGraph().acceptPaths(pathPrefix).scan())
+              Seq(suffixes*)
+                .flatMap(suffix => scanResult.getResourcesWithExtension(suffix).asScala)
+                .sortBy(_.getPath)
+                .map(x =>
+                  new LoadableResource {
+                    private val contents              = use(x).getContentAsString
+                    def read(): Reader                = StringReader(contents)
+                    def getAbsolutePath: String       = x.getURL.toString
+                    def getAbsolutePathOnDisk: String = x.getClasspathElementFile.getAbsolutePath
+                    def getFilename: String           = x.getPath.split('/').last
+                    def getRelativePath: String       = x.getPath.drop(pathPrefix.length + 1)
+                  }
+                )
+            }
+            .get
+            .asJava
+      })
+      .load()
+      .migrate()
 end DocumentPostgres

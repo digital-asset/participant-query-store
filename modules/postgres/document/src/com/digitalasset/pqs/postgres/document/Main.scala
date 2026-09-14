@@ -54,7 +54,7 @@ object Main extends ComposableApp:
       config     <- ZIO.service[backend.SchemaConfig]
       poolConfig <- ZIO.service[backend.PostgresConfig]
       instanceId <- ZIO.service[backend.InstanceId]
-      _          <- document.DocumentPostgres.applySchema(poolConfig, instanceId, config.baseline)
+      _          <- document.DocumentPostgres.applySchema(poolConfig, config.baseline)
       _          <- logInfo("Applied required datastore schema")
       _          <- printLine("Finished applying schema to datastore")
     yield ())

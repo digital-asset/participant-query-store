@@ -6,10 +6,10 @@ package com.digitalasset.zio.daml.ledgerapi
 import com.daml.ledger.api.v2.value.Value
 import com.digitalasset.canonical.*
 import com.digitalasset.canonical.specific.{Event, EventId, TransactionEvent}
-import com.digitalasset.transcode.{Codec, schema}
+import com.digitalasset.transcode.schema
 import com.digitalasset.transcode.schema.*
 import com.digitalasset.pqs.utils.safeequals.=/=
-import com.digitalasset.zio.daml.DamlSchema
+import com.digitalasset.zio.daml.{ProtobufCodecs, DamlSchema}
 import com.google.rpc.error_details.{ErrorInfo, RequestInfo, ResourceInfo, RetryInfo}
 import io.grpc.Status.Code
 import scalapb.TimestampConverters
@@ -17,13 +17,12 @@ import zio.ZIO.{logDebug, logInfo}
 import zio.{Chunk, Task, ZIO}
 
 object specific:
-  type Codecs = Dictionary[Codec[com.digitalasset.transcode.codec.proto.Value]]
 
   def convertEvent(
       event: com.daml.ledger.api.v2.event.Event,
       offsetLong: Long,
       rights: UserRight
-  )(using Codecs, DamlSchema): Task[TransactionEvent] = event.event match
+  )(using ProtobufCodecs, DamlSchema): Task[TransactionEvent] = event.event match
     case com.daml.ledger.api.v2.event.Event.Event.Created(evt) =>
       convertCreatedEvent(evt)
     case com.daml.ledger.api.v2.event.Event.Event.Archived(evt) =>
@@ -35,7 +34,7 @@ object specific:
 
   def convertCreatedEvent(
       evt: com.daml.ledger.api.v2.event.CreatedEvent
-  )(using Codecs, DamlSchema): Task[Event.Created] =
+  )(using codecs: ProtobufCodecs)(using DamlSchema): Task[Event.Created] =
     for {
       templateId <- evt.getTemplateId.toIdentifier(Some(evt.representativePackageId))
       template = evt.createArguments.map { tmpl => (templateId, tmpl) }
@@ -48,10 +47,10 @@ object specific:
       representativePackageId = PackageId(evt.representativePackageId),
       templateQualifiedName = templateId.qualifiedName,
       contractId = ContractId(evt.contractId),
-      contractKey = summon[Codecs].getTemplateKey(templateId).map(_.toDynamicValue(evt.getContractKey)),
+      contractKey = codecs.getTemplateKey(templateId).map(_.toDynamicValue(evt.getContractKey)),
       contractKeyHash = Option.when(!evt.contractKeyHash.isEmpty)(evt.contractKeyHash.toByteArray),
       payloads = payloads.to(Chunk).map { (id, payload) =>
-        id -> summon[Codecs].template(id).toDynamicValue(Value.of(Value.Sum.Record(payload)))
+        id -> codecs.template(id).toDynamicValue(Value.of(Value.Sum.Record(payload)))
       },
       signatories = evt.signatories.to(Chunk).map(Party),
       observers = evt.observers.to(Chunk).map(Party),
@@ -68,7 +67,7 @@ object specific:
   private def convertInterfaceView(
       contractId: String,
       view: com.daml.ledger.api.v2.event.InterfaceView
-  )(using Codecs, DamlSchema): Task[Option[(schema.Identifier, com.daml.ledger.api.v2.value.Record)]] =
+  )(using ProtobufCodecs, DamlSchema): Task[Option[(schema.Identifier, com.daml.ledger.api.v2.value.Record)]] =
     view match {
       case com.daml.ledger.api.v2.event
             .InterfaceView(Some(interfaceId), Some(viewStatus), Some(viewValue), _implementationPackageId)
@@ -112,7 +111,7 @@ object specific:
 
   private def convertExercisedEvent(
       evt: com.daml.ledger.api.v2.event.ExercisedEvent
-  )(using Codecs, DamlSchema): Task[Event.Exercised] =
+  )(using codecs: ProtobufCodecs)(using DamlSchema): Task[Event.Exercised] =
     val entityIdentifier = evt.interfaceId.getOrElse(evt.getTemplateId)
     for
       entitySchemaId <- entityIdentifier.toIdentifier()
@@ -125,8 +124,8 @@ object specific:
       choice = choiceName,
       consuming = evt.consuming,
       contractId = ContractId(evt.contractId),
-      arg = summon[Codecs].choiceArgument(entitySchemaId, choiceName).toDynamicValue(evt.getChoiceArgument),
-      result = summon[Codecs].choiceResult(entitySchemaId, choiceName).toDynamicValue(evt.getExerciseResult),
+      arg = codecs.choiceArgument(entitySchemaId, choiceName).toDynamicValue(evt.getChoiceArgument),
+      result = codecs.choiceResult(entitySchemaId, choiceName).toDynamicValue(evt.getExerciseResult),
       controllers = evt.actingParties.to(Chunk).map(Party),
       witnesses = evt.witnessParties.to(Chunk).map(Party),
       lastDescendant = evt.lastDescendantNodeId

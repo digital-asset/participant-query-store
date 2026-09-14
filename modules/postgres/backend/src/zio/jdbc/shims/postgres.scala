@@ -32,9 +32,6 @@ object postgres {
   class PGRestorableConnection(val underlying: Connection) extends ZConnection.Restorable(underlying: Connection)
 
   def connectionPool(
-      host: String,
-      port: Int,
-      database: String,
       props: Map[String, String]
   ): ZLayer[PostgresConfig, Throwable, ZConnectionPool] = ZLayer.scoped(for
     config <- ZIO.service[PostgresConfig]

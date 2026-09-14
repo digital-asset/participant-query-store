@@ -3,8 +3,10 @@
 
 package com.digitalasset.pqs.services.daml
 
-import java.util.concurrent.atomic.AtomicReference
+import com.digitalasset.canonical.UserRight
 import com.digitalasset.pqs.utils.safeequals.=/=
+
+import java.util.concurrent.atomic.AtomicReference
 
 /** Allocated Daml Party. Party ID is populated after the party is allocated. */
 class Party(private[daml] val prefix: String):
@@ -21,7 +23,8 @@ class Party(private[daml] val prefix: String):
 end Party
 
 /** Service representing allocated parties */
-final case class Parties(get: Seq[Party])
+final case class Parties(get: Seq[Party]):
+  def userRight: UserRight = UserRight.AsParties(get.map(p => com.digitalasset.canonical.Party(p.id)).toSet)
 
 final case class User(
     primaryParty: Party,

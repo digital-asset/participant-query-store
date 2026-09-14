@@ -16,7 +16,7 @@ import com.digitalasset.transcode.schema.Dictionary
 import com.digitalasset.zio.daml.*
 import com.digitalasset.zio.daml.ledgerapi.*
 import com.digitalasset.zio.daml.ledgerapi.DataAdapter.TransactionAdapter
-import com.digitalasset.zio.daml.ledgerapi.specific.{Codecs, convertEvent}
+import com.digitalasset.zio.daml.ledgerapi.specific.convertEvent
 import com.google.protobuf.timestamp.Timestamp
 import io.opentelemetry.api.trace.*
 import io.opentelemetry.api.trace.propagation.internal.W3CTraceContextEncoding
@@ -31,17 +31,13 @@ import scala.language.implicitConversions
 import scala.reflect.Selectable.reflectiveSelectable
 
 object UpdateService:
-  val live: ZLayer[
-    ZManagedChannel & Codecs & DamlSchema,
-    Throwable,
-    UpdateService
-  ] =
+  val live: ZLayer[ZManagedChannel & ProtobufCodecs & DamlSchema, Throwable, UpdateService] =
     UpdateServiceClient.live
       >>> ZLayer.fromFunction(UpdateService.apply)
 
 case class UpdateService(
     updateServiceClient: UpdateServiceClient,
-    codecs: Codecs,
+    codecs: ProtobufCodecs,
     identifiers: DamlSchema
 ):
 

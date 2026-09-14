@@ -12,7 +12,10 @@ import zio.{Cause, IO, ZIO, ZLayer}
 
 object PackageService:
   val live: ZLayer[ZManagedChannel & Config, Throwable, PackageService] =
-    FileCache.live ++ PackageServiceClient.live >>> ZLayer.fromFunction(PackageService.apply)
+    FileCache.live >>> usingFileCacheFromEnv
+
+  val usingFileCacheFromEnv: ZLayer[ZManagedChannel & FileCache, Throwable, PackageService] =
+    PackageServiceClient.live >>> ZLayer.fromFunction(PackageService.apply)
 
 final class PackageService(
     packageServiceClient: PackageServiceClient,
