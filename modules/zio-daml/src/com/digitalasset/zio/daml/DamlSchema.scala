@@ -41,13 +41,6 @@ final class DamlSchema(
   val implements: Map[Identifier, Set[Identifier]] =
     schema.entities.filterNot(_.isInterface).groupMapReduce(x => x.templateId)(x => x.implements.toSet)(_ ++ _)
 
-  lazy val withoutInterfaces: DamlSchema =
-    new DamlSchema(
-      schema,
-      ContractFilter(id => !interfaces.contains(id) && contractFilter.filter(id)),
-      metadataFilter
-    )
-
   lazy val filtered: DamlSchema =
     if includesAll
     then this
@@ -58,7 +51,7 @@ final class DamlSchema(
         metadataFilter
       )
 
-  def process(sp: SchemaVisitor) =
+  def process(sp: SchemaVisitor): ZIO[Any, Throwable, Either[String, sp.Result]] =
     for
       _ <- ZIO.attempt {
         require(
@@ -90,9 +83,12 @@ final class DamlSchema(
 
   private def interfaceImplementationsIntegrityAction: Task[Set[Identifier]] =
     val (inconsistentIncluded, inconsistentExcluded) = findMissingInterfaceImplementations
-    logInfo(
-      s"Extending filter to match missing entities. Filter selects [${DamlSchema.pretty(inconsistentExcluded)}]  which need to be included along with [${DamlSchema.pretty(inconsistentIncluded)}]"
-    ).map(_ => inconsistentExcluded.flatten.toSet)
+    ZIO
+    .logInfo(
+      "Extending filter to match missing entities. " + 
+        s" Filter selects [${DamlSchema.pretty(inconsistentExcluded)}] which need to be included along with [${DamlSchema.pretty(inconsistentIncluded)}]."
+    ).when(inconsistentIncluded.nonEmpty || inconsistentExcluded.nonEmpty)
+      *> ZIO.succeed(inconsistentExcluded.flatten.toSet)
 
   /** Finds all entity types that are not included in the filter but subset of them will be reported by update stream
     * from gRPC API. The expanded set of types will be used to bootstrap database schema, so all elements that may occur
@@ -127,8 +123,6 @@ object DamlSchema:
 
   def produce(sp: SchemaVisitor)(implicit tag: Tag[sp.Result]): ZLayer[DamlSchema, Throwable, sp.Result] =
     ZLayer.fromZIO(processFromDescriptors(sp))
-
-  //
 
   private def processFromDescriptors(sp: SchemaVisitor) = for
     schema <- service[DamlSchema]
