@@ -513,12 +513,15 @@ object DocumentPostgres:
           sql"""select p.id, ct.module_name, ct.entity_name, ct.pk as pk
               from __contract_tpe ct, __packages p
               where ct.package_name = p.name"""
-            .query[(String, String, String, Long)]
+            .query[(String, String, String, EntityTypePk)]
             .selectAll
         }
-        entityPks <- ZIO.foreach(entities)((pkg, m, e, pk) =>
-          damlSchema.toIdentifier(pkg, m, e).map(_ -> EntityTypePk(pk))
-        )
+        entityPks <- ZIO
+          .foreach(entities) { (pkg, m, e, pk) =>
+            // Skip invalid rows silently: Joining on package_name may pair a template with a packageId that doesn't define it
+            damlSchema.toIdentifier(pkg, m, e).option.map(_.map(_ -> pk))
+          }
+          .map(_.flatten)
         entityPkMap: Map[Identifier, EntityTypePk] = entityPks.toMap
         _ <- logInfo(s"Initialised ${entities.size} entity types")
         _ <- logDebug(pprint(entities, height = Int.MaxValue).toString)
@@ -527,13 +530,18 @@ object DocumentPostgres:
           sql"""select p.id, et.module_name, et.entity_name, et.choice, et.pk as pk
               from __exercise_tpe et, __packages p
               where et.package_name = p.name"""
-            .query[(String, String, String, String, Long)]
+            .query[(String, String, String, String, EntityTypePk)]
             .selectAll
         }
         exercisePks <-
-          ZIO.foreach(exercises)((pkg, m, e, c, pk) =>
-            damlSchema.toIdentifier(pkg, m, e).map(id => (id, ChoiceName(c)) -> EntityTypePk(pk))
-          )
+          ZIO
+            .foreach(exercises){ (pkg, m, e, c, pk) =>
+              // Skip invalid rows silently: Joining on package_name may pair a choice with a packageId that doesn't define it
+              damlSchema.toIdentifier(pkg, m, e)
+                .option
+                .map(_.map(id => (id, ChoiceName(c)) -> pk))
+            }
+            .map(_.flatten)
         _ <- logInfo(s"Initialised ${exercises.size} exercise types")
         _ <- logDebug(pprint(exercises, height = Int.MaxValue).toString)
 
