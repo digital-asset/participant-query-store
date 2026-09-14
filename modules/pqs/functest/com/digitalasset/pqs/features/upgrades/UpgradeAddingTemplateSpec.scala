@@ -79,8 +79,8 @@ object UpgradeAddingTemplateSpec extends SharedLedgerAndPostgresTest:
       val dar   = Capture[DeployedDar]
       Given:
         DamlSdk.dar(ping) ++ DamlSdk.parties(alice) ++ Postgres.database
-        >+> DamlSdk.deploy
-        >+> DamlSdk.runScript("Ping:ping", alice.id)
+          >+> DamlSdk.deploy
+          >+> DamlSdk.runScript("Ping:ping", alice.id)
       And:
         dar.captureFromService
 

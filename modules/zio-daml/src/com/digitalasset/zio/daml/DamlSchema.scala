@@ -84,10 +84,11 @@ final class DamlSchema(
   private def interfaceImplementationsIntegrityAction: Task[Set[Identifier]] =
     val (inconsistentIncluded, inconsistentExcluded) = findMissingInterfaceImplementations
     ZIO
-    .logInfo(
-      "Extending filter to match missing entities. " + 
-        s" Filter selects [${DamlSchema.pretty(inconsistentExcluded)}] which need to be included along with [${DamlSchema.pretty(inconsistentIncluded)}]."
-    ).when(inconsistentIncluded.nonEmpty || inconsistentExcluded.nonEmpty)
+      .logInfo(
+        "Extending filter to match missing entities. " +
+          s" Filter selects [${DamlSchema.pretty(inconsistentExcluded)}] which need to be included along with [${DamlSchema.pretty(inconsistentIncluded)}]."
+      )
+      .when(inconsistentIncluded.nonEmpty || inconsistentExcluded.nonEmpty)
       *> ZIO.succeed(inconsistentExcluded.flatten.toSet)
 
   /** Finds all entity types that are not included in the filter but subset of them will be reported by update stream

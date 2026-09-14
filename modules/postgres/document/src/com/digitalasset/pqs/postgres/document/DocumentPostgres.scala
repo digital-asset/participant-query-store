@@ -535,9 +535,10 @@ object DocumentPostgres:
         }
         exercisePks <-
           ZIO
-            .foreach(exercises){ (pkg, m, e, c, pk) =>
+            .foreach(exercises) { (pkg, m, e, c, pk) =>
               // Skip invalid rows silently: Joining on package_name may pair a choice with a packageId that doesn't define it
-              damlSchema.toIdentifier(pkg, m, e)
+              damlSchema
+                .toIdentifier(pkg, m, e)
                 .option
                 .map(_.map(id => (id, ChoiceName(c)) -> pk))
             }

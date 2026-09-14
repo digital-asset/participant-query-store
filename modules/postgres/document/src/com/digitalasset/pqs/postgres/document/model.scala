@@ -117,7 +117,7 @@ object model {
   opaque type EntityTypePk <: Long = Long
   object EntityTypePk:
     inline def apply(value: Long): EntityTypePk = value
-    given JdbcDecoder[EntityTypePk] = JdbcDecoder.longDecoder.map(apply)
+    given JdbcDecoder[EntityTypePk]             = JdbcDecoder.longDecoder.map(apply)
 
   type PackagePk = Long
 
