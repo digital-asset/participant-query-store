@@ -14,7 +14,7 @@ object PackageService:
   val live: ZLayer[ZManagedChannel & Config, Throwable, PackageService] =
     FileCache.live ++ PackageServiceClient.live >>> ZLayer.fromFunction(PackageService.apply)
 
-case class PackageService(
+final class PackageService(
     packageServiceClient: PackageServiceClient,
     fileCache: FileCache
 ):
