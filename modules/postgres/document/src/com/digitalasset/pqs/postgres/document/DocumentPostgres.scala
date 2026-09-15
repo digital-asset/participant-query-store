@@ -4,8 +4,8 @@
 package com.digitalasset.pqs.postgres.document
 
 import com.digitalasset.canonical
-import com.digitalasset.canonical.{ContractId, ReassignmentEvent}
-import com.digitalasset.canonical.specific.{Offset, TreeEvent}
+import com.digitalasset.canonical.ContractId
+import com.digitalasset.canonical.specific.{Offset, ReassignmentEvent, TreeEvent}
 import com.digitalasset.pqs.backend.Datastore
 import com.digitalasset.pqs.o11y.metrics.latency
 import com.digitalasset.pqs.o11y.traces
@@ -436,7 +436,7 @@ final case class DocumentPostgres(
       // columns that make them correct (reassignment_counter, synchronizer_id, life_ix). Converting
       // an assignment to Event.Created instead would write a second __contracts row for the same
       // contract, which is the duplicated-contracts corruption the parent design calls out.
-      case evt: ReassignmentEvent.Unassigned =>
+      case evt: canonical.specific.Event.Unassigned =>
         Chunk(
           model.Event(
             Event(
@@ -448,7 +448,7 @@ final case class DocumentPostgres(
           )
         )
 
-      case evt: ReassignmentEvent.Assigned =>
+      case evt: canonical.specific.Event.Assigned =>
         Chunk(
           model.Event(
             Event(

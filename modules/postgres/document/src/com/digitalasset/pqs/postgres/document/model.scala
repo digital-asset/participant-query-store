@@ -222,7 +222,7 @@ object model {
     value => value.map(implicitly[ValueConverter[A]].convert).mkString("{", ",", "}")
 
   enum EventType:
-    case Create; case Archive; case Exercise; case Assign; case Unassign
+    case Create, Archive, Exercise, Assign, Unassign
   private[document] given eventTypeConverter: ValueConverter[EventType] =
     case EventType.Create   => "create"
     case EventType.Archive  => "archive"

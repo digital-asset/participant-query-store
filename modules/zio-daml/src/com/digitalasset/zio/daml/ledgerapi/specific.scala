@@ -5,7 +5,7 @@ package com.digitalasset.zio.daml.ledgerapi
 
 import com.daml.ledger.api.v2.value.Value
 import com.digitalasset.canonical.*
-import com.digitalasset.canonical.specific.{Event, EventId, TransactionEvent}
+import com.digitalasset.canonical.specific.{Event, EventId, ReassignmentEvent, TransactionEvent}
 import com.digitalasset.transcode.{Codec, schema}
 import com.digitalasset.transcode.schema.*
 import com.digitalasset.pqs.utils.safeequals.=/=
@@ -120,9 +120,9 @@ object specific:
 
   private def convertUnassignedEvent(
       evt: com.daml.ledger.api.v2.reassignment.UnassignedEvent
-  )(using DamlSchema): Task[ReassignmentEvent.Unassigned] =
+  )(using DamlSchema): Task[Event.Unassigned] =
     for templateId <- evt.getTemplateId.toIdentifier()
-    yield ReassignmentEvent.Unassigned(
+    yield Event.Unassigned(
       eventId = EventId(evt.offset, evt.nodeId),
       reassignmentId = evt.reassignmentId,
       source = DomainId(evt.source),
@@ -137,13 +137,13 @@ object specific:
 
   private def convertAssignedEvent(
       evt: com.daml.ledger.api.v2.reassignment.AssignedEvent
-  )(using DamlSchema): Task[ReassignmentEvent.Assigned] =
+  )(using DamlSchema): Task[Event.Assigned] =
     // An AssignedEvent has no offset or node_id of its own: the proto puts them on the embedded
     // created event ("The offset of this event refers to the offset of the assignment, while the
     // node_id is the index of within the batch"). The contract's identity lives there too.
     val created = evt.getCreatedEvent
     for templateId <- created.getTemplateId.toIdentifier()
-    yield ReassignmentEvent.Assigned(
+    yield Event.Assigned(
       eventId = EventId(created.offset, created.nodeId),
       reassignmentId = evt.reassignmentId,
       source = DomainId(evt.source),

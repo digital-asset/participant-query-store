@@ -40,50 +40,6 @@ package object canonical:
   given metadataFilterDescriptor: Descriptor[MetadataFilter] =
     Descriptor.from(identifierFilterDescriptor.transform(MetadataFilter(_), _.filter))
 
-  /** An event of a `Reassignment` update.
-    *
-    * Deliberately outside the `Event` hierarchy in `specific.scala`: the Ledger API models transaction events and
-    * reassignment events as siblings under "update", with no common supertype, and so does PQS.
-    */
-  sealed trait ReassignmentEvent:
-    def eventId: EventId
-    def reassignmentId: String
-    def source: DomainId
-    def target: DomainId
-    // Empty if the reassignment happened offline via the repair service
-    def submitter: Option[Party]
-    def reassignmentCounter: Long
-    def contractId: ContractId
-    def templateId: schema.Identifier
-    def witnesses: Chunk[Party]
-
-  object ReassignmentEvent:
-    final case class Unassigned(
-        eventId: EventId,
-        reassignmentId: String,
-        source: DomainId,
-        target: DomainId,
-        submitter: Option[Party],
-        reassignmentCounter: Long,
-        contractId: ContractId,
-        templateId: schema.Identifier,
-        witnesses: Chunk[Party],
-        // Before this time only the submitter of the unassignment can initiate the assignment
-        assignmentExclusivity: Option[Instant]
-    ) extends ReassignmentEvent
-
-    final case class Assigned(
-        eventId: EventId,
-        reassignmentId: String,
-        source: DomainId,
-        target: DomainId,
-        submitter: Option[Party],
-        reassignmentCounter: Long,
-        contractId: ContractId,
-        templateId: schema.Identifier,
-        witnesses: Chunk[Party]
-    ) extends ReassignmentEvent
-
   enum UserRight:
     case AsParties(parties: Set[Party])
     case AsAnyParty

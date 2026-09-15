@@ -61,8 +61,10 @@ object specific:
   )
 
   sealed trait Event
-  sealed trait TransactionEvent extends Event
-  sealed trait TreeEvent        extends Event
+  sealed trait TransactionEvent  extends Event
+  sealed trait TreeEvent         extends Event
+  sealed trait ReassignmentEvent extends Event
+
   object Event:
     final case class Created(
         eventId: EventId,
@@ -104,4 +106,31 @@ object specific:
         lastDescendant: NodeId
     ) extends TransactionEvent
         with TreeEvent
+
+    final case class Unassigned(
+        eventId: EventId,
+        reassignmentId: String,
+        source: DomainId,
+        target: DomainId,
+        submitter: Option[Party],
+        reassignmentCounter: Long,
+        contractId: ContractId,
+        templateId: schema.Identifier,
+        witnesses: Chunk[Party],
+        // Before this time only the submitter of the unassignment can initiate the assignment
+        assignmentExclusivity: Option[Instant]
+    ) extends ReassignmentEvent
+
+    final case class Assigned(
+        eventId: EventId,
+        reassignmentId: String,
+        source: DomainId,
+        target: DomainId,
+        submitter: Option[Party],
+        reassignmentCounter: Long,
+        contractId: ContractId,
+        templateId: schema.Identifier,
+        witnesses: Chunk[Party]
+    ) extends ReassignmentEvent
+
   end Event
