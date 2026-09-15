@@ -52,7 +52,7 @@ case class UpdateService(
     )
     .contramap[Duration](_.toMillis.toDouble / 1_000)
 
-  // TODO(record-time): lag is measured from the ledger effective time, which only a transaction
+  // TODO #74: lag is measured from the ledger effective time, which only a transaction
   // has, so a reassignment never contributes to it. `record_time` is present on every update and
   // would let this gauge cover them too — revisit once it is ingested.
   inline private def lag(chunk: Iterable[{ def effectiveAt: Option[Timestamp] }]): UIO[Option[Duration]] =
@@ -126,7 +126,7 @@ case class UpdateService(
             }
             .mapChunksZIO { chunk =>
               logInfo(s"Received update responses at offsets: ${offsets(chunk)}") *>
-                lag(chunk).flatMap(latest => ZIO.foreachDiscard(latest.toList)(txLagGauge.update(_))) *>
+                lag(chunk).flatMap(latest => ZIO.foreach(latest)(txLagGauge.update(_))) *>
                 zio.Clock.nanoTime.map(now => chunk.map(_ -> now))
             }
             .mapZIO { (update, seenAt) =>
@@ -170,11 +170,11 @@ case class UpdateService(
           "daml.transaction_id" -> tx.transactionId,
           "daml.workflow_id"    -> tx.workflowId
         )
-        // TODO(record-time): a reassignment has no ledger effective time, so its span carries no
+        // TODO #74: a reassignment has no ledger effective time, so its span carries no
         // time at all. Both update kinds do carry `record_time` and `synchronizer_id` on the wire;
         // add them here as `daml.record_time` and `daml.synchronizer_id` once those are ingested,
         // so every update kind is traceable against the database.
-        _ <- ZIO.foreachDiscard(tx.effectiveAt.toList) { ts =>
+        _ <- ZIO.foreach(tx.effectiveAt) { ts =>
           txSpan.addAttributes("daml.effective_at" -> TimestampConverters.asJavaInstant(ts).toString)
         }
         logAttrs = (Seq("offset" -> tx.offset, "events" -> tx.eventsSize)
