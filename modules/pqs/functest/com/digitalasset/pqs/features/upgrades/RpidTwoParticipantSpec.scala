@@ -171,7 +171,7 @@ object RpidTwoParticipantSpec extends FuncTestStandalone:
           hostname = s"rpid-canton-$cnt"
           dbP1     = s"canton_p1_$cnt"
           dbP2     = s"canton_p2_$cnt"
-          _ <- pg.adminDatabase.transaction(
+          _ <- pg.adminDatabase.autoCommit(
             sql"""CREATE DATABASE "${Syntax(dbP1)}"""".execute *>
               sql"""CREATE DATABASE "${Syntax(dbP2)}"""".execute
           )
