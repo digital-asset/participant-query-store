@@ -52,5 +52,5 @@ case class Ledger(
       rights: UserRight,
       beginExclusive: Offset,
       endInclusive: Offset
-  ): stream.Stream[Throwable, Transaction[Event | ReassignmentEvent]] =
+  ): stream.Stream[Throwable, Transaction[Event]] =
     updateService.getTransactionTrees(rights, beginExclusive, endInclusive)

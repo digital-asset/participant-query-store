@@ -17,10 +17,8 @@ import com.digitalasset.zio.daml.*
 import com.digitalasset.zio.daml.ledgerapi.*
 import com.digitalasset.zio.daml.ledgerapi.DataAdapter.{ReassignmentAdapter, TransactionAdapter}
 import com.digitalasset.zio.daml.ledgerapi.specific.{Codecs, convertEvent, convertReassignmentEvent}
-import com.google.protobuf.timestamp.Timestamp
 import io.opentelemetry.api.trace.*
 import io.opentelemetry.api.trace.propagation.internal.W3CTraceContextEncoding
-import scalapb.TimestampConverters
 import zio.ZIO.{logInfo, logTrace}
 import zio.metrics.Metric
 import zio.stream.ZStream
@@ -82,7 +80,7 @@ case class UpdateService(
       rights: UserRight,
       beginExclusive: Offset,
       endInclusive: Offset
-  ): stream.Stream[Throwable, Transaction[Event | ReassignmentEvent]] =
+  ): stream.Stream[Throwable, Transaction[Event]] =
     getTransactionByShape(
       rights,
       beginExclusive,

@@ -3,13 +3,8 @@
 
 package com.digitalasset
 
-import com.digitalasset.transcode.schema
 import com.digitalasset.transcode.schema.IdentifierFilter
-import com.digitalasset.canonical.specific.EventId
-import zio.Chunk
 import zio.config.magnolia.Descriptor
-
-import java.time.Instant
 
 package object canonical:
   opaque type Party <: String = String
