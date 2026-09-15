@@ -15,6 +15,7 @@ import com.digitalasset.pqs.postgres.document.model.{EntityTypePk, PackagePk, Wa
 import com.digitalasset.pqs.postgres.document.specific.*
 import com.digitalasset.transcode.Codec
 import com.digitalasset.transcode.schema.*
+import com.digitalasset.zio.daml.DamlSchema
 import io.github.classgraph.ClassGraph
 import org.flywaydb.core.Flyway
 import org.flywaydb.core.api.ResourceProvider
@@ -42,9 +43,9 @@ final case class DocumentPostgres(
     pool: ZConnectionPool,
     schema: SqlSchema,
     codec: Dictionary[Codec[Value]],
-    getEntityPk: Identifier => EntityTypePk,
-    getExercisePk: (Identifier, ChoiceName) => EntityTypePk,
-    getImplementsPks: Identifier => Chunk[EntityTypePk],
+    entityPkMap: Map[Identifier, EntityTypePk],
+    exercisePkMap: Map[(Identifier, ChoiceName), EntityTypePk],
+    implementsPkMap: Map[Identifier, Chunk[EntityTypePk]],
     packageMap: Map[PackageId, PackagePk],
     placeholders: IdPlaceholder.Factory
 ) extends Datastore:
@@ -313,8 +314,8 @@ final case class DocumentPostgres(
     val pk = placeholders.mk
 
     def mkArchives(eventPk: IdPlaceholder, txIx: Long, contractId: ContractId, templateId: Identifier) =
-      val templateType = getEntityPk(templateId)
-      val interfaces   = getImplementsPks(templateId)
+      val templateType = entityPkMap(templateId)
+      val interfaces   = implementsPkMap.getOrElse(templateId, Chunk.empty)
       (interfaces :+ templateType).map { entityType =>
         model.Archive(
           templateId.qualifiedName,
@@ -355,7 +356,7 @@ final case class DocumentPostgres(
           model.Contract(
             Contract(
               qualifiedName = templateQualifiedName,
-              entityType = getEntityPk(entityId),
+              entityType = entityPkMap(entityId),
               createEventPk = pk,
               createdAtIx = txIx,
               contractId = cid,
@@ -413,8 +414,8 @@ final case class DocumentPostgres(
         val exercise = model.Exercise(
           Exercise(
             qualifiedName = tid.qualifiedName,
-            entityType = getExercisePk(entityId, choice),
-            contractEntityType = getEntityPk(entityId),
+            entityType = exercisePkMap(entityId, choice),
+            contractEntityType = entityPkMap(entityId),
             exerciseEventPk = pk,
             exercisedAt = txIx,
             contractId = cid,
@@ -498,6 +499,7 @@ object DocumentPostgres:
   val live = ZLayer.scoped {
     traces.root("process metadata and schema") {
       for
+        damlSchema <- ZIO.service[DamlSchema]
         config     <- ZIO.service[SchemaConfig]
         poolConfig <- ZIO.service[PostgresConfig]
         instanceId <- ZIO.service[InstanceId]
@@ -514,8 +516,13 @@ object DocumentPostgres:
             .query[(String, String, String, EntityTypePk)]
             .selectAll
         }
-        entityTypesMap = entities.map((pkg, module, entity, pk) => (pkg, module, entity) -> pk).toMap
-        getEntityType  = (id: Identifier) => entityTypesMap(id.packageId, id.moduleName, id.entityName)
+        entityPks <- ZIO
+          .foreach(entities) { (pkg, m, e, pk) =>
+            // Skip invalid rows silently: Joining on package_name may pair a template with a packageId that doesn't define it
+            damlSchema.toIdentifier(pkg, m, e).option.map(_.map(_ -> pk))
+          }
+          .map(_.flatten)
+        entityPkMap: Map[Identifier, EntityTypePk] = entityPks.toMap
         _ <- logInfo(s"Initialised ${entities.size} entity types")
         _ <- logDebug(pprint(entities, height = Int.MaxValue).toString)
 
@@ -526,11 +533,16 @@ object DocumentPostgres:
             .query[(String, String, String, String, EntityTypePk)]
             .selectAll
         }
-        exercisesTypesMap = exercises
-          .map((pkg, module, entity, choice, pk) => (pkg, module, entity, choice) -> pk)
-          .toMap
-        getExerciseType = (id: Identifier, choice: ChoiceName) =>
-          exercisesTypesMap(id.packageId, id.moduleName, id.entityName, choice)
+        exercisePks <-
+          ZIO
+            .foreach(exercises) { (pkg, m, e, c, pk) =>
+              // Skip invalid rows silently: Joining on package_name may pair a choice with a packageId that doesn't define it
+              damlSchema
+                .toIdentifier(pkg, m, e)
+                .option
+                .map(_.map(id => (id, ChoiceName(c)) -> pk))
+            }
+            .map(_.flatten)
         _ <- logInfo(s"Initialised ${exercises.size} exercise types")
         _ <- logDebug(pprint(exercises, height = Int.MaxValue).toString)
 
@@ -539,8 +551,8 @@ object DocumentPostgres:
             .query[(EntityTypePk, EntityTypePk)]
             .selectAll
         }
-        implementsMap = implementsRelations.groupMap(_._1)(_._2)
-        getImplements = (id: Identifier) => Chunk.from(implementsMap.get(getEntityType(id))).flatten
+        implementsMap = implementsRelations
+          .groupMap((template, _) => template)((_, interface) => interface)
         _ <- logInfo(s"Initialised ${implementsMap.size} contract<->interface mappings")
         _ <- logDebug(pprint(implementsMap, height = Int.MaxValue).toString)
 
@@ -567,9 +579,9 @@ object DocumentPostgres:
         pool,
         schema,
         codec,
-        getEntityType,
-        getExerciseType,
-        getImplements,
+        entityPkMap,
+        exercisePks.toMap,
+        entityPkMap.flatMap((id, pk) => implementsMap.get(pk).map(id -> _)),
         packageMap,
         placeholders
       )

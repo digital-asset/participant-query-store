@@ -7,7 +7,7 @@ import com.daml.ledger.api.v2.transaction_filter.*
 import com.digitalasset.canonical.UserRight.AsAnyParty
 import com.digitalasset.canonical.{ContractFilter, MetadataFilter, Party, UserRight}
 import com.digitalasset.transcode.schema.*
-import com.digitalasset.zio.daml.KnownEntityIdentifiers
+import com.digitalasset.zio.daml.DamlSchema
 import zio.test.*
 
 /** Verifies the filter shapes produced by [[mkEventFormat]].
@@ -66,17 +66,18 @@ object MkEventFormatSpec extends ZIOSpecDefault:
     *   - TTemplate1 implements IInterface1 + IInterface2;
     *   - TTemplate2 has no interfaces.
     */
-  private val schemaWithInterfaces: Seq[Template[Unit]] = Seq(
-    mkInterface(interface1),
-    mkInterface(interface2),
-    mkTemplate(template1, Seq(interface1, interface2)),
-    mkTemplate(template2)
+  private val schemaWithInterfaces: Dictionary[Descriptor] = Dictionary(
+    Seq(
+      mkInterface(interface1),
+      mkInterface(interface2),
+      mkTemplate(template1, Seq(interface1, interface2)),
+      mkTemplate(template2)
+    )
   )
 
   /** Schema without interfaces: TTemplate1 and TTemplate2 are plain templates. */
-  private val schemaWithoutInterfaces: Seq[Template[Unit]] = Seq(
-    mkTemplate(template1),
-    mkTemplate(template2)
+  private val schemaWithoutInterfaces: Dictionary[Descriptor] = Dictionary(
+    Seq(mkTemplate(template1), mkTemplate(template2))
   )
 
   private val acceptAllContracts: ContractFilter = ContractFilter(IdentifierFilter.AcceptAll)
@@ -86,7 +87,7 @@ object MkEventFormatSpec extends ZIOSpecDefault:
   def spec: Spec[Any, Nothing] = suite("mkEventFormat")(
     suite("IF branch: AcceptAll contracts (open subscription)")(
       test("Case 1: AcceptAll + AcceptAll metadata, no interfaces") {
-        val knownIds = new KnownEntityIdentifiers(schemaWithoutInterfaces, acceptAllContracts, acceptAllMetadata)
+        val knownIds = new DamlSchema(schemaWithoutInterfaces, acceptAllContracts, acceptAllMetadata)
 
         assertTrue(
           mkEventFormat(AsAnyParty, knownIds) == EventFormat(
@@ -107,7 +108,7 @@ object MkEventFormatSpec extends ZIOSpecDefault:
         )
       },
       test("Case 2: AcceptAll + AcceptAll metadata, with interfaces") {
-        val knownIds = new KnownEntityIdentifiers(schemaWithInterfaces, acceptAllContracts, acceptAllMetadata)
+        val knownIds = new DamlSchema(schemaWithInterfaces, acceptAllContracts, acceptAllMetadata)
 
         assertTrue(
           mkEventFormat(AsAnyParty, knownIds) == EventFormat(
@@ -146,7 +147,7 @@ object MkEventFormatSpec extends ZIOSpecDefault:
         )
       },
       test("Case 3: AcceptAll + RejectAll metadata, no interfaces") {
-        val knownIds = new KnownEntityIdentifiers(schemaWithoutInterfaces, acceptAllContracts, rejectAllMetadata)
+        val knownIds = new DamlSchema(schemaWithoutInterfaces, acceptAllContracts, rejectAllMetadata)
 
         assertTrue(
           mkEventFormat(AsAnyParty, knownIds) == EventFormat(
@@ -167,7 +168,7 @@ object MkEventFormatSpec extends ZIOSpecDefault:
         )
       },
       test("Case 4: AcceptAll + RejectAll metadata, with interfaces") {
-        val knownIds = new KnownEntityIdentifiers(schemaWithInterfaces, acceptAllContracts, rejectAllMetadata)
+        val knownIds = new DamlSchema(schemaWithInterfaces, acceptAllContracts, rejectAllMetadata)
 
         assertTrue(
           mkEventFormat(AsAnyParty, knownIds) == EventFormat(
@@ -207,7 +208,7 @@ object MkEventFormatSpec extends ZIOSpecDefault:
       },
       test("Case 5: AcceptAll + Selective metadata (TTemplate2), no interfaces") {
         val knownIds =
-          new KnownEntityIdentifiers(schemaWithoutInterfaces, acceptAllContracts, selectiveMetadata(template2))
+          new DamlSchema(schemaWithoutInterfaces, acceptAllContracts, selectiveMetadata(template2))
 
         assertTrue(
           mkEventFormat(AsAnyParty, knownIds) == EventFormat(
@@ -234,7 +235,7 @@ object MkEventFormatSpec extends ZIOSpecDefault:
       },
       test("Case 6: AcceptAll + Selective metadata (IInterface2 | TTemplate2), with interfaces") {
         val knownIds =
-          new KnownEntityIdentifiers(schemaWithInterfaces, acceptAllContracts, selectiveMetadata(interface2, template2))
+          new DamlSchema(schemaWithInterfaces, acceptAllContracts, selectiveMetadata(interface2, template2))
 
         assertTrue(
           mkEventFormat(AsAnyParty, knownIds) == EventFormat(
@@ -281,7 +282,7 @@ object MkEventFormatSpec extends ZIOSpecDefault:
     suite("ELSE branch: Selective contracts (closed subscription)")(
       test("Case 7: Selective (TTemplate1) + AcceptAll metadata, no interfaces") {
         val knownIds =
-          new KnownEntityIdentifiers(schemaWithoutInterfaces, selectiveContracts(template1), acceptAllMetadata)
+          new DamlSchema(schemaWithoutInterfaces, selectiveContracts(template1), acceptAllMetadata)
 
         assertTrue(
           mkEventFormat(AsAnyParty, knownIds) == EventFormat(
@@ -302,7 +303,7 @@ object MkEventFormatSpec extends ZIOSpecDefault:
         )
       },
       test("Case 8: Selective (TTemplate1 | IInterface1 | IInterface2) + AcceptAll metadata, with interfaces") {
-        val knownIds = new KnownEntityIdentifiers(
+        val knownIds = new DamlSchema(
           schemaWithInterfaces,
           selectiveContracts(template1, interface1, interface2),
           acceptAllMetadata
@@ -346,7 +347,7 @@ object MkEventFormatSpec extends ZIOSpecDefault:
       },
       test("Case 9: Selective (TTemplate1) + RejectAll metadata, no interfaces") {
         val knownIds =
-          new KnownEntityIdentifiers(schemaWithoutInterfaces, selectiveContracts(template1), rejectAllMetadata)
+          new DamlSchema(schemaWithoutInterfaces, selectiveContracts(template1), rejectAllMetadata)
 
         assertTrue(
           mkEventFormat(AsAnyParty, knownIds) == EventFormat(
@@ -367,7 +368,7 @@ object MkEventFormatSpec extends ZIOSpecDefault:
         )
       },
       test("Case 10: Selective (TTemplate1 | IInterface1 | IInterface2) + RejectAll metadata, with interfaces") {
-        val knownIds = new KnownEntityIdentifiers(
+        val knownIds = new DamlSchema(
           schemaWithInterfaces,
           selectiveContracts(template1, interface1, interface2),
           rejectAllMetadata
@@ -410,7 +411,7 @@ object MkEventFormatSpec extends ZIOSpecDefault:
         )
       },
       test("Case 11: Selective (TTemplate1) + Selective metadata (TTemplate1), no interfaces") {
-        val knownIds = new KnownEntityIdentifiers(
+        val knownIds = new DamlSchema(
           schemaWithoutInterfaces,
           selectiveContracts(template1),
           selectiveMetadata(template1)
@@ -437,7 +438,7 @@ object MkEventFormatSpec extends ZIOSpecDefault:
       test(
         "Case 12: Selective (TTemplate1 | IInterface1 | IInterface2) + Selective metadata (IInterface2), with interfaces"
       ) {
-        val knownIds = new KnownEntityIdentifiers(
+        val knownIds = new DamlSchema(
           schemaWithInterfaces,
           selectiveContracts(template1, interface1, interface2),
           selectiveMetadata(interface2)
@@ -484,7 +485,7 @@ object MkEventFormatSpec extends ZIOSpecDefault:
       test("AsParties populates filtersByParty for every party and leaves filtersForAnyParty empty") {
         val userRight = UserRight.AsParties(Set(alice, bob))
         val knownIds =
-          new KnownEntityIdentifiers(schemaWithInterfaces, acceptAllContracts, selectiveMetadata(interface2, template2))
+          new DamlSchema(schemaWithInterfaces, acceptAllContracts, selectiveMetadata(interface2, template2))
 
         val expectedFilters = Filters(
           Seq(
@@ -533,20 +534,20 @@ object MkEventFormatSpec extends ZIOSpecDefault:
     )
   )
 
-  private def mkTemplate(id: Identifier, implements: Seq[Identifier] = Seq.empty): Template[Unit] =
-    Template[Unit](
+  private def mkTemplate(id: Identifier, implements: Seq[Identifier] = Seq.empty): Template[Descriptor] =
+    Template(
       templateId = id,
-      payload = (),
+      payload = Descriptor.unit,
       key = None,
       isInterface = false,
       implements = implements,
       choices = Seq.empty
     )
 
-  private def mkInterface(id: Identifier): Template[Unit] =
-    Template[Unit](
+  private def mkInterface(id: Identifier): Template[Descriptor] =
+    Template(
       templateId = id,
-      payload = (),
+      payload = Descriptor.unit,
       key = None,
       isInterface = true,
       implements = Seq.empty,

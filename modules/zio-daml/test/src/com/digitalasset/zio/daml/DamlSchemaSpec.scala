@@ -15,10 +15,12 @@ import com.digitalasset.transcode.schema.{
   Template
 }
 import com.digitalasset.zio.daml.DamlSchemaSpec.test
-import com.digitalasset.zio.daml.{DamlSchema, KnownEntityIdentifiers}
+import com.digitalasset.zio.daml.DamlSchema
 import zio.internal.stacktracer.SourceLocation
 import zio.test.Assertion.{hasSameElements, isEmpty}
 import zio.test.{Spec, TestConstructor, TestResult, ZIOSpecDefault, assert}
+import com.digitalasset.transcode.schema.Descriptor
+import com.digitalasset.transcode.schema.Dictionary
 
 object DamlSchemaSpec extends ZIOSpecDefault:
   private def identifier(entity: String): Identifier =
@@ -27,29 +29,26 @@ object DamlSchemaSpec extends ZIOSpecDefault:
   private val j: Identifier = identifier("J")
   private val t: Identifier = identifier("T")
   private val s: Identifier = identifier("S")
-  private def template(identifier: Identifier, implements: Seq[Identifier] = Seq.empty): Template[Unit] =
-    Template[Unit](
+  private def template(identifier: Identifier, implements: Seq[Identifier] = Seq.empty): Template[Descriptor] =
+    Template(
       templateId = identifier,
-      payload = (),
+      payload = Descriptor.unit,
       key = None,
       isInterface = false,
       implements = implements,
       choices = Seq.empty
     )
-  private def interface(identifier: Identifier): Template[Unit] =
-    Template[Unit](
+  private def interface(identifier: Identifier): Template[Descriptor] =
+    Template[Descriptor](
       templateId = identifier,
-      payload = (),
+      payload = Descriptor.unit,
       key = None,
       isInterface = true,
       implements = Seq.empty,
       choices = Seq.empty
     )
-  private val schema: Seq[Template[?]] = Seq(
-    interface(i),
-    interface(j),
-    template(t, Seq(i, j)),
-    template(s, Seq(i))
+  private val entities: Dictionary[Descriptor] = Dictionary(
+    Seq(interface(i), interface(j), template(t, Seq(i, j)), template(s, Seq(i)))
   )
 
   private def filterString(entities: Identifier*) =
@@ -62,34 +61,34 @@ object DamlSchemaSpec extends ZIOSpecDefault:
   ): testConstructor.Out =
     def names(entities: Iterable[Identifier]) = entities.map(_.entityName).mkString("[", " ", "]")
     test(s"filter for ${names(filter)} extends to ${names(expectedExcluded)}"):
-      val knownIdentifiers = new KnownEntityIdentifiers(
-        schema = schema,
+      val schema = new DamlSchema(
+        schema = entities,
         contractFilter = ContractFilter(filterString(filter*)),
         metadataFilter = MetadataFilter(IdentifierFilter.AcceptAll)
       )
-      val (actualIncluded, actualExcluded) = DamlSchema.findMissingInterfaceImplementations(knownIdentifiers)
+      val (actualIncluded, actualExcluded) = schema.findMissingInterfaceImplementations
       assert(actualIncluded.flatten.toSet)(hasSameElements(filter.toSet))
       assert(actualExcluded.flatten.toSet)(hasSameElements(expectedExcluded))
 
   def spec: Spec[Any, Nothing] = suite("DamlSchema")(
     suite("query extension")(
       test("empty schema doesn't result in extended filters"):
-        val knownIdentifiers = new KnownEntityIdentifiers(
-          schema = Seq.empty,
+        val schema = new DamlSchema(
+          schema = Dictionary(Seq.empty),
           contractFilter = ContractFilter(IdentifierFilter.AcceptAll),
           metadataFilter = MetadataFilter(IdentifierFilter.AcceptAll)
         )
-        val (actualIncluded, actualExcluded) = DamlSchema.findMissingInterfaceImplementations(knownIdentifiers)
+        val (actualIncluded, actualExcluded) = schema.findMissingInterfaceImplementations
         assert(actualIncluded)(isEmpty)
         assert(actualExcluded)(isEmpty)
       ,
       test("schema of [T] and filter for [T] doesn't result in extended filter"):
-        val knownIdentifiers = new KnownEntityIdentifiers(
-          schema = Seq(template(t)),
+        val schema = new DamlSchema(
+          schema = Dictionary(Seq(template(t))),
           contractFilter = ContractFilter(filterString(t)),
           metadataFilter = MetadataFilter(IdentifierFilter.AcceptAll)
         )
-        val (actualIncluded, actualExcluded) = DamlSchema.findMissingInterfaceImplementations(knownIdentifiers)
+        val (actualIncluded, actualExcluded) = schema.findMissingInterfaceImplementations
         assert(actualIncluded)(isEmpty)
         assert(actualExcluded)(isEmpty)
       ,

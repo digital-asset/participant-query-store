@@ -12,7 +12,7 @@ import com.digitalasset.canonical.specific.Offset
 import com.digitalasset.canonical.{ContractFilter, MetadataFilter}
 import com.digitalasset.zio.daml.ledgerapi.specific.Codecs
 import com.digitalasset.transcode.schema.{Dictionary, IdentifierFilter}
-import com.digitalasset.zio.daml.KnownEntityIdentifiers
+import com.digitalasset.zio.daml.DamlSchema
 import com.digitalasset.zio.daml.ledgerapi.UpdateServiceClientMock.GetUpdates
 import io.grpc.{Status, StatusException}
 import zio.*
@@ -33,9 +33,9 @@ object UpdateServiceSpec extends ZIOSpecDefault:
 
   private val emptyDictionaryLayer: ULayer[Codecs] = ZLayer.succeed(Dictionary(Seq.empty))
 
-  private val emptyKnownIdsLayer: ULayer[KnownEntityIdentifiers] = ZLayer.succeed {
-    new KnownEntityIdentifiers(
-      schema = Seq.empty,
+  private val emptyKnownIdsLayer: ULayer[DamlSchema] = ZLayer.succeed {
+    new DamlSchema(
+      schema = Dictionary(Seq.empty),
       contractFilter = ContractFilter(IdentifierFilter.AcceptAll),
       metadataFilter = MetadataFilter(IdentifierFilter.AcceptAll)
     )

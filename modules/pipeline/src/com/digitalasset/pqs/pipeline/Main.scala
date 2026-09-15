@@ -16,7 +16,7 @@ import com.digitalasset.pqs.postgres.backend
 import com.digitalasset.pqs.postgres.document.{DocumentPostgres, SqlSchema}
 import com.digitalasset.pqs.{app, configuration, pipeline}
 import com.digitalasset.transcode.codec.json.JsonCodec
-import com.digitalasset.transcode.schema.{Dictionary, Schema}
+import com.digitalasset.transcode.schema.Dictionary
 import com.digitalasset.zio.daml
 import com.digitalasset.zio.daml.*
 import com.digitalasset.zio.daml.ledgerapi.UnknownDamlPackageException
@@ -68,7 +68,11 @@ object Main extends ComposableApp:
       >+> DocumentPostgres.live
 
   def execute(
-      destinationLayer: ZLayer[Schema & ConfigPipeline & backend.InstanceId & ZConnectionPool, Throwable, Datastore],
+      destinationLayer: ZLayer[
+        DamlSchema & ConfigPipeline & backend.InstanceId & ZConnectionPool,
+        Throwable,
+        Datastore
+      ],
       config: ZLayer[Any, Throwable, ConfigPipeline],
       withTelemetry: Boolean
   ) =
@@ -88,7 +92,7 @@ object Main extends ComposableApp:
       .provideSome[ConfigPipeline & backend.InstanceId & ZConnectionPool & ZManagedChannel & FileCache & Auth](
         c.project(_.pipeline.filter.contracts),
         c.project(_.pipeline.filter.metadata),
-        DamlSchema.schema,
+        DamlSchema.layer,
         Ledger.live,
         c.project(_.pipeline) >>> Pipeline.layer,
         destinationLayer

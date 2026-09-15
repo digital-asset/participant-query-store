@@ -5,7 +5,7 @@ package com.digitalasset.pqs.postgres.document
 
 import com.digitalasset.auth
 import com.digitalasset.auth.{Auth, TokenService}
-import com.digitalasset.canonical.{ContractFilter, given}
+import com.digitalasset.canonical.{ContractFilter, MetadataFilter, given}
 import com.digitalasset.pqs.app.*
 import com.digitalasset.pqs.configuration
 import com.digitalasset.pqs.logging.FileLogging
@@ -67,8 +67,9 @@ object Main extends ComposableApp:
         config.project(_.schema),
         backend.instanceId,
         backend.connectionPool,
-        DamlSchema.schema,
         config.project(_.filter.contracts),
+        ZLayer.succeed(MetadataFilter(IdentifierFilter.AcceptAll)),
+        DamlSchema.layer,
         DamlSchema.produce(document.SqlSchema)
       )
       .bootstrap(
@@ -88,8 +89,9 @@ object Main extends ComposableApp:
         TokenService.live,
         config.project(_.ledger) >>> daml.Channel.live,
         config.project(_.ledger) >>> FileCache.live,
-        DamlSchema.schema,
         config.project(_.filter.contracts),
+        ZLayer.succeed(MetadataFilter(IdentifierFilter.AcceptAll)),
+        DamlSchema.layer,
         DamlSchema.produce(document.SqlSchema)
       )
       .bootstrap(
