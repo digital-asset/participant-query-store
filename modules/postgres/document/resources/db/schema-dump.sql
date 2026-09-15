@@ -871,17 +871,14 @@ $$;
 CREATE PROCEDURE public.create_index_for_contract(IN name text, IN qname text, IN expression text, IN index_type text, IN index_opclass text DEFAULT ''::text)
     LANGUAGE plpgsql
     AS $$
-declare
-    tpe_pk bigint;
 begin
-    select __contract_tpe4name(qname) tpe into tpe_pk;
-    execute format(
-            'create index if not exists %I on %I using %s(%s %s)',
-            '__contracts_' || tpe_pk || '_' || name || '_idx',
-            '__contracts_' || tpe_pk,
-            index_type,
+    execute print_create_index_for_contract(
+            name,
+            qname,
             expression,
-            index_opclass
+            index_type,
+            index_opclass,
+            use_concurrently => false
             );
 end;
 $$;
@@ -991,6 +988,30 @@ CREATE FUNCTION public.oldest_checkpoint() RETURNS SETOF public.checkpoint
     LANGUAGE sql STABLE ROWS 1 PARALLEL SAFE
     AS $$
     select "offset", ix from __transactions order by "offset" limit 1;
+$$;
+
+
+--
+-- Name: print_create_index_for_contract(text, text, text, text, text, boolean); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.print_create_index_for_contract(name text, qname text, expression text, index_type text, index_opclass text DEFAULT ''::text, use_concurrently boolean DEFAULT true) RETURNS text
+    LANGUAGE plpgsql
+    AS $$
+declare
+    tpe_pk bigint;
+begin
+    select __contract_tpe4name(qname) tpe into tpe_pk;
+    return format(
+            'create index %sif not exists %I on %I using %s(%s %s)',
+            case when use_concurrently then 'concurrently ' else '' end,
+            '__contracts_' || tpe_pk || '_' || name || '_idx',
+            '__contracts_' || tpe_pk,
+            index_type,
+            expression,
+            index_opclass
+           );
+end
 $$;
 
 

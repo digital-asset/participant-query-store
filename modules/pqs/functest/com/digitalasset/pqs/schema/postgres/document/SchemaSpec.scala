@@ -12,8 +12,9 @@ import com.digitalasset.pqs.services.pqs.Pqs
 import com.digitalasset.pqs.specific.{eventIdSqlType, offsetSqlType}
 import com.digitalasset.transcode.schema.packageName
 import zio.ZLayer
-import zio.jdbc.sqlInterpolator
+import zio.jdbc.{SqlFragment, sqlInterpolator}
 import zio.test.*
+import zio.test.Assertion.equalTo
 
 import scala.language.{implicitConversions, postfixOps}
 
@@ -369,7 +370,7 @@ object SchemaSpec extends SharedLedgerAndPostgresTest:
             sql"call create_index_for_contract($indexName, $contractName, '(payload->>''receiver'')', $indexType);"
           } `returns` ()
         And:
-          for {
+          for
             tpe_pk <-
               Postgres
                 .get {
@@ -390,7 +391,45 @@ object SchemaSpec extends SharedLedgerAndPostgresTest:
             } `returns` table {
               s"__contracts_$tpe_pk" | s"__contracts_${tpe_pk}_${indexName}_idx" | indexType
             }
-          } yield result
+          yield result
+    ),
+    suite("print_create_index_for_contract")(
+      funcTest("creates index on partition"):
+        val contractName    = s"${pingPong.name.packageName}:PingPong:Ping"
+        val indexName       = "test-index-name-2"
+        val indexExpression = "(payload->>'receiver')"
+        val indexType       = "hash"
+        Given:
+          context
+        When:
+          Pqs.runPipeline("--pipeline-ledger-stop=Latest")
+        Then:
+          for
+            tpe_pk <- Postgres
+              .get {
+                sql"select __contract_tpe4name($contractName);"
+              }
+              .map(_.get)
+            queryConcurrently <- Postgres
+              .get {
+                sql"select print_create_index_for_contract($indexName, $contractName, $indexExpression, $indexType);"
+              }
+              .map(_.get)
+            query <- Postgres
+              .get {
+                sql"select print_create_index_for_contract($indexName, $contractName, $indexExpression, $indexType, use_concurrently => false);"
+              }
+              .map(_.get)
+          yield zio.test.assert(queryConcurrently)(
+            equalTo(
+              s"""create index concurrently if not exists "__contracts_${tpe_pk}_${indexName}_idx" on __contracts_$tpe_pk using $indexType($indexExpression )"""
+            )
+          ) &&
+            zio.test.assert(query)(
+              equalTo(
+                s"""create index if not exists "__contracts_${tpe_pk}_${indexName}_idx" on __contracts_$tpe_pk using $indexType($indexExpression )"""
+              )
+            )
     ),
     suite("migrations")(
       funcTest("manage schema evolution with Flyway"):
