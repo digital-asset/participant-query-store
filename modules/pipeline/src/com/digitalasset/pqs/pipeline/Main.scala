@@ -19,7 +19,7 @@ import com.digitalasset.transcode.codec.json.JsonCodec
 import com.digitalasset.transcode.schema.Dictionary
 import com.digitalasset.zio.daml
 import com.digitalasset.zio.daml.*
-import com.digitalasset.zio.daml.ledgerapi.UnknownDamlPackageException
+import com.digitalasset.zio.daml.ledgerapi.{PackageService, UnknownDamlPackageException}
 import fastparse.*
 import io.grpc.Status.Code
 import org.postgresql.util.{PSQLException, PSQLState}
@@ -89,10 +89,10 @@ object Main extends ComposableApp:
           .orElse(ConsoleLogging.default)
     ZIO
       .serviceWithZIO[Pipeline](_.run)
-      .provideSome[ConfigPipeline & backend.InstanceId & ZConnectionPool & ZManagedChannel & FileCache & Auth](
+      .provideSome[ConfigPipeline & backend.InstanceId & ZConnectionPool & ZManagedChannel & Auth](
         c.project(_.pipeline.filter.contracts),
         c.project(_.pipeline.filter.metadata),
-        DamlSchema.layer,
+        c.project(_.source.ledger) >>> PackageService.live >>> DamlSchema.layer,
         Ledger.live,
         c.project(_.pipeline) >>> Pipeline.layer,
         destinationLayer
@@ -108,8 +108,6 @@ object Main extends ComposableApp:
           // TokenService has its own lifecycle management and retry, so we don't need it to be restarted on pipeline retries
           >+> TokenService.live
           >+> (c.project(_.source.ledger) >>> com.digitalasset.zio.daml.Channel.live)
-          // FileCache is persistent so cached packages survive pipeline retries (avoids redundant fetches)
-          >+> (c.project(_.source.ledger) >>> FileCache.live)
           >+> c.project(_.health)
           >+> Health.live,
         c.project(_.retry) >>> ZLayer.fromFunction((c: Retry.Config) => Retry.retryRecoverable(c)(isRecoverable))
