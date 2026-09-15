@@ -18,7 +18,7 @@ import zio.stream.{Stream, ZStream}
 import zio.{IO, ZLayer}
 
 object StateService:
-  val live: ZLayer[ZManagedChannel & Codecs & KnownEntityIdentifiers, Throwable, StateService] =
+  val live: ZLayer[ZManagedChannel & Codecs & DamlSchema, Throwable, StateService] =
     (StateServiceClient.live ++ UpdateServiceClient.live)
       >>> ZLayer.fromFunction(StateService.apply)
 
@@ -26,7 +26,7 @@ case class StateService(
     stateServiceClient: StateServiceClient,
     updateServiceClient: UpdateServiceClient,
     codecs: Codecs,
-    identifiers: KnownEntityIdentifiers
+    damlSchema: DamlSchema
 ):
 
   def getActiveContracts(
@@ -34,12 +34,12 @@ case class StateService(
       activeAtOffset: Offset.Absolute
   ): Stream[Throwable, Event.Created] =
     ZStream.unwrap(
-      for _ <- logFilterContents(identifiers)
+      for _ <- logFilterContents(damlSchema)
       yield stateServiceClient
         .getActiveContracts(
           GetActiveContractsRequest(
             activeAtOffset = activeAtOffset.toActiveAtLedgerOffset,
-            eventFormat = Some(mkEventFormat(rights, identifiers)),
+            eventFormat = Some(mkEventFormat(rights, damlSchema)),
             streamContinuationToken = None
           )
         )
@@ -47,7 +47,7 @@ case class StateService(
         .collectSome
         .mapZIO(evt =>
           logDebug(s"Converting active contract") *>
-            convertCreatedEvent(evt)(using codecs, identifiers)
+            convertCreatedEvent(evt)(using codecs, damlSchema)
               .tap { conv =>
                 logTrace(s"Ledger event: ${pprint(evt, height = Int.MaxValue)}") *>
                   logTrace(s"Canonical event: ${pprint(conv, height = Int.MaxValue)}")

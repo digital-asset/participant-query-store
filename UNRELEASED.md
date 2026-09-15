@@ -40,3 +40,4 @@ This release includes the following SQL migrations:
 - Bump Flyway to 13.4.0.
 - Add a `--target-postgres-properties-<key>=<value>` to pass arbitrary additional pgjdbc connection properties through to the driver. Enables driver-level features such as JDBC authentication plugins (e.g. Azure Entra ID, AWS RDS IAM).
   Example: `--target-postgres-properties-authenticationPluginClassName=com.azure.identity.extensions.jdbc.postgresql.AzurePostgresqlAuthenticationPlugin`
+- add `print_create_index_for_contract` sql function to generate sql statement to create index for contract concurrently

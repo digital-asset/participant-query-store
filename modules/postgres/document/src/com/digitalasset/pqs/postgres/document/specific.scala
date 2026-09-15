@@ -120,9 +120,9 @@ object specific:
       "divulged_only"
     )
     val rowValues =
-      model.values(entityType)(createEventPk)(createdAtIx)(contractId)(payload)(contractKey)(contractKeyHash)(metadata)(
-        packagePk
-      )(creationPackageId)(signatories)(observers)(witnesses)(!acsDelta)
+      model.values(entityType: Long)(createEventPk)(createdAtIx)(contractId)(payload)(contractKey)(contractKeyHash)(
+        metadata
+      )(packagePk)(creationPackageId)(signatories)(observers)(witnesses)(!acsDelta)
 
   final case class Exercise(
       qualifiedName: String,
@@ -152,6 +152,7 @@ object specific:
       "last_descendant_node_id",
       "package_pk"
     )
-    val rowValues = model.values(entityType)(contractEntityType)(exerciseEventPk)(exercisedAt)(contractId)(argument)(
-      result
-    )(controllers)(witnesses)(lastDescendant)(packagePk)
+    val rowValues =
+      model.values(entityType: Long)(contractEntityType: Long)(exerciseEventPk)(exercisedAt)(contractId)(argument)(
+        result
+      )(controllers)(witnesses)(lastDescendant)(packagePk)

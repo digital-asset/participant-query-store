@@ -18,10 +18,8 @@ import com.digitalasset.pqs.services.daml.CantonConf
 import com.digitalasset.pqs.services.postgres.*
 import com.digitalasset.transcode.codec.json.JsonCodec
 import com.digitalasset.transcode.schema.IdentifierFilter
-import com.digitalasset.transcode.schema.Schema
 import com.digitalasset.zio.daml.Config as DamlConfig
 import com.digitalasset.zio.daml.DamlSchema
-import com.digitalasset.zio.daml.FileCache
 import com.digitalasset.zio.daml.KeepAlive
 import com.digitalasset.zio.daml.TlsConfig as DamlTlsConfig
 import zio.Scope
@@ -35,7 +33,7 @@ import zio.test.ZTestLogger
   *
   * This is contrary to the standard way in works functest - where pqs is run in docker.
   */
-object InProcessPipelineSupport:
+object InProcessPipeline:
   def runPipelineWithLogCapture(
       pipelineConfig: pipeline.Config,
       healthConfig: health.Config = health.Config()
@@ -143,7 +141,7 @@ object InProcessPipelineSupport:
     )
 
   private def buildDestinationLayer: ZLayer[
-    Schema & Main.ConfigPipeline,
+    DamlSchema & Main.ConfigPipeline,
     Throwable,
     com.digitalasset.pqs.backend.Datastore
   ] =
@@ -162,17 +160,6 @@ object InProcessPipelineSupport:
 
   private def metadataFilterLayer: ZLayer[Any, Nothing, MetadataFilter] =
     ZLayer.succeed(MetadataFilter(IdentifierFilter.RejectAll))
-
-  private def fileCacheLayer: ZLayer[Any, Throwable, FileCache] =
-    ZLayer.fromZIO {
-      for
-        cacheDir <- ZIO.attempt(os.Path(File("/tmp/pqs-test-cache")))
-        _        <- ZIO.attempt(os.makeDir.all(cacheDir))
-        semaphores <- zio.Ref.Synchronized.make(
-          Map.empty[String, zio.Semaphore]
-        )
-      yield new FileCache(cacheDir, semaphores)
-    }
 
   private def postgresConfigLayer(
       database: String
