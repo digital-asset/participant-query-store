@@ -5,7 +5,7 @@ package com.digitalasset.pqs.postgres.document
 
 import com.digitalasset.canonical
 import com.digitalasset.canonical.ContractId
-import com.digitalasset.canonical.specific.{Offset, ReassignmentEvent, TreeEvent}
+import com.digitalasset.canonical.specific.Offset
 import com.digitalasset.pqs.backend.Datastore
 import com.digitalasset.pqs.o11y.metrics.latency
 import com.digitalasset.pqs.o11y.traces
@@ -123,7 +123,7 @@ final case class DocumentPostgres(
   private def convertTransactionEventsToStatements(n: Int) =
     val trackConvert = latency("pipeline_convert_transaction", "Latency of converting transactions")
     type TX = (
-        canonical.specific.Transaction[canonical.specific.Event | TreeEvent | ReassignmentEvent],
+        canonical.specific.Transaction[canonical.specific.Event],
         Datastore.TransactionIndex
     )
     ZPipeline
@@ -286,7 +286,7 @@ final case class DocumentPostgres(
   )
 
   private def convertTransactionToSqlStatements(
-      tx: canonical.specific.Transaction[canonical.specific.Event | TreeEvent | ReassignmentEvent],
+      tx: canonical.specific.Transaction[canonical.specific.Event],
       txIx: Long
   ): Chunk[model.Model] =
     val insertTx = model.Transaction(
@@ -309,7 +309,7 @@ final case class DocumentPostgres(
 
   private def insertEvent(
       txIx: Long,
-      event: canonical.specific.Event | TreeEvent | ReassignmentEvent
+      event: canonical.specific.Event
   ): Chunk[model.Model] = {
     val pk = placeholders.mk
 
