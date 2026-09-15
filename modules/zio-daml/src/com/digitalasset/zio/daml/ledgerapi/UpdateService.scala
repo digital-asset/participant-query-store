@@ -26,7 +26,7 @@ import zio.metrics.Metric
 import zio.stream.ZStream
 import zio.{Chunk, Task, UIO, ZIO, ZLayer, stream}
 
-import java.time.Duration
+import java.time.{Duration, Instant}
 import scala.language.implicitConversions
 import scala.reflect.Selectable.reflectiveSelectable
 
@@ -55,7 +55,7 @@ case class UpdateService(
   // TODO #74: lag is measured from the ledger effective time, which only a transaction
   // has, so a reassignment never contributes to it. `record_time` is present on every update and
   // would let this gauge cover them too — revisit once it is ingested.
-  inline private def lag(chunk: Iterable[{ def effectiveAt: Option[Timestamp] }]): UIO[Option[Duration]] =
+  inline private def lag(chunk: Iterable[{ def effectiveAt: Option[Instant] }]): UIO[Option[Duration]] =
     zio.Clock.instant.map(now =>
       // The first update that has an effective time, not simply the first update: a chunk headed by
       // a reassignment can still hold transactions, and their lag is worth reporting. A chunk with
@@ -63,7 +63,7 @@ case class UpdateService(
       chunk.iterator
         .flatMap(_.effectiveAt)
         .nextOption()
-        .map(ts => Duration.between(TimestampConverters.asJavaInstant(ts), now))
+        .map(ts => Duration.between(ts, now))
     )
 
   def getTransactions(
@@ -175,7 +175,7 @@ case class UpdateService(
         // add them here as `daml.record_time` and `daml.synchronizer_id` once those are ingested,
         // so every update kind is traceable against the database.
         _ <- ZIO.foreach(tx.effectiveAt) { ts =>
-          txSpan.addAttributes("daml.effective_at" -> TimestampConverters.asJavaInstant(ts).toString)
+          txSpan.addAttributes("daml.effective_at" -> ts.toString)
         }
         logAttrs = (Seq("offset" -> tx.offset, "events" -> tx.eventsSize)
           ++ remoteSpan.map("remote trace" -> _.getTraceId))
@@ -190,7 +190,7 @@ case class UpdateService(
             transactionId = TransactionId(tx.transactionId),
             commandId = CommandId(tx.commandId),
             workflowId = WorkflowId(tx.workflowId),
-            effectiveAt = tx.effectiveAt.map(TimestampConverters.asJavaInstant),
+            effectiveAt = tx.effectiveAt,
             offset = tx.offset.toOffset,
             events = convertedEvents,
             externalTransactionHash = tx.externalTransactionHash,
