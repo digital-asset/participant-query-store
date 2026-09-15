@@ -46,7 +46,7 @@ final class DamlSchema(
     then this
     else
       new DamlSchema(
-        Dictionary(schema.entities.filter(x => contractFilter.filter(x.templateId))),
+        schema.copy(entities = schema.entities.filter(x => contractFilter.filter(x.templateId))),
         contractFilter,
         metadataFilter
       )
