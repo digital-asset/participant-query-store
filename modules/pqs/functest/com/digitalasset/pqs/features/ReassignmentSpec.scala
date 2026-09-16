@@ -12,7 +12,6 @@ import com.digitalasset.pqs.functest.table.*
 import com.digitalasset.pqs.pipeline.InProcessPipeline
 import com.digitalasset.pqs.postgres.document.SqlSchema
 import com.digitalasset.pqs.services.daml.*
-import com.digitalasset.pqs.services.daml.DamlSdk.onlyCantonVersion
 import com.digitalasset.pqs.services.postgres.*
 import com.digitalasset.pqs.services.pqs.Pqs
 import com.digitalasset.pqs.specific.OffsetType
@@ -212,4 +211,4 @@ object ReassignmentSpec extends FuncTest[Service[Ledger] & Postgres & DeployedDa
         // TODO #17 multi-sync support
         Database.archives().returns(Table.empty)
     }
-  ) @@ onlyCantonVersion(">=3.5")
+  )

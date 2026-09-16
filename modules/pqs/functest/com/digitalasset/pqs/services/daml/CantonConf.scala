@@ -12,23 +12,6 @@ import os.{Path, Shellable}
 import zio.{ZIO, ZLayer}
 import zio.ZIO.{logInfo, whenCase}
 
-/** A set of values and auxiliary functions that differ between canton versions. Used to start canton container for
-  * functest.
-  */
-trait CantonConf:
-  val version: String
-
-  val cantonDockerImage: String =
-    s"europe-docker.pkg.dev/da-images/public-all/docker/canton-base:$version"
-
-  def oneParticipant(hostname: String): ZIO[Docker, Throwable, Seq[(Path, String | Array[Byte])]]
-  def twoParticipantsConfigOnly(pgHost: String, pgPort: Int, dbP1: String, dbP2: String): String
-  def twoSynchronizers(
-      hostname: String,
-      sync1: Synchronizer,
-      sync2: Synchronizer
-  ): ZIO[Docker, Throwable, Seq[(Path, String | Array[Byte])]]
-
 object CantonConf:
   val maxRequestSize: Int                  = 30 * 1024 * 1024
   val participantPort: Int                 = 6865
@@ -45,20 +28,345 @@ object CantonConf:
     )
   val user = 1001
 
+  val layer: ZLayer[FTEnv, Throwable, CantonConf] =
+    ZLayer.fromZIO(CantonConf())
+
   def apply(): ZIO[FTEnv, Throwable, CantonConf] =
     for {
       cantonVersion   <- FTEnv.cantonVersion
       protocolVersion <- FTEnv.protocolVersion
       ver             <- ZIO.attempt(Semver.parse(cantonVersion))
       _               <- logInfo(s"Using canton version $ver, major.minor ${ver.getMajor}.${ver.getMinor}")
-    } yield (ver.getMajor, ver.getMinor) match {
-      case (3, 4)          => Canton34(cantonVersion, protocolVersion)
-      case (3, 5) | (3, 6) => Canton35Plus(cantonVersion, protocolVersion)
-      case _               => sys.error(s"unsupported Canton version $ver")
-    }
+    } yield CantonConf(cantonVersion, protocolVersion)
 
-  val layer: ZLayer[FTEnv, Throwable, CantonConf] =
-    ZLayer.fromZIO(CantonConf())
+/** A set of values and auxiliary functions that differ between canton versions. Used to start canton container for
+  * functest.
+  */
+final case class CantonConf(version: String, protocolVersion: Int):
+  import CantonConf.*
+  def cantonDockerImage: String = s"europe-docker.pkg.dev/da-images/public-all/docker/canton-base:$version"
+  def oneParticipant(hostname: String) =
+    for (oauthInstance, collectorInstance, certFiles) <- commonSetup(hostname)
+    yield
+      val config =
+        s"""|canton {
+            |  features {
+            |    enable-preview-commands = yes
+            |    enable-testing-commands = yes
+            |  }
+            |  parameters {
+            |    manual-start = no
+            |    non-standard-config = yes
+            |    # Bumping because our topology state can get very large due to
+            |    # a large number of participants.
+            |    timeouts.processing.verify-active = 40.seconds
+            |    timeouts.processing.slow-future-warn = 20.seconds
+            |  }
+            |
+            |  # Bumping because our topology state can get very large due to
+            |  # a large number of participants.
+            |  monitoring.logging.delay-logging-threshold = 40.seconds
+            |
+            |  participants {
+            |    participant1 {
+            |      monitoring.grpc-health-server {
+            |        address = "0.0.0.0"
+            |        port = 5061
+            |      }
+            |
+            |      storage {
+            |        type = memory
+            |      }
+            |
+            |      admin-api {
+            |        address = "0.0.0.0"
+            |        port = 10012
+            |      }
+            |
+            |      init {
+            |        ledger-api.max-deduplication-duration = 0s
+            |      }
+            |
+            |      sequencer-client {
+            |        override-max-request-size = $maxRequestSize
+            |      }
+            |
+            |      http-ledger-api.enabled = false
+            |
+            |      ledger-api {
+            |        max-inbound-message-size = $maxRequestSize
+            |        address = "0.0.0.0"
+            |        port = $participantPort
+            |        ${oauthCantonConfig(oauthInstance)}
+            |        tls {
+            |          cert-chain-file = "/tls/participant.crt"
+            |          private-key-file = "/tls/participant.pem"
+            |          trust-collection-file = "/tls/root-ca.crt"
+            |          client-auth {
+            |            type = require
+            |            admin-client {
+            |              cert-chain-file = "/tls/admin-client.crt"
+            |              private-key-file = "/tls/admin-client.pem"
+            |            }
+            |          }
+            |        }
+            |        # We need to bump this because we run one stream per user +
+            |        # polling for domain connections which can add up quite a bit
+            |        # once you're around ~100 users.
+            |        rate-limit.max-api-services-queue-size = 80000
+            |        interactive-submission-service {
+            |          enable-verbose-hashing = true
+            |        }
+            |      }
+            |
+            |      parameters {
+            |        initial-protocol-version = $protocolVersion
+            |        minimum-protocol-version = $protocolVersion
+            |        # tune the synchronisation protocols contract store cache
+            |        caching {
+            |          contract-store {
+            |            maximum-size = 1000 # default 1e6
+            |            expire-after-access = 120s # default 10 minutes
+            |          }
+            |        }
+            |        # Bump ACS pruning interval to make sure ACS snapshots are available for longer
+            |        journal-garbage-collection-delay = 24h
+            |      }
+            |
+            |      # from https://docs.daml.com/2.8.0/canton/usermanual/performance.html#configuration
+            |      # tune caching configs of the ledger api server
+            |      ledger-api {
+            |        index-service {
+            |          max-contract-state-cache-size = 1000 # default 1e4
+            |          max-contract-key-state-cache-size = 1000 # default 1e4
+            |
+            |          # The in-memory fan-out will serve the transaction streams from memory as they are finalized, rather than
+            |          # using the database. Therefore, you should choose this buffer to be large enough such that the likeliness of
+            |          # applications having to stream transactions from the database is low. Generally, having a 10s buffer is
+            |          # sensible. Therefore, if you expect e.g. a throughput of 20 tx/s, then setting this number to 200 is sensible.
+            |          # The default setting assumes 100 tx/s.
+            |          max-transactions-in-memory-fan-out-buffer-size = 200 # default 1000
+            |        }
+            |        # Restrict the command submission rate (mainly for SV participants, since they are granted unlimited traffic)
+            |        command-service {
+            |          max-commands-in-flight = 30 # default = 256
+            |        }
+            |      }
+            |
+            |      topology.broadcast-batch-size = 1
+            |    }
+            |  }
+            |
+            |  sequencers {
+            |    ${sequencer("sequencer1")}
+            |  }
+            |
+            |  mediators {
+            |    ${mediator("mediator1")}
+            |  }
+            |${collectorInstance.fold("")(monitoring)}
+            |}
+            |""".stripMargin
+      val bootstrap =
+        s"""|import com.digitalasset.canton.console.LocalInstanceReference
+            |import com.digitalasset.canton.synchronizer.config.SynchronizerParametersConfig
+            |import com.digitalasset.canton.version.ProtocolVersion
+            |import cats.syntax.either._
+            |import com.digitalasset.canton.config
+            |
+            |def main() = {
+            |  nodes.local.start()
+            |
+            |  val synchronizerId = bootstrap.synchronizer(
+            |    synchronizerName = "synchronizer1",
+            |    sequencers = Seq(sequencer1),
+            |    mediators = Seq(mediator1),
+            |    synchronizerOwners = Seq(sequencer1),
+            |    synchronizerThreshold = PositiveInt.one,
+            |    staticSynchronizerParameters = StaticSynchronizerParameters.defaultsWithoutKMS(ProtocolVersion.forSynchronizer)
+            |  )
+            |
+            |  val initialReconciliationInterval = config.PositiveDurationSeconds.ofSeconds(1)
+            |  sequencer1.topology.synchronizer_parameters
+            |    .propose_update(synchronizerId.logical, _.update(
+            |      reconciliationInterval = initialReconciliationInterval,
+            |      // The TrafficControlParameters used here have no default values,
+            |      // so using the ones from com.digitalasset.canton.sequencing.TrafficControlParameters
+            |      trafficControl = Some(TrafficControlParameters(
+            |        maxBaseTrafficAmount = NonNegativeLong.tryCreate(204800L),
+            |        readVsWriteScalingFactor = PositiveInt.tryCreate(200),
+            |        maxBaseTrafficAccumulationDuration = config.PositiveFiniteDuration.ofMinutes(10L),
+            |        setBalanceRequestSubmissionWindowSize = config.PositiveFiniteDuration.ofMinutes(2L),
+            |        enforceRateLimiting = true,
+            |        baseEventCost = NonNegativeLong.tryCreate(0L),
+            |        freeConfirmationResponses = false
+            |      ))
+            |    ))
+            |
+            |  logger.info("=== connecting to synchronizer ===")
+            |  participant1.synchronizers.connect_local(sequencer1, alias = "synchronizer1")
+            |  utils.retry_until_true {
+            |      participant1.synchronizers.active("synchronizer1")
+            |  }
+            |  logger.info("=== finished connecting to synchronizer ===")
+            |
+            |  // Set a high enough traffic balance for the participant to avoid hitting traffic limits during tests.
+            |  sequencer1.traffic_control.set_traffic_balance(
+            |    participant1.id, PositiveInt.one, NonNegativeLong.tryCreate(100000000L)
+            |  )
+            |
+            |  // verify that the connection works
+            |  participant1.health.ping(participant1)
+            |
+            |  logger.info("=== finishing participant bootstrap ===")
+            |}
+            |""".stripMargin
+      certFiles ++ Seq(os.root / "app" / "app.conf" -> config, os.root / "app" / "bootstrap.sc" -> bootstrap)
+
+  def twoParticipantsConfigOnly(pgHost: String, pgPort: Int, dbP1: String, dbP2: String): String =
+    def pgStorage(db: String) =
+      s"""|storage = $${_storage}
+          |      storage.config.properties.databaseName = "$db"""".stripMargin
+    s"""_storage {
+       |  type = postgres
+       |  config {
+       |    dataSourceClass = "org.postgresql.ds.PGSimpleDataSource"
+       |    properties {
+       |      serverName = "$pgHost"
+       |      portNumber = $pgPort
+       |      user = postgres
+       |      password = postgres
+       |      ssl = true
+       |      sslmode = "verify-ca"
+       |      sslrootcert = "/tls/root-ca.crt"
+       |      sslcert = "/tls/pg-client.crt"
+       |      sslkey = "/tls/pg-client.der"
+       |    }
+       |  }
+       |  parameters.migrate-and-start = yes
+       |}
+       |
+       |canton {
+       |  features {
+       |    enable-preview-commands = yes
+       |    enable-testing-commands = yes
+       |  }
+       |  parameters {
+       |    manual-start = no
+       |    non-standard-config = yes
+       |    timeouts.processing.verify-active = 40.seconds
+       |    timeouts.processing.slow-future-warn = 20.seconds
+       |  }
+       |
+       |  monitoring.logging.delay-logging-threshold = 40.seconds
+       |
+       |  participants {
+       |    ${participant("participant1", 10012, 7865, protocolVersion, pgStorage(dbP1))}
+       |    
+       |    ${participant("participant2", 10014, participantPort, protocolVersion, pgStorage(dbP2))}
+       |  }
+       |
+       |  sequencers {
+       |    ${sequencer("sequencer1")}
+       |  }
+       |
+       |  mediators {
+       |    ${mediator("mediator1")}
+       |  }
+       |}
+       |""".stripMargin
+
+  def twoSynchronizers(
+      hostname: String,
+      sync1: Synchronizer,
+      sync2: Synchronizer
+  ): ZIO[Docker, Throwable, Seq[(Path, String | Array[Byte])]] =
+    for (oauthInstance, collectorInstance, certFiles) <- commonSetup(hostname)
+    yield
+      val config =
+        s"""|canton {
+            |  features {
+            |    enable-preview-commands = yes
+            |    enable-testing-commands = yes
+            |  }
+            |  parameters {
+            |    manual-start = no
+            |    non-standard-config = yes
+            |    timeouts.processing.verify-active = 40.seconds
+            |    timeouts.processing.slow-future-warn = 20.seconds
+            |  }
+            |
+            |  monitoring.logging.delay-logging-threshold = 40.seconds
+            |
+            |  participants {
+            |    ${participant("participant1", 10012, participantPort, protocolVersion, "storage.type = memory")}
+            |  }
+            |
+            |  sequencers {
+            |    ${sequencer("sequencer1")}
+            |    ${sequencer("sequencer2", 5010, 5011)}
+            |  }
+            |
+            |  mediators {
+            |    ${mediator("mediator1")}
+            |    ${mediator("mediator2", 5012)}
+            |  }
+            |${collectorInstance.fold("")(monitoring)}
+            |}
+            |""".stripMargin
+      val bootstrap =
+        s"""|import com.digitalasset.canton.version.ProtocolVersion
+            |import com.digitalasset.canton.config
+            |
+            |def main() = {
+            |  nodes.local.start()
+            |
+            |  val synchronizer1Id = bootstrap.synchronizer(
+            |    synchronizerName = "${sync1.name}",
+            |    sequencers = Seq(sequencer1),
+            |    mediators = Seq(mediator1),
+            |    synchronizerOwners = Seq(sequencer1),
+            |    synchronizerThreshold = PositiveInt.one,
+            |    staticSynchronizerParameters = StaticSynchronizerParameters.defaultsWithoutKMS(ProtocolVersion.forSynchronizer)
+            |  )
+            |  val synchronizer2Id = bootstrap.synchronizer(
+            |    synchronizerName = "${sync2.name}",
+            |    sequencers = Seq(sequencer2),
+            |    mediators = Seq(mediator2),
+            |    synchronizerOwners = Seq(sequencer2),
+            |    synchronizerThreshold = PositiveInt.one,
+            |    staticSynchronizerParameters = StaticSynchronizerParameters.defaultsWithoutKMS(ProtocolVersion.forSynchronizer)
+            |  )
+            |
+            |  val longReconciliationInterval = config.PositiveDurationSeconds.ofHours(24 * 365 * 10)
+            |  sequencer1.topology.synchronizer_parameters
+            |    .propose_update(synchronizer1Id.logical, _.update(reconciliationInterval = longReconciliationInterval))
+            |  sequencer2.topology.synchronizer_parameters
+            |    .propose_update(synchronizer2Id.logical, _.update(reconciliationInterval = longReconciliationInterval))
+            |
+            |  participant1.synchronizers.connect_local(sequencer1, alias = "${sync1.name}")
+            |  participant1.topology.synchronizer_trust_certificates.propose(
+            |    participant1,
+            |    synchronizer1Id.logical,
+            |    featureFlags = Seq(SynchronizerTrustCertificate.ParticipantTopologyFeatureFlag.EnableMultiSynchronizer),
+            |  )
+            |
+            |  participant1.synchronizers.connect_local(sequencer2, alias = "${sync2.name}")
+            |  participant1.topology.synchronizer_trust_certificates.propose(
+            |    participant1,
+            |    synchronizer2Id.logical,
+            |    featureFlags = Seq(SynchronizerTrustCertificate.ParticipantTopologyFeatureFlag.EnableMultiSynchronizer),
+            |  )
+            |
+            |  utils.retry_until_true { participant1.synchronizers.active("${sync1.name}") }
+            |  utils.retry_until_true { participant1.synchronizers.active("${sync2.name}") }
+            |  participant1.health.ping(participant1)
+            |}
+            |""".stripMargin
+      certFiles ++ Seq(
+        os.root / "app" / "app.conf"     -> config,
+        os.root / "app" / "bootstrap.sc" -> bootstrap
+      )
 
   /** Generate all the certificates needed to set up env, oauth instance and otel collector instance if configured.
     */
@@ -99,507 +407,6 @@ object CantonConf:
                                         |        }]
                                         |""".stripMargin
     else ""
-
-  final case class Canton34(version: String, protocolVersion: Int) extends CantonConf:
-    override def oneParticipant(hostname: String): ZIO[Docker, Throwable, Seq[(Path, String | Array[Byte])]] =
-      for (oauthInstance, collectorInstance, certFiles) <- commonSetup(hostname)
-      yield
-        val config =
-          s"""|canton {
-              |  features {
-              |    enable-preview-commands = yes
-              |    enable-testing-commands = yes
-              |  }
-              |  parameters {
-              |    manual-start = no
-              |    non-standard-config = yes
-              |    # Bumping because our topology state can get very large due to
-              |    # a large number of participants.
-              |    timeouts.processing.verify-active = 40.seconds
-              |    timeouts.processing.slow-future-warn = 20.seconds
-              |  }
-              |
-              |  # Bumping because our topology state can get very large due to
-              |  # a large number of participants.
-              |  monitoring.logging.delay-logging-threshold = 40.seconds
-              |
-              |  participants {
-              |    participant1 {
-              |      monitoring.grpc-health-server {
-              |        address = "0.0.0.0"
-              |        port = 5061
-              |      }
-              |
-              |      storage {
-              |        type = memory
-              |      }
-              |
-              |      admin-api {
-              |        address = "0.0.0.0"
-              |        port = 10012
-              |      }
-              |
-              |      init {
-              |        ledger-api.max-deduplication-duration = 0s
-              |      }
-              |
-              |      sequencer-client {
-              |        override-max-request-size = $maxRequestSize
-              |      }
-              |
-              |      ledger-api {
-              |        max-inbound-message-size = $maxRequestSize
-              |        address = "0.0.0.0"
-              |        port = $participantPort
-              |        ${oauthCantonConfig(oauthInstance)}
-              |        tls {
-              |          cert-chain-file = "/tls/participant.crt"
-              |          private-key-file = "/tls/participant.pem"
-              |          trust-collection-file = "/tls/root-ca.crt"
-              |          client-auth {
-              |            type=require
-              |            admin-client {
-              |              cert-chain-file = "/tls/admin-client.crt"
-              |              private-key-file = "/tls/admin-client.pem"
-              |            }
-              |          }
-              |        }
-              |        # We need to bump this because we run one stream per user +
-              |        # polling for domain connections which can add up quite a bit
-              |        # once you're around ~100 users.
-              |        rate-limit.max-api-services-queue-size = 80000
-              |        interactive-submission-service {
-              |          enable-verbose-hashing = true
-              |        }
-              |      }
-              |
-              |      http-ledger-api {
-              |        port = 7575
-              |        address = 0.0.0.0
-              |      }
-              |
-              |      parameters {
-              |        initial-protocol-version = $protocolVersion
-              |        minimum-protocol-version = $protocolVersion
-              |        # tune the synchronisation protocols contract store cache
-              |        caching {
-              |          contract-store {
-              |            maximum-size = 1000 # default 1e6
-              |            expire-after-access = 120s # default 10 minutes
-              |          }
-              |        }
-              |        # Bump ACS pruning interval to make sure ACS snapshots are available for longer
-              |        journal-garbage-collection-delay = 24h
-              |      }
-              |
-              |      # from https://docs.daml.com/2.8.0/canton/usermanual/performance.html#configuration
-              |      # tune caching configs of the ledger api server
-              |      ledger-api {
-              |        index-service {
-              |          max-contract-state-cache-size = 1000 # default 1e4
-              |          max-contract-key-state-cache-size = 1000 # default 1e4
-              |
-              |          # The in-memory fan-out will serve the transaction streams from memory as they are finalized, rather than
-              |          # using the database. Therefore, you should choose this buffer to be large enough such that the likeliness of
-              |          # applications having to stream transactions from the database is low. Generally, having a 10s buffer is
-              |          # sensible. Therefore, if you expect e.g. a throughput of 20 tx/s, then setting this number to 200 is sensible.
-              |          # The default setting assumes 100 tx/s.
-              |          max-transactions-in-memory-fan-out-buffer-size = 200 # default 1000
-              |        }
-              |        # Restrict the command submission rate (mainly for SV participants, since they are granted unlimited traffic)
-              |        command-service {
-              |          max-commands-in-flight = 30 # default = 256
-              |        }
-              |      }
-              |
-              |      topology.broadcast-batch-size = 1
-              |    }
-              |  }
-              |
-              |  sequencers {
-              |    ${sequencer("sequencer1")}
-              |  }
-              |
-              |  mediators {
-              |    ${mediator("mediator1")}
-              |  }
-              |${collectorInstance.fold("")(monitoring)}
-              |}
-              |""".stripMargin
-        val bootstrap =
-          s"""|import com.digitalasset.canton.console.LocalInstanceReference
-              |import com.digitalasset.canton.synchronizer.config.SynchronizerParametersConfig
-              |import com.digitalasset.canton.version.ProtocolVersion
-              |import cats.syntax.either._
-              |import com.digitalasset.canton.config
-              |
-              |def main() = {
-              |  nodes.local.start()
-              |
-              |  val synchronizerId = bootstrap.synchronizer(
-              |    synchronizerName = "synchronizer1",
-              |    sequencers = Seq(sequencer1),
-              |    mediators = Seq(mediator1),
-              |    synchronizerOwners = Seq(sequencer1),
-              |    synchronizerThreshold = PositiveInt.one,
-              |    staticSynchronizerParameters = StaticSynchronizerParameters.defaultsWithoutKMS(ProtocolVersion.forSynchronizer)
-              |  )
-              |
-              |  val initialReconciliationInterval = config.PositiveDurationSeconds.ofSeconds(1)
-              |  sequencer1.topology.synchronizer_parameters
-              |    .propose_update(synchronizerId.logical, _.update(reconciliationInterval = initialReconciliationInterval))
-              |
-              |  logger.info("=== connecting to synchronizer ===")
-              |  participant1.synchronizers.connect_local(sequencer1, alias = "synchronizer1")
-              |  utils.retry_until_true {
-              |      participant1.synchronizers.active("synchronizer1")
-              |  }
-              |  logger.info("=== finished connecting to synchronizer ===")
-              |
-              |  // verify that the connection works
-              |  participant1.health.ping(participant1)
-              |
-              |  logger.info("=== finishing participant bootstrap ===")
-              |}
-              |""".stripMargin
-
-        certFiles ++ Seq(os.root / "app" / "app.conf" -> config, os.root / "app" / "bootstrap.sc" -> bootstrap)
-
-    override def twoParticipantsConfigOnly(pgHost: String, pgPort: Int, dbP1: String, dbP2: String): String =
-      throw new NotImplementedError("not tested on Canton 3.4")
-
-    override def twoSynchronizers(
-        hostname: String,
-        sync1: Synchronizer,
-        sync2: Synchronizer
-    ): ZIO[Docker, Throwable, Seq[(Path, String | Array[Byte])]] =
-      ZIO.fail(new NotImplementedError("not tested on Canton 3.4"))
-  end Canton34
-
-  final case class Canton35Plus(version: String, protocolVersion: Int) extends CantonConf:
-    override def oneParticipant(hostname: String) =
-      for (oauthInstance, collectorInstance, certFiles) <- commonSetup(hostname)
-      yield
-        val config =
-          s"""|canton {
-              |  features {
-              |    enable-preview-commands = yes
-              |    enable-testing-commands = yes
-              |  }
-              |  parameters {
-              |    manual-start = no
-              |    non-standard-config = yes
-              |    # Bumping because our topology state can get very large due to
-              |    # a large number of participants.
-              |    timeouts.processing.verify-active = 40.seconds
-              |    timeouts.processing.slow-future-warn = 20.seconds
-              |  }
-              |
-              |  # Bumping because our topology state can get very large due to
-              |  # a large number of participants.
-              |  monitoring.logging.delay-logging-threshold = 40.seconds
-              |
-              |  participants {
-              |    participant1 {
-              |      monitoring.grpc-health-server {
-              |        address = "0.0.0.0"
-              |        port = 5061
-              |      }
-              |
-              |      storage {
-              |        type = memory
-              |      }
-              |
-              |      admin-api {
-              |        address = "0.0.0.0"
-              |        port = 10012
-              |      }
-              |
-              |      init {
-              |        ledger-api.max-deduplication-duration = 0s
-              |      }
-              |
-              |      sequencer-client {
-              |        override-max-request-size = $maxRequestSize
-              |      }
-              |
-              |      http-ledger-api.enabled = false
-              |
-              |      ledger-api {
-              |        max-inbound-message-size = $maxRequestSize
-              |        address = "0.0.0.0"
-              |        port = $participantPort
-              |        ${oauthCantonConfig(oauthInstance)}
-              |        tls {
-              |          cert-chain-file = "/tls/participant.crt"
-              |          private-key-file = "/tls/participant.pem"
-              |          trust-collection-file = "/tls/root-ca.crt"
-              |          client-auth {
-              |            type = require
-              |            admin-client {
-              |              cert-chain-file = "/tls/admin-client.crt"
-              |              private-key-file = "/tls/admin-client.pem"
-              |            }
-              |          }
-              |        }
-              |        # We need to bump this because we run one stream per user +
-              |        # polling for domain connections which can add up quite a bit
-              |        # once you're around ~100 users.
-              |        rate-limit.max-api-services-queue-size = 80000
-              |        interactive-submission-service {
-              |          enable-verbose-hashing = true
-              |        }
-              |      }
-              |
-              |      parameters {
-              |        initial-protocol-version = $protocolVersion
-              |        minimum-protocol-version = $protocolVersion
-              |        # tune the synchronisation protocols contract store cache
-              |        caching {
-              |          contract-store {
-              |            maximum-size = 1000 # default 1e6
-              |            expire-after-access = 120s # default 10 minutes
-              |          }
-              |        }
-              |        # Bump ACS pruning interval to make sure ACS snapshots are available for longer
-              |        journal-garbage-collection-delay = 24h
-              |      }
-              |
-              |      # from https://docs.daml.com/2.8.0/canton/usermanual/performance.html#configuration
-              |      # tune caching configs of the ledger api server
-              |      ledger-api {
-              |        index-service {
-              |          max-contract-state-cache-size = 1000 # default 1e4
-              |          max-contract-key-state-cache-size = 1000 # default 1e4
-              |
-              |          # The in-memory fan-out will serve the transaction streams from memory as they are finalized, rather than
-              |          # using the database. Therefore, you should choose this buffer to be large enough such that the likeliness of
-              |          # applications having to stream transactions from the database is low. Generally, having a 10s buffer is
-              |          # sensible. Therefore, if you expect e.g. a throughput of 20 tx/s, then setting this number to 200 is sensible.
-              |          # The default setting assumes 100 tx/s.
-              |          max-transactions-in-memory-fan-out-buffer-size = 200 # default 1000
-              |        }
-              |        # Restrict the command submission rate (mainly for SV participants, since they are granted unlimited traffic)
-              |        command-service {
-              |          max-commands-in-flight = 30 # default = 256
-              |        }
-              |      }
-              |
-              |      topology.broadcast-batch-size = 1
-              |    }
-              |  }
-              |
-              |  sequencers {
-              |    ${sequencer("sequencer1")}
-              |  }
-              |
-              |  mediators {
-              |    ${mediator("mediator1")}
-              |  }
-              |${collectorInstance.fold("")(monitoring)}
-              |}
-              |""".stripMargin
-        val bootstrap =
-          s"""|import com.digitalasset.canton.console.LocalInstanceReference
-              |import com.digitalasset.canton.synchronizer.config.SynchronizerParametersConfig
-              |import com.digitalasset.canton.version.ProtocolVersion
-              |import cats.syntax.either._
-              |import com.digitalasset.canton.config
-              |
-              |def main() = {
-              |  nodes.local.start()
-              |
-              |  val synchronizerId = bootstrap.synchronizer(
-              |    synchronizerName = "synchronizer1",
-              |    sequencers = Seq(sequencer1),
-              |    mediators = Seq(mediator1),
-              |    synchronizerOwners = Seq(sequencer1),
-              |    synchronizerThreshold = PositiveInt.one,
-              |    staticSynchronizerParameters = StaticSynchronizerParameters.defaultsWithoutKMS(ProtocolVersion.forSynchronizer)
-              |  )
-              |
-              |  val initialReconciliationInterval = config.PositiveDurationSeconds.ofSeconds(1)
-              |  sequencer1.topology.synchronizer_parameters
-              |    .propose_update(synchronizerId.logical, _.update(
-              |      reconciliationInterval = initialReconciliationInterval,
-              |      // The TrafficControlParameters used here have no default values,
-              |      // so using the ones from com.digitalasset.canton.sequencing.TrafficControlParameters
-              |      trafficControl = Some(TrafficControlParameters(
-              |        maxBaseTrafficAmount = NonNegativeLong.tryCreate(204800L),
-              |        readVsWriteScalingFactor = PositiveInt.tryCreate(200),
-              |        maxBaseTrafficAccumulationDuration = config.PositiveFiniteDuration.ofMinutes(10L),
-              |        setBalanceRequestSubmissionWindowSize = config.PositiveFiniteDuration.ofMinutes(2L),
-              |        enforceRateLimiting = true,
-              |        baseEventCost = NonNegativeLong.tryCreate(0L),
-              |        freeConfirmationResponses = false
-              |      ))
-              |    ))
-              |
-              |  logger.info("=== connecting to synchronizer ===")
-              |  participant1.synchronizers.connect_local(sequencer1, alias = "synchronizer1")
-              |  utils.retry_until_true {
-              |      participant1.synchronizers.active("synchronizer1")
-              |  }
-              |  logger.info("=== finished connecting to synchronizer ===")
-              |
-              |  // Set a high enough traffic balance for the participant to avoid hitting traffic limits during tests.
-              |  sequencer1.traffic_control.set_traffic_balance(
-              |    participant1.id, PositiveInt.one, NonNegativeLong.tryCreate(100000000L)
-              |  )
-              |
-              |  // verify that the connection works
-              |  participant1.health.ping(participant1)
-              |
-              |  logger.info("=== finishing participant bootstrap ===")
-              |}
-              |""".stripMargin
-        certFiles ++ Seq(os.root / "app" / "app.conf" -> config, os.root / "app" / "bootstrap.sc" -> bootstrap)
-
-    override def twoParticipantsConfigOnly(pgHost: String, pgPort: Int, dbP1: String, dbP2: String): String =
-      def pgStorage(db: String) =
-        s"""|storage = $${_storage}
-            |      storage.config.properties.databaseName = "$db"""".stripMargin
-      s"""_storage {
-         |  type = postgres
-         |  config {
-         |    dataSourceClass = "org.postgresql.ds.PGSimpleDataSource"
-         |    properties {
-         |      serverName = "$pgHost"
-         |      portNumber = $pgPort
-         |      user = postgres
-         |      password = postgres
-         |      ssl = true
-         |      sslmode = "verify-ca"
-         |      sslrootcert = "/tls/root-ca.crt"
-         |      sslcert = "/tls/pg-client.crt"
-         |      sslkey = "/tls/pg-client.der"
-         |    }
-         |  }
-         |  parameters.migrate-and-start = yes
-         |}
-         |
-         |canton {
-         |  features {
-         |    enable-preview-commands = yes
-         |    enable-testing-commands = yes
-         |  }
-         |  parameters {
-         |    manual-start = no
-         |    non-standard-config = yes
-         |    timeouts.processing.verify-active = 40.seconds
-         |    timeouts.processing.slow-future-warn = 20.seconds
-         |  }
-         |
-         |  monitoring.logging.delay-logging-threshold = 40.seconds
-         |
-         |  participants {
-         |    ${participant("participant1", 10012, 7865, protocolVersion, pgStorage(dbP1))}
-         |    
-         |    ${participant("participant2", 10014, participantPort, protocolVersion, pgStorage(dbP2))}
-         |  }
-         |
-         |  sequencers {
-         |    ${sequencer("sequencer1")}
-         |  }
-         |
-         |  mediators {
-         |    ${mediator("mediator1")}
-         |  }
-         |}
-         |""".stripMargin
-
-    override def twoSynchronizers(
-        hostname: String,
-        sync1: Synchronizer,
-        sync2: Synchronizer
-    ): ZIO[Docker, Throwable, Seq[(Path, String | Array[Byte])]] =
-      for (oauthInstance, collectorInstance, certFiles) <- commonSetup(hostname)
-      yield
-        val config =
-          s"""|canton {
-              |  features {
-              |    enable-preview-commands = yes
-              |    enable-testing-commands = yes
-              |  }
-              |  parameters {
-              |    manual-start = no
-              |    non-standard-config = yes
-              |    timeouts.processing.verify-active = 40.seconds
-              |    timeouts.processing.slow-future-warn = 20.seconds
-              |  }
-              |
-              |  monitoring.logging.delay-logging-threshold = 40.seconds
-              |
-              |  participants {
-              |    ${participant("participant1", 10012, participantPort, protocolVersion, "storage.type = memory")}
-              |  }
-              |
-              |  sequencers {
-              |    ${sequencer("sequencer1")}
-              |    ${sequencer("sequencer2", 5010, 5011)}
-              |  }
-              |
-              |  mediators {
-              |    ${mediator("mediator1")}
-              |    ${mediator("mediator2", 5012)}
-              |  }
-              |${collectorInstance.fold("")(monitoring)}
-              |}
-              |""".stripMargin
-        val bootstrap =
-          s"""|import com.digitalasset.canton.version.ProtocolVersion
-              |import com.digitalasset.canton.config
-              |
-              |def main() = {
-              |  nodes.local.start()
-              |
-              |  val synchronizer1Id = bootstrap.synchronizer(
-              |    synchronizerName = "${sync1.name}",
-              |    sequencers = Seq(sequencer1),
-              |    mediators = Seq(mediator1),
-              |    synchronizerOwners = Seq(sequencer1),
-              |    synchronizerThreshold = PositiveInt.one,
-              |    staticSynchronizerParameters = StaticSynchronizerParameters.defaultsWithoutKMS(ProtocolVersion.forSynchronizer)
-              |  )
-              |  val synchronizer2Id = bootstrap.synchronizer(
-              |    synchronizerName = "${sync2.name}",
-              |    sequencers = Seq(sequencer2),
-              |    mediators = Seq(mediator2),
-              |    synchronizerOwners = Seq(sequencer2),
-              |    synchronizerThreshold = PositiveInt.one,
-              |    staticSynchronizerParameters = StaticSynchronizerParameters.defaultsWithoutKMS(ProtocolVersion.forSynchronizer)
-              |  )
-              |
-              |  val longReconciliationInterval = config.PositiveDurationSeconds.ofHours(24 * 365 * 10)
-              |  sequencer1.topology.synchronizer_parameters
-              |    .propose_update(synchronizer1Id.logical, _.update(reconciliationInterval = longReconciliationInterval))
-              |  sequencer2.topology.synchronizer_parameters
-              |    .propose_update(synchronizer2Id.logical, _.update(reconciliationInterval = longReconciliationInterval))
-              |
-              |  participant1.synchronizers.connect_local(sequencer1, alias = "${sync1.name}")
-              |  participant1.topology.synchronizer_trust_certificates.propose(
-              |    participant1,
-              |    synchronizer1Id.logical,
-              |    featureFlags = Seq(SynchronizerTrustCertificate.ParticipantTopologyFeatureFlag.EnableMultiSynchronizer),
-              |  )
-              |
-              |  participant1.synchronizers.connect_local(sequencer2, alias = "${sync2.name}")
-              |  participant1.topology.synchronizer_trust_certificates.propose(
-              |    participant1,
-              |    synchronizer2Id.logical,
-              |    featureFlags = Seq(SynchronizerTrustCertificate.ParticipantTopologyFeatureFlag.EnableMultiSynchronizer),
-              |  )
-              |
-              |  utils.retry_until_true { participant1.synchronizers.active("${sync1.name}") }
-              |  utils.retry_until_true { participant1.synchronizers.active("${sync2.name}") }
-              |  participant1.health.ping(participant1)
-              |}
-              |""".stripMargin
-        certFiles ++ Seq(
-          os.root / "app" / "app.conf"     -> config,
-          os.root / "app" / "bootstrap.sc" -> bootstrap
-        )
-  end Canton35Plus
 
   private def participant(
       name: String,
@@ -684,3 +491,4 @@ object CantonConf:
         |    }
         |  }
         |""".stripMargin
+end CantonConf

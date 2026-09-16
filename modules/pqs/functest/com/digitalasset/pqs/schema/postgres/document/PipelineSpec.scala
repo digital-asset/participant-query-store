@@ -6,7 +6,6 @@ package com.digitalasset.pqs.schema.postgres.document
 import com.digitalasset.pqs.SharedLedgerAndPostgresTest
 import com.digitalasset.pqs.functest.matchers.*
 import com.digitalasset.pqs.functest.table.*
-import com.digitalasset.pqs.services.daml.DamlSdk.onlyCantonVersion
 import com.digitalasset.pqs.services.daml.*
 import com.digitalasset.pqs.services.postgres.Postgres
 import com.digitalasset.pqs.services.pqs.Pqs
@@ -178,7 +177,7 @@ object PipelineSpec extends SharedLedgerAndPostgresTest:
             .query[Long]
             .selectOne
         } `returns` isSome(isGreaterThanEqualTo(1L))
-    } @@ onlyCantonVersion(">=3.5"),
+    },
     funcTest("can write to non-public schema"):
       val alice = Party("Alice")
       val bob   = Party("Bob")
