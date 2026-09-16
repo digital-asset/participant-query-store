@@ -125,8 +125,8 @@ object specific:
     yield Event.Unassigned(
       eventId = EventId(evt.offset, evt.nodeId),
       reassignmentId = evt.reassignmentId,
-      source = DomainId(evt.source),
-      target = DomainId(evt.target),
+      source = SynchronizerId(evt.source),
+      target = SynchronizerId(evt.target),
       submitter = Option.when(evt.submitter.nonEmpty)(Party(evt.submitter)),
       reassignmentCounter = evt.reassignmentCounter,
       contractId = ContractId(evt.contractId),
@@ -146,8 +146,8 @@ object specific:
     yield Event.Assigned(
       eventId = EventId(created.offset, created.nodeId),
       reassignmentId = evt.reassignmentId,
-      source = DomainId(evt.source),
-      target = DomainId(evt.target),
+      source = SynchronizerId(evt.source),
+      target = SynchronizerId(evt.target),
       submitter = Option.when(evt.submitter.nonEmpty)(Party(evt.submitter)),
       reassignmentCounter = evt.reassignmentCounter,
       contractId = ContractId(created.contractId),

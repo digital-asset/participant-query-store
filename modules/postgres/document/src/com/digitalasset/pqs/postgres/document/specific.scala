@@ -5,7 +5,7 @@ package com.digitalasset.pqs.postgres.document
 
 import com.digitalasset.canonical
 import com.digitalasset.canonical.specific.{EventId, NodeId, Offset}
-import com.digitalasset.canonical.{ContractId, DomainId, Party}
+import com.digitalasset.canonical.{ContractId, Party, SynchronizerId}
 import com.digitalasset.pqs.postgres.document.model.given
 import com.digitalasset.pqs.postgres.document.{IdPlaceholder, model}
 import com.digitalasset.transcode.schema.ChoiceName
@@ -56,7 +56,7 @@ object specific:
       val offset: Offset,
       transactionId: Option[String] = None,
       effectiveAt: Option[Instant] = None,
-      domainId: Option[DomainId] = None,
+      synchronizerId: Option[SynchronizerId] = None,
       workflowId: Option[String] = None,
       remoteSpan: Option[(String, String)] = None,
       externalTransactionHash: Option[Array[Byte]] = None,
@@ -67,15 +67,16 @@ object specific:
       "\"offset\"",
       "transaction_id",
       "effective_at",
-      "domain_id",
+      "synchronizer_id",
       "workflow_id",
       "trace_context",
       "external_transaction_hash",
       "paid_traffic_cost"
     )
-    val rowValues = model.values(ix)(offset.toSqlValue)(transactionId)(effectiveAt)(domainId)(workflowId)(remoteSpan)(
-      externalTransactionHash
-    )(paidTrafficCost)
+    val rowValues =
+      model.values(ix)(offset.toSqlValue)(transactionId)(effectiveAt)(synchronizerId)(workflowId)(remoteSpan)(
+        externalTransactionHash
+      )(paidTrafficCost)
 
   final case class Event(
       pk: IdPlaceholder,

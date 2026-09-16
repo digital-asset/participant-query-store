@@ -8,6 +8,7 @@ import com.daml.ledger.api.v2.trace_context.TraceContext
 import com.daml.ledger.api.v2.transaction.Transaction
 import com.daml.ledger.api.v2.transaction_filter.TransactionShape
 import com.daml.ledger.api.v2.transaction_filter.TransactionShape.*
+import com.digitalasset.canonical.SynchronizerId
 import scalapb.TimestampConverters
 import java.time.Instant
 
@@ -19,6 +20,7 @@ private[ledgerapi] sealed trait DataAdapter[T]:
   def commandId: String
   def workflowId: String
   def effectiveAt: Option[Instant]
+  def synchronizerId: SynchronizerId
   def externalTransactionHash: Option[Array[Byte]]
   def paidTrafficCost: Option[Long]
   def traceContext: TraceContext
@@ -34,11 +36,12 @@ private[ledgerapi] object DataAdapter:
         case TRANSACTION_SHAPE_UNSPECIFIED    => "unspecified"
         case Unrecognized(x)                  => s"unrecognized: $x"
       s"transaction ($shape)"
-    override def transactionId: String        = tx.updateId
-    override def offset: Long                 = tx.offset
-    override def commandId: String            = tx.commandId
-    override def workflowId: String           = tx.workflowId
-    override def effectiveAt: Option[Instant] = Some(TimestampConverters.asJavaInstant(tx.getEffectiveAt))
+    override def transactionId: String          = tx.updateId
+    override def offset: Long                   = tx.offset
+    override def commandId: String              = tx.commandId
+    override def workflowId: String             = tx.workflowId
+    override def effectiveAt: Option[Instant]   = Some(TimestampConverters.asJavaInstant(tx.getEffectiveAt))
+    override def synchronizerId: SynchronizerId = SynchronizerId(tx.synchronizerId)
     override def externalTransactionHash: Option[Array[Byte]] = extractors.externalTransactionHash(tx)
     override def paidTrafficCost: Option[Long]                = tx.paidTrafficCost
     override def traceContext: TraceContext                   = tx.getTraceContext
@@ -55,6 +58,7 @@ private[ledgerapi] object DataAdapter:
     // nothing for one to be the answer to. `record_time` is a different quantity, set by the
     // synchronizer rather than the submitting participant, and is deliberately not substituted here
     override def effectiveAt: Option[Instant]                 = None
+    override def synchronizerId: SynchronizerId               = SynchronizerId(reassignment.synchronizerId)
     override def externalTransactionHash: Option[Array[Byte]] = None // no such field on a Reassignment
     override def paidTrafficCost: Option[Long]                = reassignment.paidTrafficCost
     override def traceContext: TraceContext                   = reassignment.getTraceContext

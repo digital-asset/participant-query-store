@@ -52,7 +52,7 @@ object specific:
       effectiveAt: Option[Instant],
       offset: Offset,
       events: Chunk[E],
-      domainId: Option[DomainId] = None,
+      synchronizerId: SynchronizerId,
       externalTransactionHash: Option[Array[Byte]] = None,
       paidTrafficCost: Option[Long] = None,
       seenAt: Long, // nano time this transaction was first observed in PQS
@@ -110,8 +110,8 @@ object specific:
     final case class Unassigned(
         eventId: EventId,
         reassignmentId: String,
-        source: DomainId,
-        target: DomainId,
+        source: SynchronizerId,
+        target: SynchronizerId,
         submitter: Option[Party],
         reassignmentCounter: Long,
         contractId: ContractId,
@@ -124,8 +124,8 @@ object specific:
     final case class Assigned(
         eventId: EventId,
         reassignmentId: String,
-        source: DomainId,
-        target: DomainId,
+        source: SynchronizerId,
+        target: SynchronizerId,
         submitter: Option[Party],
         reassignmentCounter: Long,
         contractId: ContractId,

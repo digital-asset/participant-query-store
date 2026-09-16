@@ -13,8 +13,8 @@ package object canonical:
   opaque type ContractId <: String = String
   inline def ContractId(value: String): ContractId = value
 
-  opaque type DomainId <: String = String
-  inline def DomainId(value: String): DomainId = value
+  opaque type SynchronizerId <: String = String
+  inline def SynchronizerId(value: String): SynchronizerId = value
 
   opaque type WorkflowId <: String = String
   inline def WorkflowId(value: String): WorkflowId = value

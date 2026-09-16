@@ -162,11 +162,12 @@ case class UpdateService(
       for
         _ <- logTrace(s"Ledger ${tx.sourceType}: ${pprint(tx, height = Int.MaxValue)}")
         _ <- txSpan.addAttributes(
-          "daml.command_id"     -> tx.commandId,
-          "daml.events_count"   -> tx.eventsSize.toLong,
-          "daml.offset"         -> tx.offset,
-          "daml.transaction_id" -> tx.transactionId,
-          "daml.workflow_id"    -> tx.workflowId
+          "daml.command_id"      -> tx.commandId,
+          "daml.events_count"    -> tx.eventsSize.toLong,
+          "daml.offset"          -> tx.offset,
+          "daml.synchronizer_id" -> tx.synchronizerId,
+          "daml.transaction_id"  -> tx.transactionId,
+          "daml.workflow_id"     -> tx.workflowId
         )
         // TODO #74: a reassignment has no ledger effective time, so its span carries no
         // time at all. Both update kinds do carry `record_time` and `synchronizer_id` on the wire;
@@ -191,6 +192,7 @@ case class UpdateService(
             effectiveAt = tx.effectiveAt,
             offset = tx.offset.toOffset,
             events = convertedEvents,
+            synchronizerId = tx.synchronizerId,
             externalTransactionHash = tx.externalTransactionHash,
             paidTrafficCost = tx.paidTrafficCost,
             seenAt = seenAt,

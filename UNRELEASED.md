@@ -11,6 +11,7 @@ _Write summary of release_
 This release includes the following SQL migrations:
 - _V042__Clear_contract_key_hash_for_interface_views.sql_: clears `contract_key_hash` on interface view rows already stored. Scans `__contracts` once and rewrites only the interface rows that still hold a hash. **[Impact: < 1 min]**
 - _V043__Add_reassignment_event_types.sql_: adds the `assign` and `unassign` labels to the `__event_type` enum. Metadata-only, no table is scanned or rewritten. **[Impact: < 1 min]**
+- _V044__Rename_domain_id_to_synchronizer_id.sql_: renames the `domain_id` column of `__transactions` to `synchronizer_id`. Metadata-only, no table is scanned or rewritten. **[Impact: < 1 min]**
 
 
 ## What's New
@@ -46,3 +47,7 @@ This release includes the following SQL migrations:
 - Add a `--target-postgres-properties-<key>=<value>` to pass arbitrary additional pgjdbc connection properties through to the driver. Enables driver-level features such as JDBC authentication plugins (e.g. Azure Entra ID, AWS RDS IAM).
   Example: `--target-postgres-properties-authenticationPluginClassName=com.azure.identity.extensions.jdbc.postgresql.AzurePostgresqlAuthenticationPlugin`
 - add `print_create_index_for_contract` sql function to generate sql statement to create index for contract concurrently
+
+### Multi-sync support
+
+- *BREAKING*: The `__transactions` column `domain_id` is renamed to `synchronizer_id`, to match Canton's current vocabulary. It is now populated for every update — every transaction and every reassignment. Rows written before this release keep `NULL` and are not getting backfilled.

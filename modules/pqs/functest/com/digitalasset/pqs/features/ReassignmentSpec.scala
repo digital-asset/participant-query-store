@@ -71,16 +71,18 @@ object ReassignmentSpec extends FuncTest[Service[Ledger] & Postgres & DeployedDa
         // `effective_at is null` rather than the timestamp itself: the value of a transaction's
         // effective time is not predictable from the test, but which rows have one is exactly the
         // decision being pinned. A reassignment has no ledger effective time and must store none.
+        // Every update now carries a synchronizer_id; for a reassignment it is the synchronizer
+        // that synchronized it — the source synchronizer for the unassign, the target for the assign.
         Postgres
-          .query(sql"""select "offset", domain_id, effective_at is null
+          .query(sql"""select "offset", synchronizer_id, effective_at is null
                        from __transactions order by "offset"""")
           .returns(
             table {
               // submitAndWait guarantees the causal order of these multi-sync transactions
-              createdAtOffset.capture    | null | false
-              unassignedAtOffset.capture | null | true
-              assignedAtOffset.capture   | null | true
-              archivedAtOffset.capture   | null | false
+              createdAtOffset.capture    | sync1.id | false
+              unassignedAtOffset.capture | sync1.id | true
+              assignedAtOffset.capture   | sync2.id | true
+              archivedAtOffset.capture   | sync2.id | false
             }
           )
 

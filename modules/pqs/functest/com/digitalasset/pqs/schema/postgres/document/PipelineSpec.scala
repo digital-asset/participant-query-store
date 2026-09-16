@@ -164,6 +164,17 @@ object PipelineSpec extends SharedLedgerAndPostgresTest:
         Postgres `query` sql"""select count(*) from active($templateRef)""" `returns` table { 0 }
       And:
         Postgres `query` sql"""select count(*) from exercises($archiveRef)""" `returns` table { 1 }
+      And:
+        for
+          synchronizers <- Ledger.getAllSynchronizers
+          synchronizerId <- synchronizers match
+            case Seq(single) => ZIO.succeed(single.synchronizerId)
+            case other =>
+              ZIO.fail(Throwable(s"expected exactly one connected synchronizer, found ${other.size}"))
+          synchronizerIds <- Postgres `query` sql"select synchronizer_id from __transactions"
+            .query[String]
+            .selectAll
+        yield zio.test.assert(synchronizerIds)(hasSize(equalTo(2)) && forall(equalTo(synchronizerId)))
     ,
     funcTest("paid_traffic_cost is populated for submitting participant") {
       val alice = Party("Alice")

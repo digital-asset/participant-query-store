@@ -1893,7 +1893,7 @@ CREATE TABLE public.__transactions (
     transaction_id text,
     effective_at timestamp with time zone,
     workflow_id text,
-    domain_id text,
+    synchronizer_id text,
     trace_context public.trace_context,
     external_transaction_hash bytea,
     paid_traffic_cost bigint
