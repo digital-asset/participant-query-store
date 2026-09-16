@@ -190,11 +190,13 @@ object DamlSdk:
   def parties(parties: Party*): RLayer[Docker & Service[Ledger], Parties] =
     allocateMany(parties.map(_ -> Seq("")))
 
-  def allocateParties(partySynchronizers: (Party, Seq[Synchronizer])*): RLayer[Docker & Service[Ledger], Parties] =
+  def allocateParties(partySynchronizers: => (Party, Seq[Synchronizer])*): RLayer[Docker & Service[Ledger], Parties] =
     allocateMany(partySynchronizers.map((p, ss) => (p, ss.map(_.id))))
 
   /** Allocate parties on ledger and wrap them in a layer */
-  private def allocateMany(partySynchronizers: Seq[(Party, Seq[String])]): RLayer[Docker & Service[Ledger], Parties] =
+  private def allocateMany(
+      partySynchronizers: => Seq[(Party, Seq[String])]
+  ): RLayer[Docker & Service[Ledger], Parties] =
     ZLayer.fromZIO(
       for
         partyCounter  <- Docker.share("party_cnt")(Ref.Synchronized.make(0)).flatMap(_.updateAndGet(_ + 1))
@@ -265,7 +267,7 @@ object DamlSdk:
       rootCaCrt         <- writeFile(scriptDir / "tls" / "root-ca.crt", ca.certificate.crt)
       participantPem    <- writeFile(scriptDir / "tls" / "participant.pem", cert.certificate.pem)
       participantCrt    <- writeFile(scriptDir / "tls" / "participant.crt", cert.certificate.crt)
-      ledger            <- Ledger.container
+      ledger            <- ZIO.service[Service[Ledger]]
       adminTokenService <- inspectMaybe[TokenService]
       dar               <- ZIO.service[DarFile]
       version           <- FTEnv.damlSdkVersion

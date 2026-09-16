@@ -5,7 +5,6 @@ package com.digitalasset.zio.daml.ledgerapi
 
 import com.daml.ledger.api.v2.state_service.*
 import com.daml.ledger.api.v2.state_service.ZioStateService.StateServiceClient
-import com.daml.ledger.api.v2.update_service.ZioUpdateService.UpdateServiceClient
 import com.digitalasset.canonical.*
 import com.digitalasset.canonical.specific.{Event, Offset}
 import com.digitalasset.pqs.grpc.ZManagedChannel
@@ -18,14 +17,12 @@ import zio.stream.{Stream, ZStream}
 import zio.{IO, ZLayer}
 
 object StateService:
-  val live: ZLayer[ZManagedChannel & Codecs & DamlSchema, Throwable, StateService] =
-    (StateServiceClient.live ++ UpdateServiceClient.live)
-      >>> ZLayer.fromFunction(StateService.apply)
+  val live: ZLayer[ZManagedChannel & ProtobufCodecs & DamlSchema, Throwable, StateService] =
+    StateServiceClient.live >>> ZLayer.fromFunction(StateService.apply)
 
 case class StateService(
     stateServiceClient: StateServiceClient,
-    updateServiceClient: UpdateServiceClient,
-    codecs: Codecs,
+    codecs: ProtobufCodecs,
     damlSchema: DamlSchema
 ):
 
@@ -47,7 +44,7 @@ case class StateService(
         .collectSome
         .mapZIO(evt =>
           logDebug(s"Converting active contract") *>
-            convertCreatedEvent(evt)(using codecs, damlSchema)
+            convertCreatedEvent(evt)(using codecs)(using damlSchema)
               .tap { conv =>
                 logTrace(s"Ledger event: ${pprint(evt, height = Int.MaxValue)}") *>
                   logTrace(s"Canonical event: ${pprint(conv, height = Int.MaxValue)}")

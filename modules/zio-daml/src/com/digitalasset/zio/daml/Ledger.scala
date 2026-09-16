@@ -8,15 +8,14 @@ import com.digitalasset.canonical.specific.{Event, Offset, ReassignmentEvent, Tr
 import com.digitalasset.canonical.UserRight
 import com.digitalasset.pqs.configuration.filter.PartyFilterParser.PartyFilter
 import com.digitalasset.pqs.grpc.ZManagedChannel
-import com.digitalasset.transcode.codec.proto.ProtobufCodec
 import com.digitalasset.transcode.schema.Dictionary
 import com.digitalasset.zio.daml.ledgerapi.{PartiesService, StateService, UpdateService}
 import zio.{Tag, Task, ZLayer, stream}
 
 object Ledger:
   val live: ZLayer[ZManagedChannel & DamlSchema & Auth, Throwable, Ledger] =
-    DamlSchema.produce(ProtobufCodec).update(_.matchByPackageId)
-      >+> (PartiesService.live ++ StateService.live ++ UpdateService.live)
+    DamlSchema.protobufCodecs
+      >>> (PartiesService.live ++ StateService.live ++ UpdateService.live)
       >>> ZLayer.fromFunction(Ledger.apply)
 
 case class Ledger(
