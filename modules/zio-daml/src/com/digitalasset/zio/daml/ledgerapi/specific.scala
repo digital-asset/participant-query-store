@@ -5,7 +5,7 @@ package com.digitalasset.zio.daml.ledgerapi
 
 import com.daml.ledger.api.v2.value.Value
 import com.digitalasset.canonical.*
-import com.digitalasset.canonical.specific.{Event, EventId, TransactionEvent}
+import com.digitalasset.canonical.specific.{Event, EventId, ReassignmentEvent, TransactionEvent}
 import com.digitalasset.transcode.schema
 import com.digitalasset.transcode.schema.*
 import com.digitalasset.pqs.utils.safeequals.=/=
@@ -19,9 +19,7 @@ import zio.{Chunk, Task, ZIO}
 object specific:
 
   def convertEvent(
-      event: com.daml.ledger.api.v2.event.Event,
-      offsetLong: Long,
-      rights: UserRight
+      event: com.daml.ledger.api.v2.event.Event
   )(using ProtobufCodecs, DamlSchema): Task[TransactionEvent] = event.event match
     case com.daml.ledger.api.v2.event.Event.Event.Created(evt) =>
       convertCreatedEvent(evt)
@@ -31,6 +29,16 @@ object specific:
       convertExercisedEvent(evt)
     case unsupported =>
       ZIO.fail(new RuntimeException(s"Unsupported event type: ${unsupported.getClass}"))
+
+  def convertReassignmentEvent(
+      event: com.daml.ledger.api.v2.reassignment.ReassignmentEvent
+  )(using DamlSchema): Task[ReassignmentEvent] = event.event match
+    case com.daml.ledger.api.v2.reassignment.ReassignmentEvent.Event.Unassigned(evt) =>
+      convertUnassignedEvent(evt)
+    case com.daml.ledger.api.v2.reassignment.ReassignmentEvent.Event.Assigned(evt) =>
+      convertAssignedEvent(evt)
+    case unsupported =>
+      ZIO.fail(new RuntimeException(s"Unsupported reassignment event type: ${unsupported.getClass}"))
 
   def convertCreatedEvent(
       evt: com.daml.ledger.api.v2.event.CreatedEvent
@@ -107,6 +115,43 @@ object specific:
       eventId = EventId(evt.offset, evt.nodeId),
       templateId = templateId,
       contractId = ContractId(evt.contractId)
+    )
+
+  private def convertUnassignedEvent(
+      evt: com.daml.ledger.api.v2.reassignment.UnassignedEvent
+  )(using DamlSchema): Task[Event.Unassigned] =
+    for templateId <- evt.getTemplateId.toIdentifier()
+    yield Event.Unassigned(
+      eventId = EventId(evt.offset, evt.nodeId),
+      reassignmentId = evt.reassignmentId,
+      source = DomainId(evt.source),
+      target = DomainId(evt.target),
+      submitter = Option.when(evt.submitter.nonEmpty)(Party(evt.submitter)),
+      reassignmentCounter = evt.reassignmentCounter,
+      contractId = ContractId(evt.contractId),
+      templateId = templateId,
+      witnesses = evt.witnessParties.to(Chunk).map(Party),
+      assignmentExclusivity = evt.assignmentExclusivity.map(TimestampConverters.asJavaInstant)
+    )
+
+  private def convertAssignedEvent(
+      evt: com.daml.ledger.api.v2.reassignment.AssignedEvent
+  )(using DamlSchema): Task[Event.Assigned] =
+    // An AssignedEvent has no offset or node_id of its own: the proto puts them on the embedded
+    // created event ("The offset of this event refers to the offset of the assignment, while the
+    // node_id is the index of within the batch"). The contract's identity lives there too.
+    val created = evt.getCreatedEvent
+    for templateId <- created.getTemplateId.toIdentifier()
+    yield Event.Assigned(
+      eventId = EventId(created.offset, created.nodeId),
+      reassignmentId = evt.reassignmentId,
+      source = DomainId(evt.source),
+      target = DomainId(evt.target),
+      submitter = Option.when(evt.submitter.nonEmpty)(Party(evt.submitter)),
+      reassignmentCounter = evt.reassignmentCounter,
+      contractId = ContractId(created.contractId),
+      templateId = templateId,
+      witnesses = created.witnessParties.to(Chunk).map(Party)
     )
 
   private def convertExercisedEvent(

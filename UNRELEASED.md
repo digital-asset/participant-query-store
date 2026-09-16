@@ -10,6 +10,7 @@ _Write summary of release_
 
 This release includes the following SQL migrations:
 - _V042__Clear_contract_key_hash_for_interface_views.sql_: clears `contract_key_hash` on interface view rows already stored. Scans `__contracts` once and rewrites only the interface rows that still hold a hash. **[Impact: < 1 min]**
+- _V043__Add_reassignment_event_types.sql_: adds the `assign` and `unassign` labels to the `__event_type` enum. Metadata-only, no table is scanned or rewritten. **[Impact: < 1 min]**
 
 
 ## What's New
@@ -28,6 +29,10 @@ This release includes the following SQL migrations:
 - *BREAKING*: The `OTEL_SERVICE_NAME` environment variable is updated from `scribe` to `pqs`.
 - *BREAKING*: All metrics and attributes prefixes are renamed from `scribe` to `pqs`.
 
+### Reassignment updates are ingested
+
+- PQS now subscribes to reassignments in addition to transactions. Every `Reassignment` received from the ledger is recorded in `__transactions`, and its `Assigned` and `Unassigned` events are recorded in `__events` with the new `assign` and `unassign` types.
+
 ### Bug fixes
 
 - Optimize core SQL functions (`creates`, `exercises`, `active`, `archives`) to compute the nearest offset only once per query.
@@ -38,4 +43,6 @@ This release includes the following SQL migrations:
 - *BREAKING*: PQS configuration no longer provides default Postgres credentials. It is now mandatory to supply the `--target-postgres-username` and `--target-postgres-password` command arguments, or the `PQS_TARGET_POSTGRES_USERNAME` and `PQS_TARGET_POSTGRES_PASSWORD` environment variables.
 - *BREAKING*: Interface view rows no longer store `contract_key_hash`. Previously the hash of the underlying template's contract key was duplicated onto every interface view row, while `contract_key` was already left empty. Both columns are now empty for interface views. Upgrading also clears the hash from interface view rows already stored. The hash remains available on the template rows.
 - Bump Flyway to 13.4.0.
+- Add a `--target-postgres-properties-<key>=<value>` to pass arbitrary additional pgjdbc connection properties through to the driver. Enables driver-level features such as JDBC authentication plugins (e.g. Azure Entra ID, AWS RDS IAM).
+  Example: `--target-postgres-properties-authenticationPluginClassName=com.azure.identity.extensions.jdbc.postgresql.AzurePostgresqlAuthenticationPlugin`
 - add `print_create_index_for_contract` sql function to generate sql statement to create index for contract concurrently

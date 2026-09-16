@@ -72,16 +72,24 @@ object ReassignmentSpec extends FuncTestStandalone:
             "--pipeline-ledger-stop=Latest"
           )
 
-      val createdAtOffset  = Capture[OffsetType]
-      val archivedAtOffset = Capture[OffsetType]
+      val createdAtOffset    = Capture[OffsetType]
+      val unassignedAtOffset = Capture[OffsetType]
+      val assignedAtOffset   = Capture[OffsetType]
+      val archivedAtOffset   = Capture[OffsetType]
       Expect:
+        // `effective_at is null` rather than the timestamp itself: the value of a transaction's
+        // effective time is not predictable from the test, but which rows have one is exactly the
+        // decision being pinned. A reassignment has no ledger effective time and must store none.
         Postgres
-          .query(sql"""select "offset", domain_id from __transactions order by "offset"""")
+          .query(sql"""select "offset", domain_id, effective_at is null
+                       from __transactions order by "offset"""")
           .returns(
             table {
               // submitAndWait guarantees the causal order of these multi-sync transactions
-              createdAtOffset.capture  | null
-              archivedAtOffset.capture | null
+              createdAtOffset.capture    | null | false
+              unassignedAtOffset.capture | null | true
+              assignedAtOffset.capture   | null | true
+              archivedAtOffset.capture   | null | false
             }
           )
 
@@ -97,6 +105,35 @@ object ReassignmentSpec extends FuncTestStandalone:
           .returns(
             table(dar.get.packageId | s"${pingPong.name}:PingPong:Ping" | "template" | contractId | archivedAtOffset)
           )
+
+      Expect:
+        Postgres
+          .query(sql"""select e."type"::text, e.event_id::text
+                       from __events e join __transactions t on e.tx_ix = t.ix
+                       order by t."offset"""")
+          .returns(
+            table {
+              "create"   | s"($createdAtOffset,0)"
+              "unassign" | s"($unassignedAtOffset,0)"
+              "assign"   | s"($assignedAtOffset,0)"
+              "archive"  | s"($archivedAtOffset,0)"
+            }
+          )
+
+      Expect:
+        // A cutoff that falls between the unassign and the assign: later than the create's
+        // effective time, earlier than the archive's, so the only rows at or before it are the
+        // create and the two reassignments. The reassignments carry a null effective_at, so this
+        // function cannot see them — its max() ignores them rather than being poisoned by them,
+        // and the answer is the create rather than the newer unassign. A boundary falling in a
+        // reassignment-only stretch of history is therefore not targetable, which is what
+        // https://github.com/digital-asset/participant-query-store/issues/74 will revisit.
+        Postgres
+          .query(sql"""select nearest_offset(
+                         (select min(effective_at) + (max(effective_at) - min(effective_at)) / 2
+                          from __transactions)
+                       )""")
+          .returns(table(createdAtOffset))
     },
     funcTest("Non-causal stream: archived is received before created") {
       val sync1      = Synchronizer("synchronizer1")

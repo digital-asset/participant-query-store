@@ -3,12 +3,8 @@
 
 package com.digitalasset
 
-import com.digitalasset.transcode.schema
 import com.digitalasset.transcode.schema.IdentifierFilter
-import zio.Chunk
 import zio.config.magnolia.Descriptor
-
-import java.time.Instant
 
 package object canonical:
   opaque type Party <: String = String
@@ -38,18 +34,6 @@ package object canonical:
     Descriptor.from(identifierFilterDescriptor.transform(ContractFilter(_), _.filter))
   given metadataFilterDescriptor: Descriptor[MetadataFilter] =
     Descriptor.from(identifierFilterDescriptor.transform(MetadataFilter(_), _.filter))
-
-  case class ReassignmentEvent(
-      unassignId: String,
-      source: DomainId,
-      target: DomainId,
-      submitter: Party,
-      reassignmentCounter: Long,
-      contractId: ContractId,
-      templateId: schema.Identifier,
-      witnessParties: Chunk[Party],
-      assignmentExclusivity: Option[Instant]
-  )
 
   enum UserRight:
     case AsParties(parties: Set[Party])
