@@ -18,7 +18,7 @@ package object millbuild {
 
     // Latest snapshot: https://console.cloud.google.com/artifacts/docker/da-images/europe/public-unstable/components%2Fcanton-open-source
     // Latest stable: https://console.cloud.google.com/artifacts/docker/da-images/europe/public/components%2Fcanton-open-source
-    val canton = "3.6.0-snapshot.20260818.20026.0.v41046c3b"
+    val canton = "3.7.0-snapshot.20260915.20377.0.v4cffb4ef"
 
     val dockerClient = "3.4.0"
     val flyway = "13.4.0"
