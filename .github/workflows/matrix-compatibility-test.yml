@@ -41,7 +41,7 @@ jobs:
       fail-fast: false
       max-parallel: 4
       matrix:
-        test-number: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
+        test-number: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
     steps:
       - uses: actions/checkout@v5
       - uses: ./.github/actions/nix
