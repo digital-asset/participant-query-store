@@ -7,7 +7,7 @@ import com.daml.ledger.api.v2.trace_context.TraceContext
 import com.daml.ledger.api.v2.transaction_filter.{TransactionFormat, TransactionShape, UpdateFormat}
 import com.daml.ledger.api.v2.update_service.ZioUpdateService.UpdateServiceClient
 import com.daml.ledger.api.v2.update_service.{GetUpdatesRequest, GetUpdatesResponse}
-import com.digitalasset.canonical.specific.{Event, Offset, Transaction, TransactionEvent}
+import com.digitalasset.canonical.specific.{Event, Offset, ReassignmentEvent, Transaction, TransactionEvent}
 import com.digitalasset.canonical.{CommandId, TransactionId, UserRight, WorkflowId}
 import com.digitalasset.pqs.grpc.ZManagedChannel
 import com.digitalasset.pqs.o11y.traces.{DetachedSpan, given}
@@ -15,18 +15,16 @@ import com.digitalasset.pqs.o11y.{logs, traces}
 import com.digitalasset.transcode.schema.Dictionary
 import com.digitalasset.zio.daml.*
 import com.digitalasset.zio.daml.ledgerapi.*
-import com.digitalasset.zio.daml.ledgerapi.DataAdapter.TransactionAdapter
-import com.digitalasset.zio.daml.ledgerapi.specific.{Codecs, convertEvent}
-import com.google.protobuf.timestamp.Timestamp
+import com.digitalasset.zio.daml.ledgerapi.DataAdapter.{ReassignmentAdapter, TransactionAdapter}
+import com.digitalasset.zio.daml.ledgerapi.specific.{Codecs, convertEvent, convertReassignmentEvent}
 import io.opentelemetry.api.trace.*
 import io.opentelemetry.api.trace.propagation.internal.W3CTraceContextEncoding
-import scalapb.TimestampConverters
 import zio.ZIO.{logInfo, logTrace}
 import zio.metrics.Metric
 import zio.stream.ZStream
-import zio.{Chunk, Task, ZIO, ZLayer, stream}
+import zio.{Chunk, Task, UIO, ZIO, ZLayer, stream}
 
-import java.time.Duration
+import java.time.{Duration, Instant}
 import scala.language.implicitConversions
 import scala.reflect.Selectable.reflectiveSelectable
 
@@ -52,22 +50,25 @@ case class UpdateService(
     )
     .contramap[Duration](_.toMillis.toDouble / 1_000)
 
-  inline private def lag(chunk: Iterable[{ def effectiveAt: Option[Timestamp] }]) =
-    zio.Clock.instant
-      .map(now =>
-        for {
-          transaction   <- chunk.headOption
-          effectiveAtTS <- transaction.effectiveAt
-          effectiveAt = TimestampConverters.asJavaInstant(effectiveAtTS)
-        } yield Duration.between(effectiveAt, now)
-      )
-      .someOrElse(Duration.ZERO)
+  // TODO #74: lag is measured from the ledger effective time, which only a transaction
+  // has, so a reassignment never contributes to it. `record_time` is present on every update and
+  // would let this gauge cover them too — revisit once it is ingested.
+  inline private def lag(chunk: Iterable[{ def effectiveAt: Option[Instant] }]): UIO[Option[Duration]] =
+    zio.Clock.instant.map(now =>
+      // The first update that has an effective time, not simply the first update: a chunk headed by
+      // a reassignment can still hold transactions, and their lag is worth reporting. A chunk with
+      // no times at all yields None, and nothing is published.
+      chunk.iterator
+        .flatMap(_.effectiveAt)
+        .nextOption()
+        .map(ts => Duration.between(ts, now))
+    )
 
   def getTransactions(
       rights: UserRight,
       beginExclusive: Offset,
       endInclusive: Offset
-  ): stream.Stream[Throwable, Transaction[TransactionEvent]] =
+  ): stream.Stream[Throwable, Transaction[TransactionEvent | ReassignmentEvent]] =
     getTransactionByShape(
       rights,
       beginExclusive,
@@ -92,7 +93,7 @@ case class UpdateService(
       beginExclusive: Offset,
       endInclusive: Offset,
       transactionShape: TransactionShape
-  ): stream.Stream[Throwable, Transaction[TransactionEvent]] =
+  ): stream.Stream[Throwable, Transaction[TransactionEvent | ReassignmentEvent]] =
     ZStream.unwrap(
       for _ <- logFilterContents(identifiers)
       yield getTransactionStream(
@@ -102,12 +103,14 @@ case class UpdateService(
             beginExclusive = offset.toBeginLedgerOffset,
             endInclusive = endInclusive.toEndLedgerOffset,
             updateFormat = Some(
-              UpdateFormat.defaultInstance.withIncludeTransactions(
-                TransactionFormat(
-                  eventFormat = Some(mkEventFormat(rights, identifiers)),
-                  transactionShape = transactionShape
+              UpdateFormat.defaultInstance
+                .withIncludeTransactions(
+                  TransactionFormat(
+                    eventFormat = Some(mkEventFormat(rights, identifiers)),
+                    transactionShape = transactionShape
+                  )
                 )
-              )
+                .withIncludeReassignments(mkEventFormat(rights, identifiers))
             ),
             descendingOrder = false
           ),
@@ -116,25 +119,28 @@ case class UpdateService(
             .getUpdates(req)
             .map(_.update)
             .collect {
-              case GetUpdatesResponse.Update.Transaction(value) => value
-              // TODO other cases
+              case GetUpdatesResponse.Update.Transaction(value)  => TransactionAdapter(value, transactionShape)
+              case GetUpdatesResponse.Update.Reassignment(value) => ReassignmentAdapter(value)
             }
             .mapChunksZIO { chunk =>
-              logInfo(s"Received transactions responses at offsets: ${offsets(chunk)}") *>
-                (lag(chunk) @@ txLagGauge) *>
+              logInfo(s"Received update responses at offsets: ${offsets(chunk)}") *>
+                lag(chunk).flatMap(latest => ZIO.foreach(latest)(txLagGauge.update(_))) *>
                 zio.Clock.nanoTime.map(now => chunk.map(_ -> now))
             }
-            .mapZIO { (tx, seenAt) =>
+            .mapZIO { (update, seenAt) =>
               consumerSpan("com.daml.ledger.api.v2.UpdateService/GetUpdates") {
-                val adaptedTx = TransactionAdapter(tx, transactionShape)
-                traces.makeDetachedSpan(s"export ${adaptedTx.sourceType}").map(span => (adaptedTx, span, seenAt))
+                traces.makeDetachedSpan(s"export ${update.sourceType}").map(span => (update, span, seenAt))
               }
             }
-            .mapZIOPar(16) { (tx, txSpan, seenAt) =>
-              txSpan.locally {
-                process(tx, txSpan, seenAt) { tx =>
-                  ZIO.foreach(tx.events.to(Chunk))(convertEvent(_, tx.offset, rights)(using codecs, identifiers))
-                }
+            .mapZIOPar(16) { (update, updateSpan, seenAt) =>
+              updateSpan.locally {
+                update match
+                  case adapter: TransactionAdapter =>
+                    process(adapter, updateSpan, seenAt): tx =>
+                      ZIO.foreach(tx.events.to(Chunk))(convertEvent(_)(using codecs, identifiers))
+                  case adapter: ReassignmentAdapter =>
+                    process(adapter, updateSpan, seenAt): rs =>
+                      ZIO.foreach(rs.events.to(Chunk))(convertReassignmentEvent(_)(using identifiers))
               }
             }
       )
@@ -157,12 +163,18 @@ case class UpdateService(
         _ <- logTrace(s"Ledger ${tx.sourceType}: ${pprint(tx, height = Int.MaxValue)}")
         _ <- txSpan.addAttributes(
           "daml.command_id"     -> tx.commandId,
-          "daml.effective_at"   -> TimestampConverters.asJavaInstant(tx.effectiveAt).toString,
           "daml.events_count"   -> tx.eventsSize.toLong,
           "daml.offset"         -> tx.offset,
           "daml.transaction_id" -> tx.transactionId,
           "daml.workflow_id"    -> tx.workflowId
         )
+        // TODO #74: a reassignment has no ledger effective time, so its span carries no
+        // time at all. Both update kinds do carry `record_time` and `synchronizer_id` on the wire;
+        // add them here as `daml.record_time` and `daml.synchronizer_id` once those are ingested,
+        // so every update kind is traceable against the database.
+        _ <- ZIO.foreach(tx.effectiveAt) { ts =>
+          txSpan.addAttributes("daml.effective_at" -> ts.toString)
+        }
         logAttrs = (Seq("offset" -> tx.offset, "events" -> tx.eventsSize)
           ++ remoteSpan.map("remote trace" -> _.getTraceId))
           .map(_.productIterator.mkString(": "))
@@ -176,7 +188,7 @@ case class UpdateService(
             transactionId = TransactionId(tx.transactionId),
             commandId = CommandId(tx.commandId),
             workflowId = WorkflowId(tx.workflowId),
-            effectiveAt = TimestampConverters.asJavaInstant(tx.effectiveAt),
+            effectiveAt = tx.effectiveAt,
             offset = tx.offset.toOffset,
             events = convertedEvents,
             externalTransactionHash = tx.externalTransactionHash,

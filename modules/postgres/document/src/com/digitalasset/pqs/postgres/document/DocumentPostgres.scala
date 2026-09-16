@@ -4,8 +4,8 @@
 package com.digitalasset.pqs.postgres.document
 
 import com.digitalasset.canonical
-import com.digitalasset.canonical.{ContractId, ReassignmentEvent}
-import com.digitalasset.canonical.specific.{Offset, TreeEvent}
+import com.digitalasset.canonical.ContractId
+import com.digitalasset.canonical.specific.Offset
 import com.digitalasset.pqs.backend.Datastore
 import com.digitalasset.pqs.o11y.metrics.latency
 import com.digitalasset.pqs.o11y.traces
@@ -123,7 +123,7 @@ final case class DocumentPostgres(
   private def convertTransactionEventsToStatements(n: Int) =
     val trackConvert = latency("pipeline_convert_transaction", "Latency of converting transactions")
     type TX = (
-        canonical.specific.Transaction[canonical.specific.Event | TreeEvent | ReassignmentEvent],
+        canonical.specific.Transaction[canonical.specific.Event],
         Datastore.TransactionIndex
     )
     ZPipeline
@@ -286,7 +286,7 @@ final case class DocumentPostgres(
   )
 
   private def convertTransactionToSqlStatements(
-      tx: canonical.specific.Transaction[canonical.specific.Event | TreeEvent | ReassignmentEvent],
+      tx: canonical.specific.Transaction[canonical.specific.Event],
       txIx: Long
   ): Chunk[model.Model] =
     val insertTx = model.Transaction(
@@ -294,7 +294,7 @@ final case class DocumentPostgres(
         txIx,
         tx.offset,
         Some(tx.transactionId),
-        Some(tx.effectiveAt),
+        tx.effectiveAt,
         tx.domainId,
         Some(tx.workflowId),
         tx.remoteSpan,
@@ -309,7 +309,7 @@ final case class DocumentPostgres(
 
   private def insertEvent(
       txIx: Long,
-      event: canonical.specific.Event | TreeEvent | ReassignmentEvent
+      event: canonical.specific.Event
   ): Chunk[model.Model] = {
     val pk = placeholders.mk
 
@@ -431,8 +431,34 @@ final case class DocumentPostgres(
         val archives = if consuming then mkArchives(pk, txIx, cid, tid) else Chunk.empty
         archives :+ exercise :+ evt
 
-      case rs: ReassignmentEvent =>
-        Chunk( /*TODO*/ )
+      // A reassignment event is recorded as an event only. The reassigned contract itself is not
+      // tracked yet, so no __contracts row is created or updated here — those arrive in M5 with the
+      // columns that make them correct (reassignment_counter, synchronizer_id, life_ix). Converting
+      // an assignment to Event.Created instead would write a second __contracts row for the same
+      // contract, which is the duplicated-contracts corruption the parent design calls out.
+      case evt: canonical.specific.Event.Unassigned =>
+        Chunk(
+          model.Event(
+            Event(
+              pk = pk,
+              txIx = txIx,
+              eventId = evt.eventId,
+              eventType = model.EventType.Unassign
+            )
+          )
+        )
+
+      case evt: canonical.specific.Event.Assigned =>
+        Chunk(
+          model.Event(
+            Event(
+              pk = pk,
+              txIx = txIx,
+              eventId = evt.eventId,
+              eventType = model.EventType.Assign
+            )
+          )
+        )
   }
 end DocumentPostgres
 

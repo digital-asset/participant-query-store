@@ -10,6 +10,7 @@ _Write summary of release_
 
 This release includes the following SQL migrations:
 - _V042__Clear_contract_key_hash_for_interface_views.sql_: clears `contract_key_hash` on interface view rows already stored. Scans `__contracts` once and rewrites only the interface rows that still hold a hash. **[Impact: < 1 min]**
+- _V043__Add_reassignment_event_types.sql_: adds the `assign` and `unassign` labels to the `__event_type` enum. Metadata-only, no table is scanned or rewritten. **[Impact: < 1 min]**
 
 
 ## What's New
@@ -27,6 +28,10 @@ This release includes the following SQL migrations:
 - *BREAKING*: The `org.opencontainers.image.ref.name` label is updated from `scribe` to `participant-query-store`.
 - *BREAKING*: The `OTEL_SERVICE_NAME` environment variable is updated from `scribe` to `pqs`.
 - *BREAKING*: All metrics and attributes prefixes are renamed from `scribe` to `pqs`.
+
+### Reassignment updates are ingested
+
+- PQS now subscribes to reassignments in addition to transactions. Every `Reassignment` received from the ledger is recorded in `__transactions`, and its `Assigned` and `Unassigned` events are recorded in `__events` with the new `assign` and `unassign` types.
 
 ### Bug fixes
 

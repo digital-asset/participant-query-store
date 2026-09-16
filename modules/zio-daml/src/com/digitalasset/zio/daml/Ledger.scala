@@ -4,7 +4,7 @@
 package com.digitalasset.zio.daml
 
 import com.digitalasset.auth.Auth
-import com.digitalasset.canonical.specific.{Event, Offset, Transaction, TransactionEvent}
+import com.digitalasset.canonical.specific.{Event, Offset, ReassignmentEvent, Transaction, TransactionEvent}
 import com.digitalasset.canonical.UserRight
 import com.digitalasset.pqs.configuration.filter.PartyFilterParser.PartyFilter
 import com.digitalasset.pqs.grpc.ZManagedChannel
@@ -45,7 +45,7 @@ case class Ledger(
       rights: UserRight,
       beginExclusive: Offset,
       endInclusive: Offset
-  ): stream.Stream[Throwable, Transaction[TransactionEvent]] =
+  ): stream.Stream[Throwable, Transaction[TransactionEvent | ReassignmentEvent]] =
     updateService.getTransactions(rights, beginExclusive, endInclusive)
 
   def getTransactionTrees(

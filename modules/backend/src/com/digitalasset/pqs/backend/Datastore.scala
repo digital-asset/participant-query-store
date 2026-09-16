@@ -3,8 +3,7 @@
 
 package com.digitalasset.pqs.backend
 
-import com.digitalasset.canonical.ReassignmentEvent
-import com.digitalasset.canonical.specific.{Event, Offset, Transaction, TreeEvent}
+import com.digitalasset.canonical.specific.{Event, Offset, ReassignmentEvent, Transaction, TreeEvent}
 import com.digitalasset.pqs.backend.Datastore.ProcessingSink
 import zio.Task
 import zio.stream.ZSink
