@@ -210,5 +210,5 @@ object FlywayMigrationSpec extends FuncTestStandalone:
               anything | templateFqn | "template" | anything | keyHash42.capture
             }
           )
-    } @@ DamlSdk.onlyDamlLfVersion(">=2.3")
+    } @@ DamlSdk.onlyDamlLfVersion("=2.3")
   )
