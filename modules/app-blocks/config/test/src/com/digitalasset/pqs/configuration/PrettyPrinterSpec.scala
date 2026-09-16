@@ -20,7 +20,7 @@ object PrettyPrinterSpec extends ZIOSpecDefault:
       host: String = "localhost",
       port: Int = 5432,
       mode: PostgresConfig.Mode = PostgresConfig.Mode.ApplySchema,
-      properties: Map[String, String] = Map.empty
+      properties: Map[String, Secret] = Map.empty
   )
 
   case class PipelineConfig(

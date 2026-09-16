@@ -454,7 +454,7 @@ object DocumentPostgres:
                 s"jdbc:postgresql://${pgCfg.host}:${pgCfg.port}/${pgCfg.database}?currentSchema=${pgCfg.schema}",
                 pgCfg.username,
                 pgCfg.password.value,
-                (sslprops(pgCfg.tls) ++ instanceIdProp(instanceId) ++ pgCfg.properties).asJava
+                (sslprops(pgCfg.tls) ++ instanceIdProp(instanceId) ++ pgCfg.properties.view.mapValues(_.value)).asJava
               )
             )
             .baselineOnMigrate(doBaseline)

@@ -36,7 +36,7 @@ case class PostgresConfig(
     probeInterval: ISO8601Duration = 30.seconds,
     // Advanced escape hatch: user-provided entries override PQS-managed keys (e.g. sslmode, options).
     @describe("Additional pgjdbc connection properties")
-    properties: Map[String, String] = Map.empty
+    properties: Map[String, Secret] = Map.empty
 )
 
 case class SchemaConfig(

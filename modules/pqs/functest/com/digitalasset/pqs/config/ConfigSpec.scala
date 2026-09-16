@@ -94,9 +94,9 @@ object ConfigSpec extends FuncTestStandalone:
             Pqs.stdout `is` stringContaining("Applied configuration:")
           And:
             Pqs.stdout `is` (
-              stringContaining("sslmode=require") &&
-                stringContaining("LoginTimeout=\"30\"") &&
-                stringContaining("ApplicationName=myapp")
+              stringContaining("sslmode=\"********\"") &&
+                stringContaining("LoginTimeout=\"********\"") &&
+                stringContaining("ApplicationName=\"********\"")
             )
           And:
             Pqs.exitCode `is` ExitCode.failure
@@ -120,9 +120,9 @@ object ConfigSpec extends FuncTestStandalone:
             Pqs.stdout `is` stringContaining("Applied configuration:")
           And:
             Pqs.stdout `is` (
-              stringContaining("sslmode=require") &&
-                stringContaining("LoginTimeout=\"30\"") &&
-                stringContaining("ApplicationName=myapp")
+              stringContaining("sslmode=\"********\"") &&
+                stringContaining("LoginTimeout=\"********\"") &&
+                stringContaining("ApplicationName=\"********\"")
             )
           And:
             Pqs.exitCode `is` ExitCode.failure
