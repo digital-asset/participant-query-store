@@ -25,7 +25,7 @@ import com.daml.ledger.api.v2.update_service.GetUpdatesRequest
 import com.daml.ledger.api.v2.update_service.ZioUpdateService.UpdateServiceClient
 import com.daml.ledger.api.v2.value.{Identifier, Value}
 import com.digitalasset.canonical.{ContractFilter, MetadataFilter}
-import com.digitalasset.canonical.specific.{Offset, Transaction, TransactionEvent}
+import com.digitalasset.canonical.specific.{Offset, Transaction, Event}
 import com.digitalasset.pqs.docker.{Docker, Service}
 import com.digitalasset.pqs.functest.FTEnv
 import com.digitalasset.pqs.grpc.{ZClientInterceptor, ZManagedChannel}
@@ -188,7 +188,7 @@ object Ledger:
   def recordTransactionStream: ZIO[
     Docker & Service[Ledger] & Parties & UpdateService & StateService,
     Throwable,
-    Chunk[Transaction[TransactionEvent]]
+    Chunk[Transaction[Event]]
   ] = svc {
     for
       parties       <- ZIO.service[Parties]

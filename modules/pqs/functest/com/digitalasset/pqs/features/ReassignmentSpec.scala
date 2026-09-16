@@ -4,9 +4,9 @@
 package com.digitalasset.pqs.features
 
 import com.daml.ledger.api.v2.value.*
-import com.digitalasset.canonical.specific.{Offset, Transaction, TransactionEvent}
+import com.digitalasset.canonical.specific.{Event, Offset, Transaction}
 import com.digitalasset.pqs.docker.Service
-import com.digitalasset.pqs.functest.FuncTestStandalone
+import com.digitalasset.pqs.functest.FuncTest
 import com.digitalasset.pqs.functest.matchers.*
 import com.digitalasset.pqs.functest.table.*
 import com.digitalasset.pqs.pipeline.InProcessPipeline
@@ -24,7 +24,7 @@ import zio.test.Assertion.*
 
 import scala.language.implicitConversions
 
-object ReassignmentSpec extends FuncTestStandalone:
+object ReassignmentSpec extends FuncTest[Service[Ledger] & Postgres & DeployedDar & Database]:
   private val pingPong = DamlSource(
     "PingPong" -> """module PingPong where
                     |
@@ -39,19 +39,20 @@ object ReassignmentSpec extends FuncTestStandalone:
                     |""".stripMargin
   )
 
-  private def context(sync1: Synchronizer, sync2: Synchronizer, alice: Party) =
-    DamlSdk.dar(pingPong) ++ DamlSdk.multiSyncLedger(sync1, sync2)
-      >+> DamlSdk.uploadAndVetDar(sync1, sync2) ++ DamlSdk.allocateParties(alice -> Seq(sync1, sync2))
+  private val sync1 = Synchronizer("synchronizer1")
+  private val sync2 = Synchronizer("synchronizer2")
+
+  override val shared =
+    DamlSdk.dar(pingPong) ++ DamlSdk.multiSyncLedger(sync1, sync2) ++ Postgres.instance
+      >+> DamlSdk.uploadAndVetDar(sync1, sync2) ++ Postgres.database
 
   def spec = suite("Multi-Sync")(
     funcTest("Contract is created, reassigned and archived") {
-      val sync1      = Synchronizer("synchronizer1")
-      val sync2      = Synchronizer("synchronizer2")
       val alice      = Party("Alice")
       val dar        = Capture[DeployedDar]
       val contractId = Capture[String]
       Given:
-        context(sync1, sync2, alice)
+        DamlSdk.allocateParties(alice -> Seq(sync1, sync2))
       And:
         dar.captureFromService
       Then:
@@ -136,14 +137,12 @@ object ReassignmentSpec extends FuncTestStandalone:
           .returns(table(createdAtOffset))
     },
     funcTest("Non-causal stream: archived is received before created") {
-      val sync1      = Synchronizer("synchronizer1")
-      val sync2      = Synchronizer("synchronizer2")
       val alice      = Party("Alice")
       val dar        = Capture[DeployedDar]
       val contractId = Capture[String]
 
       Given:
-        context(sync1, sync2, alice)
+        DamlSdk.allocateParties(alice -> Seq(sync1, sync2))
       Then:
         dar.captureFromService
       And:
@@ -162,14 +161,19 @@ object ReassignmentSpec extends FuncTestStandalone:
           >+> DamlSchema.protobufCodecs
           >+> Ledger.updateService ++ Ledger.stateService
 
-      val transactions     = Capture[Chunk[Transaction[TransactionEvent]]]
-      val archivedAtOffset = Offset.Absolute(1)
-      val createdAtOffset  = Offset.Absolute(2)
-      def archiveTx        = transactions.get(1).copy(offset = archivedAtOffset)
-      def createTx         = transactions.get(0).copy(offset = createdAtOffset)
+      val transactions       = Capture[Chunk[Transaction[Event]]]
+      val assignedAtOffset   = Offset.Absolute(1)
+      val archivedAtOffset   = Offset.Absolute(2)
+      val createdAtOffset    = Offset.Absolute(3)
+      val unassignedAtOffset = Offset.Absolute(4)
+
+      def assignTx     = transactions.get(2).copy(offset = assignedAtOffset)
+      def archiveTx    = transactions.get(3).copy(offset = archivedAtOffset)
+      def createTx     = transactions.get(0).copy(offset = createdAtOffset)
+      def unassignedTx = transactions.get(1).copy(offset = unassignedAtOffset)
 
       Then:
-        Ledger.recordTransactionStream.is(hasSize(equalTo(2)) && transactions.capture)
+        Ledger.recordTransactionStream.is(hasSize(equalTo(4)) && transactions.capture)
 
       When:
         Postgres.instance
@@ -181,16 +185,18 @@ object ReassignmentSpec extends FuncTestStandalone:
       When:
         // the archived event is received first
         // the created event is received later, after watermark insertion
-        InProcessPipeline.processTransactions(Chunk(archiveTx)) *>
-          InProcessPipeline.processTransactions(Chunk(createTx))
+        InProcessPipeline.processTransactions(Chunk(assignTx, archiveTx)) *>
+          InProcessPipeline.processTransactions(Chunk(createTx, unassignedTx))
 
       Expect:
         Postgres
           .query(sql"""select "offset", domain_id from __transactions order by "offset"""")
           .returns(
             table {
-              archivedAtOffset.offset | null
-              createdAtOffset.offset  | null
+              assignedAtOffset.offset   | null
+              archivedAtOffset.offset   | null
+              createdAtOffset.offset    | null
+              unassignedAtOffset.offset | null
             }
           )
 

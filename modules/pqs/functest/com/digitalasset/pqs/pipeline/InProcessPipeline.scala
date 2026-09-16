@@ -5,7 +5,6 @@ package com.digitalasset.pqs.pipeline
 
 import com.digitalasset.pqs.backend.Datastore
 import com.digitalasset.canonical.specific.*
-import com.digitalasset.canonical.ReassignmentEvent
 import com.digitalasset.pqs.postgres.backend.SchemaConfig
 import com.digitalasset.pqs.postgres.document.DocumentPostgres
 import com.digitalasset.pqs.postgres.document.SqlSchema
