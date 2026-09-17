@@ -145,32 +145,6 @@ object Postgres:
   ): ZIO[Database, Throwable, TestResult] =
     tables.map(x => assertTrue(!x.contains((schema, tableName))))
 
-  def columnsIn(tableName: String): ZIO[Database, Throwable, Table] =
-    query(
-      sql"""select column_name, is_nullable, data_type
-          from information_schema.columns
-          where table_name like $tableName
-          order by ordinal_position"""
-    )
-
-  def columnsStorageIn(tableName: String): ZIO[Database, Throwable, Table] =
-    query(
-      sql"""select att.attname as column,
-                case att.attstorage
-                    when 'p' then 'plain'
-                    when 'm' then 'main'
-                    when 'e' then 'external'
-                    when 'x' then 'extended'
-                    end as storage
-          from pg_attribute att
-          join pg_class tbl on tbl.oid = att.attrelid
-          join pg_namespace ns on ns.oid = tbl.relnamespace
-          where tbl.relname like $tableName
-            and not att.attisdropped
-            and attname not in ('tableoid', 'cmax', 'xmax', 'cmin', 'xmin', 'ctid')
-          order by attnum"""
-    )
-
   /** Simulates a gap in the `__transactions` table by deleting the ones with the supplied indexes and adjusting the
     * `__watermark` table appropriately. This is useful for simulation of concurrently writing transactions out of
     * order.

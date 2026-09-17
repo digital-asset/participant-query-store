@@ -8,8 +8,6 @@ import zio.jdbc.{SqlFragment, sqlInterpolator}
 object specific:
   type OffsetType = Long
 
-  val eventIdSqlType  = "USER-DEFINED"
-  val offsetSqlType   = "bigint"
   val offsetScalaType = "long"
 
   val biggestOffset: OffsetType  = Long.MaxValue
