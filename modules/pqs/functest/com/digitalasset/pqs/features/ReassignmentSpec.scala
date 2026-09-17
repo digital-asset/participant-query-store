@@ -191,13 +191,13 @@ object ReassignmentSpec extends FuncTest[Service[Ledger] & Postgres & DeployedDa
 
       Expect:
         Postgres
-          .query(sql"""select "offset", domain_id from __transactions order by "offset"""")
+          .query(sql"""select "offset", synchronizer_id from __transactions order by "offset"""")
           .returns(
             table {
-              assignedAtOffset.offset   | null
-              archivedAtOffset.offset   | null
-              createdAtOffset.offset    | null
-              unassignedAtOffset.offset | null
+              assignedAtOffset.offset   | sync2.id
+              archivedAtOffset.offset   | sync2.id
+              createdAtOffset.offset    | sync1.id
+              unassignedAtOffset.offset | sync1.id
             }
           )
 
