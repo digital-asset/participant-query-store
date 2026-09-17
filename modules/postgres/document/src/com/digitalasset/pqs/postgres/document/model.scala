@@ -67,7 +67,7 @@ object model {
       val forcedCopies = copies.view
         .map { (table, rows) => (table, rows.view.mkString(lineSeparator())) }
         .toSeq
-        .sortBy(_._1.precedence)
+        .sortBy(_._1.insertOrder)
       val copyIO = ZIO.serviceWithZIO[ZConnection](
         _.access { conn =>
           @SuppressWarnings(Array("org.wartremover.warts.AsInstanceOf"))
@@ -110,8 +110,8 @@ object model {
 
   type PackagePk = Long
 
-  sealed trait Table(val name: String, val columns: Seq[String], val precedence: Int):
-    def copyQuery = s"/*$precedence*/ copy $name (${columns.mkString(", ")}) from stdin"
+  sealed trait Table(val name: String, columns: Seq[String], val insertOrder: Int):
+    val copyQuery = s"copy $name (${columns.mkString(", ")}) from stdin"
 
   final class Transaction(
       val ix: Long,
@@ -145,7 +145,7 @@ object model {
           "external_transaction_hash",
           "paid_traffic_cost"
         ),
-        precedence = 0
+        insertOrder = 0
       )
 
   final class Event(
@@ -162,7 +162,7 @@ object model {
       extends Table(
         "__events",
         Seq("pk", "tx_ix", "event_id", "type"),
-        precedence = 2
+        insertOrder = 1
       )
 
   final class Contract(
@@ -208,7 +208,7 @@ object model {
           "witnesses",
           "divulged_only"
         ),
-        precedence = 2
+        insertOrder = 2
       )
 
   final class Exercise(
@@ -248,7 +248,7 @@ object model {
           "last_descendant_node_id",
           "package_pk"
         ),
-        precedence = 3
+        insertOrder = 3
       )
 
   final class Archive(
@@ -269,7 +269,7 @@ object model {
       extends Table(
         "__archives",
         Seq("archive_event_pk", "archived_at_ix", "contract_id", "tpe_pk", "package_pk"),
-        precedence = 4
+        insertOrder = 4
       )
 
   extension (models: Iterable[Model])
