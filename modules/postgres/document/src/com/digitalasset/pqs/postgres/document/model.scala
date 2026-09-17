@@ -174,9 +174,13 @@ object Event
 final class Contract(
     qualifiedName: String,
     entityType: EntityTypePk,
-    createEventPk: IdPlaceholder,
-    createdAtIx: Long,
+    createEventPk: Option[IdPlaceholder],
+    createdAtIx: Option[Long],
+    assignEventPk: Option[IdPlaceholder],
+    assignedAtIx: Option[Long],
     contractId: ContractId,
+    synchronizerId: SynchronizerId,
+    reassignmentCounter: Long,
     signatories: Seq[Party],
     observers: Seq[Party],
     witnesses: Seq[Party],
@@ -193,7 +197,11 @@ final class Contract(
     entityType,
     createEventPk,
     createdAtIx,
+    assignEventPk,
+    assignedAtIx,
     contractId,
+    synchronizerId,
+    reassignmentCounter,
     payload,
     contractKey,
     contractKeyHash,
@@ -205,7 +213,9 @@ final class Contract(
     witnesses,
     !acsDelta
   )
-  val labels: Set[MetricLabel] = l("type" -> "create", "template" -> qualifiedName)
+  val labels: Set[MetricLabel] =
+    val tpe = if createdAtIx.isDefined then "create" else "assign"
+    l("type" -> tpe, "template" -> qualifiedName)
 
 object Contract
     extends Table(
@@ -214,7 +224,11 @@ object Contract
         "tpe_pk",
         "create_event_pk",
         "created_at_ix",
+        "assign_event_pk",
+        "assigned_at_ix",
         "contract_id",
+        "synchronizer_id",
+        "reassignment_counter",
         "payload",
         "contract_key",
         "contract_key_hash",

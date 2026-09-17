@@ -322,47 +322,36 @@ final case class DocumentPostgres(
       }
 
     event match
-      case canonical.Event.Created(
-            eid,
-            rpId,
-            templateQualifiedName,
-            cid,
-            contractKey,
-            contractKeyHash,
-            payloads,
-            signatories,
-            observers,
-            witnesses,
-            created_at,
-            metadata,
-            acsDelta,
-            creationPackageId
-          ) =>
+      case e: canonical.specific.Event.Created =>
         val evt = Event(
           pk = pk,
           txIx = txIx,
-          eventId = eid,
+          eventId = e.eventId,
           eventType = EventType.Create
         )
-        val contracts = payloads.map((entityId, value) =>
+        val contracts = e.payloads.map((entityId, value) =>
           Contract(
-            qualifiedName = templateQualifiedName,
+            qualifiedName = e.templateQualifiedName,
             entityType = entityPkMap(entityId),
-            createEventPk = pk,
-            createdAtIx = txIx,
-            contractId = cid,
-            signatories = signatories,
-            observers = observers,
-            witnesses = witnesses,
+            createEventPk = Some(pk),
+            createdAtIx = Some(txIx),
+            assignEventPk = None,
+            assignedAtIx = None,
+            contractId = e.contractId,
+            synchronizerId = e.synchronizerId,
+            reassignmentCounter = 0,
+            signatories = e.signatories,
+            observers = e.observers,
+            witnesses = e.witnesses,
             payload = codec.template(entityId).fromDynamicValue(value),
             // A create yields a row per payload: one for the template, one per interface view. Only a keyed
             // template has a key codec, so checking templateKey codec drops both contractKey and contractKeyHash.
-            contractKey = (codec.getTemplateKey(entityId) zip contractKey).map(_ `fromDynamicValue` _),
-            contractKeyHash = codec.getTemplateKey(entityId).flatMap(_ => contractKeyHash),
-            metadata = metadata,
-            acsDelta = acsDelta,
-            packagePk = packageMap(rpId),
-            creationPackageId = creationPackageId
+            contractKey = codec.getTemplateKey(entityId).zip(e.contractKey).map(_.fromDynamicValue(_)),
+            contractKeyHash = codec.getTemplateKey(entityId).flatMap(_ => e.contractKeyHash),
+            metadata = e.metadata,
+            acsDelta = e.acsDelta,
+            packagePk = packageMap(e.representativePackageId),
+            creationPackageId = e.creationPackageId
           )
         )
         contracts :+ evt

@@ -23,6 +23,7 @@ object Event:
       representativePackageId: schema.PackageId,
       templateQualifiedName: String,
       contractId: ContractId,
+      synchronizerId: SynchronizerId,
       contractKey: Option[schema.DynamicValue],
       contractKeyHash: Option[Array[Byte]],
       payloads: Chunk[(schema.Identifier, schema.DynamicValue)],

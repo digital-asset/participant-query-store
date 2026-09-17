@@ -7,17 +7,7 @@ import com.daml.ledger.api.v2.trace_context.TraceContext
 import com.daml.ledger.api.v2.transaction_filter.{TransactionFormat, TransactionShape, UpdateFormat}
 import com.daml.ledger.api.v2.update_service.ZioUpdateService.UpdateServiceClient
 import com.daml.ledger.api.v2.update_service.{GetUpdatesRequest, GetUpdatesResponse}
-import com.digitalasset.canonical.{
-  CommandId,
-  Event,
-  Offset,
-  ReassignmentEvent,
-  Transaction,
-  TransactionEvent,
-  TransactionId,
-  UserRight,
-  WorkflowId
-}
+import com.digitalasset.canonical.*
 import com.digitalasset.pqs.grpc.ZManagedChannel
 import com.digitalasset.pqs.o11y.traces.{DetachedSpan, given}
 import com.digitalasset.pqs.o11y.{logs, traces}
@@ -141,8 +131,10 @@ case class UpdateService(
               updateSpan.locally {
                 update match
                   case adapter: TransactionAdapter =>
-                    process(adapter, updateSpan, seenAt): tx =>
-                      ZIO.foreach(tx.events.to(Chunk))(convertEvent(_)(using codecs, identifiers))
+                    process(adapter, updateSpan, seenAt) { tx =>
+                      val syncId = SynchronizerId(tx.synchronizerId)
+                      ZIO.foreach(tx.events.to(Chunk))(convertEvent(_, syncId)(using codecs, identifiers))
+                    }
                   case adapter: ReassignmentAdapter =>
                     process(adapter, updateSpan, seenAt): rs =>
                       ZIO.foreach(rs.events.to(Chunk))(convertReassignmentEvent(_)(using identifiers))

@@ -18,10 +18,11 @@ import zio.{Chunk, Task, ZIO}
 object eventConverters:
 
   def convertEvent(
-      event: com.daml.ledger.api.v2.event.Event
+      event: com.daml.ledger.api.v2.event.Event,
+      synchronizerId: SynchronizerId
   )(using ProtobufCodecs, DamlSchema): Task[TransactionEvent] = event.event match
     case com.daml.ledger.api.v2.event.Event.Event.Created(evt) =>
-      convertCreatedEvent(evt)
+      convertCreatedEvent(evt, synchronizerId)
     case com.daml.ledger.api.v2.event.Event.Event.Archived(evt) =>
       convertArchivedEvent(evt)
     case com.daml.ledger.api.v2.event.Event.Event.Exercised(evt) =>
@@ -40,7 +41,8 @@ object eventConverters:
       ZIO.fail(new RuntimeException(s"Unsupported reassignment event type: ${unsupported.getClass}"))
 
   def convertCreatedEvent(
-      evt: com.daml.ledger.api.v2.event.CreatedEvent
+      evt: com.daml.ledger.api.v2.event.CreatedEvent,
+      synchronizerId: SynchronizerId
   )(using codecs: ProtobufCodecs)(using DamlSchema): Task[Event.Created] =
     for {
       templateId <- evt.getTemplateId.toIdentifier(Some(evt.representativePackageId))
@@ -54,6 +56,7 @@ object eventConverters:
       representativePackageId = PackageId(evt.representativePackageId),
       templateQualifiedName = templateId.qualifiedName,
       contractId = ContractId(evt.contractId),
+      synchronizerId = synchronizerId,
       contractKey = codecs.getTemplateKey(templateId).map(_.toDynamicValue(evt.getContractKey)),
       contractKeyHash = Option.when(!evt.contractKeyHash.isEmpty)(evt.contractKeyHash.toByteArray),
       payloads = payloads.to(Chunk).map { (id, payload) =>
