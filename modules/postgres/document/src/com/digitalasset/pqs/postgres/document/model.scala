@@ -11,7 +11,6 @@ import com.digitalasset.pqs.o11y.traces.{DetachedSpan, given}
 import io.opentelemetry.api.trace.SpanContext
 import org.apache.commons.text.translate.LookupTranslator
 import org.postgresql.PGConnection
-import ujson.Value
 import zio.ZIO.logTrace
 import zio.jdbc.{JdbcDecoder, ZConnection}
 import zio.jdbc.shims.postgres.PGRestorableConnection
@@ -173,8 +172,8 @@ final class Contract(
     signatories: Seq[Party],
     observers: Seq[Party],
     witnesses: Seq[Party],
-    payload: Value,
-    contractKey: Option[Value],
+    payload: ujson.Value,
+    contractKey: Option[ujson.Value],
     contractKeyHash: Option[Array[Byte]],
     metadata: Option[Array[Byte]],
     acsDelta: Boolean,
@@ -230,8 +229,8 @@ final class Exercise(
     exercisedAt: Long,
     contractId: ContractId,
     choiceName: ChoiceName,
-    argument: Value,
-    result: Value,
+    argument: ujson.Value,
+    result: ujson.Value,
     controllers: Seq[Party],
     witnesses: Seq[Party],
     lastDescendant: NodeId,
@@ -301,21 +300,36 @@ extension (tx: Transaction)
   def ifTraced[R, E, A](zio: DetachedSpan => ZIO[R, E, A]) = ZIO.whenCase(tx.span) { case Some(s) => zio(s) }
 
 // utils
-private final class RowValue(val str: String) extends AnyVal
+private opaque type RowValue <: String = String
 private object RowValue:
+  inline def apply(value: String): RowValue = value
+
+  // https://www.postgresql.org/docs/current/sql-copy.html
+  private val escaper = new LookupTranslator(
+    Map(
+      "\b"     -> "\\b",
+      "\f"     -> "\\f",
+      "\n"     -> "\\n",
+      "\r"     -> "\\r",
+      "\t"     -> "\\t",
+      "\u000b" -> "\\v",
+      "\\"     -> "\\\\"
+    ).asJava
+  )
+
   type Converter[A] = Conversion[A, RowValue]
 
-  given Converter[EntityTypePk]    = value => value.toString
-  given Converter[EventId]         = value => value.toString
-  given Converter[Boolean]         = value => value.toString
-  given [A: Numeric]: Converter[A] = value => value.toString
-  given Converter[String]          = value => escaper.translate(value)
-  given Converter[ContractId]      = value => value
-  given Converter[SynchronizerId]  = value => value
-  given Converter[Party]           = value => value
-  given Converter[IdPlaceholder]   = value => value.id.toString
-  given Converter[Value]           = value => escaper.translate(value.toString)
-  given [A]: Converter[(A, A)]     = value => s"(\"${value._1}\",\"${value._2}\")"
+  given Converter[EntityTypePk]    = value => RowValue(value.toString)
+  given Converter[EventId]         = value => RowValue(value.toString)
+  given Converter[Boolean]         = value => RowValue(value.toString)
+  given [A: Numeric]: Converter[A] = value => RowValue(value.toString)
+  given Converter[String]          = value => RowValue(escaper.translate(value))
+  given Converter[ContractId]      = value => RowValue(value)
+  given Converter[SynchronizerId]  = value => RowValue(value)
+  given Converter[Party]           = value => RowValue(value)
+  given Converter[IdPlaceholder]   = value => RowValue(value.id.toString)
+  given Converter[ujson.Value]     = value => RowValue(escaper.translate(value.toString))
+  given [A]: Converter[(A, A)]     = value => RowValue(s"(\"${value._1}\",\"${value._2}\")")
 
   given Converter[Array[Byte]] =
     val HEX_DIGITS = Array('0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F')
@@ -325,11 +339,11 @@ private object RowValue:
         val sb = StringBuilder()
         sb.append("\\\\x")
         value.foreach(b => sb.append(HEX_DIGITS(b >> 4 & 15)).append(HEX_DIGITS(b & 15)))
-        sb.result()
+        RowValue(sb.result())
 
   given Converter[Instant] =
     val fmt = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSSXX")
-    value => value.atZone(ZoneOffset.UTC).format(fmt)
+    value => RowValue(value.atZone(ZoneOffset.UTC).format(fmt))
 
   given [A: Converter]: Converter[Option[A]] =
     case Some(value) => value: RowValue
@@ -339,23 +353,10 @@ private object RowValue:
     value => value.map(v => v: RowValue).mkString("{", ",", "}")
 
   given Converter[EventType] =
-    case EventType.Create   => "create"
-    case EventType.Archive  => "archive"
-    case EventType.Exercise => "exercise"
-    case EventType.Assign   => "assign"
-    case EventType.Unassign => "unassign"
+    case EventType.Create   => RowValue("create")
+    case EventType.Archive  => RowValue("archive")
+    case EventType.Exercise => RowValue("exercise")
+    case EventType.Assign   => RowValue("assign")
+    case EventType.Unassign => RowValue("unassign")
 
-private def buildRow(values: RowValue*): String = values.view.map(_.str).mkString("\t")
-
-// https://www.postgresql.org/docs/current/sql-copy.html
-private val escaper = new LookupTranslator(
-  Map(
-    "\b"     -> "\\b",
-    "\f"     -> "\\f",
-    "\n"     -> "\\n",
-    "\r"     -> "\\r",
-    "\t"     -> "\\t",
-    "\u000b" -> "\\v",
-    "\\"     -> "\\\\"
-  ).asJava
-)
+private def buildRow(values: RowValue*): String = values.mkString("\t")
