@@ -8,7 +8,6 @@ import com.digitalasset.pqs.functest.{FTEnv, FuncTestStandalone}
 import com.digitalasset.pqs.functest.matchers.*
 import com.digitalasset.pqs.functest.table.*
 import com.digitalasset.pqs.services.daml.*
-import com.digitalasset.pqs.services.daml.DamlSdk.onlyCantonVersion
 import com.digitalasset.pqs.services.postgres.*
 import com.digitalasset.pqs.services.pqs.{Pipeline, Pqs}
 import zio.*
@@ -138,7 +137,7 @@ object RpidTwoParticipantSpec extends FuncTestStandalone:
           v2Dar.get.packageId         | v1Dar.get.packageId   | "archived"
           v2Dar.get.packageId         | null                  | "archived"
         }
-  ) @@ onlyCantonVersion(">=3.5")
+  )
 
   /** Two-participant Canton layer with Postgres storage (required for ACS import).
     *
@@ -171,7 +170,7 @@ object RpidTwoParticipantSpec extends FuncTestStandalone:
           hostname = s"rpid-canton-$cnt"
           dbP1     = s"canton_p1_$cnt"
           dbP2     = s"canton_p2_$cnt"
-          _ <- pg.adminDatabase.transaction(
+          _ <- pg.adminDatabase.autoCommit(
             sql"""CREATE DATABASE "${Syntax(dbP1)}"""".execute *>
               sql"""CREATE DATABASE "${Syntax(dbP2)}"""".execute
           )

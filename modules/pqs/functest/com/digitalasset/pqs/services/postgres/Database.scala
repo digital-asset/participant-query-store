@@ -3,12 +3,35 @@
 
 package com.digitalasset.pqs.services.postgres
 
+import com.digitalasset.pqs.postgres.backend.{InstanceId, PostgresConfig}
+import zio.*
 import zio.jdbc.*
 
-final class Database(val name: String, val connectionPool: ZConnectionPool):
-  export connectionPool.transaction
+final case class Database(
+    name: String,
+    config: PostgresConfig,
+    instanceId: InstanceId,
+    connectionPool: ZConnectionPool
+):
+  def transaction = connectionPool.transaction
+
+  /** Runs the supplied ZIO on a connection with `autoCommit = true`, outside any explicit transaction block. Required
+    * for statements Postgres forbids inside a transaction (e.g. `CREATE DATABASE`).
+    */
+  def autoCommit[R: Tag, A](query: => ZIO[ZConnection & R, Throwable, A]): ZIO[R, Throwable, A] =
+    connectionPool.transaction(
+      ZIO.serviceWithZIO[ZConnection].apply(_.access(_.setAutoCommit(true))) *> query
+    )
 
 object Database:
+  val config         = ZLayer.fromFunction((d: Database) => d.config)
+  val connectionPool = ZLayer.fromFunction((d: Database) => d.connectionPool)
+  val instanceId     = ZLayer.fromFunction((d: Database) => d.instanceId)
+  val transaction    = connectionPool.project(_.transaction).flatten
+
+  def autoCommit[R: Tag, A](query: => ZIO[ZConnection & R, Throwable, A]) =
+    ZIO.service[Database].flatMap(_.autoCommit(query))
+
   private given Conversion[Option[String], SqlFragment] = _.map(x => sql"$x").getOrElse(sql"")
 
   def __packages(orderBy: SqlFragment = sql"""order by version, name""") = Postgres `query`

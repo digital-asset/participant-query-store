@@ -18,6 +18,8 @@ object FTSpec extends ZIOSpecDefault:
   var forceResourcePools: Option[Int] = Option.empty[Int]
   var forcePoolLanes: Option[Int]     = Option.empty[Int]
 
+  private val maxGroupSize = 50
+
   def spec: Spec[TestEnvironment & Scope, Any] =
     val memGb = dockerResources.availableMemoryBytes / 1e9
     if memGb < 4 then
@@ -33,6 +35,12 @@ object FTSpec extends ZIOSpecDefault:
       val pooledSpecs = allTestCases
         .groupBy(_.sharedLayer)
         .values
+        .flatMap { group =>
+          // Split oversized groups into chunks of roughly equal size
+          val chunkCount = Math.ceil(group.size.toDouble / maxGroupSize).toInt
+          val chunkSize  = Math.ceil(group.size.toDouble / chunkCount).toInt
+          group.grouped(chunkSize)
+        }
         .toSeq
         .sortBy(group => -group.size)
         .zipWithIndex

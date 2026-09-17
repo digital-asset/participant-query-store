@@ -40,9 +40,9 @@ object PackageServiceSpec extends ZIOSpecDefault:
 
   private val fileCache: RIO[Scope, FileCache] =
     for
-      dir        <- ZIO.acquireRelease(ZIO.attempt(os.temp.dir()))(d => ZIO.attempt(os.remove.all(d)).ignore)
-      semaphores <- Ref.Synchronized.make(Map.empty[String, Semaphore])
-    yield FileCache(dir, semaphores)
+      dir       <- ZIO.acquireRelease(ZIO.attempt(os.temp.dir()))(d => ZIO.attempt(os.remove.all(d)).ignore)
+      fileCache <- FileCache(dir)
+    yield fileCache
 
   def spec = suite("PackageService")(
     test("skips an undecodable package while still processing the decodable ones"):

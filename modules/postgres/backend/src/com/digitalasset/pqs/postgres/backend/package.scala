@@ -52,9 +52,6 @@ package object backend:
       conf       <- ZIO.service[PostgresConfig]
       instanceId <- ZIO.service[InstanceId]
     yield zio.jdbc.shims.postgres.connectionPool(
-      conf.host,
-      conf.port,
-      conf.database,
       Map(
         PGProperty.USER.getName             -> conf.username,
         PGProperty.PASSWORD.getName         -> conf.password.value,

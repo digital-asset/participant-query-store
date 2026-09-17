@@ -11,20 +11,8 @@ import com.daml.ledger.api.v2.update_service.ZioUpdateService.UpdateServiceClien
 import com.digitalasset.canonical.UserRight.AsAnyParty
 import com.digitalasset.canonical.specific.Offset
 import com.digitalasset.canonical.{ContractFilter, MetadataFilter}
-import com.digitalasset.zio.daml.ledgerapi.specific.Codecs
-import com.digitalasset.transcode.schema.{
-  Descriptor,
-  Dictionary,
-  EntityName,
-  Identifier,
-  IdentifierFilter,
-  ModuleName,
-  PackageId,
-  PackageName,
-  PackageVersion,
-  Template
-}
-import com.digitalasset.zio.daml.DamlSchema
+import com.digitalasset.transcode.schema.*
+import com.digitalasset.zio.daml.{DamlSchema, ProtobufCodecs}
 import com.digitalasset.zio.daml.ledgerapi.UpdateServiceClientMock.GetUpdates
 import com.google.protobuf.timestamp.Timestamp
 import io.grpc.{Status, StatusException}
@@ -45,7 +33,7 @@ object UpdateServiceSpec extends ZIOSpecDefault:
   private def response(offset: Long): GetUpdatesResponse =
     GetUpdatesResponse.defaultInstance.withTransaction(Transaction.defaultInstance.withOffset(offset))
 
-  private val emptyDictionaryLayer: ULayer[Codecs] = ZLayer.succeed(Dictionary(Seq.empty))
+  private val emptyDictionaryLayer: ULayer[ProtobufCodecs] = ZLayer.succeed(Dictionary(Seq.empty))
 
   private val emptyKnownIdsLayer: ULayer[DamlSchema] = ZLayer.succeed {
     new DamlSchema(

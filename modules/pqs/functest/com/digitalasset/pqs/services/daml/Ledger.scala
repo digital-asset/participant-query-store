@@ -24,10 +24,15 @@ import com.daml.ledger.api.v2.transaction_filter.*
 import com.daml.ledger.api.v2.update_service.GetUpdatesRequest
 import com.daml.ledger.api.v2.update_service.ZioUpdateService.UpdateServiceClient
 import com.daml.ledger.api.v2.value.{Identifier, Value}
-import com.digitalasset.canonical.specific.Offset
+import com.digitalasset.canonical.{ContractFilter, MetadataFilter}
+import com.digitalasset.canonical.specific.{Offset, Transaction, Event}
 import com.digitalasset.pqs.docker.{Docker, Service}
+import com.digitalasset.pqs.functest.FTEnv
 import com.digitalasset.pqs.grpc.{ZClientInterceptor, ZManagedChannel}
 import com.digitalasset.pqs.utils.safeequals.*
+import com.digitalasset.transcode.schema.IdentifierFilter
+import com.digitalasset.zio.daml.DamlSchema
+import com.digitalasset.zio.daml.ledgerapi.*
 import com.google.protobuf.ByteString
 import io.grpc.netty.shaded.io.grpc.netty.{GrpcSslContexts, NettyChannelBuilder}
 import io.grpc.Metadata
@@ -37,34 +42,19 @@ import zio.*
 sealed trait Ledger
 
 object Ledger:
-  val container  = ZIO.service[Service[Ledger]]
-  val authHeader = Metadata.Key.of("Authorization", Metadata.ASCII_STRING_MARSHALLER)
-  private val channel: RLayer[Docker & Service[Ledger], ZManagedChannel] = ZLayer.scoped(
-    for
-      svc               <- Ledger.container
-      adminTokenService <- inspectMaybe[TokenService]
-      ca                <- Docker.certificateAuthority
-      cert              <- ca.generate("participant")
-      mkBuilder = () =>
-        NettyChannelBuilder
-          .forAddress(svc.exposedAddress, svc.exposedPorts(CantonConf.participantPort))
-          .useTransportSecurity()
-          .sslContext(
-            GrpcSslContexts.forClient
-              .keyManager(cert.certificate.privateKey, cert.certificate.certificate)
-              .trustManager(ca.certificate.certificate)
-              .build()
-          )
-      interceptor = ZClientInterceptor.intercept { md =>
-        ZIO
-          .whenCase(adminTokenService) {
-            case Some(ts) => ts.getParticipantAdminToken.flatMap { token => md.put(authHeader, token) }
-          }
-          .orDie
-      }
-      channel <- ZManagedChannel(mkBuilder(), 128, interceptor).build
-    yield channel.get
-  )
+  private val channel: RLayer[Docker & Service[Ledger], ZManagedChannel] =
+    ZLayer.scoped(createChannel)
+
+  val packageService = ZLayer.fromZIO(FTEnv.fileCache) ++ channel >>> PackageService.usingFileCacheFromEnv
+  val updateService  = channel >>> UpdateService.live
+  val stateService   = channel >>> StateService.live
+
+  def damlSchema(
+      contractFilter: ContractFilter = ContractFilter(IdentifierFilter.AcceptAll),
+      metadataFilter: MetadataFilter = MetadataFilter(IdentifierFilter.AcceptAll)
+  ): ZLayer[FTEnv & Docker & Service[Ledger], Throwable, DamlSchema] =
+    packageService ++ ZLayer.succeed(contractFilter) ++ ZLayer.succeed(metadataFilter)
+      >>> DamlSchema.layer
 
   private val svc = channel >>> (
     PartyManagementServiceClient.live
@@ -195,6 +185,21 @@ object Ledger:
     yield ()
   }
 
+  def recordTransactionStream: ZIO[
+    Docker & Service[Ledger] & Parties & UpdateService & StateService,
+    Throwable,
+    Chunk[Transaction[Event]]
+  ] = svc {
+    for
+      parties       <- ZIO.service[Parties]
+      updateService <- ZIO.service[UpdateService]
+      stateService  <- ZIO.service[StateService]
+      startOffset   <- stateService.getLedgerStart(parties.userRight)
+      endOffset     <- stateService.getLedgerEnd
+      transactions  <- updateService.getTransactions(parties.userRight, startOffset, endOffset).runCollect
+    yield transactions
+  }
+
   def getSingleCreatedEvent(
       parties: Seq[Party],
       transactionId: String
@@ -239,6 +244,33 @@ object Ledger:
       .logError
       .retry(Schedule.spaced(1.second))
   )
+
+  private def createChannel =
+    val authHeader = Metadata.Key.of("Authorization", Metadata.ASCII_STRING_MARSHALLER)
+    for
+      svc               <- ZIO.service[Service[Ledger]]
+      adminTokenService <- inspectMaybe[TokenService]
+      ca                <- Docker.certificateAuthority
+      cert              <- ca.generate("participant")
+      mkBuilder = () =>
+        NettyChannelBuilder
+          .forAddress(svc.exposedAddress, svc.exposedPorts(CantonConf.participantPort))
+          .useTransportSecurity()
+          .sslContext(
+            GrpcSslContexts.forClient
+              .keyManager(cert.certificate.privateKey, cert.certificate.certificate)
+              .trustManager(ca.certificate.certificate)
+              .build()
+          )
+      interceptor = ZClientInterceptor.intercept { md =>
+        ZIO
+          .whenCase(adminTokenService) {
+            case Some(ts) => ts.getParticipantAdminToken.flatMap { token => md.put(authHeader, token) }
+          }
+          .orDie
+      }
+      channel <- ZManagedChannel(mkBuilder(), 128, interceptor).build
+    yield channel.get
 
   private def submitAndWaitForTransaction(actAs: Party, sync: Synchronizer, command: Command) = svc {
     for

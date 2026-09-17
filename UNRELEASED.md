@@ -9,45 +9,13 @@ _Write summary of release_
 ## SQL Migration
 
 This release includes the following SQL migrations:
-- _V042__Clear_contract_key_hash_for_interface_views.sql_: clears `contract_key_hash` on interface view rows already stored. Scans `__contracts` once and rewrites only the interface rows that still hold a hash. **[Impact: < 1 min]**
-- _V043__Add_reassignment_event_types.sql_: adds the `assign` and `unassign` labels to the `__event_type` enum. Metadata-only, no table is scanned or rewritten. **[Impact: < 1 min]**
+- _V043__Add_reassignment_event_types.sql_: adds the `assign` and `unassign` labels to the `__event_type` enum. Metadata-only, no table is scanned or rewritten. **[Impact: Instantaneous]**
 - _V044__Rename_domain_id_to_synchronizer_id.sql_: renames the `domain_id` column of `__transactions` to `synchronizer_id`. Metadata-only, no table is scanned or rewritten. **[Impact: < 1 min]**
 
 
 ## What's New
 
-### Renamed Scribe to Participant Query Store (PQS)
-
-- *BREAKING*: The assembly JAR is renamed from `scribe.jar` to `pqs.jar`.
-- *BREAKING*: The Docker image entrypoint is updated to run the `pqs.jar`.
-- *BREAKING*: The main class is renamed from `com.digitalasset.scribe.Main` to `com.digitalasset.pqs.Main`.
-- *BREAKING*: The application name property in the Postgres connection is renamed from `scribe` to `pqs`.
-- Environment configuration with `PQS_` prefix (e.g. `PQS_TARGET_POSTGRES_HOST`) is now supported. The `SCRIBE_` prefix is still supported as a fallback and it prints a deprecation warning.
-- *BREAKING*: The default cache directory has moved from `/tmp/scribe` to `/tmp/pqs`.
-- Both `participant-query-store` and legacy `scribe` components (DPM) are published. They configure the same `pqs` command, which invokes `pqs.jar`. 
-- Both `participant-query-store` and legacy `scribe` Docker images are published. The entrypoint is `java -jar pqs.jar` for both.
-- *BREAKING*: The `org.opencontainers.image.ref.name` label is updated from `scribe` to `participant-query-store`.
-- *BREAKING*: The `OTEL_SERVICE_NAME` environment variable is updated from `scribe` to `pqs`.
-- *BREAKING*: All metrics and attributes prefixes are renamed from `scribe` to `pqs`.
-
-### Reassignment updates are ingested
-
-- PQS now subscribes to reassignments in addition to transactions. Every `Reassignment` received from the ledger is recorded in `__transactions`, and its `Assigned` and `Unassigned` events are recorded in `__events` with the new `assign` and `unassign` types.
-
-### Bug fixes
-
-- Optimize core SQL functions (`creates`, `exercises`, `active`, `archives`) to compute the nearest offset only once per query.
-- Treat a timestamp or duration prune target older than all recorded history as a successful no-op, instead of failing.
-
-### Minor Improvements
-
-- *BREAKING*: PQS configuration no longer provides default Postgres credentials. It is now mandatory to supply the `--target-postgres-username` and `--target-postgres-password` command arguments, or the `PQS_TARGET_POSTGRES_USERNAME` and `PQS_TARGET_POSTGRES_PASSWORD` environment variables.
-- *BREAKING*: Interface view rows no longer store `contract_key_hash`. Previously the hash of the underlying template's contract key was duplicated onto every interface view row, while `contract_key` was already left empty. Both columns are now empty for interface views. Upgrading also clears the hash from interface view rows already stored. The hash remains available on the template rows.
-- Bump Flyway to 13.4.0.
-- Add a `--target-postgres-properties-<key>=<value>` to pass arbitrary additional pgjdbc connection properties through to the driver. Enables driver-level features such as JDBC authentication plugins (e.g. Azure Entra ID, AWS RDS IAM).
-  Example: `--target-postgres-properties-authenticationPluginClassName=com.azure.identity.extensions.jdbc.postgresql.AzurePostgresqlAuthenticationPlugin`
-- add `print_create_index_for_contract` sql function to generate sql statement to create index for contract concurrently
-
 ### Multi-sync support
 
+- PQS now subscribes to reassignments in addition to transactions. Every `Reassignment` received from the ledger is recorded in `__transactions`, and its `Assigned` and `Unassigned` events are recorded in `__events` with the new `assign` and `unassign` types.
 - *BREAKING*: The `__transactions` column `domain_id` is renamed to `synchronizer_id`, to match Canton's current vocabulary. It is now populated for every update — every transaction and every reassignment. Rows written before this release keep `NULL` and are not getting backfilled.

@@ -3,12 +3,14 @@
 
 package com.digitalasset.pqs.services.postgres
 
-import com.digitalasset.pqs.specific.offsetSqlFragment
-import com.digitalasset.pqs.utils.safeequals.===
+import com.digitalasset.pqs.configuration.Secret
 import com.digitalasset.pqs.docker.{Docker, Service}
 import com.digitalasset.pqs.functest.FTEnv
 import com.digitalasset.pqs.functest.table.{Cell, Row, Table}
-import org.postgresql.PGProperty
+import com.digitalasset.pqs.postgres.backend
+import com.digitalasset.pqs.postgres.backend.{PostgresConfig, TlsConfig}
+import com.digitalasset.pqs.specific.offsetSqlFragment
+import com.digitalasset.pqs.utils.safeequals.===
 import zio.*
 import zio.ZIO.{acquireRelease, attemptBlocking, logDebug}
 import zio.jdbc.*
@@ -46,7 +48,7 @@ object Postgres:
         postgres  <- ZIO.service[Postgres]
         dbCounter <- Docker.share("db_cnt")(Ref.Synchronized.make(0)).flatMap(_.updateAndGet(_ + 1))
         dbName = s"ft_db_$dbCounter"
-        _ <- postgres.adminDatabase.transaction(sql"""create database "${Syntax(dbName)}"""".execute)
+        _ <- postgres.adminDatabase.autoCommit(sql"""create database "${Syntax(dbName)}"""".execute)
         _ <- logDebug(s"Using database [$dbName]")
       yield initDatabase(dbName, postgres.service)
     )
@@ -115,19 +117,19 @@ object Postgres:
   //////////
 
   def call(sql: SqlFragment): ZIO[Database, Throwable, Unit] =
-    transact(sql.execute)
+    Database.autoCommit(sql.execute)
 
   def get(sql: SqlFragment): ZIO[Database, Throwable, Option[String]] =
-    transact(sql.query[String].selectOne)
+    Database.transaction(sql.query[String].selectOne)
 
   def query(sql: SqlFragment): ZIO[Database, Throwable, Table] =
-    transact(sql.query[Row].selectAll).map(Table.apply)
+    Database.transaction(sql.query[Row].selectAll).map(Table.apply)
 
   def query[A](sql: ZIO[ZConnection, Throwable, A]): ZIO[Database, Throwable, A] =
-    transact(sql)
+    Database.transaction(sql)
 
   def tables: ZIO[Database, Throwable, Chunk[(String, String)]] =
-    transact(
+    Database.transaction(
       sql"""select distinct table_schema, table_name from information_schema.columns"""
         .query[(String, String)]
         .selectAll
@@ -335,49 +337,52 @@ object Postgres:
     def queryVerbose(
         sql: SqlFragment
     ): ZIO[Database & Session, Throwable, List[Table]] =
-      transact {
-        ZIO.serviceWithZIO[Session](x => ZIO.foreach(x.statements.appended(sql))(_.query[Row].selectAll))
-      }.map(_.map(Table.apply))
+      Database
+        .transaction {
+          ZIO.serviceWithZIO[Session](x => ZIO.foreach(x.statements.appended(sql))(_.query[Row].selectAll))
+        }
+        .map(_.map(Table.apply))
 
   ///////////////
   // Internals //
   ///////////////
 
-  private val connectionPoolConfig = ZConnectionPoolConfig(1, 4, Schedule.stop, 300.seconds)
-  private def initDatabase(dbName: String, svc: Service[?]) = ZLayer
-    .scoped(
-      for
-        ca   <- Docker.certificateAuthority
-        cert <- ca.generate("postgresclient")
-        rootCert <- acquireRelease(attemptBlocking(os.temp(ca.certificate.crt)))(f =>
-          attemptBlocking(os.remove(f)).ignore
-        )
-        sslPem <- acquireRelease(attemptBlocking(os.temp(cert.certificate.der)))(f =>
-          attemptBlocking(os.remove(f)).ignore
-        )
-        sslCrt <- acquireRelease(attemptBlocking(os.temp(cert.certificate.crt)))(f =>
-          attemptBlocking(os.remove(f)).ignore
-        )
-        _ <- logDebug(s"Created PG connection pool @${svc.exposedAddress}:${svc.exposedPorts(port)}")
-      yield ZLayer.succeed(connectionPoolConfig) >>>
-        ZConnectionPool
-          .postgres(
-            svc.exposedAddress,
-            svc.exposedPorts(port),
-            dbName,
-            Map(
-              PGProperty.USER.getName           -> "postgres",
-              PGProperty.PASSWORD.getName       -> "postgres",
-              PGProperty.CURRENT_SCHEMA.getName -> "public",
-              PGProperty.SSL_ROOT_CERT.getName  -> rootCert.toString,
-              PGProperty.SSL_KEY.getName        -> sslPem.toString,
-              PGProperty.SSL_CERT.getName       -> sslCrt.toString
-            )
+  private def initDatabase(dbName: String, svc: Service[?]): ZLayer[Docker, Throwable, Database] =
+    ZLayer
+      .scoped(
+        for
+          ca   <- Docker.certificateAuthority
+          cert <- ca.generate("postgresclient")
+          rootCert <- acquireRelease(attemptBlocking(os.temp(ca.certificate.crt)))(f =>
+            attemptBlocking(os.remove(f)).ignore
           )
-          .project(Database(dbName, _))
-    )
-    .flatten
-  private val transact = ZLayer.fromFunction((d: Database) => d.transaction).flatten
+          sslPem <- acquireRelease(attemptBlocking(os.temp(cert.certificate.der)))(f =>
+            attemptBlocking(os.remove(f)).ignore
+          )
+          sslCrt <- acquireRelease(attemptBlocking(os.temp(cert.certificate.crt)))(f =>
+            attemptBlocking(os.remove(f)).ignore
+          )
+          config = PostgresConfig(
+            host = svc.exposedAddress,
+            port = svc.exposedPorts(port),
+            database = dbName,
+            username = "postgres",
+            password = Secret("postgres"),
+            tls = TlsConfig(
+              mode = TlsConfig.SslMode.VerifyCA,
+              caCertificate = Some(rootCert.toIO),
+              certificate = Some(sslCrt.toIO),
+              privateKey = Some(sslPem.toIO)
+            ),
+            appName = "pqs-functest"
+          )
+          _ <- logDebug(s"Creating PG connection pool @${config.host}:${config.port}")
+        yield ZLayer.succeed(config) ++ backend.instanceId
+        // `.fresh` prevents ZLayer memoization
+          >+> backend.connectionPool.fresh
+          >>> ZLayer.fromFunction((instanceId, connectionPool) => Database(dbName, config, instanceId, connectionPool))
+      )
+      .flatten
 
   private implicit val rowDecoder: JdbcDecoder[Row] = (ix, rs) =>
     val cells = mutable.Buffer.empty[Cell]

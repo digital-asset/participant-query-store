@@ -7,11 +7,16 @@ import zio.ZIO.{attempt, attemptBlocking, logDebug, logDebugCause, logWarningCau
 import zio.{Ref, Semaphore, ZIO, ZLayer}
 
 object FileCache:
-  val live: ZLayer[Config, Throwable, FileCache] = ZLayer.fromZIO(for
-    config     <- ZIO.service[Config]
-    cacheDir   <- attempt { os.Path(config.cacheDir) }
-    semaphores <- Ref.Synchronized.make(Map.empty[String, Semaphore])
-  yield FileCache(cacheDir, semaphores))
+  val live: ZLayer[Config, Throwable, FileCache] = ZLayer.fromZIO(
+    for
+      config    <- ZIO.service[Config]
+      cacheDir  <- attempt { os.Path(config.cacheDir) }
+      fileCache <- FileCache(cacheDir)
+    yield fileCache
+  )
+
+  def apply(cacheDir: os.Path): ZIO[Any, Throwable, FileCache] =
+    Ref.Synchronized.make(Map.empty[String, Semaphore]).map(semaphores => new FileCache(cacheDir, semaphores))
 
 class FileCache(
     cacheDir: os.Path,

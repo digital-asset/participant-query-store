@@ -4,16 +4,22 @@
 package com.digitalasset.pqs.features
 
 import com.daml.ledger.api.v2.value.*
+import com.digitalasset.canonical.specific.{Event, Offset, Transaction}
 import com.digitalasset.pqs.docker.Service
 import com.digitalasset.pqs.functest.FuncTest
 import com.digitalasset.pqs.functest.matchers.*
+import com.digitalasset.pqs.functest.table.*
+import com.digitalasset.pqs.pipeline.InProcessPipeline
+import com.digitalasset.pqs.postgres.document.SqlSchema
+import com.digitalasset.pqs.services.daml.*
 import com.digitalasset.pqs.services.postgres.*
 import com.digitalasset.pqs.services.pqs.Pqs
-import com.digitalasset.pqs.functest.table.*
-import com.digitalasset.pqs.services.daml.*
-import com.digitalasset.pqs.services.daml.DamlSdk.onlyCantonVersion
 import com.digitalasset.pqs.specific.OffsetType
+import com.digitalasset.transcode.codec.json.JsonCodec
+import com.digitalasset.zio.daml.DamlSchema
+import zio.Chunk
 import zio.jdbc.*
+import zio.test.Assertion.*
 
 import scala.language.implicitConversions
 
@@ -31,10 +37,11 @@ object ReassignmentSpec extends FuncTest[Service[Ledger] & Postgres & DeployedDa
                     |    signatory sender
                     |""".stripMargin
   )
+
   private val sync1 = Synchronizer("synchronizer1")
   private val sync2 = Synchronizer("synchronizer2")
 
-  val shared =
+  override val shared =
     DamlSdk.dar(pingPong) ++ DamlSdk.multiSyncLedger(sync1, sync2) ++ Postgres.instance
       >+> DamlSdk.uploadAndVetDar(sync1, sync2) ++ Postgres.database
 
@@ -58,10 +65,12 @@ object ReassignmentSpec extends FuncTest[Service[Ledger] & Postgres & DeployedDa
         Ledger.reassign(contractId.get, alice, sync1, sync2)
           *> Ledger.archive("PingPong:Ping", contractId.get, alice, sync2)
       When:
-        Pqs.runPipeline(
-          "--pipeline-ledger-start=Genesis",
-          "--pipeline-ledger-stop=Latest"
-        )
+        Postgres.instance
+          >+> Postgres.database
+          >+> Pqs.runPipeline(
+            "--pipeline-ledger-start=Genesis",
+            "--pipeline-ledger-stop=Latest"
+          )
 
       val createdAtOffset    = Capture[OffsetType]
       val unassignedAtOffset = Capture[OffsetType]
@@ -127,5 +136,81 @@ object ReassignmentSpec extends FuncTest[Service[Ledger] & Postgres & DeployedDa
                           from __transactions)
                        )""")
           .returns(table(createdAtOffset))
+    },
+    funcTest("Non-causal stream: archived is received before created") {
+      val alice      = Party("Alice")
+      val dar        = Capture[DeployedDar]
+      val contractId = Capture[String]
+
+      Given:
+        DamlSdk.allocateParties(alice -> Seq(sync1, sync2))
+      Then:
+        dar.captureFromService
+      And:
+        val args = Record.defaultInstance
+          .addFields(RecordField("sender", Some(Value(Value.Sum.Party(alice.id)))))
+        Ledger
+          .create("PingPong:Ping", args, alice, sync1)
+          .map(_.getTransaction.events.head.getCreated.contractId)
+          .is(contractId.capture)
+      When:
+        Ledger.reassign(contractId.get, alice, sync1, sync2)
+          *> Ledger.archive("PingPong:Ping", contractId.get, alice, sync2)
+
+      And:
+        Ledger.damlSchema()
+          >+> DamlSchema.protobufCodecs
+          >+> Ledger.updateService ++ Ledger.stateService
+
+      val transactions       = Capture[Chunk[Transaction[Event]]]
+      val assignedAtOffset   = Offset.Absolute(1)
+      val archivedAtOffset   = Offset.Absolute(2)
+      val createdAtOffset    = Offset.Absolute(3)
+      val unassignedAtOffset = Offset.Absolute(4)
+
+      def assignTx     = transactions.get(2).copy(offset = assignedAtOffset)
+      def archiveTx    = transactions.get(3).copy(offset = archivedAtOffset)
+      def createTx     = transactions.get(0).copy(offset = createdAtOffset)
+      def unassignedTx = transactions.get(1).copy(offset = unassignedAtOffset)
+
+      Then:
+        Ledger.recordTransactionStream.is(hasSize(equalTo(4)) && transactions.capture)
+
+      When:
+        Postgres.instance
+          >+> Postgres.database
+          >+> DamlSchema.produce(JsonCodec())
+          >+> DamlSchema.produce(SqlSchema)
+          >+> InProcessPipeline.destinationLayer()
+
+      When:
+        // the archived event is received first
+        // the created event is received later, after watermark insertion
+        InProcessPipeline.processTransactions(Chunk(assignTx, archiveTx)) *>
+          InProcessPipeline.processTransactions(Chunk(createTx, unassignedTx))
+
+      Expect:
+        Postgres
+          .query(sql"""select "offset", domain_id from __transactions order by "offset"""")
+          .returns(
+            table {
+              assignedAtOffset.offset   | null
+              archivedAtOffset.offset   | null
+              createdAtOffset.offset    | null
+              unassignedAtOffset.offset | null
+            }
+          )
+
+      Expect:
+        Database
+          .creates(extraColumns = Seq("created_at_offset"))
+          .returns(
+            table {
+              dar.get.packageId | s"${pingPong.name}:PingPong:Ping" | "template" | contractId | createdAtOffset.offset
+            }
+          )
+      Expect:
+        // TODO #17 multi-sync support
+        Database.archives().returns(Table.empty)
     }
-  ) @@ onlyCantonVersion(">=3.5")
+  )

@@ -6,6 +6,7 @@ package com.digitalasset.zio.daml
 import com.digitalasset.canonical.{ContractFilter, MetadataFilter}
 import com.digitalasset.pqs.utils.safeequals.===
 import com.digitalasset.zio.daml.ledgerapi.UnknownDamlPackageException
+import com.digitalasset.transcode.codec.proto.ProtobufCodec
 import com.digitalasset.transcode.schema.*
 import com.digitalasset.zio.daml.ledgerapi.PackageService
 import zio.ZIO.*
@@ -120,6 +121,9 @@ final class DamlSchema(
 object DamlSchema:
   val layer: ZLayer[PackageService & ContractFilter & MetadataFilter, Throwable, DamlSchema] =
     ZLayer.fromZIO(DamlSchema.getSchema)
+
+  val protobufCodecs: ZLayer[DamlSchema, Throwable, ProtobufCodecs] =
+    produce(ProtobufCodec).update(_.matchByPackageId)
 
   def produce(sp: SchemaVisitor)(implicit tag: Tag[sp.Result]): ZLayer[DamlSchema, Throwable, sp.Result] =
     ZLayer.fromZIO(processFromDescriptors(sp))
