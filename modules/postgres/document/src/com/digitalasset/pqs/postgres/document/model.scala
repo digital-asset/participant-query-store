@@ -152,7 +152,7 @@ object model {
       pk: IdPlaceholder,
       txIx: Long,
       eventId: EventId,
-      eventType: model.EventType
+      eventType: EventType
   ) extends Copy:
     def table  = Event
     val row    = RowValues(pk)(txIx)(eventId)(eventType).toString
@@ -167,7 +167,7 @@ object model {
 
   final class Contract(
       qualifiedName: String,
-      entityType: model.EntityTypePk,
+      entityType: EntityTypePk,
       createEventPk: IdPlaceholder,
       createdAtIx: Long,
       contractId: ContractId,
@@ -179,7 +179,7 @@ object model {
       contractKeyHash: Option[Array[Byte]],
       metadata: Option[Array[Byte]],
       acsDelta: Boolean,
-      packagePk: model.PackagePk,
+      packagePk: PackagePk,
       creationPackageId: Option[String]
   ) extends Copy:
     def table = Contract
@@ -213,8 +213,8 @@ object model {
 
   final class Exercise(
       qualifiedName: String,
-      entityType: model.EntityTypePk,
-      contractEntityType: model.EntityTypePk,
+      entityType: EntityTypePk,
+      contractEntityType: EntityTypePk,
       exerciseEventPk: IdPlaceholder,
       exercisedAt: Long,
       contractId: ContractId,
@@ -224,7 +224,7 @@ object model {
       controllers: Seq[Party],
       witnesses: Seq[Party],
       lastDescendant: NodeId,
-      packagePk: model.PackagePk
+      packagePk: PackagePk
   ) extends Copy:
     def table = Exercise
     val row = RowValues(entityType: Long)(contractEntityType: Long)(exerciseEventPk)(exercisedAt)(contractId)(argument)(
