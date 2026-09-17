@@ -6,7 +6,7 @@ package com.digitalasset.pqs.console
 import com.digitalasset.pqs.functest.FuncTestDefault
 import com.digitalasset.pqs.functest.matchers.*
 import com.digitalasset.pqs.services.pqs.Pqs
-import com.digitalasset.pqs.specific.offsetScalaType
+import com.digitalasset.pqs.offsetScalaType
 import zio.ExitCode
 
 object HelpSpec extends FuncTestDefault:

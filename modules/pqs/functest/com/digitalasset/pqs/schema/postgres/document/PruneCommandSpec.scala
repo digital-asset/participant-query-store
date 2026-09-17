@@ -10,7 +10,7 @@ import com.digitalasset.pqs.functest.table.*
 import com.digitalasset.pqs.services.daml.*
 import com.digitalasset.pqs.services.postgres.Postgres
 import com.digitalasset.pqs.services.pqs.Pqs
-import com.digitalasset.pqs.specific.{OffsetType, biggestOffset, smallestOffset}
+import com.digitalasset.pqs.{OffsetType, biggestOffset, smallestOffset}
 import zio.jdbc.sqlInterpolator
 import zio.test.Assertion.anything
 import zio.{ExitCode, ZLayer}

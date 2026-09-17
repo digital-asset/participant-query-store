@@ -9,7 +9,7 @@ import com.digitalasset.pqs.functest.table.*
 import com.digitalasset.pqs.services.daml.{DamlSdk, DamlSource, Party}
 import com.digitalasset.pqs.services.postgres.Postgres
 import com.digitalasset.pqs.services.pqs.Pqs
-import com.digitalasset.pqs.specific.{eventIdSqlType, offsetSqlType}
+import com.digitalasset.pqs.{eventIdSqlType, offsetSqlType}
 import com.digitalasset.transcode.schema.packageName
 import zio.ZLayer
 import zio.jdbc.{SqlFragment, sqlInterpolator}

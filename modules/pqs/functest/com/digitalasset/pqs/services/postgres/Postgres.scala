@@ -9,7 +9,7 @@ import com.digitalasset.pqs.functest.FTEnv
 import com.digitalasset.pqs.functest.table.{Cell, Row, Table}
 import com.digitalasset.pqs.postgres.backend
 import com.digitalasset.pqs.postgres.backend.{PostgresConfig, TlsConfig}
-import com.digitalasset.pqs.specific.offsetSqlFragment
+import com.digitalasset.pqs.offsetSqlFragment
 import com.digitalasset.pqs.utils.safeequals.===
 import zio.*
 import zio.ZIO.{acquireRelease, attemptBlocking, logDebug}
