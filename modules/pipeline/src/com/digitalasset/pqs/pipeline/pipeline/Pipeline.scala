@@ -10,7 +10,7 @@ import com.digitalasset.pqs.backend.Datastore
 import com.digitalasset.pqs.o11y.traces
 import com.digitalasset.pqs.o11y.traces.given
 import com.digitalasset.pqs.pipeline.pipeline.Config.TransactionApi
-import com.digitalasset.pqs.pipeline.pipeline.ledger.specific.Config.{CliStartOffset, CliStopOffset}
+import com.digitalasset.pqs.pipeline.pipeline.ledger.Config.{CliStartOffset, CliStopOffset}
 import com.digitalasset.pqs.utils.safeequals.===
 import com.digitalasset.zio.daml.Ledger
 import zio.ZIO.*
