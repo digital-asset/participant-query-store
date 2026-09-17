@@ -5,7 +5,7 @@ package com.digitalasset.zio.daml.ledgerapi
 
 import com.daml.ledger.api.v2.value.Value
 import com.digitalasset.canonical.*
-import com.digitalasset.canonical.specific.{Event, EventId, ReassignmentEvent, TransactionEvent}
+import com.digitalasset.canonical.{Event, EventId, ReassignmentEvent, TransactionEvent}
 import com.digitalasset.transcode.schema
 import com.digitalasset.transcode.schema.*
 import com.digitalasset.pqs.utils.safeequals.=/=

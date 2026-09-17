@@ -6,7 +6,7 @@ package com.digitalasset.zio.daml.ledgerapi
 import com.daml.ledger.api.v2.state_service.*
 import com.daml.ledger.api.v2.state_service.ZioStateService.StateServiceClient
 import com.digitalasset.canonical.*
-import com.digitalasset.canonical.specific.Event
+import com.digitalasset.canonical.Event
 import com.digitalasset.pqs.grpc.ZManagedChannel
 import com.digitalasset.transcode.schema.Dictionary
 import com.digitalasset.zio.daml.*

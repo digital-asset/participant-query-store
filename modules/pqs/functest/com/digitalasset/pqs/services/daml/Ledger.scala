@@ -24,8 +24,7 @@ import com.daml.ledger.api.v2.transaction_filter.*
 import com.daml.ledger.api.v2.update_service.GetUpdatesRequest
 import com.daml.ledger.api.v2.update_service.ZioUpdateService.UpdateServiceClient
 import com.daml.ledger.api.v2.value.{Identifier, Value}
-import com.digitalasset.canonical.{ContractFilter, MetadataFilter, Offset}
-import com.digitalasset.canonical.specific.{Transaction, Event}
+import com.digitalasset.canonical.{ContractFilter, Event, MetadataFilter, Offset, Transaction}
 import com.digitalasset.pqs.docker.{Docker, Service}
 import com.digitalasset.pqs.functest.FTEnv
 import com.digitalasset.pqs.grpc.{ZClientInterceptor, ZManagedChannel}

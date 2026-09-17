@@ -4,8 +4,7 @@
 package com.digitalasset.pqs.features
 
 import com.daml.ledger.api.v2.value.*
-import com.digitalasset.canonical.Offset
-import com.digitalasset.canonical.specific.{Event, Transaction}
+import com.digitalasset.canonical.{Event, Offset, Transaction}
 import com.digitalasset.pqs.docker.Service
 import com.digitalasset.pqs.functest.FuncTest
 import com.digitalasset.pqs.functest.matchers.*

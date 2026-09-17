@@ -4,7 +4,7 @@
 package com.digitalasset.pqs.postgres.document
 
 import com.digitalasset.canonical.*
-import com.digitalasset.canonical.specific.{EventId, NodeId}
+import com.digitalasset.canonical.{EventId, NodeId}
 import com.digitalasset.transcode.schema.ChoiceName
 import com.digitalasset.pqs.o11y.traces
 import com.digitalasset.pqs.o11y.traces.{DetachedSpan, given}
