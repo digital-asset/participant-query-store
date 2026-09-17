@@ -25,7 +25,7 @@ import com.digitalasset.transcode.schema.Dictionary
 import com.digitalasset.zio.daml.*
 import com.digitalasset.zio.daml.ledgerapi.*
 import com.digitalasset.zio.daml.ledgerapi.DataAdapter.{ReassignmentAdapter, TransactionAdapter}
-import com.digitalasset.zio.daml.ledgerapi.specific.{convertEvent, convertReassignmentEvent}
+import com.digitalasset.zio.daml.ledgerapi.eventConverters.{convertEvent, convertReassignmentEvent}
 import io.opentelemetry.api.trace.*
 import io.opentelemetry.api.trace.propagation.internal.W3CTraceContextEncoding
 import zio.ZIO.{logInfo, logTrace}

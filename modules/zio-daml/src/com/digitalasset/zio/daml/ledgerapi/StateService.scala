@@ -11,7 +11,7 @@ import com.digitalasset.pqs.grpc.ZManagedChannel
 import com.digitalasset.transcode.schema.Dictionary
 import com.digitalasset.zio.daml.*
 import com.digitalasset.zio.daml.ledgerapi.*
-import com.digitalasset.zio.daml.ledgerapi.specific.*
+import com.digitalasset.zio.daml.ledgerapi.eventConverters.*
 import zio.ZIO.*
 import zio.stream.{Stream, ZStream}
 import zio.{IO, ZLayer}

@@ -5,7 +5,6 @@ package com.digitalasset.zio.daml.ledgerapi
 
 import com.daml.ledger.api.v2.value.Value
 import com.digitalasset.canonical.*
-import com.digitalasset.canonical.{Event, EventId, ReassignmentEvent, TransactionEvent}
 import com.digitalasset.transcode.schema
 import com.digitalasset.transcode.schema.*
 import com.digitalasset.pqs.utils.safeequals.=/=
@@ -16,7 +15,7 @@ import scalapb.TimestampConverters
 import zio.ZIO.{logDebug, logInfo}
 import zio.{Chunk, Task, ZIO}
 
-object specific:
+object eventConverters:
 
   def convertEvent(
       event: com.daml.ledger.api.v2.event.Event
@@ -177,7 +176,7 @@ object specific:
     )
 
   // TODO: Use DecodedCantonError from Canton
-  case class PrintableGrpcStatus(
+  private case class PrintableGrpcStatus(
       grpcStatusCode: Int,
       grpcStatusMessage: String,
       requestInfo: Option[RequestInfo],
