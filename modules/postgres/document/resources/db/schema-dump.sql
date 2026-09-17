@@ -1636,7 +1636,6 @@ CREATE TABLE public.__contracts (
     created_at_ix bigint,
     archive_event_pk bigint,
     archived_at_ix bigint,
-    life_ix int8range GENERATED ALWAYS AS (int8range(created_at_ix, archived_at_ix)) STORED NOT NULL,
     contract_id text NOT NULL,
     payload jsonb,
     contract_key jsonb,
@@ -1648,7 +1647,14 @@ CREATE TABLE public.__contracts (
     witnesses text[] DEFAULT '{}'::text[] NOT NULL,
     divulged_only boolean DEFAULT false NOT NULL,
     creation_package_id text,
-    contract_key_hash bytea
+    contract_key_hash bytea,
+    assign_event_pk bigint,
+    assigned_at_ix bigint,
+    unassign_event_pk bigint,
+    unassigned_at_ix bigint,
+    reassignment_counter bigint,
+    synchronizer_id text,
+    life_ix int8range GENERATED ALWAYS AS (int8range(COALESCE(created_at_ix, assigned_at_ix), COALESCE(archived_at_ix, unassigned_at_ix))) STORED NOT NULL
 )
 PARTITION BY LIST (tpe_pk);
 
@@ -1722,7 +1728,6 @@ CREATE TABLE public.__contracts_1 (
     created_at_ix bigint,
     archive_event_pk bigint,
     archived_at_ix bigint,
-    life_ix int8range GENERATED ALWAYS AS (int8range(created_at_ix, archived_at_ix)) STORED NOT NULL,
     contract_id text NOT NULL,
     payload jsonb,
     contract_key jsonb,
@@ -1734,7 +1739,14 @@ CREATE TABLE public.__contracts_1 (
     witnesses text[] DEFAULT '{}'::text[] NOT NULL,
     divulged_only boolean DEFAULT false NOT NULL,
     creation_package_id text,
-    contract_key_hash bytea
+    contract_key_hash bytea,
+    assign_event_pk bigint,
+    assigned_at_ix bigint,
+    unassign_event_pk bigint,
+    unassigned_at_ix bigint,
+    reassignment_counter bigint,
+    synchronizer_id text,
+    life_ix int8range GENERATED ALWAYS AS (int8range(COALESCE(created_at_ix, assigned_at_ix), COALESCE(archived_at_ix, unassigned_at_ix))) STORED NOT NULL
 );
 ALTER TABLE ONLY public.__contracts_1 ALTER COLUMN metadata SET STORAGE EXTERNAL;
 
