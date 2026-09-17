@@ -4,7 +4,7 @@
 package com.digitalasset.pqs.postgres.document
 
 import com.digitalasset.canonical
-import com.digitalasset.canonical.{ContractId, Offset}
+import com.digitalasset.canonical.{ContractId, Offset, SynchronizerId}
 import com.digitalasset.pqs.backend.Datastore
 import com.digitalasset.pqs.o11y.metrics.latency
 import com.digitalasset.pqs.o11y.traces
@@ -322,37 +322,20 @@ final case class DocumentPostgres(
       }
 
     event match
-      case e: canonical.specific.Event.Created =>
+      case e: canonical.Event.Created =>
         val evt = Event(
           pk = pk,
           txIx = txIx,
           eventId = e.eventId,
           eventType = EventType.Create
         )
-        val contracts = e.payloads.map((entityId, value) =>
-          Contract(
-            qualifiedName = e.templateQualifiedName,
-            entityType = entityPkMap(entityId),
-            createEventPk = Some(pk),
-            createdAtIx = Some(txIx),
-            assignEventPk = None,
-            assignedAtIx = None,
-            contractId = e.contractId,
-            synchronizerId = e.synchronizerId,
-            reassignmentCounter = 0,
-            signatories = e.signatories,
-            observers = e.observers,
-            witnesses = e.witnesses,
-            payload = codec.template(entityId).fromDynamicValue(value),
-            // A create yields a row per payload: one for the template, one per interface view. Only a keyed
-            // template has a key codec, so checking templateKey codec drops both contractKey and contractKeyHash.
-            contractKey = codec.getTemplateKey(entityId).zip(e.contractKey).map(_.fromDynamicValue(_)),
-            contractKeyHash = codec.getTemplateKey(entityId).flatMap(_ => e.contractKeyHash),
-            metadata = e.metadata,
-            acsDelta = e.acsDelta,
-            packagePk = packageMap(e.representativePackageId),
-            creationPackageId = e.creationPackageId
-          )
+        val contracts = convertContract(
+          e.contract,
+          e.synchronizerId,
+          reassignmentCounter = 0,
+          txIx,
+          eventPk = pk,
+          isCreate = true
         )
         contracts :+ evt
 
@@ -419,16 +402,52 @@ final case class DocumentPostgres(
           )
         )
 
-      case evt: canonical.Event.Assigned =>
-        Chunk(
-          Event(
-            pk = pk,
-            txIx = txIx,
-            eventId = evt.eventId,
-            eventType = EventType.Assign
-          )
+      case e: canonical.Event.Assigned =>
+        val event = Event(pk, txIx, e.eventId, EventType.Assign)
+        val contracts = convertContract(
+          e.contract,
+          e.synchronizerId,
+          e.reassignmentCounter,
+          txIx,
+          pk,
+          isCreate = false
         )
+        contracts :+ event
   }
+
+  private def convertContract(
+      contract: canonical.Contract,
+      synchronizerId: SynchronizerId,
+      reassignmentCounter: Long,
+      txIx: Long,
+      eventPk: IdPlaceholder,
+      isCreate: Boolean
+  ): Chunk[Contract] =
+    contract.payloads.map((entityId, value) =>
+      Contract(
+        qualifiedName = contract.templateQualifiedName,
+        entityType = entityPkMap(entityId),
+        createEventPk = Option.when(isCreate)(eventPk),
+        createdAtIx = Option.when(isCreate)(txIx),
+        assignEventPk = Option.when(!isCreate)(eventPk),
+        assignedAtIx = Option.when(!isCreate)(txIx),
+        contractId = contract.contractId,
+        synchronizerId = synchronizerId,
+        reassignmentCounter = reassignmentCounter,
+        signatories = contract.signatories,
+        observers = contract.observers,
+        witnesses = contract.witnesses,
+        payload = codec.template(entityId).fromDynamicValue(value),
+        // A create yields a row per payload: one for the template, one per interface view. Only a keyed
+        // template has a key codec, so checking templateKey codec drops both contractKey and contractKeyHash.
+        contractKey = codec.getTemplateKey(entityId).zip(contract.contractKey).map(_.fromDynamicValue(_)),
+        contractKeyHash = codec.getTemplateKey(entityId).flatMap(_ => contract.contractKeyHash),
+        metadata = contract.metadata,
+        acsDelta = contract.acsDelta,
+        packagePk = packageMap(contract.representativePackageId),
+        creationPackageId = contract.creationPackageId
+      )
+    )
 end DocumentPostgres
 
 object DocumentPostgres:

@@ -20,20 +20,8 @@ sealed trait ReassignmentEvent extends Event
 object Event:
   final case class Created(
       eventId: EventId,
-      representativePackageId: schema.PackageId,
-      templateQualifiedName: String,
-      contractId: ContractId,
       synchronizerId: SynchronizerId,
-      contractKey: Option[schema.DynamicValue],
-      contractKeyHash: Option[Array[Byte]],
-      payloads: Chunk[(schema.Identifier, schema.DynamicValue)],
-      signatories: Chunk[Party],
-      observers: Chunk[Party],
-      witnesses: Chunk[Party],
-      created_at: Option[Instant],
-      metadata: Option[Array[Byte]],
-      acsDelta: Boolean,
-      creationPackageId: Option[String]
+      contract: Contract
   ) extends TransactionEvent
       with TreeEvent
 
@@ -80,10 +68,9 @@ object Event:
       source: SynchronizerId,
       target: SynchronizerId,
       submitter: Option[Party],
+      synchronizerId: SynchronizerId,
       reassignmentCounter: Long,
-      contractId: ContractId,
-      templateId: schema.Identifier,
-      witnesses: Chunk[Party]
+      contract: Contract
   ) extends ReassignmentEvent
 
 end Event

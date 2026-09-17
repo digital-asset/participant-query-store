@@ -31,12 +31,13 @@ object eventConverters:
       ZIO.fail(new RuntimeException(s"Unsupported event type: ${unsupported.getClass}"))
 
   def convertReassignmentEvent(
-      event: com.daml.ledger.api.v2.reassignment.ReassignmentEvent
-  )(using DamlSchema): Task[ReassignmentEvent] = event.event match
+      event: com.daml.ledger.api.v2.reassignment.ReassignmentEvent,
+      synchronizerId: SynchronizerId
+  )(using ProtobufCodecs, DamlSchema): Task[ReassignmentEvent] = event.event match
     case com.daml.ledger.api.v2.reassignment.ReassignmentEvent.Event.Unassigned(evt) =>
       convertUnassignedEvent(evt)
     case com.daml.ledger.api.v2.reassignment.ReassignmentEvent.Event.Assigned(evt) =>
-      convertAssignedEvent(evt)
+      convertAssignedEvent(evt, synchronizerId)
     case unsupported =>
       ZIO.fail(new RuntimeException(s"Unsupported reassignment event type: ${unsupported.getClass}"))
 
@@ -44,35 +45,7 @@ object eventConverters:
       evt: com.daml.ledger.api.v2.event.CreatedEvent,
       synchronizerId: SynchronizerId
   )(using codecs: ProtobufCodecs)(using DamlSchema): Task[Event.Created] =
-    for {
-      templateId <- evt.getTemplateId.toIdentifier(Some(evt.representativePackageId))
-      template = evt.createArguments.map { tmpl => (templateId, tmpl) }
-      interfaces <- ZIO
-        .foreach(evt.interfaceViews)(convertInterfaceView(evt.contractId, _).map(_.toList))
-        .map(_.flatten)
-      payloads = template.toList ++ interfaces
-    } yield Event.Created(
-      eventId = EventId(evt.offset, evt.nodeId),
-      representativePackageId = PackageId(evt.representativePackageId),
-      templateQualifiedName = templateId.qualifiedName,
-      contractId = ContractId(evt.contractId),
-      synchronizerId = synchronizerId,
-      contractKey = codecs.getTemplateKey(templateId).map(_.toDynamicValue(evt.getContractKey)),
-      contractKeyHash = Option.when(!evt.contractKeyHash.isEmpty)(evt.contractKeyHash.toByteArray),
-      payloads = payloads.to(Chunk).map { (id, payload) =>
-        id -> codecs.template(id).toDynamicValue(Value.of(Value.Sum.Record(payload)))
-      },
-      signatories = evt.signatories.to(Chunk).map(Party),
-      observers = evt.observers.to(Chunk).map(Party),
-      witnesses = evt.witnessParties.to(Chunk).map(Party),
-      created_at = evt.createdAt.map(TimestampConverters.asJavaInstant),
-      metadata = Option.when(payloads.map(_._1).exists(_.isMetadataIncluded))(evt.createdEventBlob.toByteArray),
-      acsDelta = extractors.acsDelta(evt),
-      // Storage optimization: only store it when it's different.
-      // It can be derived from the representative package id, and in the common case it is the same.
-      creationPackageId =
-        Option.when(evt.getTemplateId.packageId =/= evt.representativePackageId)(evt.getTemplateId.packageId)
-    )
+    toContract(evt).map(Event.Created(EventId(evt.offset, evt.nodeId), synchronizerId, _))
 
   private def convertInterfaceView(
       contractId: String,
@@ -137,24 +110,25 @@ object eventConverters:
     )
 
   private def convertAssignedEvent(
-      evt: com.daml.ledger.api.v2.reassignment.AssignedEvent
-  )(using DamlSchema): Task[Event.Assigned] =
+      evt: com.daml.ledger.api.v2.reassignment.AssignedEvent,
+      synchronizerId: SynchronizerId
+  )(using ProtobufCodecs, DamlSchema): Task[Event.Assigned] =
     // An AssignedEvent has no offset or node_id of its own: the proto puts them on the embedded
     // created event ("The offset of this event refers to the offset of the assignment, while the
     // node_id is the index of within the batch"). The contract's identity lives there too.
     val created = evt.getCreatedEvent
-    for templateId <- created.getTemplateId.toIdentifier()
-    yield Event.Assigned(
-      eventId = EventId(created.offset, created.nodeId),
-      reassignmentId = evt.reassignmentId,
-      source = SynchronizerId(evt.source),
-      target = SynchronizerId(evt.target),
-      submitter = Option.when(evt.submitter.nonEmpty)(Party(evt.submitter)),
-      reassignmentCounter = evt.reassignmentCounter,
-      contractId = ContractId(created.contractId),
-      templateId = templateId,
-      witnesses = created.witnessParties.to(Chunk).map(Party)
-    )
+    toContract(created).map { contract =>
+      Event.Assigned(
+        eventId = EventId(created.offset, created.nodeId),
+        reassignmentId = evt.reassignmentId,
+        source = SynchronizerId(evt.source),
+        target = SynchronizerId(evt.target),
+        submitter = Option.when(evt.submitter.nonEmpty)(Party(evt.submitter)),
+        reassignmentCounter = evt.reassignmentCounter,
+        synchronizerId = synchronizerId,
+        contract = contract
+      )
+    }
 
   private def convertExercisedEvent(
       evt: com.daml.ledger.api.v2.event.ExercisedEvent
@@ -177,6 +151,38 @@ object eventConverters:
       witnesses = evt.witnessParties.to(Chunk).map(Party),
       lastDescendant = evt.lastDescendantNodeId
     )
+
+  private def toContract(
+      evt: com.daml.ledger.api.v2.event.CreatedEvent
+  )(using codecs: ProtobufCodecs)(using DamlSchema) =
+    for
+      templateId <- evt.getTemplateId.toIdentifier(Some(evt.representativePackageId))
+      interfaces <- ZIO
+        .foreach(evt.interfaceViews)(convertInterfaceView(evt.contractId, _).map(_.toList))
+        .map(_.flatten)
+    yield
+      val template = evt.createArguments.map { tmpl => (templateId, tmpl) }
+      val payloads = template.toList ++ interfaces
+      Contract(
+        representativePackageId = PackageId(evt.representativePackageId),
+        templateQualifiedName = templateId.qualifiedName,
+        contractId = ContractId(evt.contractId),
+        contractKey = codecs.getTemplateKey(templateId).map(_.toDynamicValue(evt.getContractKey)),
+        contractKeyHash = Option.when(!evt.contractKeyHash.isEmpty)(evt.contractKeyHash.toByteArray),
+        payloads = payloads.to(Chunk).map { (id, payload) =>
+          id -> codecs.template(id).toDynamicValue(Value.of(Value.Sum.Record(payload)))
+        },
+        signatories = evt.signatories.to(Chunk).map(Party),
+        observers = evt.observers.to(Chunk).map(Party),
+        witnesses = evt.witnessParties.to(Chunk).map(Party),
+        created_at = evt.createdAt.map(TimestampConverters.asJavaInstant),
+        metadata = Option.when(payloads.map(_._1).exists(_.isMetadataIncluded))(evt.createdEventBlob.toByteArray),
+        acsDelta = extractors.acsDelta(evt),
+        // Storage optimization: only store it when it's different.
+        // It can be derived from the representative package id, and in the common case it is the same.
+        creationPackageId =
+          Option.when(evt.getTemplateId.packageId =/= evt.representativePackageId)(evt.getTemplateId.packageId)
+      )
 
   // TODO: Use DecodedCantonError from Canton
   private case class PrintableGrpcStatus(

@@ -35,8 +35,10 @@ object UpdateService:
 case class UpdateService(
     updateServiceClient: UpdateServiceClient,
     codecs: ProtobufCodecs,
-    identifiers: DamlSchema
+    schema: DamlSchema
 ):
+  private given ProtobufCodecs = codecs
+  private given DamlSchema     = schema
 
   private val txLagGauge = Metric
     .gauge(
@@ -90,7 +92,7 @@ case class UpdateService(
       transactionShape: TransactionShape
   ): stream.Stream[Throwable, Transaction[TransactionEvent | ReassignmentEvent]] =
     ZStream.unwrap(
-      for _ <- logFilterContents(identifiers)
+      for _ <- logFilterContents(schema)
       yield getTransactionStream(
         beginExclusive,
         offset =>
@@ -101,11 +103,11 @@ case class UpdateService(
               UpdateFormat.defaultInstance
                 .withIncludeTransactions(
                   TransactionFormat(
-                    eventFormat = Some(mkEventFormat(rights, identifiers)),
+                    eventFormat = Some(mkEventFormat(rights, schema)),
                     transactionShape = transactionShape
                   )
                 )
-                .withIncludeReassignments(mkEventFormat(rights, identifiers))
+                .withIncludeReassignments(mkEventFormat(rights, schema))
             ),
             descendingOrder = false
           ),
@@ -133,11 +135,13 @@ case class UpdateService(
                   case adapter: TransactionAdapter =>
                     process(adapter, updateSpan, seenAt) { tx =>
                       val syncId = SynchronizerId(tx.synchronizerId)
-                      ZIO.foreach(tx.events.to(Chunk))(convertEvent(_, syncId)(using codecs, identifiers))
+                      ZIO.foreach(tx.events.to(Chunk))(convertEvent(_, syncId))
                     }
                   case adapter: ReassignmentAdapter =>
-                    process(adapter, updateSpan, seenAt): rs =>
-                      ZIO.foreach(rs.events.to(Chunk))(convertReassignmentEvent(_)(using identifiers))
+                    process(adapter, updateSpan, seenAt) { rs =>
+                      val syncId = SynchronizerId(rs.synchronizerId)
+                      ZIO.foreach(rs.events.to(Chunk))(convertReassignmentEvent(_, syncId))
+                    }
               }
             }
       )
