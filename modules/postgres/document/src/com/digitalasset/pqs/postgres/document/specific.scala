@@ -56,6 +56,8 @@ object specific:
       val offset: Offset,
       transactionId: Option[String] = None,
       effectiveAt: Option[Instant] = None,
+      // The synchronizerId is optional because it's empty for the transaction we create in the initialization of the database,
+      // which is not a real transaction but a placeholder for the genesis state.
       synchronizerId: Option[SynchronizerId] = None,
       workflowId: Option[String] = None,
       remoteSpan: Option[(String, String)] = None,
