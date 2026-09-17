@@ -5,7 +5,6 @@ package com.digitalasset.zio.daml
 
 import com.daml.ledger.api.v2.transaction_filter.*
 import com.digitalasset.canonical.*
-import com.digitalasset.canonical.specific.Offset
 import com.digitalasset.daml.lf.archive.Decode
 import com.digitalasset.daml.lf.archive.Error as ArchiveError
 import com.digitalasset.daml.lf.language.Ast

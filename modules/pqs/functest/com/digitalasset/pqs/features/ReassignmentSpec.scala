@@ -4,7 +4,8 @@
 package com.digitalasset.pqs.features
 
 import com.daml.ledger.api.v2.value.*
-import com.digitalasset.canonical.specific.{Event, Offset, Transaction}
+import com.digitalasset.canonical.Offset
+import com.digitalasset.canonical.specific.{Event, Transaction}
 import com.digitalasset.pqs.docker.Service
 import com.digitalasset.pqs.functest.FuncTest
 import com.digitalasset.pqs.functest.matchers.*
@@ -194,10 +195,10 @@ object ReassignmentSpec extends FuncTest[Service[Ledger] & Postgres & DeployedDa
           .query(sql"""select "offset", synchronizer_id from __transactions order by "offset"""")
           .returns(
             table {
-              assignedAtOffset.offset   | sync2.id
-              archivedAtOffset.offset   | sync2.id
-              createdAtOffset.offset    | sync1.id
-              unassignedAtOffset.offset | sync1.id
+              assignedAtOffset.toLong   | sync2.id
+              archivedAtOffset.toLong   | sync2.id
+              createdAtOffset.toLong    | sync1.id
+              unassignedAtOffset.toLong | sync1.id
             }
           )
 
@@ -206,7 +207,7 @@ object ReassignmentSpec extends FuncTest[Service[Ledger] & Postgres & DeployedDa
           .creates(extraColumns = Seq("created_at_offset"))
           .returns(
             table {
-              dar.get.packageId | s"${pingPong.name}:PingPong:Ping" | "template" | contractId | createdAtOffset.offset
+              dar.get.packageId | s"${pingPong.name}:PingPong:Ping" | "template" | contractId | createdAtOffset.toLong
             }
           )
       Expect:

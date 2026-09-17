@@ -3,6 +3,7 @@
 
 package com.digitalasset.pqs.errors
 
+import com.digitalasset.canonical.Offset
 import com.digitalasset.pqs.docker.Service
 import com.digitalasset.pqs.functest.FuncTestStandalone
 import com.digitalasset.pqs.functest.matchers.*
@@ -69,7 +70,7 @@ object PrunedDataAccessSpec extends FuncTestStandalone:
       When:
         DamlSdk.runScript("PingPong:transact1", alice.id)
       When:
-        DamlSdk.pruneLedger(pruneUpTo.get)
+        Ledger.pruneLedger(Offset.Absolute(pruneUpTo.get))
       When:
         runPqs(
           "pipeline",

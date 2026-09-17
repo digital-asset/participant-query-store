@@ -3,9 +3,9 @@
 
 package com.digitalasset.pqs.pipeline
 
-import com.digitalasset.canonical.specific.Offset.Absolute
+import com.digitalasset.canonical.Offset
 
 package object pipeline:
-  def absolute(ix: Int) = Absolute(ix.toLong)
+  def absolute(ix: Int) = Offset.Absolute(ix.toLong)
 
   def formatExpectedValue(value: Int): String = value.toString

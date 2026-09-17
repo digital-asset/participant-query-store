@@ -3,8 +3,7 @@
 
 package com.digitalasset.pqs.pipeline.pipeline
 
-import com.digitalasset.canonical.specific.Offset
-import com.digitalasset.canonical.specific.Offset.order.*
+import com.digitalasset.canonical.Offset
 import com.digitalasset.pqs.utils.safeequals.===
 import zio.{Task, ZIO}
 

@@ -3,8 +3,7 @@
 
 package com.digitalasset.pqs.pipeline.pipeline
 
-import com.digitalasset.canonical.specific.Offset.order.*
-import com.digitalasset.canonical.specific.Offset
+import com.digitalasset.canonical.Offset
 import com.digitalasset.canonical.UserRight
 import com.digitalasset.pqs.as
 import com.digitalasset.pqs.backend.Datastore
@@ -71,7 +70,7 @@ private case class Impl(
             ledgerEnd
           )
 
-          actualStart = dbEnd max normalizedStart
+          actualStart = Ordering[Offset].max(dbEnd, normalizedStart)
           dbIsEmpty   = dbEnd === Offset.Genesis
           _ <- Pipeline.streamUpGauge.set(1)
           offsetAndIx <- actualStart match
@@ -92,7 +91,7 @@ private case class Impl(
             case _ =>
               logInfo(s"Last known checkpoint is at offset '$dbEnd' and index '$dbEndIx'").as(actualStart -> dbEndIx)
           (continueFromOffset, continueFromIx) = offsetAndIx
-          actualEnd                            = continueFromOffset max dbEnd max normalizedEnd
+          actualEnd = Ordering[Offset].max(continueFromOffset, Ordering[Offset].max(dbEnd, normalizedEnd))
           _ <- ZIO.unit @@ traces.attributes(
             "pqs.init.actual.start" -> continueFromOffset.toString,
             "pqs.init.actual.end"   -> actualEnd.toString

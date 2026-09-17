@@ -3,8 +3,7 @@
 
 package com.digitalasset.pqs.pipeline.pipeline
 
-import com.digitalasset.canonical.specific.Offset
-import com.digitalasset.canonical.specific.Offset.*
+import com.digitalasset.canonical.Offset
 import zio.ZIO
 import zio.test.Assertion.*
 import zio.test.*
@@ -126,7 +125,7 @@ object OffsetValidatorSpec extends ZIOSpecDefault:
   def translateIntoOffsets(state: String) =
 
     def parseOffsets(line: String): (Offset, Offset) = {
-      if line.isEmpty then (Genesis, Genesis)
+      if line.isEmpty then (Offset.Genesis, Offset.Genesis)
       else
         def findFirstOr(c: String, mkOffset: Int => Offset, offset: Offset): Offset = {
           val ix = line.indexOf(c)
@@ -138,8 +137,8 @@ object OffsetValidatorSpec extends ZIOSpecDefault:
           if ix == -1 then offset else mkOffset(ix)
         }
 
-        val start = findFirstOr("[", absolute, findFirstOr("I", _ => Infinity, Genesis))
-        val end   = findLastOr("]", absolute, findLastOr("G", _ => Genesis, Infinity))
+        val start = findFirstOr("[", absolute, findFirstOr("I", _ => Offset.Infinity, Offset.Genesis))
+        val end   = findLastOr("]", absolute, findLastOr("G", _ => Offset.Genesis, Offset.Infinity))
         start -> end
     }
 

@@ -7,7 +7,8 @@ import com.daml.ledger.api.v2.trace_context.TraceContext
 import com.daml.ledger.api.v2.transaction_filter.{TransactionFormat, TransactionShape, UpdateFormat}
 import com.daml.ledger.api.v2.update_service.ZioUpdateService.UpdateServiceClient
 import com.daml.ledger.api.v2.update_service.{GetUpdatesRequest, GetUpdatesResponse}
-import com.digitalasset.canonical.specific.{Event, Offset, ReassignmentEvent, Transaction, TransactionEvent}
+import com.digitalasset.canonical.Offset
+import com.digitalasset.canonical.specific.{Event, ReassignmentEvent, Transaction, TransactionEvent}
 import com.digitalasset.canonical.{CommandId, TransactionId, UserRight, WorkflowId}
 import com.digitalasset.pqs.grpc.ZManagedChannel
 import com.digitalasset.pqs.o11y.traces.{DetachedSpan, given}
@@ -96,7 +97,7 @@ case class UpdateService(
         beginExclusive,
         offset =>
           GetUpdatesRequest(
-            beginExclusive = offset.toBeginLedgerOffset,
+            beginExclusive = offset.toLong,
             endInclusive = endInclusive.toEndLedgerOffset,
             updateFormat = Some(
               UpdateFormat.defaultInstance

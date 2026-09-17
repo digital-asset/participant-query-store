@@ -3,7 +3,8 @@
 
 package com.digitalasset.zio.daml.ledgerapi
 
-import com.digitalasset.canonical.specific.{Offset, Transaction}
+import com.digitalasset.canonical.Offset
+import com.digitalasset.canonical.specific.Transaction
 import com.digitalasset.pqs.utils.safeequals.===
 import io.grpc.Status.Code
 import io.grpc.StatusException

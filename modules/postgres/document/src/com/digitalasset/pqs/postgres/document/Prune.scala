@@ -3,10 +3,9 @@
 
 package com.digitalasset.pqs.postgres.document
 
-import com.digitalasset.canonical.specific.Offset
+import com.digitalasset.canonical.Offset
 import com.digitalasset.pqs.configuration
-import com.digitalasset.pqs.postgres.document.specific.*
-import com.digitalasset.pqs.postgres.document.specific.PruningBoundary.*
+import com.digitalasset.pqs.postgres.document.PruningBoundary
 import zio.Console.printLine
 import zio.ZLayer.*
 import zio.config.magnolia.{Descriptor, describe}
@@ -23,12 +22,9 @@ final case class Prune(config: PruneConfig, connectionPool: ZConnectionPool):
       case PruningMode.Force  => sql"prune_archived_to_offset"
 
     val sqlArgument = config.target match
-      case OffsetBoundary(offset) =>
-        sql"${offset.toSqlValue}"
-      case TimeBoundary(time) =>
-        sql"nearest_offset(${time.toString} :: timestamp with time zone)"
-      case DurationBoundary(duration) =>
-        sql"nearest_offset(${duration.toString} :: interval)"
+      case PruningBoundary.OffsetBoundary(offset) => sql"${offset.toLong}"
+      case PruningBoundary.TimeBoundary(time)     => sql"nearest_offset(${time.toString} :: timestamp with time zone)"
+      case PruningBoundary.DurationBoundary(duration) => sql"nearest_offset(${duration.toString} :: interval)"
 
     val query =
       sql"select pruning_boundary_offset, deleted_contracts, deleted_exercises, deleted_events, deleted_transactions from $sqlFunction($sqlArgument)"

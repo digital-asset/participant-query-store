@@ -4,7 +4,8 @@
 package com.digitalasset.zio.daml
 
 import com.digitalasset.auth.Auth
-import com.digitalasset.canonical.specific.{Event, Offset, ReassignmentEvent, Transaction, TransactionEvent}
+import com.digitalasset.canonical.Offset
+import com.digitalasset.canonical.specific.{Event, ReassignmentEvent, Transaction, TransactionEvent}
 import com.digitalasset.canonical.UserRight
 import com.digitalasset.pqs.configuration.filter.PartyFilterParser.PartyFilter
 import com.digitalasset.pqs.grpc.ZManagedChannel
