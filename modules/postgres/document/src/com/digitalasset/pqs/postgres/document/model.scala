@@ -190,14 +190,14 @@ object model {
     ).asJava
   )
 
-  private[document] given booleanConverter: ValueConverter[Boolean]       = value => value.toString
-  private[document] given numericConverter[A: Numeric]: ValueConverter[A] = value => value.toString
-  private[document] given stringConverter: ValueConverter[String]         = value => escaper.translate(value)
-  private[document] given contractIdConverter: ValueConverter[ContractId] = value => value
-  private[document] given domainIdConverter: ValueConverter[DomainId]     = value => value
-  private[document] given partyConverter: ValueConverter[Party]           = value => value
-  private[document] given idConverter: ValueConverter[IdPlaceholder]      = value => value.id.toString
-  private[document] given jsonConverter: ValueConverter[Value]            = value => escaper.translate(value.toString)
+  private[document] given booleanConverter: ValueConverter[Boolean]               = value => value.toString
+  private[document] given numericConverter[A: Numeric]: ValueConverter[A]         = value => value.toString
+  private[document] given stringConverter: ValueConverter[String]                 = value => escaper.translate(value)
+  private[document] given contractIdConverter: ValueConverter[ContractId]         = value => value
+  private[document] given synchronizerIdConverter: ValueConverter[SynchronizerId] = value => value
+  private[document] given partyConverter: ValueConverter[Party]                   = value => value
+  private[document] given idConverter: ValueConverter[IdPlaceholder]              = value => value.id.toString
+  private[document] given jsonConverter: ValueConverter[Value]       = value => escaper.translate(value.toString)
   private[document] given tuple2Converter[A]: ValueConverter[(A, A)] = value => s"(\"${value._1}\",\"${value._2}\")"
 
   private[document] given byteArrayConverter: ValueConverter[Array[Byte]] =

@@ -294,7 +294,7 @@ final case class DocumentPostgres(
         tx.offset,
         Some(tx.transactionId),
         tx.effectiveAt,
-        tx.domainId,
+        Some(tx.synchronizerId),
         Some(tx.workflowId),
         tx.remoteSpan,
         tx.externalTransactionHash,
