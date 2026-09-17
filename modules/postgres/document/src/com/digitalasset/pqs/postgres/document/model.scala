@@ -111,23 +111,31 @@ type PackagePk = Long
 sealed trait Table(val name: String, columns: Seq[String], val insertOrder: Int):
   val copyQuery = s"copy $name (${columns.mkString(", ")}) from stdin"
 
-  final class Transaction(
-      val ix: Long,
-      val offset: Offset,
-      transactionId: Option[String] = None,
-      effectiveAt: Option[Instant] = None,
-      synchronizerId: Option[SynchronizerId] = None,
-      workflowId: Option[String] = None,
-      remoteSpan: Option[(String, String)] = None,
-      externalTransactionHash: Option[Array[Byte]] = None,
-      paidTrafficCost: Option[Long] = None,
-      val span: Option[DetachedSpan] = None
-  ) extends Copy:
-    def table = Transaction
-    val row = buildRow(ix)(offset.toLong)(transactionId)(effectiveAt)(synchronizerId)(workflowId)(remoteSpan)(
-      externalTransactionHash
-    )(paidTrafficCost).toString
-    val labels: Set[MetricLabel] = l("type" -> "transaction")
+final class Transaction(
+    val ix: Long,
+    val offset: Offset,
+    transactionId: Option[String] = None,
+    effectiveAt: Option[Instant] = None,
+    synchronizerId: Option[SynchronizerId] = None,
+    workflowId: Option[String] = None,
+    remoteSpan: Option[(String, String)] = None,
+    externalTransactionHash: Option[Array[Byte]] = None,
+    paidTrafficCost: Option[Long] = None,
+    val span: Option[DetachedSpan] = None
+) extends Copy:
+  def table = Transaction
+  val row = buildRow(
+    ix,
+    offset.toLong,
+    transactionId,
+    effectiveAt,
+    synchronizerId,
+    workflowId,
+    remoteSpan,
+    externalTransactionHash,
+    paidTrafficCost
+  )
+  val labels: Set[MetricLabel] = l("type" -> "transaction")
 
 object Transaction
     extends Table(
