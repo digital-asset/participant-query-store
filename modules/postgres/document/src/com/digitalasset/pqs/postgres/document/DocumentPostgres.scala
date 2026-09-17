@@ -4,15 +4,13 @@
 package com.digitalasset.pqs.postgres.document
 
 import com.digitalasset.canonical
-import com.digitalasset.canonical.ContractId
-import com.digitalasset.canonical.specific.Offset
+import com.digitalasset.canonical.{ContractId, Offset}
 import com.digitalasset.pqs.backend.Datastore
 import com.digitalasset.pqs.o11y.metrics.latency
 import com.digitalasset.pqs.o11y.traces
 import com.digitalasset.pqs.o11y.traces.given
 import com.digitalasset.pqs.postgres.backend.*
 import com.digitalasset.pqs.postgres.document.model.{EntityTypePk, PackagePk, Watermark}
-import com.digitalasset.pqs.postgres.document.specific.*
 import com.digitalasset.transcode.Codec
 import com.digitalasset.transcode.schema.*
 import com.digitalasset.zio.daml.{DamlSchema, JsonCodecs}
@@ -48,7 +46,7 @@ final case class DocumentPostgres(
     packageMap: Map[PackageId, PackagePk],
     placeholders: IdPlaceholder.Factory
 ) extends Datastore:
-  import com.digitalasset.pqs.postgres.document.specific.offsetEncoder
+  private given JdbcDecoder[Offset] = (ix, rs) => (ix, Offset.Absolute(rs.getLong(ix)))
 
   private val Genesis: Datastore.Checkpoint = (Offset.Genesis, 0L)
   private val env                           = ZEnvironment(pool) ++ ZEnvironment(poolConfig)
@@ -107,7 +105,7 @@ final case class DocumentPostgres(
       .mapChunksZIO(chunk =>
         ZIO.whenCase(chunk.headOption) {
           case Some(Offset.Genesis) =>
-            tx(model.Model.prepareStatement(Chunk(model.Transaction(specific.Transaction(Genesis._2, Genesis._1)))))
+            tx(model.Model.prepareStatement(Chunk(model.Transaction(Genesis._2, Genesis._1))))
               .as(Chunk.empty)
         } *> ZIO.attempt {
           chunk.collect {
@@ -178,7 +176,7 @@ final case class DocumentPostgres(
                 tx.ifTraced(
                   _.linkFromCurrentSpan(
                     "target" -> "↥ incoming transaction",
-                    "offset" -> (tx.offset.toSqlValue)
+                    "offset" -> (tx.offset.toLong)
                   )
                 )
               }
@@ -241,14 +239,14 @@ final case class DocumentPostgres(
       traces.span("advance datastore watermark") {
         trackWatermark(updateWatermark(wm))
           @@ traces.attributes(
-            "pqs.watermark.offset" -> wm.offset.toSqlValue,
+            "pqs.watermark.offset" -> wm.offset.toLong,
             "pqs.watermark.ix"     -> wm.ix
           )
           *> ZIO.foreachDiscard(wm.txSpans) { s =>
             s.linkToCurrentSpan("target" -> "↧ advance watermark")
               *> s.addEvent(
                 "advanced datastore watermark",
-                "offset" -> wm.offset.toSqlValue,
+                "offset" -> wm.offset.toLong,
                 "index"  -> wm.ix
               )
               *> s.end()
@@ -260,17 +258,17 @@ final case class DocumentPostgres(
             ZIO.foreachDiscard(wm.seenAts) { seenAt => txProcessingLatency.update(now - seenAt) }
           )
           *> watermarkIx.update(wm.ix)
-          *> logInfo(s"Advanced watermark: ix = ${wm.ix}, offset = ${wm.offset.toSqlValue}")
+          *> logInfo(s"Advanced watermark: ix = ${wm.ix}, offset = ${wm.offset.toLong}")
       }
     )
 
   private def updateWatermark(wm: Watermark) =
-    tx(sql"""update __watermark set "offset" = ${wm.offset.toSqlValue}, ix = ${wm.ix};""".update)
+    tx(sql"""update __watermark set "offset" = ${wm.offset.toLong}, ix = ${wm.ix};""".update)
       .filterOrFail(_ == 1)(RuntimeException("Failed to update watermark."))
 
   private def updateAcsOffsets =
     ZPipeline[model.Watermark].tap(wm =>
-      tx(sql"""update __transactions set "offset" = ${wm.offset.toSqlValue} where ix = ${Genesis._2};""".update)
+      tx(sql"""update __transactions set "offset" = ${wm.offset.toLong} where ix = ${Genesis._2};""".update)
     )
 
   private implicit def stringSetter[T <: String | Offset]: Setter[T] =
@@ -289,17 +287,15 @@ final case class DocumentPostgres(
       txIx: Long
   ): Chunk[model.Model] =
     val insertTx = model.Transaction(
-      Transaction(
-        txIx,
-        tx.offset,
-        Some(tx.transactionId),
-        tx.effectiveAt,
-        Some(tx.synchronizerId),
-        Some(tx.workflowId),
-        tx.remoteSpan,
-        tx.externalTransactionHash,
-        tx.paidTrafficCost
-      ),
+      txIx,
+      tx.offset,
+      Some(tx.transactionId),
+      tx.effectiveAt,
+      Some(tx.synchronizerId),
+      Some(tx.workflowId),
+      tx.remoteSpan,
+      tx.externalTransactionHash,
+      tx.paidTrafficCost,
       Some(tx.span)
     )
     val insertEvents    = tx.events.flatMap(evt => insertEvent(txIx, evt))
@@ -344,46 +340,40 @@ final case class DocumentPostgres(
             creationPackageId
           ) =>
         val evt = model.Event(
-          Event(
-            pk = pk,
-            txIx = txIx,
-            eventId = eid,
-            eventType = model.EventType.Create
-          )
+          pk = pk,
+          txIx = txIx,
+          eventId = eid,
+          eventType = model.EventType.Create
         )
         val contracts = payloads.map((entityId, value) =>
           model.Contract(
-            Contract(
-              qualifiedName = templateQualifiedName,
-              entityType = entityPkMap(entityId),
-              createEventPk = pk,
-              createdAtIx = txIx,
-              contractId = cid,
-              signatories = signatories,
-              observers = observers,
-              witnesses = witnesses,
-              payload = codec.template(entityId).fromDynamicValue(value),
-              // A create yields a row per payload: one for the template, one per interface view. Only a keyed
-              // template has a key codec, so checking templateKey codec drops both contractKey and contractKeyHash.
-              contractKey = (codec.getTemplateKey(entityId) zip contractKey).map(_ `fromDynamicValue` _),
-              contractKeyHash = codec.getTemplateKey(entityId).flatMap(_ => contractKeyHash),
-              metadata = metadata,
-              acsDelta = acsDelta,
-              packagePk = packageMap(rpId),
-              creationPackageId = creationPackageId
-            )
+            qualifiedName = templateQualifiedName,
+            entityType = entityPkMap(entityId),
+            createEventPk = pk,
+            createdAtIx = txIx,
+            contractId = cid,
+            signatories = signatories,
+            observers = observers,
+            witnesses = witnesses,
+            payload = codec.template(entityId).fromDynamicValue(value),
+            // A create yields a row per payload: one for the template, one per interface view. Only a keyed
+            // template has a key codec, so checking templateKey codec drops both contractKey and contractKeyHash.
+            contractKey = (codec.getTemplateKey(entityId) zip contractKey).map(_ `fromDynamicValue` _),
+            contractKeyHash = codec.getTemplateKey(entityId).flatMap(_ => contractKeyHash),
+            metadata = metadata,
+            acsDelta = acsDelta,
+            packagePk = packageMap(rpId),
+            creationPackageId = creationPackageId
           )
         )
         contracts :+ evt
 
       case canonical.specific.Event.Archived(eid, tid, cid) =>
         val evt = model.Event(
-          Event(
-            pk = pk,
-            txIx = txIx,
-            eventId = eid,
-            eventType = model.EventType.Archive
-          )
+          pk = pk,
+          txIx = txIx,
+          eventId = eid,
+          eventType = model.EventType.Archive
         )
         val archives = mkArchives(pk, txIx, cid, tid)
         archives :+ evt
@@ -403,29 +393,25 @@ final case class DocumentPostgres(
           ) =>
         val choiceRef = entityId.copy(entityName = EntityName(choice))
         val evt = model.Event(
-          Event(
-            pk = pk,
-            txIx = txIx,
-            eventId = eid,
-            eventType = model.EventType.Exercise
-          )
+          pk = pk,
+          txIx = txIx,
+          eventId = eid,
+          eventType = model.EventType.Exercise
         )
         val exercise = model.Exercise(
-          Exercise(
-            qualifiedName = tid.qualifiedName,
-            entityType = exercisePkMap(entityId, choice),
-            contractEntityType = entityPkMap(entityId),
-            exerciseEventPk = pk,
-            exercisedAt = txIx,
-            contractId = cid,
-            choiceName = choice,
-            argument = codec.choiceArgument(entityId, choice).fromDynamicValue(arg),
-            result = codec.choiceResult(entityId, choice).fromDynamicValue(result),
-            controllers = controllers,
-            witnesses = witnesses,
-            lastDescendant = lastDescendant,
-            packagePk = packageMap(tid.packageId)
-          )
+          qualifiedName = tid.qualifiedName,
+          entityType = exercisePkMap(entityId, choice),
+          contractEntityType = entityPkMap(entityId),
+          exerciseEventPk = pk,
+          exercisedAt = txIx,
+          contractId = cid,
+          choiceName = choice,
+          argument = codec.choiceArgument(entityId, choice).fromDynamicValue(arg),
+          result = codec.choiceResult(entityId, choice).fromDynamicValue(result),
+          controllers = controllers,
+          witnesses = witnesses,
+          lastDescendant = lastDescendant,
+          packagePk = packageMap(tid.packageId)
         )
         val archives = if consuming then mkArchives(pk, txIx, cid, tid) else Chunk.empty
         archives :+ exercise :+ evt
@@ -438,24 +424,20 @@ final case class DocumentPostgres(
       case evt: canonical.specific.Event.Unassigned =>
         Chunk(
           model.Event(
-            Event(
-              pk = pk,
-              txIx = txIx,
-              eventId = evt.eventId,
-              eventType = model.EventType.Unassign
-            )
+            pk = pk,
+            txIx = txIx,
+            eventId = evt.eventId,
+            eventType = model.EventType.Unassign
           )
         )
 
       case evt: canonical.specific.Event.Assigned =>
         Chunk(
           model.Event(
-            Event(
-              pk = pk,
-              txIx = txIx,
-              eventId = evt.eventId,
-              eventType = model.EventType.Assign
-            )
+            pk = pk,
+            txIx = txIx,
+            eventId = evt.eventId,
+            eventType = model.EventType.Assign
           )
         )
   }

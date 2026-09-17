@@ -7,7 +7,6 @@ import com.digitalasset.transcode.schema.{PackageId, PackageName, PackageVersion
 import com.digitalasset.pqs.docker.{Docker, Service}
 import com.digitalasset.pqs.functest.{Dpm, FTConfig, FTEnv}
 import com.digitalasset.pqs.services.daml
-import com.digitalasset.pqs.services.daml.specific.toOffset
 import com.digitalasset.pqs.services.oauth.OAuth
 import com.digitalasset.pqs.utils.safeequals.*
 import org.semver4j.Semver
@@ -248,12 +247,6 @@ object DamlSdk:
         user.canReadAsAnyParty
       )
       .as(user)
-
-  class PrunedTo(offset: String | Long)
-
-  /** Prune ledger up to offset */
-  def pruneLedger(upToOffset: String | Long): RLayer[Docker & Service[Ledger], PrunedTo] =
-    ZLayer.fromZIO(upToOffset.toOffset.flatMap(Ledger.pruneLedger).as(PrunedTo(upToOffset)))
 
   /** Run script and store result in the layer */
   def runScript[IN: upickle.default.Writer](

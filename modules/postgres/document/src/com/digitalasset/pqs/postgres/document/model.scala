@@ -4,11 +4,10 @@
 package com.digitalasset.pqs.postgres.document
 
 import com.digitalasset.canonical.*
-import com.digitalasset.canonical.specific.Offset
+import com.digitalasset.canonical.specific.{EventId, NodeId}
+import com.digitalasset.transcode.schema.ChoiceName
 import com.digitalasset.pqs.o11y.traces
 import com.digitalasset.pqs.o11y.traces.{DetachedSpan, given}
-import com.digitalasset.pqs.postgres.document.specific
-import com.digitalasset.pqs.postgres.document.specific.ValueConverter
 import io.opentelemetry.api.trace.SpanContext
 import org.apache.commons.text.translate.LookupTranslator
 import org.postgresql.PGConnection
@@ -28,17 +27,24 @@ import scala.jdk.CollectionConverters.*
 import scala.language.implicitConversions
 
 object model {
-  sealed trait Model { def labels: Set[MetricLabel] }
-  sealed trait Copy extends Model { def _table: Table; def _sql: String; def _row: String }
+  enum EventType:
+    case Create, Archive, Exercise, Assign, Unassign
+
+  sealed trait Model:
+    def labels: Set[MetricLabel]
+
+  sealed trait Copy extends Model:
+    def table: Table
+    def row: String
+
   final case class Watermark(
       ix: Long,
       offset: Offset,
       seenAts: Seq[Long],
       txSpans: Seq[DetachedSpan] = Seq.empty,
       persistSpans: Seq[SpanContext] = Seq.empty
-  ) extends Model {
+  ) extends Model:
     val labels = l("type" -> "watermark")
-  }
 
   given watermarkOrdering: Ordering[Watermark] = Ordering.by(_.ix)
   private def l(kv: (String, Any)*)            = kv.map((k, v) => MetricLabel(k, v.toString)).toSet
@@ -48,28 +54,28 @@ object model {
 
     def prepareStatement(all: Iterable[Model]): ZIO[ZConnection, Throwable, Chunk[Watermark]] = {
 
-      val copies                  = mutable.LinkedHashMap.empty[String, mutable.ListBuffer[String]]
+      val copies                  = mutable.LinkedHashMap.empty[Table, mutable.ListBuffer[String]]
       val watermarks              = ChunkBuilder.make[Watermark]()
       val txs                     = all.onlyTransactions()
-      val batchContents           = all.onlyCopies().groupMapReduce(_._table)(_ => 1L)(_ + _)
+      val batchContents           = all.onlyCopies().groupMapReduce(_.table)(_ => 1L)(_ + _)
       def statAttribute(t: Table) = s"pqs.${t.name}.rows_count" -> batchContents.getOrElse(t, 0L)
       all.foreach {
-        case c: Copy      => copies.getOrElseUpdate(c._sql, mutable.ListBuffer.empty).addOne(c._row)
+        case c: Copy      => copies.getOrElseUpdate(c.table, mutable.ListBuffer.empty).addOne(c.row)
         case w: Watermark => watermarks.addOne(w.copy(txSpans = txs.find(_.ix == w.ix).flatMap(_.span).toList))
       }
 
       val forcedCopies = copies.view
-        .map { (sql, rows) => (sql, rows.view.mkString(lineSeparator())) }
+        .map { (table, rows) => (table, rows.view.mkString(lineSeparator())) }
         .toSeq
-        .sortBy(_._1)
+        .sortBy(_._1.precedence)
       val copyIO = ZIO.serviceWithZIO[ZConnection](
         _.access { conn =>
           @SuppressWarnings(Array("org.wartremover.warts.AsInstanceOf"))
           val api = conn.asInstanceOf[PGRestorableConnection].underlying.asInstanceOf[PGConnection].getCopyAPI
-          forcedCopies.foreach { (sql, rows) => api.copyIn(sql, StringReader(rows)) }
+          forcedCopies.foreach { (table, rows) => api.copyIn(table.copyQuery, StringReader(rows)) }
         } <* logTrace(
-          s"SQL:${lineSeparator()}" +
-            s"${forcedCopies.map(x => s"${x._1}${lineSeparator()}${x._2}").mkString(lineSeparator())}"
+          s"SQL:$lineSeparator" +
+            forcedCopies.map((table, rows) => s"${table.copyQuery}$lineSeparator$rows").mkString(lineSeparator)
         )
       )
 
@@ -81,11 +87,11 @@ object model {
 
       traces.span("execute SQL") {
         copyIO @@ traces.attributes(
-          statAttribute(Table.Transactions),
-          statAttribute(Table.Events),
-          statAttribute(Table.Contracts),
-          statAttribute(Table.Exercises),
-          statAttribute(Table.Archives)
+          statAttribute(Transaction),
+          statAttribute(Event),
+          statAttribute(Contract),
+          statAttribute(Exercise),
+          statAttribute(Archive)
         )
       } *>
         metricsIO *>
@@ -97,23 +103,6 @@ object model {
     }
   }
 
-  enum Table(val name: String):
-    case Transactions extends Table("__transactions")
-    case Events       extends Table("__events")
-    case Contracts    extends Table("__contracts")
-    case Exercises    extends Table("__exercises")
-    // As opposed to the tables above, __archives is a view with an `instead of insert` trigger
-    // `__insert_archive_trg` that updates the underlying __contracts row instead of inserting.
-    case Archives extends Table("__archives")
-
-  final class Transaction(tx: specific.Transaction, val span: Option[DetachedSpan] = None) extends Copy:
-    val _table                   = Table.Transactions
-    val _sql                     = s"/*0*/ copy ${_table.name} (${tx.columns.mkString(", ")}) from stdin"
-    val _row                     = tx.rowValues
-    val labels: Set[MetricLabel] = l("type" -> "transaction")
-    val ix: Long                 = tx.ix
-    val offset: Offset           = tx.offset
-
   opaque type EntityTypePk <: Long = Long
   object EntityTypePk:
     inline def apply(value: Long): EntityTypePk = value
@@ -121,25 +110,146 @@ object model {
 
   type PackagePk = Long
 
-  final class Event(ev: specific.Event) extends Copy:
-    val _table = Table.Events
-    val _sql   = s"/*1*/ copy ${_table.name} (${ev.columns.mkString(", ")}) from stdin"
-    val _row   = ev.rowValues
+  sealed trait Table(val name: String, val columns: Seq[String], val precedence: Int):
+    def copyQuery = s"/*$precedence*/ copy $name (${columns.mkString(", ")}) from stdin"
+
+  final class Transaction(
+      val ix: Long,
+      val offset: Offset,
+      transactionId: Option[String] = None,
+      effectiveAt: Option[Instant] = None,
+      domainId: Option[SynchronizerId] = None,
+      workflowId: Option[String] = None,
+      remoteSpan: Option[(String, String)] = None,
+      externalTransactionHash: Option[Array[Byte]] = None,
+      paidTrafficCost: Option[Long] = None,
+      val span: Option[DetachedSpan] = None
+  ) extends Copy:
+    def table = Transaction
+    val row = RowValues(ix)(offset.toLong)(transactionId)(effectiveAt)(domainId)(workflowId)(remoteSpan)(
+      externalTransactionHash
+    )(paidTrafficCost).toString
+    val labels: Set[MetricLabel] = l("type" -> "transaction")
+
+  object Transaction
+      extends Table(
+        "__transactions",
+        Seq(
+          "ix",
+          "\"offset\"",
+          "transaction_id",
+          "effective_at",
+          "domain_id",
+          "workflow_id",
+          "trace_context",
+          "external_transaction_hash",
+          "paid_traffic_cost"
+        ),
+        precedence = 0
+      )
+
+  final class Event(
+      pk: IdPlaceholder,
+      txIx: Long,
+      eventId: EventId,
+      eventType: model.EventType
+  ) extends Copy:
+    def table  = Event
+    val row    = RowValues(pk)(txIx)(eventId)(eventType).toString
     val labels = Set.empty
 
-  final class Contract(ev: specific.Contract) extends Copy:
-    val _table = Table.Contracts
-    val _sql   = s"/*2*/ copy ${_table.name} (${ev.columns.mkString(", ")}) from stdin"
-    val _row   = ev.rowValues
-    val labels: Set[MetricLabel] =
-      l("type" -> "create", "template" -> ev.qualifiedName)
+  object Event
+      extends Table(
+        "__events",
+        Seq("pk", "tx_ix", "event_id", "type"),
+        precedence = 2
+      )
 
-  final class Exercise(ev: specific.Exercise) extends Copy:
-    val _table = Table.Exercises
-    val _sql   = s"/*3*/ copy ${_table.name} (${ev.columns.mkString(", ")}) from stdin"
-    val _row   = ev.rowValues
-    val labels: Set[MetricLabel] =
-      l("type" -> "exercise", "template" -> ev.qualifiedName, "choice" -> ev.choiceName)
+  final class Contract(
+      qualifiedName: String,
+      entityType: model.EntityTypePk,
+      createEventPk: IdPlaceholder,
+      createdAtIx: Long,
+      contractId: ContractId,
+      signatories: Seq[Party],
+      observers: Seq[Party],
+      witnesses: Seq[Party],
+      payload: Value,
+      contractKey: Option[Value],
+      contractKeyHash: Option[Array[Byte]],
+      metadata: Option[Array[Byte]],
+      acsDelta: Boolean,
+      packagePk: model.PackagePk,
+      creationPackageId: Option[String]
+  ) extends Copy:
+    def table = Contract
+    val row =
+      RowValues(entityType: Long)(createEventPk)(createdAtIx)(contractId)(payload)(contractKey)(contractKeyHash)(
+        metadata
+      )(packagePk)(creationPackageId)(signatories)(observers)(witnesses)(!acsDelta).toString
+    val labels: Set[MetricLabel] = l("type" -> "create", "template" -> qualifiedName)
+
+  object Contract
+      extends Table(
+        "__contracts",
+        Seq(
+          "tpe_pk",
+          "create_event_pk",
+          "created_at_ix",
+          "contract_id",
+          "payload",
+          "contract_key",
+          "contract_key_hash",
+          "metadata",
+          "package_pk",
+          "creation_package_id",
+          "signatories",
+          "observers",
+          "witnesses",
+          "divulged_only"
+        ),
+        precedence = 2
+      )
+
+  final class Exercise(
+      qualifiedName: String,
+      entityType: model.EntityTypePk,
+      contractEntityType: model.EntityTypePk,
+      exerciseEventPk: IdPlaceholder,
+      exercisedAt: Long,
+      contractId: ContractId,
+      choiceName: ChoiceName,
+      argument: Value,
+      result: Value,
+      controllers: Seq[Party],
+      witnesses: Seq[Party],
+      lastDescendant: NodeId,
+      packagePk: model.PackagePk
+  ) extends Copy:
+    def table = Exercise
+    val row = RowValues(entityType: Long)(contractEntityType: Long)(exerciseEventPk)(exercisedAt)(contractId)(argument)(
+      result
+    )(controllers)(witnesses)(lastDescendant)(packagePk).toString
+    val labels: Set[MetricLabel] = l("type" -> "exercise", "template" -> qualifiedName, "choice" -> choiceName)
+
+  object Exercise
+      extends Table(
+        "__exercises",
+        Seq(
+          "tpe_pk",
+          "contract_tpe_pk",
+          "exercise_event_pk",
+          "exercised_at_ix",
+          "contract_id",
+          "argument",
+          "result",
+          "controllers",
+          "witnesses",
+          "last_descendant_node_id",
+          "package_pk"
+        ),
+        precedence = 3
+      )
 
   final class Archive(
       qualifiedName: String,
@@ -148,14 +258,19 @@ object model {
       txIx: Long,
       contractId: ContractId,
       packagePk: PackagePk
-  ) extends Copy {
-    val _table = Table.Archives
-    val _sql =
-      s"/*4*/ copy ${_table.name} (archive_event_pk, archived_at_ix, contract_id, tpe_pk, package_pk) from stdin"
-    val _row = values(eventPk)(txIx)(contractId)(entityType)(packagePk)
-    val labels: Set[MetricLabel] =
-      l("type" -> "archive", "template" -> qualifiedName)
-  }
+  ) extends Copy:
+    def table                    = Archive
+    val row                      = RowValues(eventPk)(txIx)(contractId)(entityType)(packagePk).toString
+    val labels: Set[MetricLabel] = l("type" -> "archive", "template" -> qualifiedName)
+
+  // As opposed to the other tables, __archives is a view with an `instead of insert` trigger
+  // `__insert_archive_trg` that updates the underlying __contracts row instead of inserting.
+  object Archive
+      extends Table(
+        "__archives",
+        Seq("archive_event_pk", "archived_at_ix", "contract_id", "tpe_pk", "package_pk"),
+        precedence = 4
+      )
 
   extension (models: Iterable[Model])
     def onlyTransactions(): Iterable[Transaction] = models.view.collect { case t: Transaction => t }
@@ -165,17 +280,16 @@ object model {
     def ifTraced[R, E, A](zio: DetachedSpan => ZIO[R, E, A]) = ZIO.whenCase(tx.span) { case Some(s) => zio(s) }
 
   // utils
-
-  private[document] def values: RowValues           = RowValues()
-  private given conv: Conversion[RowValues, String] = _.toString
-  private[document] class RowValues {
+  private class RowValues:
     private val sb                = StringBuilder()
     override def toString: String = sb.result()
     def apply[A](value: A)(using conv: ValueConverter[A]): RowValues =
       if sb.nonEmpty then sb.append("\t")
       sb.append(conv.convert(value))
       this
-  }
+
+  private object RowValues:
+    def apply[A](value: A)(using ValueConverter[A]) = new RowValues().apply(value)
 
   // https://www.postgresql.org/docs/current/sql-copy.html
   private val escaper = new LookupTranslator(
@@ -190,17 +304,21 @@ object model {
     ).asJava
   )
 
-  private[document] given booleanConverter: ValueConverter[Boolean]               = value => value.toString
-  private[document] given numericConverter[A: Numeric]: ValueConverter[A]         = value => value.toString
-  private[document] given stringConverter: ValueConverter[String]                 = value => escaper.translate(value)
-  private[document] given contractIdConverter: ValueConverter[ContractId]         = value => value
-  private[document] given synchronizerIdConverter: ValueConverter[SynchronizerId] = value => value
-  private[document] given partyConverter: ValueConverter[Party]                   = value => value
-  private[document] given idConverter: ValueConverter[IdPlaceholder]              = value => value.id.toString
-  private[document] given jsonConverter: ValueConverter[Value]       = value => escaper.translate(value.toString)
-  private[document] given tuple2Converter[A]: ValueConverter[(A, A)] = value => s"(\"${value._1}\",\"${value._2}\")"
+  private trait ValueConverter[A]:
+    def convert(value: A): String
 
-  private[document] given byteArrayConverter: ValueConverter[Array[Byte]] =
+  private given ValueConverter[EventId]         = value => value.toString
+  private given ValueConverter[Boolean]         = value => value.toString
+  private given [A: Numeric]: ValueConverter[A] = value => value.toString
+  private given ValueConverter[String]          = value => escaper.translate(value)
+  private given ValueConverter[ContractId]      = value => value
+  private given ValueConverter[SynchronizerId]  = value => value
+  private given ValueConverter[Party]           = value => value
+  private given ValueConverter[IdPlaceholder]   = value => value.id.toString
+  private given ValueConverter[Value]           = value => escaper.translate(value.toString)
+  private given [A]: ValueConverter[(A, A)]     = value => s"(\"${value._1}\",\"${value._2}\")"
+
+  private given ValueConverter[Array[Byte]] =
     val HEX_DIGITS = Array('0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F')
     value =>
       if value.isEmpty then ""
@@ -210,20 +328,18 @@ object model {
         value.foreach(b => sb.append(HEX_DIGITS(b >> 4 & 15)).append(HEX_DIGITS(b & 15)))
         sb.result()
 
-  private[document] given instantConverter: ValueConverter[Instant] =
+  private given ValueConverter[Instant] =
     val fmt = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSSXX")
     value => value.atZone(ZoneOffset.UTC).format(fmt)
 
-  private[document] given optionalConverter[A: ValueConverter]: ValueConverter[Option[A]] =
+  private given [A: ValueConverter]: ValueConverter[Option[A]] =
     case Some(value) => implicitly[ValueConverter[A]].convert(value)
     case None        => "\\N"
 
-  private[document] given iterableConverter[A: ValueConverter]: ValueConverter[Seq[A]] =
+  private given [A: ValueConverter]: ValueConverter[Seq[A]] =
     value => value.map(implicitly[ValueConverter[A]].convert).mkString("{", ",", "}")
 
-  enum EventType:
-    case Create, Archive, Exercise, Assign, Unassign
-  private[document] given eventTypeConverter: ValueConverter[EventType] =
+  private given ValueConverter[EventType] =
     case EventType.Create   => "create"
     case EventType.Archive  => "archive"
     case EventType.Exercise => "exercise"

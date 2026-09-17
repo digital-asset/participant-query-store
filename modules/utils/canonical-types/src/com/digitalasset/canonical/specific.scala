@@ -4,46 +4,15 @@
 package com.digitalasset.canonical
 
 import com.digitalasset.pqs.o11y.traces.DetachedSpan
-import com.digitalasset.pqs.utils.safeequals.===
 import com.digitalasset.transcode.schema
 import zio.Chunk
 
 import java.time.Instant
 
 object specific:
-
   type NodeId                                 = Int
   opaque type EventId <: Tuple2[Long, NodeId] = (Long, NodeId)
   inline def EventId(value: (Long, NodeId)): EventId = value
-
-  sealed trait Offset:
-    override def toString: String = this match
-      case Offset.Genesis          => "GENESIS"
-      case Offset.Infinity         => "INFINITY"
-      case Offset.Absolute(offset) => offset.toString
-
-    def toActiveAtLedgerOffset: Long    = toLongOffset
-    def toBeginLedgerOffset: Long       = toLongOffset
-    def toEndLedgerOffset: Option[Long] = Option(toLongOffset).filter(_ != Long.MaxValue)
-
-    def toLongOffset: Long = this match
-      case Offset.Genesis          => 0L
-      case Offset.Absolute(offset) => offset
-      case Offset.Infinity         => Long.MaxValue
-
-  object Offset:
-    case object Genesis                     extends Offset
-    final case class Absolute(offset: Long) extends Offset
-    case object Infinity                    extends Offset
-
-    implicit val order: Ordering[Offset] = (x, y) =>
-      (x, y) match
-        case (a, b) if a === b                        => 0
-        case (Offset.Genesis, _)                      => -1
-        case (_, Offset.Genesis)                      => 1
-        case (Offset.Absolute(a), Offset.Absolute(b)) => a.compareTo(b)
-        case (Offset.Infinity, _)                     => 1
-        case (_, Offset.Infinity)                     => -1
 
   case class Transaction[+E](
       transactionId: TransactionId,

@@ -8,9 +8,7 @@ import com.daml.ledger.api.v2.transaction.Transaction
 import com.daml.ledger.api.v2.transaction_filter.TransactionShape
 import com.daml.ledger.api.v2.update_service.GetUpdatesResponse
 import com.daml.ledger.api.v2.update_service.ZioUpdateService.UpdateServiceClient
-import com.digitalasset.canonical.UserRight.AsAnyParty
-import com.digitalasset.canonical.specific.Offset
-import com.digitalasset.canonical.{ContractFilter, MetadataFilter}
+import com.digitalasset.canonical.*
 import com.digitalasset.transcode.schema.*
 import com.digitalasset.zio.daml.{DamlSchema, ProtobufCodecs}
 import com.digitalasset.zio.daml.ledgerapi.UpdateServiceClientMock.GetUpdates
@@ -102,7 +100,7 @@ object UpdateServiceSpec extends ZIOSpecDefault:
         .withEvents(events)
     )
 
-  private val dummyRight = AsAnyParty
+  private val dummyRight = UserRight.AsAnyParty
 
   private def serviceLayer(
       updateServiceClientLayer: ULayer[UpdateServiceClient],
@@ -123,8 +121,8 @@ object UpdateServiceSpec extends ZIOSpecDefault:
 
         val expectationToRetry =
           GetUpdates(
-            assertion(s"first call starts at ${Offset.Genesis.toLongOffset}")(
-              _.beginExclusive == Offset.Genesis.toLongOffset
+            assertion(s"first call starts at ${Offset.Genesis.toLong}")(
+              _.beginExclusive == Offset.Genesis.toLong
             ),
             value(failingWithTokenExpired)
           ) ++
