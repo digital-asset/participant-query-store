@@ -30,6 +30,3 @@ enum Offset extends Ordered[Offset]:
     case Offset.Genesis          => 0L
     case Offset.Absolute(offset) => offset
     case Offset.Infinity         => Long.MaxValue
-
-object Offset:
-  given Ordering[Offset] = _.compare(_)
