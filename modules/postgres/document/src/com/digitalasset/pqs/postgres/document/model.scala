@@ -125,7 +125,7 @@ sealed trait Table(val name: String, columns: Seq[String], val insertOrder: Int)
       val span: Option[DetachedSpan] = None
   ) extends Copy:
     def table = Transaction
-    val row = RowValues(ix)(offset.toLong)(transactionId)(effectiveAt)(synchronizerId)(workflowId)(remoteSpan)(
+    val row = buildRow(ix)(offset.toLong)(transactionId)(effectiveAt)(synchronizerId)(workflowId)(remoteSpan)(
       externalTransactionHash
     )(paidTrafficCost).toString
     val labels: Set[MetricLabel] = l("type" -> "transaction")
@@ -154,7 +154,7 @@ final class Event(
     eventType: EventType
 ) extends Copy:
   def table  = Event
-  val row    = RowValues(pk)(txIx)(eventId)(eventType).toString
+  val row    = buildRow(pk, txIx, eventId, eventType)
   val labels = Set.empty
 
 object Event
@@ -182,10 +182,22 @@ final class Contract(
     creationPackageId: Option[String]
 ) extends Copy:
   def table = Contract
-  val row =
-    RowValues(entityType)(createEventPk)(createdAtIx)(contractId)(payload)(contractKey)(contractKeyHash)(
-      metadata
-    )(packagePk)(creationPackageId)(signatories)(observers)(witnesses)(!acsDelta).toString
+  val row = buildRow(
+    entityType,
+    createEventPk,
+    createdAtIx,
+    contractId,
+    payload,
+    contractKey,
+    contractKeyHash,
+    metadata,
+    packagePk,
+    creationPackageId,
+    signatories,
+    observers,
+    witnesses,
+    !acsDelta
+  )
   val labels: Set[MetricLabel] = l("type" -> "create", "template" -> qualifiedName)
 
 object Contract
@@ -226,9 +238,19 @@ final class Exercise(
     packagePk: PackagePk
 ) extends Copy:
   def table = Exercise
-  val row = RowValues(entityType)(contractEntityType)(exerciseEventPk)(exercisedAt)(contractId)(argument)(
-    result
-  )(controllers)(witnesses)(lastDescendant)(packagePk).toString
+  val row = buildRow(
+    entityType,
+    contractEntityType,
+    exerciseEventPk,
+    exercisedAt,
+    contractId,
+    argument,
+    result,
+    controllers,
+    witnesses,
+    lastDescendant,
+    packagePk
+  )
   val labels: Set[MetricLabel] = l("type" -> "exercise", "template" -> qualifiedName, "choice" -> choiceName)
 
 object Exercise
@@ -258,9 +280,9 @@ final class Archive(
     contractId: ContractId,
     packagePk: PackagePk
 ) extends Copy:
-  def table                    = Archive
-  val row                      = RowValues(eventPk)(txIx)(contractId)(entityType)(packagePk).toString
-  val labels: Set[MetricLabel] = l("type" -> "archive", "template" -> qualifiedName)
+  def table  = Archive
+  val row    = buildRow(eventPk, txIx, contractId, entityType, packagePk)
+  val labels = l("type" -> "archive", "template" -> qualifiedName)
 
 // As opposed to the other tables, __archives is a view with an `instead of insert` trigger
 // `__insert_archive_trg` that updates the underlying __contracts row instead of inserting.
@@ -279,16 +301,51 @@ extension (tx: Transaction)
   def ifTraced[R, E, A](zio: DetachedSpan => ZIO[R, E, A]) = ZIO.whenCase(tx.span) { case Some(s) => zio(s) }
 
 // utils
-private class RowValues:
-  private val sb                = StringBuilder()
-  override def toString: String = sb.result()
-  def apply[A](value: A)(using conv: ValueConverter[A]): RowValues =
-    if sb.nonEmpty then sb.append("\t")
-    sb.append(conv.convert(value))
-    this
+private final class RowValue(val str: String) extends AnyVal
+private object RowValue:
+  type Converter[A] = Conversion[A, RowValue]
 
-private object RowValues:
-  def apply[A](value: A)(using ValueConverter[A]) = new RowValues().apply(value)
+  given Converter[EntityTypePk]    = value => value.toString
+  given Converter[EventId]         = value => value.toString
+  given Converter[Boolean]         = value => value.toString
+  given [A: Numeric]: Converter[A] = value => value.toString
+  given Converter[String]          = value => escaper.translate(value)
+  given Converter[ContractId]      = value => value
+  given Converter[SynchronizerId]  = value => value
+  given Converter[Party]           = value => value
+  given Converter[IdPlaceholder]   = value => value.id.toString
+  given Converter[Value]           = value => escaper.translate(value.toString)
+  given [A]: Converter[(A, A)]     = value => s"(\"${value._1}\",\"${value._2}\")"
+
+  given Converter[Array[Byte]] =
+    val HEX_DIGITS = Array('0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F')
+    value =>
+      if value.isEmpty then ""
+      else
+        val sb = StringBuilder()
+        sb.append("\\\\x")
+        value.foreach(b => sb.append(HEX_DIGITS(b >> 4 & 15)).append(HEX_DIGITS(b & 15)))
+        sb.result()
+
+  given Converter[Instant] =
+    val fmt = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSSXX")
+    value => value.atZone(ZoneOffset.UTC).format(fmt)
+
+  given [A: Converter]: Converter[Option[A]] =
+    case Some(value) => value: RowValue
+    case None        => "\\N"
+
+  given [A: Converter]: Converter[Seq[A]] =
+    value => value.map(v => v: RowValue).mkString("{", ",", "}")
+
+  given Converter[EventType] =
+    case EventType.Create   => "create"
+    case EventType.Archive  => "archive"
+    case EventType.Exercise => "exercise"
+    case EventType.Assign   => "assign"
+    case EventType.Unassign => "unassign"
+
+private def buildRow(values: RowValue*): String = values.view.map(_.str).mkString("\t")
 
 // https://www.postgresql.org/docs/current/sql-copy.html
 private val escaper = new LookupTranslator(
@@ -302,45 +359,3 @@ private val escaper = new LookupTranslator(
     "\\"     -> "\\\\"
   ).asJava
 )
-
-private trait ValueConverter[A]:
-  def convert(value: A): String
-
-  private given ValueConverter[EventId]         = value => value.toString
-  private given ValueConverter[Boolean]         = value => value.toString
-  private given [A: Numeric]: ValueConverter[A] = value => value.toString
-  private given ValueConverter[String]          = value => escaper.translate(value)
-  private given ValueConverter[ContractId]      = value => value
-  private given ValueConverter[SynchronizerId]  = value => value
-  private given ValueConverter[Party]           = value => value
-  private given ValueConverter[IdPlaceholder]   = value => value.id.toString
-  private given ValueConverter[Value]           = value => escaper.translate(value.toString)
-  private given [A]: ValueConverter[(A, A)]     = value => s"(\"${value._1}\",\"${value._2}\")"
-
-  given ValueConverter[Array[Byte]] =
-    val HEX_DIGITS = Array('0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F')
-    value =>
-      if value.isEmpty then ""
-      else
-        val sb = StringBuilder()
-        sb.append("\\\\x")
-        value.foreach(b => sb.append(HEX_DIGITS(b >> 4 & 15)).append(HEX_DIGITS(b & 15)))
-        sb.result()
-
-  given ValueConverter[Instant] =
-    val fmt = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSSXX")
-    value => value.atZone(ZoneOffset.UTC).format(fmt)
-
-  given [A: ValueConverter]: ValueConverter[Option[A]] =
-    case Some(value) => implicitly[ValueConverter[A]].convert(value)
-    case None        => "\\N"
-
-  given [A: ValueConverter]: ValueConverter[Seq[A]] =
-    value => value.map(implicitly[ValueConverter[A]].convert).mkString("{", ",", "}")
-
-  given ValueConverter[EventType] =
-    case EventType.Create   => "create"
-    case EventType.Archive  => "archive"
-    case EventType.Exercise => "exercise"
-    case EventType.Assign   => "assign"
-    case EventType.Unassign => "unassign"
