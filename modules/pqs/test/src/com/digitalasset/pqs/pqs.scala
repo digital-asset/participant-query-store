@@ -3,5 +3,4 @@
 
 package com.digitalasset.pqs
 
-object specific:
-  val offsetScalaType = "long"
+val offsetScalaType = "long"

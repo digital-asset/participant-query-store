@@ -3,7 +3,6 @@
 
 package com.digitalasset.pqs
 
-import com.digitalasset.pqs.specific.offsetScalaType
 import zio.*
 import zio.internal.stacktracer.SourceLocation
 import zio.test.*
