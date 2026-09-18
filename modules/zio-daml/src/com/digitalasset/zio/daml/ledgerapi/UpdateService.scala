@@ -7,9 +7,17 @@ import com.daml.ledger.api.v2.trace_context.TraceContext
 import com.daml.ledger.api.v2.transaction_filter.{TransactionFormat, TransactionShape, UpdateFormat}
 import com.daml.ledger.api.v2.update_service.ZioUpdateService.UpdateServiceClient
 import com.daml.ledger.api.v2.update_service.{GetUpdatesRequest, GetUpdatesResponse}
-import com.digitalasset.canonical.Offset
-import com.digitalasset.canonical.specific.{Event, ReassignmentEvent, Transaction, TransactionEvent}
-import com.digitalasset.canonical.{CommandId, TransactionId, UserRight, WorkflowId}
+import com.digitalasset.canonical.{
+  CommandId,
+  Event,
+  Offset,
+  ReassignmentEvent,
+  Transaction,
+  TransactionEvent,
+  TransactionId,
+  UserRight,
+  WorkflowId
+}
 import com.digitalasset.pqs.grpc.ZManagedChannel
 import com.digitalasset.pqs.o11y.traces.{DetachedSpan, given}
 import com.digitalasset.pqs.o11y.{logs, traces}
@@ -17,7 +25,7 @@ import com.digitalasset.transcode.schema.Dictionary
 import com.digitalasset.zio.daml.*
 import com.digitalasset.zio.daml.ledgerapi.*
 import com.digitalasset.zio.daml.ledgerapi.DataAdapter.{ReassignmentAdapter, TransactionAdapter}
-import com.digitalasset.zio.daml.ledgerapi.specific.{convertEvent, convertReassignmentEvent}
+import com.digitalasset.zio.daml.ledgerapi.eventConverters.{convertEvent, convertReassignmentEvent}
 import io.opentelemetry.api.trace.*
 import io.opentelemetry.api.trace.propagation.internal.W3CTraceContextEncoding
 import zio.ZIO.{logInfo, logTrace}

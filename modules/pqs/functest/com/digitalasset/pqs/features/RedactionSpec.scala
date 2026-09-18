@@ -4,7 +4,7 @@
 package com.digitalasset.pqs.features
 
 import com.digitalasset.pqs.SharedLedgerAndPostgresTest
-import com.digitalasset.pqs.specific.nonExistenceEventId
+import com.digitalasset.pqs.nonExistenceEventId
 import com.digitalasset.pqs.functest.FuncTest
 import com.digitalasset.pqs.functest.matchers.*
 import com.digitalasset.pqs.functest.table.*

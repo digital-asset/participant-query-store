@@ -4,8 +4,7 @@
 package com.digitalasset.pqs.features
 
 import com.daml.ledger.api.v2.value.*
-import com.digitalasset.canonical.Offset
-import com.digitalasset.canonical.specific.{Event, Transaction}
+import com.digitalasset.canonical.{Event, Offset, Transaction}
 import com.digitalasset.pqs.docker.Service
 import com.digitalasset.pqs.functest.FuncTest
 import com.digitalasset.pqs.functest.matchers.*
@@ -15,7 +14,7 @@ import com.digitalasset.pqs.postgres.document.SqlSchema
 import com.digitalasset.pqs.services.daml.*
 import com.digitalasset.pqs.services.postgres.*
 import com.digitalasset.pqs.services.pqs.Pqs
-import com.digitalasset.pqs.specific.OffsetType
+import com.digitalasset.pqs.OffsetType
 import com.digitalasset.transcode.codec.json.JsonCodec
 import com.digitalasset.zio.daml.DamlSchema
 import zio.Chunk

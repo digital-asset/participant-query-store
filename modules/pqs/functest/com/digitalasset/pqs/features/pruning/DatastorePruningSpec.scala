@@ -4,7 +4,7 @@
 package com.digitalasset.pqs.features.pruning
 
 import com.digitalasset.pqs.SharedLedgerAndPostgresTest
-import com.digitalasset.pqs.specific.{OffsetType, biggestOffset, smallestOffset}
+import com.digitalasset.pqs.{OffsetType, biggestOffset, smallestOffset}
 import com.digitalasset.pqs.functest.FuncTest
 import com.digitalasset.pqs.functest.matchers.*
 import com.digitalasset.pqs.functest.table.*

@@ -100,7 +100,7 @@ final case class DocumentPostgres(
   /** Process ACS events */
   private def convertAcsEventsToStatements =
     val trackConvert = latency("pipeline_convert_acs_event", "Latency of converting ACS events")
-    ZPipeline[canonical.specific.Event.Created | Offset]
+    ZPipeline[canonical.Event.Created | Offset]
       .mapChunksZIO(chunk =>
         ZIO.whenCase(chunk.headOption) {
           case Some(Offset.Genesis) =>
@@ -108,8 +108,8 @@ final case class DocumentPostgres(
               .as(Chunk.empty)
         } *> ZIO.attempt {
           chunk.collect {
-            case evt: canonical.specific.Event.Created => insertEvent(Genesis._2, evt)
-            case offset: Offset.Absolute               => Chunk(Watermark(Genesis._2, offset, Seq.empty))
+            case evt: canonical.Event.Created => insertEvent(Genesis._2, evt)
+            case offset: Offset.Absolute      => Chunk(Watermark(Genesis._2, offset, Seq.empty))
           }
         } @@ trackConvert
       )
@@ -119,7 +119,7 @@ final case class DocumentPostgres(
   private def convertTransactionEventsToStatements(n: Int) =
     val trackConvert = latency("pipeline_convert_transaction", "Latency of converting transactions")
     type TX = (
-        canonical.specific.Transaction[canonical.specific.Event],
+        canonical.Transaction[canonical.Event],
         Datastore.TransactionIndex
     )
     ZPipeline
@@ -282,7 +282,7 @@ final case class DocumentPostgres(
   )
 
   private def convertTransactionToSqlStatements(
-      tx: canonical.specific.Transaction[canonical.specific.Event],
+      tx: canonical.Transaction[canonical.Event],
       txIx: Long
   ): Chunk[Model] =
     val insertTx = Transaction(
@@ -303,7 +303,7 @@ final case class DocumentPostgres(
 
   private def insertEvent(
       txIx: Long,
-      event: canonical.specific.Event
+      event: canonical.Event
   ): Chunk[Model] = {
     val pk = placeholders.mk
 
@@ -322,7 +322,7 @@ final case class DocumentPostgres(
       }
 
     event match
-      case canonical.specific.Event.Created(
+      case canonical.Event.Created(
             eid,
             rpId,
             templateQualifiedName,
@@ -367,7 +367,7 @@ final case class DocumentPostgres(
         )
         contracts :+ evt
 
-      case canonical.specific.Event.Archived(eid, tid, cid) =>
+      case canonical.Event.Archived(eid, tid, cid) =>
         val evt = Event(
           pk = pk,
           txIx = txIx,
@@ -377,7 +377,7 @@ final case class DocumentPostgres(
         val archives = mkArchives(pk, txIx, cid, tid)
         archives :+ evt
 
-      case canonical.specific.Event.Exercised(
+      case canonical.Event.Exercised(
             eid,
             tid,
             entityId,
@@ -420,7 +420,7 @@ final case class DocumentPostgres(
       // columns that make them correct (reassignment_counter, synchronizer_id, life_ix). Converting
       // an assignment to Event.Created instead would write a second __contracts row for the same
       // contract, which is the duplicated-contracts corruption the parent design calls out.
-      case evt: canonical.specific.Event.Unassigned =>
+      case evt: canonical.Event.Unassigned =>
         Chunk(
           Event(
             pk = pk,
@@ -430,7 +430,7 @@ final case class DocumentPostgres(
           )
         )
 
-      case evt: canonical.specific.Event.Assigned =>
+      case evt: canonical.Event.Assigned =>
         Chunk(
           Event(
             pk = pk,

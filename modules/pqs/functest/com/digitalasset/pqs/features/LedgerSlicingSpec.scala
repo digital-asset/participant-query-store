@@ -11,7 +11,7 @@ import com.digitalasset.pqs.functest.table.*
 import com.digitalasset.pqs.services.daml.*
 import com.digitalasset.pqs.services.postgres.Postgres
 import com.digitalasset.pqs.services.pqs.Pqs
-import com.digitalasset.pqs.specific.OffsetType
+import com.digitalasset.pqs.OffsetType
 import zio.jdbc.sqlInterpolator
 import zio.test.Assertion.anything
 import zio.{ExitCode, ZLayer}
