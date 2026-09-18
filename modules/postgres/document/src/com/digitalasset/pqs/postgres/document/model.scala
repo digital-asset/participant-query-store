@@ -89,7 +89,7 @@ object Model {
         statAttribute(Event),
         statAttribute(Contract),
         statAttribute(Exercise),
-        statAttribute(Archive)
+        statAttribute(DeactivatedContract)
       )
     } *>
       metricsIO *>
@@ -293,24 +293,45 @@ object Exercise
       insertOrder = 3
     )
 
-final class Archive(
+// Represents a contract deactivation: either an archive or an unassign.
+final class DeactivatedContract(
     qualifiedName: String,
     entityType: EntityTypePk,
-    eventPk: IdPlaceholder,
-    txIx: Long,
     contractId: ContractId,
-    packagePk: PackagePk
+    archiveEventPk: Option[IdPlaceholder],
+    archivedAtIx: Option[Long],
+    unassignEventPk: Option[IdPlaceholder],
+    unassignedAtIx: Option[Long],
+    synchronizerId: SynchronizerId,
 ) extends Copy:
-  def table  = Archive
-  val row    = buildRow(eventPk, txIx, contractId, entityType, packagePk)
-  val labels = l("type" -> "archive", "template" -> qualifiedName)
+  def table  = DeactivatedContract
+  val row    = buildRow(
+    entityType,
+    contractId,
+    archiveEventPk,
+    archivedAtIx,
+    unassignEventPk,
+    unassignedAtIx,
+    synchronizerId,
+  )
+  val labels = 
+    val tpe = if archiveEventPk.isDefined then "archive" else "unassign"
+    l("type" -> tpe, "template" -> qualifiedName)
 
-// As opposed to the other tables, __archives is a view with an `instead of insert` trigger
-// `__insert_archive_trg` that updates the underlying __contracts row instead of inserting.
-object Archive
+// As opposed to the other tables, __tmp_deactivated_contracts is a staging table
+// the underlying __contracts is updated sequentially by __update_watermark_fn SQL function
+object DeactivatedContract
     extends Table(
-      "__archives",
-      Seq("archive_event_pk", "archived_at_ix", "contract_id", "tpe_pk", "package_pk"),
+      "__tmp_deactivated_contracts",
+      Seq(
+        "tpe_pk",
+        "contract_id",
+        "archive_event_pk",
+        "archived_at_ix",
+        "unassign_event_pk",
+        "unassigned_at_ix",
+        "synchronizer_id",
+      ),
       insertOrder = 4
     )
 

@@ -24,9 +24,9 @@ object eventConverters:
     case com.daml.ledger.api.v2.event.Event.Event.Created(evt) =>
       convertCreatedEvent(evt, synchronizerId)
     case com.daml.ledger.api.v2.event.Event.Event.Archived(evt) =>
-      convertArchivedEvent(evt)
+      convertArchivedEvent(evt, synchronizerId)
     case com.daml.ledger.api.v2.event.Event.Event.Exercised(evt) =>
-      convertExercisedEvent(evt)
+      convertExercisedEvent(evt, synchronizerId)
     case unsupported =>
       ZIO.fail(new RuntimeException(s"Unsupported event type: ${unsupported.getClass}"))
 
@@ -35,7 +35,7 @@ object eventConverters:
       synchronizerId: SynchronizerId
   )(using ProtobufCodecs, DamlSchema): Task[ReassignmentEvent] = event.event match
     case com.daml.ledger.api.v2.reassignment.ReassignmentEvent.Event.Unassigned(evt) =>
-      convertUnassignedEvent(evt)
+      convertUnassignedEvent(evt, synchronizerId)
     case com.daml.ledger.api.v2.reassignment.ReassignmentEvent.Event.Assigned(evt) =>
       convertAssignedEvent(evt, synchronizerId)
     case unsupported =>
@@ -83,21 +83,25 @@ object eventConverters:
     }
 
   private def convertArchivedEvent(
-      evt: com.daml.ledger.api.v2.event.ArchivedEvent
+      evt: com.daml.ledger.api.v2.event.ArchivedEvent,
+      synchronizerId: SynchronizerId,
   )(using DamlSchema): Task[Event.Archived] =
     for templateId <- evt.getTemplateId.toIdentifier()
     yield Event.Archived(
-      eventId = EventId(evt.offset, evt.nodeId),
-      templateId = templateId,
-      contractId = ContractId(evt.contractId)
+      EventId(evt.offset, evt.nodeId),
+      synchronizerId,
+      templateId,
+      ContractId(evt.contractId)
     )
 
   private def convertUnassignedEvent(
-      evt: com.daml.ledger.api.v2.reassignment.UnassignedEvent
+      evt: com.daml.ledger.api.v2.reassignment.UnassignedEvent,
+      synchronizerId: SynchronizerId,
   )(using DamlSchema): Task[Event.Unassigned] =
     for templateId <- evt.getTemplateId.toIdentifier()
     yield Event.Unassigned(
-      eventId = EventId(evt.offset, evt.nodeId),
+      EventId(evt.offset, evt.nodeId),
+      synchronizerId = synchronizerId,
       reassignmentId = evt.reassignmentId,
       source = SynchronizerId(evt.source),
       target = SynchronizerId(evt.target),
@@ -131,7 +135,8 @@ object eventConverters:
     }
 
   private def convertExercisedEvent(
-      evt: com.daml.ledger.api.v2.event.ExercisedEvent
+      evt: com.daml.ledger.api.v2.event.ExercisedEvent,
+      synchronizerId: SynchronizerId,
   )(using codecs: ProtobufCodecs)(using DamlSchema): Task[Event.Exercised] =
     val entityIdentifier = evt.interfaceId.getOrElse(evt.getTemplateId)
     for
@@ -139,7 +144,8 @@ object eventConverters:
       templateId     <- evt.getTemplateId.toIdentifier()
       choiceName = schema.ChoiceName(evt.choice)
     yield Event.Exercised(
-      eventId = EventId(evt.offset, evt.nodeId),
+      EventId(evt.offset, evt.nodeId),
+      synchronizerId,
       templateId = templateId,
       entityId = entitySchemaId,
       choice = choiceName,

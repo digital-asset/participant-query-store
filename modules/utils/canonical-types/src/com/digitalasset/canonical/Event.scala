@@ -27,12 +27,14 @@ object Event:
 
   final case class Archived(
       eventId: EventId,
+      synchronizerId: SynchronizerId,
       templateId: schema.Identifier,
       contractId: ContractId
   ) extends TransactionEvent
 
   final case class Exercised(
       eventId: EventId,
+      synchronizerId: SynchronizerId,
       // Template of the contract on which the choice is exercised
       templateId: schema.Identifier,
       // Where the choice is defined: Either a template or an interface
@@ -50,6 +52,7 @@ object Event:
 
   final case class Unassigned(
       eventId: EventId,
+      synchronizerId: SynchronizerId,
       reassignmentId: String,
       source: SynchronizerId,
       target: SynchronizerId,
