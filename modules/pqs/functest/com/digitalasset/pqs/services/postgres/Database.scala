@@ -58,8 +58,8 @@ object Database:
   def __exercises() = Postgres `query`
     sql"""select package_pk, tpe_pk, contract_tpe_pk, contract_id, argument ->> 'newLabel' from __exercises order by exercised_at_ix, tpe_pk"""
 
-  def active(qname: Option[String] = None, extraColumns: Seq[String] = Seq.empty) =
-    selectContracts(sql"active($qname)", extraColumns)
+  def active(qname: Option[String] = None, offset: Option[Long] = None, extraColumns: Seq[String] = Seq.empty) =
+    selectContracts(sql"active($qname, $offset)", extraColumns)
 
   def archives(qname: Option[String] = None, extraColumns: Seq[String] = Seq.empty) =
     selectContracts(sql"archives($qname)", extraColumns)
