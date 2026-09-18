@@ -28,6 +28,9 @@ import scala.language.implicitConversions
 enum EventType:
   case Create, Archive, Exercise, Assign, Unassign
 
+enum ReassignmentType:
+  case Assign, Unassign
+
 sealed trait Model:
   def labels: Set[MetricLabel]
 
@@ -89,7 +92,8 @@ object Model {
         statAttribute(Event),
         statAttribute(Contract),
         statAttribute(Exercise),
-        statAttribute(Archive)
+        statAttribute(Archive),
+        statAttribute(Reassignment)
       )
     } *>
       metricsIO *>
@@ -300,6 +304,58 @@ object Archive
       insertOrder = 4
     )
 
+final class Reassignment(
+    qualifiedName: String,
+    entityType: EntityTypePk,
+    reassignmentEventPk: IdPlaceholder,
+    reassignedAtIx: Long,
+    reassignmentType: ReassignmentType,
+    contractId: ContractId,
+    reassignmentId: String,
+    source: SynchronizerId,
+    target: SynchronizerId,
+    submitter: Option[Party],
+    reassignmentCounter: Long,
+    witnesses: Seq[Party],
+    assignmentExclusivity: Option[Instant]
+) extends Copy:
+  def table = Reassignment
+  val row = buildRow(
+    entityType,
+    reassignmentEventPk,
+    reassignedAtIx,
+    reassignmentType,
+    contractId,
+    reassignmentId,
+    source,
+    target,
+    submitter,
+    reassignmentCounter,
+    witnesses,
+    assignmentExclusivity
+  )
+  val labels: Set[MetricLabel] = l("type" -> reassignmentType.toString.toLowerCase, "template" -> qualifiedName)
+
+object Reassignment
+    extends Table(
+      "__reassignments",
+      Seq(
+        "contract_tpe_pk",
+        "reassignment_event_pk",
+        "reassigned_at_ix",
+        "type",
+        "contract_id",
+        "reassignment_id",
+        "source_synchronizer_id",
+        "target_synchronizer_id",
+        "submitter",
+        "reassignment_counter",
+        "witnesses",
+        "assignment_exclusivity"
+      ),
+      insertOrder = 5
+    )
+
 extension (models: Iterable[Model])
   def onlyTransactions(): Iterable[Transaction] = models.view.collect { case t: Transaction => t }
   def onlyCopies(): Iterable[Copy]              = models.view.collect { case t: Copy => t }
@@ -366,5 +422,9 @@ private object RowValue:
     case EventType.Exercise => RowValue("exercise")
     case EventType.Assign   => RowValue("assign")
     case EventType.Unassign => RowValue("unassign")
+
+  given Converter[ReassignmentType] =
+    case ReassignmentType.Assign   => RowValue("assign")
+    case ReassignmentType.Unassign => RowValue("unassign")
 
 private def buildRow(values: RowValue*): String = values.mkString("\t")

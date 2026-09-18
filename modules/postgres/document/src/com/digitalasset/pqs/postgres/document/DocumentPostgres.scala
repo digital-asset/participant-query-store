@@ -4,7 +4,7 @@
 package com.digitalasset.pqs.postgres.document
 
 import com.digitalasset.canonical
-import com.digitalasset.canonical.{ContractId, Offset}
+import com.digitalasset.canonical.{ContractId, Offset, Party, SynchronizerId}
 import com.digitalasset.pqs.backend.Datastore
 import com.digitalasset.pqs.o11y.metrics.latency
 import com.digitalasset.pqs.o11y.traces
@@ -28,7 +28,9 @@ import zio.stream.{ZChannel, ZPipeline, ZSink}
 import zio.{Chunk, ChunkBuilder, Schedule, ZEnvironment, ZIO, ZLayer, durationInt, jdbc}
 
 import java.io.{Reader, StringReader}
+import java.time.Instant
 import java.util
+import java.util.NoSuchElementException
 import scala.collection.mutable
 import scala.jdk.CollectionConverters.*
 import scala.language.implicitConversions
@@ -321,6 +323,40 @@ final case class DocumentPostgres(
         )
       }
 
+    def mkReassignment(
+        reassignmentType: ReassignmentType,
+        reassignmentId: String,
+        source: SynchronizerId,
+        target: SynchronizerId,
+        submitter: Option[Party],
+        reassignmentCounter: Long,
+        contractId: ContractId,
+        templateId: Identifier,
+        witnesses: Chunk[Party],
+        assignmentExclusivity: Option[Instant]
+    ) =
+      val entityType = entityPkMap.getOrElse(
+        templateId,
+        throw NoSuchElementException(
+          s"No entity type for template $templateId (contract $contractId, tx index $txIx)"
+        )
+      )
+      Reassignment(
+        qualifiedName = templateId.qualifiedName,
+        entityType = entityType,
+        reassignmentEventPk = pk,
+        reassignedAtIx = txIx,
+        reassignmentType = reassignmentType,
+        contractId = contractId,
+        reassignmentId = reassignmentId,
+        source = source,
+        target = target,
+        submitter = submitter,
+        reassignmentCounter = reassignmentCounter,
+        witnesses = witnesses,
+        assignmentExclusivity = assignmentExclusivity
+      )
+
     event match
       case canonical.Event.Created(
             eid,
@@ -415,13 +451,26 @@ final case class DocumentPostgres(
         val archives = if consuming then mkArchives(pk, txIx, cid, tid) else Chunk.empty
         archives :+ exercise :+ evt
 
-      // A reassignment event is recorded as an event only. The reassigned contract itself is not
-      // tracked yet, so no __contracts row is created or updated here — those arrive in M5 with the
-      // columns that make them correct (reassignment_counter, synchronizer_id, life_ix). Converting
-      // an assignment to Event.Created instead would write a second __contracts row for the same
-      // contract, which is the duplicated-contracts corruption the parent design calls out.
+      // A reassignment event is recorded as an event and a __reassignments row. The reassigned
+      // contract itself is not tracked yet, so no __contracts row is created or updated here — those
+      // arrive in M5 with the columns that make them correct (reassignment_counter, synchronizer_id,
+      // life_ix). Converting an assignment to Event.Created instead would write a second __contracts
+      // row for the same contract, which is the duplicated-contracts corruption the parent design
+      // calls out.
       case evt: canonical.Event.Unassigned =>
         Chunk(
+          mkReassignment(
+            reassignmentType = ReassignmentType.Unassign,
+            reassignmentId = evt.reassignmentId,
+            source = evt.source,
+            target = evt.target,
+            submitter = evt.submitter,
+            reassignmentCounter = evt.reassignmentCounter,
+            contractId = evt.contractId,
+            templateId = evt.templateId,
+            witnesses = evt.witnesses,
+            assignmentExclusivity = evt.assignmentExclusivity
+          ),
           Event(
             pk = pk,
             txIx = txIx,
@@ -432,6 +481,18 @@ final case class DocumentPostgres(
 
       case evt: canonical.Event.Assigned =>
         Chunk(
+          mkReassignment(
+            reassignmentType = ReassignmentType.Assign,
+            reassignmentId = evt.reassignmentId,
+            source = evt.source,
+            target = evt.target,
+            submitter = evt.submitter,
+            reassignmentCounter = evt.reassignmentCounter,
+            contractId = evt.contractId,
+            templateId = evt.templateId,
+            witnesses = evt.witnesses,
+            assignmentExclusivity = None
+          ),
           Event(
             pk = pk,
             txIx = txIx,
