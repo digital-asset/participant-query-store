@@ -289,6 +289,7 @@ begin
         delete from __contracts where created_at_ix > cutoff_ix;
         update __contracts set archived_at_ix = null, archive_event_pk = null where archived_at_ix > cutoff_ix;
         delete from __exercises where exercised_at_ix > cutoff_ix;
+        delete from __reassignments where reassigned_at_ix > cutoff_ix;
         delete from __events where tx_ix > cutoff_ix;
         delete from __tmp_archived_contracts where archived_at_ix > cutoff_ix;
         delete from __transactions where ix > cutoff_ix;
