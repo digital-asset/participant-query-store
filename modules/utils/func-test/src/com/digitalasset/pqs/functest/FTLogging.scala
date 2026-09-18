@@ -65,7 +65,7 @@ object FTLogging:
     FileLoggerConfig(
       os.Path(file, os.pwd).toNIO.toAbsolutePath,
       format,
-      LogFilter.LogLevelByNameConfig(LogLevel.Debug)
+      LogFilter.LogLevelByNameConfig(LogLevel.Info)
     )
   end fileLogConfig
 
@@ -97,7 +97,7 @@ object FTLogging:
       |-| level.fixed(1).highlight
       |-| line
       + cause
-    ConsoleLoggerConfig(format, LogFilter.LogLevelByNameConfig(LogLevel.Debug))
+    ConsoleLoggerConfig(format, LogFilter.LogLevelByNameConfig(LogLevel.Info))
   end consoleLogConfig
 
   private def timestampForwarder = LogFormat.make { (builder, _, _, _, _, _, _, _, annotations) =>
