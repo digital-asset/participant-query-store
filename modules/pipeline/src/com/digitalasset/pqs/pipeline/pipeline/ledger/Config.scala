@@ -3,7 +3,6 @@
 
 package com.digitalasset.pqs.pipeline.pipeline.ledger
 
-import com.digitalasset.pqs.pipeline.pipeline.ledger.Config.{CliStartOffset, CliStopOffset}
 import zio.config.magnolia.{Descriptor, describe}
 
 case class Config(
@@ -13,23 +12,18 @@ case class Config(
     stop: CliStopOffset = CliStopOffset.Never
 )
 
-object Config:
-  sealed trait CliStartOffset
-  object CliStartOffset:
-    case object Genesis                     extends CliStartOffset
-    case object Oldest                      extends CliStartOffset
-    case object Latest                      extends CliStartOffset
-    final case class Absolute(offset: Long) extends CliStartOffset
+enum CliStartOffset:
+  case Genesis, Oldest, Latest
+  case Absolute(offset: Long)
 
-    given descrAbsolute: Descriptor[CliStartOffset.Absolute] =
-      Descriptor.from(Descriptor[Long].transform[CliStartOffset.Absolute](CliStartOffset.Absolute.apply, _.offset))
-  end CliStartOffset
+object CliStartOffset:
+  given descrAbsolute: Descriptor[CliStartOffset.Absolute] =
+    Descriptor.from(Descriptor[Long].transform[CliStartOffset.Absolute](CliStartOffset.Absolute.apply, _.offset))
 
-  sealed trait CliStopOffset
-  object CliStopOffset:
-    case object Latest                      extends CliStopOffset
-    case object Never                       extends CliStopOffset
-    final case class Absolute(offset: Long) extends CliStopOffset
-    given descrAbsolute: Descriptor[Absolute] =
-      Descriptor.from(Descriptor[Long].transform[Absolute](Absolute.apply, _.offset))
-  end CliStopOffset
+enum CliStopOffset:
+  case Latest, Never
+  case Absolute(offset: Long)
+
+object CliStopOffset:
+  given descrAbsolute: Descriptor[Absolute] =
+    Descriptor.from(Descriptor[Long].transform[Absolute](Absolute.apply, _.offset))
