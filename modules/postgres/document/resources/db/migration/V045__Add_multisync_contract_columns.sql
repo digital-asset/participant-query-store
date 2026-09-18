@@ -25,6 +25,18 @@ create index if not exists __contracts_life_ix_idx
     include (tpe_pk)
     where not divulged_only;
 
+alter type contract
+    add attribute assign_event_pk bigint,
+    add attribute assign_event_id event_id,
+    add attribute assigned_at_ix bigint,
+    add attribute assigned_at_offset bigint,
+    add attribute unassign_event_pk bigint,
+    add attribute unassign_event_id event_id,
+    add attribute unassigned_at_ix bigint,
+    add attribute unassigned_at_offset bigint,
+    add attribute reassignment_counter bigint,
+    add attribute synchronizer_id text;
+
 create table if not exists __tmp_deactivated_contracts
 (
   tpe_pk bigint not null,

@@ -96,7 +96,17 @@ CREATE TYPE public.contract AS (
 	witnesses text[],
 	divulged_only boolean,
 	creation_package_id text,
-	contract_key_hash bytea
+	contract_key_hash bytea,
+	assign_event_pk bigint,
+	assign_event_id public.event_id,
+	assigned_at_ix bigint,
+	assigned_at_offset bigint,
+	unassign_event_pk bigint,
+	unassign_event_id public.event_id,
+	unassigned_at_ix bigint,
+	unassigned_at_offset bigint,
+	reassignment_counter bigint,
+	synchronizer_id text
 );
 
 
@@ -288,13 +298,27 @@ select tpe.template_fqn,
        -- It was also not stored before the creation_package_id column was added. In those cases, the package id
        -- was always the creation package id.
        COALESCE(c.creation_package_id, p.id) as creation_package_id,
-       c.contract_key_hash
+       c.contract_key_hash,
+       c.assign_event_pk,
+       assign_e.event_id,
+       c.assigned_at_ix,
+       assign_t."offset",
+       c.unassign_event_pk,
+       unassign_e.event_id,
+       c.unassigned_at_ix,
+       unassign_t."offset",
+       c.reassignment_counter,
+       c.synchronizer_id
 from __contracts c
          left join __contract_tpe tpe on tpe.pk = c.tpe_pk
          left join __transactions ct on c.created_at_ix = ct.ix
          left join __transactions at on c.archived_at_ix = at.ix
+         left join __transactions assign_t on c.assigned_at_ix = assign_t.ix
+         left join __transactions unassign_t on c.unassigned_at_ix = unassign_t.ix
          left join __events ce on ce.pk = c.create_event_pk
          left join __events ae on ae.pk = c.archive_event_pk
+         left join __events assign_e on assign_e.pk = c.assign_event_pk
+         left join __events unassign_e on unassign_e.pk = c.unassign_event_pk
          left join __packages p on c.package_pk = p.pk
 where qname is null or c.tpe_pk = __contract_tpe4name(qname)
 $$;
@@ -699,21 +723,18 @@ begin
                 delete from __tmp_deactivated_contracts
                 where deactivated_at_ix <= new.ix and tpe_pk = tpe.tpe_pk
                 returning *
-            ),
-            ordered as (
-                -- order matters: for a contract with repeated reassignments to the same synchronizer
-                select * from deleted order by deactivated_at_ix
             )
             update __contracts c
             set archive_event_pk = d.archive_event_pk,
                 archived_at_ix = d.archived_at_ix,
                 unassign_event_pk = d.unassign_event_pk,
                 unassigned_at_ix = d.unassigned_at_ix
-            from ordered d
+            from deleted d
             where c.tpe_pk = tpe.tpe_pk
                 and c.contract_id = d.contract_id
                 -- synchronizer_id may be null on rows written by PQS 3.6 or older
                 and (c.synchronizer_id is null or c.synchronizer_id = d.synchronizer_id)
+                -- pair each deactivation with the matching activation segment on this synchronizer
                 and __activated_at_ix(c) <= d.deactivated_at_ix
                 and c.archived_at_ix is null
                 and c.unassigned_at_ix is null;
@@ -904,7 +925,17 @@ select c.template_fqn,
        '{}'::text[], -- prevent propagation of witnesses information
        c.divulged_only,
        c.creation_package_id,
-       c.contract_key_hash
+       c.contract_key_hash,
+       c.assign_event_pk,
+       c.assign_event_id,
+       c.assigned_at_ix,
+       c.assigned_at_offset,
+       c.unassign_event_pk,
+       c.unassign_event_id,
+       c.unassigned_at_ix,
+       c.unassigned_at_offset, 
+       c.reassignment_counter,
+       c.synchronizer_id
 from __contracts(qname) c
 where c.archived_at_ix between (select __nearest_ix_ceil(from_offset)) and (select __nearest_ix_floor(to_offset))
 $$;

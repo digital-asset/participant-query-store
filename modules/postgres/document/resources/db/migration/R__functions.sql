@@ -116,13 +116,27 @@ select tpe.template_fqn,
        -- It was also not stored before the creation_package_id column was added. In those cases, the package id
        -- was always the creation package id.
        COALESCE(c.creation_package_id, p.id) as creation_package_id,
-       c.contract_key_hash
+       c.contract_key_hash,
+       c.assign_event_pk,
+       assign_e.event_id,
+       c.assigned_at_ix,
+       assign_t."offset",
+       c.unassign_event_pk,
+       unassign_e.event_id,
+       c.unassigned_at_ix,
+       unassign_t."offset",
+       c.reassignment_counter,
+       c.synchronizer_id
 from __contracts c
          left join __contract_tpe tpe on tpe.pk = c.tpe_pk
          left join __transactions ct on c.created_at_ix = ct.ix
          left join __transactions at on c.archived_at_ix = at.ix
+         left join __transactions assign_t on c.assigned_at_ix = assign_t.ix
+         left join __transactions unassign_t on c.unassigned_at_ix = unassign_t.ix
          left join __events ce on ce.pk = c.create_event_pk
          left join __events ae on ae.pk = c.archive_event_pk
+         left join __events assign_e on assign_e.pk = c.assign_event_pk
+         left join __events unassign_e on unassign_e.pk = c.unassign_event_pk
          left join __packages p on c.package_pk = p.pk
 where qname is null or c.tpe_pk = __contract_tpe4name(qname)
 $$ language sql stable
@@ -1173,7 +1187,17 @@ select c.template_fqn,
        '{}'::text[], -- prevent propagation of witnesses information
        c.divulged_only,
        c.creation_package_id,
-       c.contract_key_hash
+       c.contract_key_hash,
+       c.assign_event_pk,
+       c.assign_event_id,
+       c.assigned_at_ix,
+       c.assigned_at_offset,
+       c.unassign_event_pk,
+       c.unassign_event_id,
+       c.unassigned_at_ix,
+       c.unassigned_at_offset, 
+       c.reassignment_counter,
+       c.synchronizer_id
 from __contracts(qname) c
 where c.archived_at_ix between (select __nearest_ix_ceil(from_offset)) and (select __nearest_ix_floor(to_offset))
 $$ language sql stable
