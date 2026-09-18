@@ -352,22 +352,22 @@ object ReassignmentSpec extends FuncTest[Service[Ledger] & Postgres & DeployedDa
           >+> DamlSchema.protobufCodecs
           >+> Ledger.updateService ++ Ledger.stateService
 
-      val transactions       = Capture[Chunk[Transaction[Event]]]
+      val transactions = Capture[Chunk[Transaction[Event]]]
 
       // interleave reassignments: assigned before unassigned
       def reorderedTransactions = Chunk(
         transactions.get(0).copy(offset = Offset.Absolute(1)), // created on sync 1
         transactions.get(2).copy(offset = Offset.Absolute(2)), // assigned to sync 2
-        transactions.get(1).copy(offset = Offset.Absolute(3)), // unassigned from sync 1 
+        transactions.get(1).copy(offset = Offset.Absolute(3)), // unassigned from sync 1
         transactions.get(4).copy(offset = Offset.Absolute(4)), // assigned to sync 1
         transactions.get(3).copy(offset = Offset.Absolute(5)), // unassigned from sync 2
         transactions.get(6).copy(offset = Offset.Absolute(6)), // assigned to sync 2
         transactions.get(5).copy(offset = Offset.Absolute(7)), // unassigned from sync 1
         transactions.get(8).copy(offset = Offset.Absolute(8)), // assigned to sync 1
         transactions.get(7).copy(offset = Offset.Absolute(9)), // unassigned from sync 2
-        transactions.get(9).copy(offset = Offset.Absolute(10)), // archived on sync 1
+        transactions.get(9).copy(offset = Offset.Absolute(10)) // archived on sync 1
       )
-        
+
       Then:
         Ledger.recordTransactionStream.is(hasSize(equalTo(10)) && transactions.capture)
 
@@ -385,10 +385,10 @@ object ReassignmentSpec extends FuncTest[Service[Ledger] & Postgres & DeployedDa
           .__contracts(extraColumns = Seq("synchronizer_id"))
           .returns(
             table {
-              anything | anything | contractId | "[1,3)" | sync1.id
-              anything | anything | contractId | "[2,5)" | sync2.id
-              anything | anything | contractId | "[4,7)" | sync1.id
-              anything | anything | contractId | "[6,9)" | sync2.id
+              anything | anything | contractId | "[1,3)"  | sync1.id
+              anything | anything | contractId | "[2,5)"  | sync2.id
+              anything | anything | contractId | "[4,7)"  | sync1.id
+              anything | anything | contractId | "[6,9)"  | sync2.id
               anything | anything | contractId | "[8,10)" | sync1.id
             }
           )

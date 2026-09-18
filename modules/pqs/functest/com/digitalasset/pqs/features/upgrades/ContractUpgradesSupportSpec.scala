@@ -150,13 +150,13 @@ object ContractUpgradesSupportSpec extends SharedLedgerAndPostgresTest:
         Expect:
           __contracts(extraColumns = Seq("payload ->> 'label'")).returns(
             table {
-            pkgPk    | pingCTpePk      | cId1.capture | "[1,)"  | null
-            pkgPk    | labelableCTpePk | anything     | "[1,)"  | null
-            upgPkgPk | pingCTpePk      | cId2.capture | "[2,3)" | "created upgraded contract"
-            upgPkgPk | labelableCTpePk | anything     | "[2,3)" | "created upgraded contract"
-            upgPkgPk | pingCTpePk      | cId3.capture | "[3,)"  | "exercised SetLabelChoice on upgraded contract"
-            upgPkgPk | labelableCTpePk | anything     | "[3,)"  | "exercised SetLabelChoice on upgraded contract"
-          }
+              pkgPk    | pingCTpePk      | cId1.capture | "[1,)"  | null
+              pkgPk    | labelableCTpePk | anything     | "[1,)"  | null
+              upgPkgPk | pingCTpePk      | cId2.capture | "[2,3)" | "created upgraded contract"
+              upgPkgPk | labelableCTpePk | anything     | "[2,3)" | "created upgraded contract"
+              upgPkgPk | pingCTpePk      | cId3.capture | "[3,)"  | "exercised SetLabelChoice on upgraded contract"
+              upgPkgPk | labelableCTpePk | anything     | "[3,)"  | "exercised SetLabelChoice on upgraded contract"
+            }
           )
 
         val setLabelChoiceETpePk = Capture[Int]
@@ -384,8 +384,8 @@ object ContractUpgradesSupportSpec extends SharedLedgerAndPostgresTest:
             upgPkgId | s"${pingIface.name}:Interfaces:Labelable" | s"${pingIface.name}:Interfaces:Labelable:SetLabelChoice" | "SetLabelChoice" | cId2 | "exercised SetLabelChoice on upgraded contract"
             upgPkgId | s"${pingIface.name}:Interfaces:Labelable" | s"${pingIface.name}:Interfaces:Labelable:SetLabelChoice" | "SetLabelChoice" | cId1 | "exercised SetLabelChoice on contract created with original template version"
           }
-      )
     )
+  )
 
   private def __packages(name: PackageName) =
     Postgres.query(sql"select pk, name, version, id from __packages where name=${name.toString} order by pk")

@@ -52,7 +52,7 @@ object Database:
           where template_fqn not like 'AdminWorkflows:%'
           order by pk"""
 
-  def __contracts(extraColumns: Seq[String] = Seq.empty) = 
+  def __contracts(extraColumns: Seq[String] = Seq.empty) =
     val select = SqlFragment.select((Seq("package_pk", "tpe_pk", "contract_id", "life_ix") ++ extraColumns)*)
     Postgres.query(sql"$select from __contracts order by created_at_ix")
 
@@ -61,7 +61,7 @@ object Database:
 
   def activeAtOffset(offset: Long, extraColumns: Seq[String] = Seq.empty) =
     selectContracts(sql"active(null, $offset)", extraColumns)
-  
+
   def active(qname: Option[String] = None, extraColumns: Seq[String] = Seq.empty) =
     selectContracts(sql"active($qname)", extraColumns)
 
