@@ -225,6 +225,11 @@ begin
                 'alter table %I alter column metadata set storage external',
                 '__contracts_' || new_tpe_pk
                 );
+        execute format(
+                'create table %I partition of __reassignments for values in(%L)',
+                '__reassignments_' || new_tpe_pk,
+                new_tpe_pk
+                );
     end if;
 end;
 $$ language plpgsql;
