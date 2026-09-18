@@ -173,6 +173,23 @@ object ReassignmentSpec extends FuncTest[Service[Ledger] & Postgres & DeployedDa
           .returns(table(isNull))
 
       Expect:
+        // reassignment_event_pk is the row's only link back to __events, and nothing else asserts it:
+        // wired to the wrong placeholder, every other assertion in this spec still passes. Joining on it
+        // also pins that the two enums agree -- the __reassignments `type` and the __events `type` are
+        // written from two separate values at the call site, in two unrelated taxonomies, and no other
+        // test compares them.
+        Postgres
+          .query(sql"""select e."type"::text, r."type"::text
+                       from __reassignments r join __events e on e.pk = r.reassignment_event_pk
+                       order by r.reassigned_at_ix, r.reassignment_event_pk""")
+          .returns(
+            table {
+              "unassign" | "unassign"
+              "assign"   | "assign"
+            }
+          )
+
+      Expect:
         // A cutoff that falls between the unassign and the assign: later than the create's
         // effective time, earlier than the archive's, so the only rows at or before it are the
         // create and the two reassignments. The reassignments carry a null effective_at, so this
