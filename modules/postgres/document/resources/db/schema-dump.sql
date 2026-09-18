@@ -96,7 +96,17 @@ CREATE TYPE public.contract AS (
 	witnesses text[],
 	divulged_only boolean,
 	creation_package_id text,
-	contract_key_hash bytea
+	contract_key_hash bytea,
+	assign_event_pk bigint,
+	assign_event_id public.event_id,
+	assigned_at_ix bigint,
+	assigned_at_offset bigint,
+	unassign_event_pk bigint,
+	unassign_event_id public.event_id,
+	unassigned_at_ix bigint,
+	unassigned_at_offset bigint,
+	reassignment_counter bigint,
+	synchronizer_id text
 );
 
 
@@ -148,6 +158,52 @@ CREATE TYPE public.trace_context AS (
 	trace_parent text,
 	trace_state text
 );
+
+
+SET default_tablespace = '';
+
+--
+-- Name: __contracts; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.__contracts (
+    tpe_pk bigint NOT NULL,
+    create_event_pk bigint,
+    created_at_ix bigint,
+    archive_event_pk bigint,
+    archived_at_ix bigint,
+    contract_id text NOT NULL,
+    payload jsonb,
+    contract_key jsonb,
+    metadata bytea,
+    redaction_id text,
+    package_pk bigint DEFAULT 0 NOT NULL,
+    signatories text[] DEFAULT '{}'::text[] NOT NULL,
+    observers text[] DEFAULT '{}'::text[] NOT NULL,
+    witnesses text[] DEFAULT '{}'::text[] NOT NULL,
+    divulged_only boolean DEFAULT false NOT NULL,
+    creation_package_id text,
+    contract_key_hash bytea,
+    assign_event_pk bigint,
+    assigned_at_ix bigint,
+    unassign_event_pk bigint,
+    unassigned_at_ix bigint,
+    reassignment_counter bigint,
+    synchronizer_id text,
+    life_ix int8range GENERATED ALWAYS AS (int8range(COALESCE(created_at_ix, assigned_at_ix), COALESCE(archived_at_ix, unassigned_at_ix))) STORED NOT NULL
+)
+PARTITION BY LIST (tpe_pk);
+
+
+--
+-- Name: __activated_at_ix(public.__contracts); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.__activated_at_ix(c public.__contracts) RETURNS bigint
+    LANGUAGE sql IMMUTABLE PARALLEL SAFE
+    AS $$
+select coalesce(c.created_at_ix, c.assigned_at_ix)
+$$;
 
 
 --
@@ -242,13 +298,27 @@ select tpe.template_fqn,
        -- It was also not stored before the creation_package_id column was added. In those cases, the package id
        -- was always the creation package id.
        COALESCE(c.creation_package_id, p.id) as creation_package_id,
-       c.contract_key_hash
+       c.contract_key_hash,
+       c.assign_event_pk,
+       assign_e.event_id,
+       c.assigned_at_ix,
+       assign_t."offset",
+       c.unassign_event_pk,
+       unassign_e.event_id,
+       c.unassigned_at_ix,
+       unassign_t."offset",
+       c.reassignment_counter,
+       c.synchronizer_id
 from __contracts c
          left join __contract_tpe tpe on tpe.pk = c.tpe_pk
          left join __transactions ct on c.created_at_ix = ct.ix
          left join __transactions at on c.archived_at_ix = at.ix
+         left join __transactions assign_t on c.assigned_at_ix = assign_t.ix
+         left join __transactions unassign_t on c.unassigned_at_ix = unassign_t.ix
          left join __events ce on ce.pk = c.create_event_pk
          left join __events ae on ae.pk = c.archive_event_pk
+         left join __events assign_e on assign_e.pk = c.assign_event_pk
+         left join __events unassign_e on unassign_e.pk = c.unassign_event_pk
          left join __packages p on c.package_pk = p.pk
 where qname is null or c.tpe_pk = __contract_tpe4name(qname)
 $$;
@@ -261,6 +331,17 @@ $$;
 CREATE FUNCTION public.__current_writer() RETURNS text
     LANGUAGE sql
     AS $$ select instance_id from __watermark limit 1 $$;
+
+
+--
+-- Name: __deactivated_at_ix(public.__contracts); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.__deactivated_at_ix(c public.__contracts) RETURNS bigint
+    LANGUAGE sql IMMUTABLE PARALLEL SAFE
+    AS $$
+select coalesce(c.archived_at_ix, c.unassigned_at_ix)
+$$;
 
 
 --
@@ -280,7 +361,7 @@ begin
         update __contracts set archived_at_ix = null, archive_event_pk = null where archived_at_ix > cutoff_ix;
         delete from __exercises where exercised_at_ix > cutoff_ix;
         delete from __events where tx_ix > cutoff_ix;
-        delete from __tmp_archived_contracts where archived_at_ix > cutoff_ix;
+        delete from __tmp_deactivated_contracts where deactivated_at_ix > cutoff_ix;
         delete from __transactions where ix > cutoff_ix;
     end if;
 end
@@ -535,34 +616,6 @@ $$;
 
 
 --
--- Name: __insert_archive_fn(); Type: FUNCTION; Schema: public; Owner: -
---
-
-CREATE FUNCTION public.__insert_archive_fn() RETURNS trigger
-    LANGUAGE plpgsql
-    AS $$
-declare
-    updated_rows int;
-begin
-    with updated as (
-        update __contracts c
-            set archive_event_pk = new.archive_event_pk,
-                archived_at_ix = new.archived_at_ix
-            where c.tpe_pk = new.tpe_pk and c.contract_id = new.contract_id
-            returning 1)
-    select count(*)
-    from updated
-    into updated_rows;
-    if updated_rows = 0 then -- avoid contention, defer to when watermark is updated
-        insert into __tmp_archived_contracts(contract_id, archive_event_pk, archived_at_ix, tpe_pk, package_pk)
-        values (new.contract_id, new.archive_event_pk, new.archived_at_ix, new.tpe_pk, new.package_pk);
-    end if;
-    return new;
-end;
-$$;
-
-
---
 -- Name: __make_aliases(text, text, text); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -652,7 +705,7 @@ CREATE FUNCTION public.__update_watermark_fn() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
 declare
-    tpe_curs cursor for select distinct tpe_pk from __tmp_archived_contracts where archived_at_ix <= new.ix;
+    tpe_curs cursor for select distinct tpe_pk from __tmp_deactivated_contracts where deactivated_at_ix <= new.ix;
 begin
     -- Bypass the writer check when instance_id is being updated explicitly.
     -- This is used by reset_to_offset to reset the watermark and invalidate the previous writer.
@@ -667,12 +720,24 @@ begin
     for tpe in tpe_curs
         loop
             with deleted as (
-                delete from __tmp_archived_contracts where archived_at_ix <= new.ix and tpe_pk = tpe.tpe_pk returning *)
+                delete from __tmp_deactivated_contracts
+                where deactivated_at_ix <= new.ix and tpe_pk = tpe.tpe_pk
+                returning *
+            )
             update __contracts c
-            set archive_event_pk = deleted.archive_event_pk,
-                archived_at_ix   = deleted.archived_at_ix
-            from deleted
-            where c.tpe_pk = tpe.tpe_pk and c.contract_id = deleted.contract_id;
+            set archive_event_pk = d.archive_event_pk,
+                archived_at_ix = d.archived_at_ix,
+                unassign_event_pk = d.unassign_event_pk,
+                unassigned_at_ix = d.unassigned_at_ix
+            from deleted d
+            where c.tpe_pk = tpe.tpe_pk
+                and c.contract_id = d.contract_id
+                -- synchronizer_id may be null on rows written by PQS 3.6 or older
+                and (c.synchronizer_id is null or c.synchronizer_id = d.synchronizer_id)
+                -- pair each deactivation with the matching activation segment on this synchronizer
+                and __activated_at_ix(c) <= d.deactivated_at_ix
+                and c.archived_at_ix is null
+                and c.unassigned_at_ix is null;
         end loop;
     return new;
 end;
@@ -860,7 +925,17 @@ select c.template_fqn,
        '{}'::text[], -- prevent propagation of witnesses information
        c.divulged_only,
        c.creation_package_id,
-       c.contract_key_hash
+       c.contract_key_hash,
+       c.assign_event_pk,
+       c.assign_event_id,
+       c.assigned_at_ix,
+       c.assigned_at_offset,
+       c.unassign_event_pk,
+       c.unassign_event_id,
+       c.unassigned_at_ix,
+       c.unassigned_at_offset, 
+       c.reassignment_counter,
+       c.synchronizer_id
 from __contracts(qname) c
 where c.archived_at_ix between (select __nearest_ix_ceil(from_offset)) and (select __nearest_ix_floor(to_offset))
 $$;
@@ -1624,35 +1699,6 @@ end;
 $$;
 
 
-SET default_tablespace = '';
-
---
--- Name: __contracts; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.__contracts (
-    tpe_pk bigint NOT NULL,
-    create_event_pk bigint,
-    created_at_ix bigint,
-    archive_event_pk bigint,
-    archived_at_ix bigint,
-    life_ix int8range GENERATED ALWAYS AS (int8range(created_at_ix, archived_at_ix)) STORED NOT NULL,
-    contract_id text NOT NULL,
-    payload jsonb,
-    contract_key jsonb,
-    metadata bytea,
-    redaction_id text,
-    package_pk bigint DEFAULT 0 NOT NULL,
-    signatories text[] DEFAULT '{}'::text[] NOT NULL,
-    observers text[] DEFAULT '{}'::text[] NOT NULL,
-    witnesses text[] DEFAULT '{}'::text[] NOT NULL,
-    divulged_only boolean DEFAULT false NOT NULL,
-    creation_package_id text,
-    contract_key_hash bytea
-)
-PARTITION BY LIST (tpe_pk);
-
-
 --
 -- Name: __archives; Type: VIEW; Schema: public; Owner: -
 --
@@ -1722,7 +1768,6 @@ CREATE TABLE public.__contracts_1 (
     created_at_ix bigint,
     archive_event_pk bigint,
     archived_at_ix bigint,
-    life_ix int8range GENERATED ALWAYS AS (int8range(created_at_ix, archived_at_ix)) STORED NOT NULL,
     contract_id text NOT NULL,
     payload jsonb,
     contract_key jsonb,
@@ -1734,7 +1779,14 @@ CREATE TABLE public.__contracts_1 (
     witnesses text[] DEFAULT '{}'::text[] NOT NULL,
     divulged_only boolean DEFAULT false NOT NULL,
     creation_package_id text,
-    contract_key_hash bytea
+    contract_key_hash bytea,
+    assign_event_pk bigint,
+    assigned_at_ix bigint,
+    unassign_event_pk bigint,
+    unassigned_at_ix bigint,
+    reassignment_counter bigint,
+    synchronizer_id text,
+    life_ix int8range GENERATED ALWAYS AS (int8range(COALESCE(created_at_ix, assigned_at_ix), COALESCE(archived_at_ix, unassigned_at_ix))) STORED NOT NULL
 );
 ALTER TABLE ONLY public.__contracts_1 ALTER COLUMN metadata SET STORAGE EXTERNAL;
 
@@ -1871,15 +1923,18 @@ CREATE TABLE public.__pruning_metadata (
 
 
 --
--- Name: __tmp_archived_contracts; Type: TABLE; Schema: public; Owner: -
+-- Name: __tmp_deactivated_contracts; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.__tmp_archived_contracts (
-    contract_id text,
+CREATE TABLE public.__tmp_deactivated_contracts (
+    tpe_pk bigint NOT NULL,
+    contract_id text NOT NULL,
     archive_event_pk bigint,
     archived_at_ix bigint,
-    tpe_pk bigint,
-    package_pk bigint DEFAULT 0 NOT NULL
+    unassign_event_pk bigint,
+    unassigned_at_ix bigint,
+    synchronizer_id text NOT NULL,
+    deactivated_at_ix bigint GENERATED ALWAYS AS (COALESCE(archived_at_ix, unassigned_at_ix)) STORED NOT NULL
 );
 
 
@@ -2246,10 +2301,10 @@ CREATE INDEX __packages_id_idx ON public.__packages USING hash (id);
 
 
 --
--- Name: __tmp_archived_contracts_ix_idx; Type: INDEX; Schema: public; Owner: -
+-- Name: __tmp_deactivated_contracts_ix_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX __tmp_archived_contracts_ix_idx ON public.__tmp_archived_contracts USING btree (archived_at_ix);
+CREATE INDEX __tmp_deactivated_contracts_ix_idx ON public.__tmp_deactivated_contracts USING btree (deactivated_at_ix);
 
 
 --
@@ -2365,13 +2420,6 @@ ALTER INDEX public.__exercises_package_pk_idx ATTACH PARTITION public.__exercise
 
 
 --
--- Name: __archives __insert_archive_trg; Type: TRIGGER; Schema: public; Owner: -
---
-
-CREATE TRIGGER __insert_archive_trg INSTEAD OF INSERT ON public.__archives FOR EACH ROW EXECUTE FUNCTION public.__insert_archive_fn();
-
-
---
 -- Name: __watermark __insert_watermark_trg; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -2439,14 +2487,6 @@ ALTER TABLE public.__exercises
 
 ALTER TABLE public.__exercises
     ADD CONSTRAINT __exercises_tpe_pk_fkey FOREIGN KEY (tpe_pk) REFERENCES public.__exercise_tpe(pk);
-
-
---
--- Name: __tmp_archived_contracts __tmp_archived_contracts_package_pk_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.__tmp_archived_contracts
-    ADD CONSTRAINT __tmp_archived_contracts_package_pk_fkey FOREIGN KEY (package_pk) REFERENCES public.__packages(pk);
 
 
 --

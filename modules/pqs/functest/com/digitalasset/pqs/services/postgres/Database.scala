@@ -52,11 +52,15 @@ object Database:
           where template_fqn not like 'AdminWorkflows:%'
           order by pk"""
 
-  def __contracts() = Postgres `query`
-    sql"""select package_pk, tpe_pk, contract_id, life_ix, payload ->> 'label' from __contracts order by created_at_ix, tpe_pk"""
+  def __contracts(extraColumns: Seq[String] = Seq.empty) =
+    val select = SqlFragment.select((Seq("package_pk", "tpe_pk", "contract_id", "life_ix") ++ extraColumns)*)
+    Postgres.query(sql"$select from __contracts order by created_at_ix")
 
   def __exercises() = Postgres `query`
     sql"""select package_pk, tpe_pk, contract_tpe_pk, contract_id, argument ->> 'newLabel' from __exercises order by exercised_at_ix, tpe_pk"""
+
+  def activeAtOffset(offset: Long, extraColumns: Seq[String] = Seq.empty) =
+    selectContracts(sql"active(null, $offset)", extraColumns)
 
   def active(qname: Option[String] = None, extraColumns: Seq[String] = Seq.empty) =
     selectContracts(sql"active($qname)", extraColumns)

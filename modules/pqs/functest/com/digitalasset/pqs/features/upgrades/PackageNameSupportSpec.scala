@@ -150,7 +150,7 @@ object PackageNameSupportSpec extends FuncTestStandalone:
         val cId2 = Capture[String]
         val cId3 = Capture[String]
         Expect:
-          __contracts() `returns` table {
+          __contracts(extraColumns = Seq("payload ->> 'label'")) `returns` table {
             pkgPk    | labelableCTpePk | anything     | "[1,)"  | null
             pkgPk    | pingCTpePk      | cId1.capture | "[1,)"  | null
             upgPkgPk | labelableCTpePk | anything     | "[2,3)" | "created upgraded contract"
@@ -160,7 +160,7 @@ object PackageNameSupportSpec extends FuncTestStandalone:
           }
 
         Expect:
-          __contracts() `returns` table {
+          __contracts(extraColumns = Seq("payload ->> 'label'")) `returns` table {
             pkgPk    | labelableCTpePk | cId1 | "[1,)"  | null
             pkgPk    | pingCTpePk      | cId1 | "[1,)"  | null
             upgPkgPk | labelableCTpePk | cId2 | "[2,3)" | "created upgraded contract"
@@ -276,7 +276,7 @@ object PackageNameSupportSpec extends FuncTestStandalone:
         val cId2 = Capture[String]
         val cId3 = Capture[String]
         Expect:
-          __contracts() `returns` table {
+          __contracts(extraColumns = Seq("payload ->> 'label'")) `returns` table {
             pkgPk    | labelableCTpePk | anything     | "[1,)"  | null
             pkgPk    | pingCTpePk      | cId1.capture | "[1,)"  | null
             upgPkgPk | labelableCTpePk | anything     | "[2,3)" | "created upgraded contract"
@@ -286,7 +286,7 @@ object PackageNameSupportSpec extends FuncTestStandalone:
           }
 
         Expect:
-          __contracts() `returns` table {
+          __contracts(extraColumns = Seq("payload ->> 'label'")) `returns` table {
             pkgPk    | labelableCTpePk | cId1 | "[1,)"  | null
             pkgPk    | pingCTpePk      | cId1 | "[1,)"  | null
             upgPkgPk | labelableCTpePk | cId2 | "[2,3)" | "created upgraded contract"
