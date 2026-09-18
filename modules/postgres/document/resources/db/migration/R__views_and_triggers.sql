@@ -1,27 +1,8 @@
 -- Copyright (c) 2026 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
 -- SPDX-License-Identifier: Apache-2.0
 
-create or replace function __insert_archive_fn() returns trigger as
-$$
-declare
-    updated_rows int;
-begin
-    with updated as (
-        update __contracts c
-            set archive_event_pk = new.archive_event_pk,
-                archived_at_ix = new.archived_at_ix
-            where c.tpe_pk = new.tpe_pk and c.contract_id = new.contract_id
-            returning 1)
-    select count(*)
-    from updated
-    into updated_rows;
-    if updated_rows = 0 then -- avoid contention, defer to when watermark is updated
-        insert into __tmp_archived_contracts(contract_id, archive_event_pk, archived_at_ix, tpe_pk, package_pk)
-        values (new.contract_id, new.archive_event_pk, new.archived_at_ix, new.tpe_pk, new.package_pk);
-    end if;
-    return new;
-end;
-$$ language plpgsql;
+
+drop function if exists __insert_archive_fn();
 
 create or replace function __current_writer() returns __watermark.instance_id%type
 as $$ select instance_id from __watermark limit 1 $$
@@ -46,7 +27,7 @@ $$ language plpgsql;
 create or replace function __update_watermark_fn() returns trigger as
 $$
 declare
-    tpe_curs cursor for select distinct tpe_pk from __tmp_archived_contracts where archived_at_ix <= new.ix;
+    tpe_curs cursor for select distinct tpe_pk from __tmp_deactivated_contracts where deactivated_at_ix <= new.ix;
 begin
     -- Bypass the writer check when instance_id is being updated explicitly.
     -- This is used by reset_to_offset to reset the watermark and invalidate the previous writer.
@@ -61,12 +42,24 @@ begin
     for tpe in tpe_curs
         loop
             with deleted as (
-                delete from __tmp_archived_contracts where archived_at_ix <= new.ix and tpe_pk = tpe.tpe_pk returning *)
+                delete from __tmp_deactivated_contracts
+                where deactivated_at_ix <= new.ix and tpe_pk = tpe.tpe_pk
+                returning *
+            )
             update __contracts c
-            set archive_event_pk = deleted.archive_event_pk,
-                archived_at_ix   = deleted.archived_at_ix
-            from deleted
-            where c.tpe_pk = tpe.tpe_pk and c.contract_id = deleted.contract_id;
+            set archive_event_pk = d.archive_event_pk,
+                archived_at_ix = d.archived_at_ix,
+                unassign_event_pk = d.unassign_event_pk,
+                unassigned_at_ix = d.unassigned_at_ix
+            from deleted d
+            where c.tpe_pk = tpe.tpe_pk
+                and c.contract_id = d.contract_id
+                -- synchronizer_id may be null on rows written by PQS 3.6 or older
+                and (c.synchronizer_id is null or c.synchronizer_id = d.synchronizer_id)
+                -- pair each deactivation with the matching activation segment on this synchronizer
+                and __activated_at_ix(c) <= d.deactivated_at_ix
+                and c.archived_at_ix is null
+                and c.unassigned_at_ix is null;
         end loop;
     return new;
 end;
@@ -95,11 +88,6 @@ select c.archive_event_pk as archive_event_pk,
 from __contracts c;
 
 drop trigger if exists __insert_archive_trg on __archives;
-create trigger __insert_archive_trg
-    instead of insert
-    on __archives
-    for each row
-execute function __insert_archive_fn();
 
 create or replace view transactions as
 select t.ix,

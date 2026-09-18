@@ -20,8 +20,25 @@ alter table __contracts
   ) stored;
 
 -- re-create index on life_ix
-create index __contracts_life_ix_idx
+create index if not exists __contracts_life_ix_idx
     on __contracts using gist (life_ix)
     include (tpe_pk)
     where not divulged_only;
 
+create table if not exists __tmp_deactivated_contracts
+(
+  tpe_pk bigint not null,
+  contract_id text not null,
+  archive_event_pk bigint,
+  archived_at_ix bigint,
+  unassign_event_pk bigint,
+  unassigned_at_ix bigint,
+  synchronizer_id text not null,
+  deactivated_at_ix bigint not null generated always as (coalesce(archived_at_ix, unassigned_at_ix)) stored
+);
+
+create index if not exists __tmp_deactivated_contracts_ix_idx
+  on __tmp_deactivated_contracts
+  using btree (deactivated_at_ix);
+
+drop table if exists __tmp_archived_contracts;
