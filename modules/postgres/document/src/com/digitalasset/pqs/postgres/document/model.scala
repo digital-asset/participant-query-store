@@ -302,19 +302,19 @@ final class DeactivatedContract(
     archivedAtIx: Option[Long],
     unassignEventPk: Option[IdPlaceholder],
     unassignedAtIx: Option[Long],
-    synchronizerId: SynchronizerId,
+    synchronizerId: SynchronizerId
 ) extends Copy:
-  def table  = DeactivatedContract
-  val row    = buildRow(
+  def table = DeactivatedContract
+  val row = buildRow(
     entityType,
     contractId,
     archiveEventPk,
     archivedAtIx,
     unassignEventPk,
     unassignedAtIx,
-    synchronizerId,
+    synchronizerId
   )
-  val labels = 
+  val labels =
     val tpe = if archiveEventPk.isDefined then "archive" else "unassign"
     l("type" -> tpe, "template" -> qualifiedName)
 
@@ -330,7 +330,7 @@ object DeactivatedContract
         "archived_at_ix",
         "unassign_event_pk",
         "unassigned_at_ix",
-        "synchronizer_id",
+        "synchronizer_id"
       ),
       insertOrder = 4
     )

@@ -171,9 +171,9 @@ object ReassignmentSpec extends FuncTest[Service[Ledger] & Postgres & DeployedDa
       val createdAtOffset    = Offset.Absolute(3)
       val unassignedAtOffset = Offset.Absolute(4)
 
-      def assignTx     = transactions.get(2).copy(offset = assignedAtOffset)
-      def archiveTx    = transactions.get(3).copy(offset = archivedAtOffset)
-      def createTx     = transactions.get(0).copy(offset = createdAtOffset)
+      def assignTx   = transactions.get(2).copy(offset = assignedAtOffset)
+      def archiveTx  = transactions.get(3).copy(offset = archivedAtOffset)
+      def createTx   = transactions.get(0).copy(offset = createdAtOffset)
       def unassignTx = transactions.get(1).copy(offset = unassignedAtOffset)
 
       Then:
@@ -212,11 +212,13 @@ object ReassignmentSpec extends FuncTest[Service[Ledger] & Postgres & DeployedDa
             }
           )
       Expect:
-        Database.archives(extraColumns = Seq("archived_at_offset", "synchronizer_id")).returns(
-          table {
-            dar.get.packageId | s"${pingPong.name}:PingPong:Ping" | "template" | contractId | archivedAtOffset.toLong | sync2.id
-          }
-        )
+        Database
+          .archives(extraColumns = Seq("archived_at_offset", "synchronizer_id"))
+          .returns(
+            table {
+              dar.get.packageId | s"${pingPong.name}:PingPong:Ping" | "template" | contractId | archivedAtOffset.toLong | sync2.id
+            }
+          )
       Expect:
         Database
           .active(
@@ -236,7 +238,7 @@ object ReassignmentSpec extends FuncTest[Service[Ledger] & Postgres & DeployedDa
           )
           .returns(
             table {
-              dar.get.packageId | s"${pingPong.name}:PingPong:Ping" | "template" | contractId | createdAtOffset.toLong | 0 |  sync1.id
+              dar.get.packageId | s"${pingPong.name}:PingPong:Ping" | "template" | contractId | createdAtOffset.toLong | 0 | sync1.id
             }
           )
     },
@@ -270,12 +272,12 @@ object ReassignmentSpec extends FuncTest[Service[Ledger] & Postgres & DeployedDa
       val assignedAtOffset   = Offset.Absolute(2)
       val unassignedAtOffset = Offset.Absolute(3)
       val archivedAtOffset   = Offset.Absolute(4)
-      
+
       def createTx   = transactions.get(0).copy(offset = createdAtOffset)
       def assignTx   = transactions.get(2).copy(offset = assignedAtOffset)
       def unassignTx = transactions.get(1).copy(offset = unassignedAtOffset)
       def archiveTx  = transactions.get(3).copy(offset = archivedAtOffset)
-      
+
       Then:
         Ledger.recordTransactionStream.is(hasSize(equalTo(4)) && transactions.capture)
 
@@ -309,11 +311,13 @@ object ReassignmentSpec extends FuncTest[Service[Ledger] & Postgres & DeployedDa
             }
           )
       Expect:
-        Database.archives(extraColumns = Seq("archived_at_offset", "synchronizer_id")).returns(
-          table {
-            dar.get.packageId | s"${pingPong.name}:PingPong:Ping" | "template" | contractId | archivedAtOffset.toLong | sync2.id
-          }
-        )
+        Database
+          .archives(extraColumns = Seq("archived_at_offset", "synchronizer_id"))
+          .returns(
+            table {
+              dar.get.packageId | s"${pingPong.name}:PingPong:Ping" | "template" | contractId | archivedAtOffset.toLong | sync2.id
+            }
+          )
       Expect:
         Database
           .active(
@@ -335,9 +339,9 @@ object ReassignmentSpec extends FuncTest[Service[Ledger] & Postgres & DeployedDa
           )
           .returns(
             table {
-              dar.get.packageId | s"${pingPong.name}:PingPong:Ping" | "template" | contractId | 0 | assignedAtOffset.toLong |  sync2.id
+              dar.get.packageId | s"${pingPong.name}:PingPong:Ping" | "template" | contractId | 0 | assignedAtOffset.toLong | sync2.id
             }
           )
-      
+
     }
   )

@@ -84,7 +84,7 @@ object eventConverters:
 
   private def convertArchivedEvent(
       evt: com.daml.ledger.api.v2.event.ArchivedEvent,
-      synchronizerId: SynchronizerId,
+      synchronizerId: SynchronizerId
   )(using DamlSchema): Task[Event.Archived] =
     for templateId <- evt.getTemplateId.toIdentifier()
     yield Event.Archived(
@@ -96,7 +96,7 @@ object eventConverters:
 
   private def convertUnassignedEvent(
       evt: com.daml.ledger.api.v2.reassignment.UnassignedEvent,
-      synchronizerId: SynchronizerId,
+      synchronizerId: SynchronizerId
   )(using DamlSchema): Task[Event.Unassigned] =
     for templateId <- evt.getTemplateId.toIdentifier()
     yield Event.Unassigned(
@@ -136,7 +136,7 @@ object eventConverters:
 
   private def convertExercisedEvent(
       evt: com.daml.ledger.api.v2.event.ExercisedEvent,
-      synchronizerId: SynchronizerId,
+      synchronizerId: SynchronizerId
   )(using codecs: ProtobufCodecs)(using DamlSchema): Task[Event.Exercised] =
     val entityIdentifier = evt.interfaceId.getOrElse(evt.getTemplateId)
     for

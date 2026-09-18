@@ -321,7 +321,7 @@ final case class DocumentPostgres(
         contracts :+ evt
 
       case a: canonical.Event.Archived =>
-        val evt = Event(pk, txIx, a.eventId, EventType.Archive)
+        val evt      = Event(pk, txIx, a.eventId, EventType.Archive)
         val archives = mkDeactivatedContracts(pk, txIx, a.contractId, a.templateId, a.synchronizerId, isArchive = true)
         archives :+ evt
 
@@ -343,17 +343,19 @@ final case class DocumentPostgres(
           packagePk = packageMap(e.templateId.packageId)
         )
         val archives =
-          if e.consuming then mkDeactivatedContracts(pk, txIx, e.contractId, e.templateId, e.synchronizerId, isArchive = true)
+          if e.consuming then
+            mkDeactivatedContracts(pk, txIx, e.contractId, e.templateId, e.synchronizerId, isArchive = true)
           else Chunk.empty
         archives :+ exercise :+ event
 
       case u: canonical.Event.Unassigned =>
         val event = Event(pk, txIx, u.eventId, EventType.Unassign)
-        val unassignedContracts = mkDeactivatedContracts(pk, txIx, u.contractId, u.templateId, u.synchronizerId, isArchive = false)
+        val unassignedContracts =
+          mkDeactivatedContracts(pk, txIx, u.contractId, u.templateId, u.synchronizerId, isArchive = false)
         unassignedContracts :+ event
 
       case e: canonical.Event.Assigned =>
-        val event = Event(pk, txIx, e.eventId, EventType.Assign)
+        val event     = Event(pk, txIx, e.eventId, EventType.Assign)
         val contracts = mkContracts(pk, txIx, e.contract, e.synchronizerId, e.reassignmentCounter, isCreate = false)
         contracts :+ event
   }
@@ -393,27 +395,27 @@ final case class DocumentPostgres(
     )
 
   private def mkDeactivatedContracts(
-    eventPk: IdPlaceholder,
-    txIx: Long,
-    contractId: ContractId,
-    templateId: Identifier,
-    synchronizerId: SynchronizerId,
-    isArchive: Boolean,
+      eventPk: IdPlaceholder,
+      txIx: Long,
+      contractId: ContractId,
+      templateId: Identifier,
+      synchronizerId: SynchronizerId,
+      isArchive: Boolean
   ) =
-      val templateType = entityPkMap(templateId)
-      val interfaces   = implementsPkMap.getOrElse(templateId, Chunk.empty)
-      (interfaces :+ templateType).map { entityType =>
-        DeactivatedContract(
-          templateId.qualifiedName,
-          entityType,
-          contractId,
-          archiveEventPk = Option.when(isArchive)(eventPk),
-          archivedAtIx = Option.when(isArchive)(txIx),
-          unassignEventPk = Option.when(!isArchive)(eventPk),
-          unassignedAtIx = Option.when(!isArchive)(txIx),
-          synchronizerId
-        )
-      }
+    val templateType = entityPkMap(templateId)
+    val interfaces   = implementsPkMap.getOrElse(templateId, Chunk.empty)
+    (interfaces :+ templateType).map { entityType =>
+      DeactivatedContract(
+        templateId.qualifiedName,
+        entityType,
+        contractId,
+        archiveEventPk = Option.when(isArchive)(eventPk),
+        archivedAtIx = Option.when(isArchive)(txIx),
+        unassignEventPk = Option.when(!isArchive)(eventPk),
+        unassignedAtIx = Option.when(!isArchive)(txIx),
+        synchronizerId
+      )
+    }
 end DocumentPostgres
 
 object DocumentPostgres:
