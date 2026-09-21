@@ -1701,19 +1701,6 @@ end;
 $$;
 
 
---
--- Name: __archives; Type: VIEW; Schema: public; Owner: -
---
-
-CREATE VIEW public.__archives AS
- SELECT archive_event_pk,
-    archived_at_ix,
-    contract_id,
-    tpe_pk,
-    package_pk
-   FROM public.__contracts c;
-
-
 SET default_table_access_method = heap;
 
 --
