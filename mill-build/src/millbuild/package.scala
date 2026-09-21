@@ -33,7 +33,7 @@ package object millbuild {
 
     // Pulled transitively by ZIO HTTP
     // force specific version to address vulnerabilities
-    val nettyVersion = "4.2.17.Final"
+    val nettyVersion = "4.2.18.Final"
 
     val openTelemetryAgent = "2.28.1"
     val scalaPB = "0.11.19"
