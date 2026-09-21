@@ -230,7 +230,7 @@ object GrafanaSetupSpec extends SharedLedgerAndPostgresTest:
       And:
         ZIO.succeed(flushTrace.get.attributes(s"execute SQL").keys) `is` hasSubset(
           Seq(
-            "pqs.__archives.rows_count",
+            "pqs.__tmp_deactivated_contracts.rows_count",
             "pqs.__contracts.rows_count",
             "pqs.__events.rows_count",
             "pqs.__exercises.rows_count",
