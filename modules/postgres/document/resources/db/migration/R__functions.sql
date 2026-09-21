@@ -166,7 +166,8 @@ select tpe.template_fqn,
        c.observers,
        e.controllers,
        e.last_descendant_node_id,
-       e.witnesses
+       e.witnesses,
+       t.synchronizer_id
 from __exercises e
          left join __contracts c on c.contract_id = e.contract_id and c.tpe_pk = e.contract_tpe_pk
          left join __exercise_tpe tpe on tpe.pk = e.tpe_pk

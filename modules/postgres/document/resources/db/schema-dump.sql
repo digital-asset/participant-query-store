@@ -146,7 +146,8 @@ CREATE TYPE public.exercise AS (
 	observers text[],
 	controllers text[],
 	last_descendant_node_id integer,
-	witnesses text[]
+	witnesses text[],
+	synchronizer_id text
 );
 
 
@@ -475,7 +476,8 @@ select tpe.template_fqn,
        c.observers,
        e.controllers,
        e.last_descendant_node_id,
-       e.witnesses
+       e.witnesses,
+       t.synchronizer_id
 from __exercises e
          left join __contracts c on c.contract_id = e.contract_id and c.tpe_pk = e.contract_tpe_pk
          left join __exercise_tpe tpe on tpe.pk = e.tpe_pk
@@ -1999,9 +2001,10 @@ CREATE VIEW public.transactions AS
     workflow_id,
     trace_context,
     external_transaction_hash,
-    paid_traffic_cost
+    paid_traffic_cost,
+    synchronizer_id
    FROM public.__transactions t
-  WHERE (("offset" >= public.oldest_offset()) AND ("offset" <= public.latest_offset()));
+  WHERE (("offset" >= ( SELECT public.oldest_offset() AS oldest_offset)) AND ("offset" <= ( SELECT public.latest_offset() AS latest_offset)));
 
 
 --

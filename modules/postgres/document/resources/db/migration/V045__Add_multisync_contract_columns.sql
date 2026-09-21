@@ -56,3 +56,6 @@ create index if not exists __tmp_deactivated_contracts_ix_idx
 drop table if exists __tmp_archived_contracts;
 
 drop function if exists __insert_archive_fn();
+
+alter type exercise
+    add attribute synchronizer_id text;

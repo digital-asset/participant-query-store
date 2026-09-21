@@ -95,6 +95,7 @@ select t.ix,
        t.workflow_id,
        t.trace_context,
        t.external_transaction_hash,
-       t.paid_traffic_cost
+       t.paid_traffic_cost,
+       t.synchronizer_id
 from __transactions t
-where t."offset" between oldest_offset() and latest_offset();
+where t."offset" between (select oldest_offset()) and (select latest_offset());
