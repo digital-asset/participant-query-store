@@ -2,8 +2,6 @@
 -- SPDX-License-Identifier: Apache-2.0
 
 
-drop function if exists __insert_archive_fn();
-
 create or replace function __current_writer() returns __watermark.instance_id%type
 as $$ select instance_id from __watermark limit 1 $$
 language sql;

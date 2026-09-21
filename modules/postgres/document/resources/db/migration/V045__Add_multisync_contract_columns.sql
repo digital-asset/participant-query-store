@@ -54,3 +54,5 @@ create index if not exists __tmp_deactivated_contracts_ix_idx
   using btree (deactivated_at_ix);
 
 drop table if exists __tmp_archived_contracts;
+
+drop function if exists __insert_archive_fn();
