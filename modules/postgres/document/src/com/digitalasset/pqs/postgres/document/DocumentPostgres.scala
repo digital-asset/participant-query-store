@@ -462,7 +462,6 @@ final case class DocumentPostgres(
       assignmentExclusivity: Option[Instant]
   ) =
     Reassignment(
-      qualifiedName = templateId.qualifiedName,
       entityType = entityPkMap(templateId),
       reassignmentEventPk = eventPk,
       reassignedAtIx = txIx,
