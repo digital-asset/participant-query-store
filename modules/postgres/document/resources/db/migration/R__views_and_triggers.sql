@@ -77,16 +77,6 @@ create trigger __insert_watermark_trg
     for each row
 execute function __update_watermark_fn();
 
-create or replace view __archives as
-select c.archive_event_pk as archive_event_pk,
-       c.archived_at_ix   as archived_at_ix,
-       c.contract_id      as contract_id,
-       c.tpe_pk           as tpe_pk,
-       c.package_pk       as package_pk
-from __contracts c;
-
-drop trigger if exists __insert_archive_trg on __archives;
-
 create or replace view transactions as
 select t.ix,
        t."offset",

@@ -55,7 +55,11 @@ create index if not exists __tmp_deactivated_contracts_ix_idx
 
 drop table if exists __tmp_archived_contracts;
 
+drop trigger if exists __insert_archive_trg on __archives;
+
 drop function if exists __insert_archive_fn();
+
+drop view if exists __archives;
 
 alter type exercise
     add attribute synchronizer_id text;

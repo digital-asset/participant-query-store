@@ -15,6 +15,7 @@ This release includes the following SQL migrations:
   - Add the multi-sync columns (`assigned_at_ix`, `unassigned_at_ix`, `reassignment_counter`, `synchronizer_id`) to the `__contracts` table and `contract` type.
   - **Full __contracts rewrite:** Redefine the `life_ix` column to take `assigned_at_ix` and `unassigned_at_ix` into account.
   - **Rebuild GiST index on __contracts.**
+  - Drop the internal `__archives` view.
   - Drop the `__tmp_archived_contracts` and replace with `__tmp_deactivated_contracts` for internal use by the PQS pipeline.
 
 ## What's New
