@@ -122,8 +122,8 @@ object UpgradeAddingTemplateSpec extends SharedLedgerAndPostgresTest:
 
       Expect:
         __contracts() `returns` table {
-          pkgPk    | pingCTpePk | anything | anything | null
-          upgPkgPk | pongCTpePk | anything | anything | null
+          pkgPk    | pingCTpePk | anything | anything
+          upgPkgPk | pongCTpePk | anything | anything
         }
     }
   ) @@ onlyDamlLfVersion(">=1.17")

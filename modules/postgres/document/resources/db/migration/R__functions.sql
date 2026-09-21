@@ -116,13 +116,27 @@ select tpe.template_fqn,
        -- It was also not stored before the creation_package_id column was added. In those cases, the package id
        -- was always the creation package id.
        COALESCE(c.creation_package_id, p.id) as creation_package_id,
-       c.contract_key_hash
+       c.contract_key_hash,
+       c.assign_event_pk,
+       assign_e.event_id,
+       c.assigned_at_ix,
+       assign_t."offset",
+       c.unassign_event_pk,
+       unassign_e.event_id,
+       c.unassigned_at_ix,
+       unassign_t."offset",
+       c.reassignment_counter,
+       c.synchronizer_id
 from __contracts c
          left join __contract_tpe tpe on tpe.pk = c.tpe_pk
          left join __transactions ct on c.created_at_ix = ct.ix
          left join __transactions at on c.archived_at_ix = at.ix
+         left join __transactions assign_t on c.assigned_at_ix = assign_t.ix
+         left join __transactions unassign_t on c.unassigned_at_ix = unassign_t.ix
          left join __events ce on ce.pk = c.create_event_pk
          left join __events ae on ae.pk = c.archive_event_pk
+         left join __events assign_e on assign_e.pk = c.assign_event_pk
+         left join __events unassign_e on unassign_e.pk = c.unassign_event_pk
          left join __packages p on c.package_pk = p.pk
 where qname is null or c.tpe_pk = __contract_tpe4name(qname)
 $$ language sql stable
@@ -152,7 +166,8 @@ select tpe.template_fqn,
        c.observers,
        e.controllers,
        e.last_descendant_node_id,
-       e.witnesses
+       e.witnesses,
+       t.synchronizer_id
 from __exercises e
          left join __contracts c on c.contract_id = e.contract_id and c.tpe_pk = e.contract_tpe_pk
          left join __exercise_tpe tpe on tpe.pk = e.tpe_pk
@@ -935,7 +950,7 @@ begin
         update __contracts set archived_at_ix = null, archive_event_pk = null where archived_at_ix > cutoff_ix;
         delete from __exercises where exercised_at_ix > cutoff_ix;
         delete from __events where tx_ix > cutoff_ix;
-        delete from __tmp_archived_contracts where archived_at_ix > cutoff_ix;
+        delete from __tmp_deactivated_contracts where deactivated_at_ix > cutoff_ix;
         delete from __transactions where ix > cutoff_ix;
     end if;
 end
@@ -1173,7 +1188,17 @@ select c.template_fqn,
        '{}'::text[], -- prevent propagation of witnesses information
        c.divulged_only,
        c.creation_package_id,
-       c.contract_key_hash
+       c.contract_key_hash,
+       c.assign_event_pk,
+       c.assign_event_id,
+       c.assigned_at_ix,
+       c.assigned_at_offset,
+       c.unassign_event_pk,
+       c.unassign_event_id,
+       c.unassigned_at_ix,
+       c.unassigned_at_offset, 
+       c.reassignment_counter,
+       c.synchronizer_id
 from __contracts(qname) c
 where c.archived_at_ix between (select __nearest_ix_ceil(from_offset)) and (select __nearest_ix_floor(to_offset))
 $$ language sql stable
@@ -1262,6 +1287,24 @@ $$
 $$ language sql stable parallel safe;
 comment on function summary_updates(__transactions."offset"%type, __transactions."offset"%type)
     is 'Returns the summary of creates and archives per Daml fully qualified name in the [from_offset, to_offset] range.';
+
+create or replace function __activated_at_ix(c __contracts) returns bigint
+as
+$$
+select coalesce(c.created_at_ix, c.assigned_at_ix)
+$$ language sql immutable
+                parallel safe;
+comment on function __activated_at_ix(__contracts) is
+    'Index at which a contract became active on its current synchronizer (creation or assignment).';
+
+create or replace function __deactivated_at_ix(c __contracts) returns bigint
+as
+$$
+select coalesce(c.archived_at_ix, c.unassigned_at_ix)
+$$ language sql immutable
+                parallel safe;
+comment on function __deactivated_at_ix(__contracts) is
+    'Index at which a contract became inactive on its current synchronizer (archival or unassignment).';
 
 create or replace function stakeholders(c contract) returns text[]
 as

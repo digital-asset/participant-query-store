@@ -138,7 +138,7 @@ object AmbiguousPackageNameSupportSpec extends SharedLedgerAndPostgresTest:
         val cId2 = Capture[String]
         val cId3 = Capture[String]
         Expect:
-          __contracts() `returns` table {
+          __contracts(extraColumns = Seq("payload ->> 'label'")) `returns` table {
             pkgPk    | pingCTpePk      | cId1.capture | "[1,)"  | null
             upgPkgPk | labelableCTpePk | anything     | "[2,3)" | "created upgraded contract"
             upgPkgPk | pingCTpePk      | cId2.capture | "[2,3)" | "created upgraded contract"
@@ -158,7 +158,7 @@ object AmbiguousPackageNameSupportSpec extends SharedLedgerAndPostgresTest:
           __exercises() `returns` Table.empty
 
         Expect:
-          __contracts() `returns` table {
+          __contracts(extraColumns = Seq("payload ->> 'label'")) `returns` table {
             pkgPk    | pingCTpePk      | cId1 | "[1,)"  | null
             upgPkgPk | labelableCTpePk | cId2 | "[2,3)" | "created upgraded contract"
             upgPkgPk | pingCTpePk      | cId2 | "[2,3)" | "created upgraded contract"
@@ -264,7 +264,7 @@ object AmbiguousPackageNameSupportSpec extends SharedLedgerAndPostgresTest:
         val cId2 = Capture[String]
         val cId3 = Capture[String]
         Expect:
-          __contracts() `returns` table {
+          __contracts(extraColumns = Seq("payload ->> 'label'")) `returns` table {
             pkgPk    | pingCTpePk | cId1.capture | "[1,)"  | null
             upgPkgPk | pingCTpePk | cId2.capture | "[2,3)" | "created upgraded contract"
             upgPkgPk | pingCTpePk | cId3.capture | "[3,)"  | "exercised SetLabelChoice on upgraded contract"
@@ -284,7 +284,7 @@ object AmbiguousPackageNameSupportSpec extends SharedLedgerAndPostgresTest:
           }
 
         Expect:
-          __contracts() `returns` table {
+          __contracts(extraColumns = Seq("payload ->> 'label'")) `returns` table {
             pkgPk    | pingCTpePk | cId1 | "[1,)"  | null
             upgPkgPk | pingCTpePk | cId2 | "[2,3)" | "created upgraded contract"
             upgPkgPk | pingCTpePk | cId3 | "[3,)"  | "exercised SetLabelChoice on upgraded contract"

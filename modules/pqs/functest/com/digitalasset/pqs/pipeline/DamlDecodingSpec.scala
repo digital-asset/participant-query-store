@@ -70,7 +70,7 @@ object DamlDecodingSpec extends SharedLedgerAndPostgresTest:
           )
       Expect:
         Database
-          .active(Some(s"$packageName:Void:T2"), Seq("payload->>'cid'"))
+          .active(Some(s"$packageName:Void:T2"), extraColumns = Seq("payload->>'cid'"))
           .returns(
             table {
               anything | s"$packageName:Void:T2" | "template" | anything | cid.get

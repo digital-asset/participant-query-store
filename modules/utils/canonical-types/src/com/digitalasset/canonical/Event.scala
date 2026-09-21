@@ -20,30 +20,21 @@ sealed trait ReassignmentEvent extends Event
 object Event:
   final case class Created(
       eventId: EventId,
-      representativePackageId: schema.PackageId,
-      templateQualifiedName: String,
-      contractId: ContractId,
-      contractKey: Option[schema.DynamicValue],
-      contractKeyHash: Option[Array[Byte]],
-      payloads: Chunk[(schema.Identifier, schema.DynamicValue)],
-      signatories: Chunk[Party],
-      observers: Chunk[Party],
-      witnesses: Chunk[Party],
-      created_at: Option[Instant],
-      metadata: Option[Array[Byte]],
-      acsDelta: Boolean,
-      creationPackageId: Option[String]
+      synchronizerId: SynchronizerId,
+      contract: Contract
   ) extends TransactionEvent
       with TreeEvent
 
   final case class Archived(
       eventId: EventId,
+      synchronizerId: SynchronizerId,
       templateId: schema.Identifier,
       contractId: ContractId
   ) extends TransactionEvent
 
   final case class Exercised(
       eventId: EventId,
+      synchronizerId: SynchronizerId,
       // Template of the contract on which the choice is exercised
       templateId: schema.Identifier,
       // Where the choice is defined: Either a template or an interface
@@ -61,6 +52,7 @@ object Event:
 
   final case class Unassigned(
       eventId: EventId,
+      synchronizerId: SynchronizerId,
       reassignmentId: String,
       source: SynchronizerId,
       target: SynchronizerId,
@@ -79,10 +71,9 @@ object Event:
       source: SynchronizerId,
       target: SynchronizerId,
       submitter: Option[Party],
+      synchronizerId: SynchronizerId,
       reassignmentCounter: Long,
-      contractId: ContractId,
-      templateId: schema.Identifier,
-      witnesses: Chunk[Party]
+      contract: Contract
   ) extends ReassignmentEvent
 
 end Event
