@@ -54,7 +54,7 @@ object Database:
 
   def __contracts(extraColumns: Seq[String] = Seq.empty) =
     val select = SqlFragment.select((Seq("package_pk", "tpe_pk", "contract_id", "life_ix") ++ extraColumns)*)
-    Postgres.query(sql"$select from __contracts order by created_at_ix")
+    Postgres.query(sql"$select from __contracts order by created_at_ix, tpe_pk")
 
   def __exercises() = Postgres `query`
     sql"""select package_pk, tpe_pk, contract_tpe_pk, contract_id, argument ->> 'newLabel' from __exercises order by exercised_at_ix, tpe_pk"""
