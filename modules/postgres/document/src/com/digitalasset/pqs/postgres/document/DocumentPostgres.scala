@@ -30,7 +30,6 @@ import zio.{Chunk, ChunkBuilder, Schedule, ZEnvironment, ZIO, ZLayer, durationIn
 import java.io.{Reader, StringReader}
 import java.time.Instant
 import java.util
-import java.util.NoSuchElementException
 import scala.collection.mutable
 import scala.jdk.CollectionConverters.*
 import scala.language.implicitConversions
@@ -335,15 +334,9 @@ final case class DocumentPostgres(
         witnesses: Chunk[Party],
         assignmentExclusivity: Option[Instant]
     ) =
-      val entityType = entityPkMap.getOrElse(
-        templateId,
-        throw NoSuchElementException(
-          s"No entity type for template $templateId (contract $contractId, tx index $txIx)"
-        )
-      )
       Reassignment(
         qualifiedName = templateId.qualifiedName,
-        entityType = entityType,
+        entityType = entityPkMap(templateId),
         reassignmentEventPk = pk,
         reassignedAtIx = txIx,
         reassignmentType = reassignmentType,
@@ -451,12 +444,6 @@ final case class DocumentPostgres(
         val archives = if consuming then mkArchives(pk, txIx, cid, tid) else Chunk.empty
         archives :+ exercise :+ evt
 
-      // A reassignment event is recorded as an event and a __reassignments row. The reassigned
-      // contract itself is not tracked yet, so no __contracts row is created or updated here — those
-      // arrive in M5 with the columns that make them correct (reassignment_counter, synchronizer_id,
-      // life_ix). Converting an assignment to Event.Created instead would write a second __contracts
-      // row for the same contract, which is the duplicated-contracts corruption the parent design
-      // calls out.
       case evt: canonical.Event.Unassigned =>
         Chunk(
           mkReassignment(

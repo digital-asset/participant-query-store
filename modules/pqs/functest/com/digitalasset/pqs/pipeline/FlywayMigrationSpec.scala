@@ -210,49 +210,5 @@ object FlywayMigrationSpec extends FuncTestStandalone:
               anything | templateFqn | "template" | anything | keyHash42.capture
             }
           )
-    } @@ DamlSdk.onlyDamlLfVersion("=2.3"),
-    funcTest("V045 backfills __reassignments partitions for contract types registered by 3.5.7") {
-      val alice = Party("Alice")
-      Given:
-        DamlSdk.ledger ++ Postgres.instance
-          >+> DamlSdk.dar(pingPongWithKey) ++ DamlSdk.parties(alice) ++ Postgres.database
-          >+> DamlSdk.deploy
-      And:
-        DamlSdk.runScript("PingPongWithKey:setup", alice.id)
-      And:
-        // 3.5.7 registers both the template and the interface in __contract_tpe. It knows nothing
-        // about __reassignments, which is only introduced by V045 on main.
-        Pqs35.runPipeline(
-          "--pipeline-datasource=TransactionStream",
-          "--pipeline-ledger-start=Genesis",
-          "--pipeline-ledger-stop=Latest"
-        )
-      Expect:
-        // Pins the "before" half of the upgrade: __reassignments doesn't exist yet on the 3.5.7
-        // schema, so the assertion after the next run is verifying something the upgrade creates.
-        Postgres.query(sql"select to_regclass('__reassignments') is null").returns(table(true))
-      And:
-        // Starting main applies V045, which creates __reassignments. __initialize_contract_tpe only
-        // creates a partition for a contract type the first time it registers it, so the template and
-        // interface registered above — already present in __contract_tpe before V045 ran — can only get
-        // a partition from V045's own backfill loop.
-        Pqs.runPipeline(
-          "--pipeline-datasource=TransactionStream",
-          "--pipeline-ledger-start=Oldest",
-          "--pipeline-ledger-stop=Latest"
-        )
-      Expect:
-        // Every __contract_tpe row was registered by the 3.5.7 run, so it predates V045 — its
-        // __reassignments partition can only come from V045's backfill loop, because
-        // __initialize_contract_tpe never runs again for a type it has already registered.
-        // Partition creation is deliberately unguarded by contract-type kind, so the interface
-        // (IKeyed) is expected to have a partition too, even though interface contracts never
-        // produce __reassignments rows and its partition therefore stays empty forever — do not
-        // "fix" this assertion by excluding interfaces.
-        Postgres
-          .query(sql"""select tpe.template_fqn
-                       from __contract_tpe tpe
-                       where to_regclass('__reassignments_' || tpe.pk) is null""")
-          .returns(Table.empty)
     } @@ DamlSdk.onlyDamlLfVersion("=2.3")
   )

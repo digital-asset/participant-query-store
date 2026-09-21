@@ -58,10 +58,8 @@ object Database:
   def __exercises() = Postgres `query`
     sql"""select package_pk, tpe_pk, contract_tpe_pk, contract_id, argument ->> 'newLabel' from __exercises order by exercised_at_ix, tpe_pk"""
 
-  // Internal table with no public SQL function yet, so this is a raw select rather than a call like
-  // `creates(...)`. Joins to __contract_tpe rather than asserting raw pks (assigned by insertion order,
-  // which would make assertions brittle) and surfaces template_fqn, which is what proves that a
-  // reassignment always lands under the *template*'s partition, never an interface's.
+  // Internal table with no public SQL function yet, hence the raw select. Joins __contract_tpe to report
+  // template_fqn rather than a pk, which is assigned by insertion order and would make assertions brittle.
   def __reassignments() = Postgres `query`
     sql"""select tpe.template_fqn, r."type"::text, r.contract_id, r.reassignment_id,
           r.source_synchronizer_id, r.target_synchronizer_id, r.submitter, r.reassignment_counter

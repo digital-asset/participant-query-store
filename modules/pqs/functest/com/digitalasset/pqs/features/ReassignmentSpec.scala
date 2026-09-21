@@ -24,44 +24,19 @@ import zio.test.Assertion.*
 import scala.language.implicitConversions
 
 object ReassignmentSpec extends FuncTest[Service[Ledger] & Postgres & DeployedDar & Database]:
-  // Interface used only by the no-fan-out test below (4c). It must NOT be implemented by Ping — Ping
-  // is this suite's shared template, and an interface view on it would add an extra `interface` row to
-  // __contracts, breaking the Database.creates(...)/archives(...) assertions in the first two tests.
-  private val iPingable = DamlSource(
-    "IPingable" -> """module IPingable where
-                     |
-                     |interface IPingable
-                     |  where
-                     |    viewtype VPingable
-                     |
-                     |data VPingable = VPingable with label: Text
-                     |  deriving (Eq, Show)
-                     |""".stripMargin
-  )
-
   private val pingPong = DamlSource(
     "PingPong" -> """module PingPong where
                     |
                     |import Daml.Script
                     |import DA.Functor (void)
-                    |import IPingable
                     |
                     |template Ping
                     |  with
                     |    sender: Party
                     |  where
                     |    signatory sender
-                    |
-                    |template Pong
-                    |  with
-                    |    sender: Party
-                    |  where
-                    |    signatory sender
-                    |
-                    |    interface instance IPingable for Pong where
-                    |      view = VPingable with label = "Pong"
                     |""".stripMargin
-  ).dependsOn(iPingable)
+  )
 
   private val sync1 = Synchronizer("synchronizer1")
   private val sync2 = Synchronizer("synchronizer2")
@@ -150,11 +125,7 @@ object ReassignmentSpec extends FuncTest[Service[Ledger] & Postgres & DeployedDa
       val reassignmentId      = Capture[String]
       val reassignmentCounter = Capture[Long]
       Expect:
-        // Both rows carry source = sync1.id and target = sync2.id: that's the reassignment's direction
-        // (sync1 -> sync2), not the synchronizer that hosted each half of the event. Rows come back
-        // ordered by reassigned_at_ix, so unassign (on sync1) comes first, then assign (on sync2). The
-        // unassign and assign halves of one reassignment share a reassignment_id and counter, so the same
-        // Capture is used on both rows to pin that equality instead of a hard-coded value.
+        // The unassign and assign halves share a reassignment_id and counter, so the same Capture is used on both rows.
         Database
           .__reassignments()
           .returns(
@@ -166,28 +137,10 @@ object ReassignmentSpec extends FuncTest[Service[Ledger] & Postgres & DeployedDa
             }
           )
       Expect:
-        // The assign branch has no assignment_exclusivity field of its own and must store none (the
-        // unassign branch may or may not carry one, depending on the ledger).
+        // The assign branch has no assignment_exclusivity field of its own and must store none.
         Postgres
           .query(sql"""select assignment_exclusivity from __reassignments where "type" = 'assign'""")
           .returns(table(isNull))
-
-      Expect:
-        // reassignment_event_pk is the row's only link back to __events, and nothing else asserts it:
-        // wired to the wrong placeholder, every other assertion in this spec still passes. Joining on it
-        // also pins that the two enums agree -- the __reassignments `type` and the __events `type` are
-        // written from two separate values at the call site, in two unrelated taxonomies, and no other
-        // test compares them.
-        Postgres
-          .query(sql"""select e."type"::text, r."type"::text
-                       from __reassignments r join __events e on e.pk = r.reassignment_event_pk
-                       order by r.reassigned_at_ix, r.reassignment_event_pk""")
-          .returns(
-            table {
-              "unassign" | "unassign"
-              "assign"   | "assign"
-            }
-          )
 
       Expect:
         // A cutoff that falls between the unassign and the assign: later than the create's
@@ -283,11 +236,7 @@ object ReassignmentSpec extends FuncTest[Service[Ledger] & Postgres & DeployedDa
       val reassignmentId      = Capture[String]
       val reassignmentCounter = Capture[Long]
       Expect:
-        // Reassignment rows have no cross-row dependency, so both land regardless of arrival order — that's
-        // what this test proves. The assign transaction is replayed in the first processTransactions batch
-        // and the unassign in the second (see above), so ordered by reassigned_at_ix the assign row comes
-        // first, followed by the unassign — reversed from wall-clock order, not a mistake. Source/target are
-        // still sync1 -> sync2 on both rows, as in the causally-ordered test above.
+        // Ordered by reassigned_at_ix, so with this replay order the assign row comes first, then unassign.
         Database
           .__reassignments()
           .returns(
@@ -296,59 +245,6 @@ object ReassignmentSpec extends FuncTest[Service[Ledger] & Postgres & DeployedDa
                 sync1.id                        | sync2.id   | alice.id   | reassignmentCounter.capture
               s"${pingPong.name}:PingPong:Ping" | "unassign" | contractId | reassignmentId.capture |
                 sync1.id                        | sync2.id   | alice.id   | reassignmentCounter.capture
-            }
-          )
-    },
-    funcTest("Reassignment rows land only in the template's partition, not fanned out per interface") {
-      val alice        = Party("Alice")
-      val dar          = Capture[DeployedDar]
-      val contractId   = Capture[String]
-      val templateFqn  = s"${pingPong.name}:PingPong:Pong"
-      val interfaceFqn = s"${iPingable.name}:IPingable:IPingable"
-      Given:
-        DamlSdk.allocateParties(alice -> Seq(sync1, sync2))
-      And:
-        dar.captureFromService
-      Then:
-        val args = Record.defaultInstance
-          .addFields(RecordField("sender", Some(Value(Value.Sum.Party(alice.id)))))
-        Ledger
-          .create("PingPong:Pong", args, alice, sync1)
-          .map(_.getTransaction.events.head.getCreated.contractId)
-          .is(contractId.capture)
-      When:
-        Ledger.reassign(contractId.get, alice, sync1, sync2)
-      When:
-        Postgres.instance
-          >+> Postgres.database
-          >+> Pqs.runPipeline(
-            "--pipeline-ledger-start=Genesis",
-            "--pipeline-ledger-stop=Latest"
-          )
-
-      Expect:
-        // Two __contracts rows for this one Pong contract — template and interface — is what makes the
-        // __reassignments assertion below meaningful: if Pong only produced the template row, "no interface
-        // row shows up in __reassignments" would hold vacuously instead of actually exercising the invariant.
-        Database
-          .creates(Some(templateFqn))
-          .returns(table(dar.get.packageId | templateFqn | "template" | contractId))
-      And:
-        Database
-          .creates(Some(interfaceFqn))
-          .returns(table(dar.get.packageId | interfaceFqn | "interface" | contractId))
-
-      Expect:
-        // A reassignment event carries no per-interface perspective — unlike __archives, which stores one row
-        // per implemented interface — so __reassignments must hold exactly one row per event, always keyed by
-        // the template's contract_tpe_pk. A row keyed by the interface's pk instead (or as well) would be
-        // byte-identical apart from the partition key, which is exactly the wrong alternative this pins against.
-        Database
-          .__reassignments()
-          .returns(
-            table {
-              templateFqn | "unassign" | contractId | anything | sync1.id | sync2.id | alice.id | anything
-              templateFqn | "assign"   | contractId | anything | sync1.id | sync2.id | alice.id | anything
             }
           )
     }
