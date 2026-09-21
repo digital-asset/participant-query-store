@@ -165,7 +165,7 @@ object FlywayMigrationSpec extends FuncTestStandalone:
         )
       Expect:
         Database
-          .active(Some(interfaceFqn), Seq("contract_key", "contract_key_hash"))
+          .active(Some(interfaceFqn), extraColumns = Seq("contract_key", "contract_key_hash"))
           .returns(
             table {
               anything | interfaceFqn | "interface" | anything | isNull | not(isNull)
@@ -175,7 +175,7 @@ object FlywayMigrationSpec extends FuncTestStandalone:
           )
       Expect:
         Database
-          .active(Some(templateFqn), Seq("contract_key_hash"))
+          .active(Some(templateFqn), extraColumns = Seq("contract_key_hash"))
           .returns(
             table {
               anything | templateFqn | "template" | anything | (not(isNull) && keyHash42.capture)
@@ -192,7 +192,7 @@ object FlywayMigrationSpec extends FuncTestStandalone:
         )
       Expect:
         Database
-          .active(Some(interfaceFqn), Seq("contract_key", "contract_key_hash"))
+          .active(Some(interfaceFqn), extraColumns = Seq("contract_key", "contract_key_hash"))
           .returns(
             table {
               anything | interfaceFqn | "interface" | anything | isNull | isNull
@@ -202,7 +202,7 @@ object FlywayMigrationSpec extends FuncTestStandalone:
           )
       Expect:
         Database
-          .active(Some(templateFqn), Seq("contract_key_hash"))
+          .active(Some(templateFqn), extraColumns = Seq("contract_key_hash"))
           .returns(
             table {
               anything | templateFqn | "template" | anything | keyHash42.capture

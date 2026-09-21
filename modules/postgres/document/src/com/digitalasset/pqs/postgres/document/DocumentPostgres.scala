@@ -308,186 +308,174 @@ final case class DocumentPostgres(
   ): Chunk[Model] = {
     val pk = placeholders.mk
 
-    def mkArchives(eventPk: IdPlaceholder, txIx: Long, contractId: ContractId, templateId: Identifier) =
-      val templateType = entityPkMap(templateId)
-      val interfaces   = implementsPkMap.getOrElse(templateId, Chunk.empty)
-      (interfaces :+ templateType).map { entityType =>
-        Archive(
-          templateId.qualifiedName,
-          entityType,
-          eventPk,
-          txIx,
-          contractId,
-          packageMap(templateId.packageId)
-        )
-      }
-
-    def mkReassignment(
-        reassignmentType: ReassignmentType,
-        reassignmentId: String,
-        source: SynchronizerId,
-        target: SynchronizerId,
-        submitter: Option[Party],
-        reassignmentCounter: Long,
-        contractId: ContractId,
-        templateId: Identifier,
-        witnesses: Chunk[Party],
-        assignmentExclusivity: Option[Instant]
-    ) =
-      Reassignment(
-        qualifiedName = templateId.qualifiedName,
-        entityType = entityPkMap(templateId),
-        reassignmentEventPk = pk,
-        reassignedAtIx = txIx,
-        reassignmentType = reassignmentType,
-        contractId = contractId,
-        reassignmentId = reassignmentId,
-        source = source,
-        target = target,
-        submitter = submitter,
-        reassignmentCounter = reassignmentCounter,
-        witnesses = witnesses,
-        assignmentExclusivity = assignmentExclusivity
-      )
-
     event match
-      case canonical.Event.Created(
-            eid,
-            rpId,
-            templateQualifiedName,
-            cid,
-            contractKey,
-            contractKeyHash,
-            payloads,
-            signatories,
-            observers,
-            witnesses,
-            created_at,
-            metadata,
-            acsDelta,
-            creationPackageId
-          ) =>
-        val evt = Event(
-          pk = pk,
-          txIx = txIx,
-          eventId = eid,
-          eventType = EventType.Create
-        )
-        val contracts = payloads.map((entityId, value) =>
-          Contract(
-            qualifiedName = templateQualifiedName,
-            entityType = entityPkMap(entityId),
-            createEventPk = pk,
-            createdAtIx = txIx,
-            contractId = cid,
-            signatories = signatories,
-            observers = observers,
-            witnesses = witnesses,
-            payload = codec.template(entityId).fromDynamicValue(value),
-            // A create yields a row per payload: one for the template, one per interface view. Only a keyed
-            // template has a key codec, so checking templateKey codec drops both contractKey and contractKeyHash.
-            contractKey = (codec.getTemplateKey(entityId) zip contractKey).map(_ `fromDynamicValue` _),
-            contractKeyHash = codec.getTemplateKey(entityId).flatMap(_ => contractKeyHash),
-            metadata = metadata,
-            acsDelta = acsDelta,
-            packagePk = packageMap(rpId),
-            creationPackageId = creationPackageId
-          )
+      case c: canonical.Event.Created =>
+        val evt = Event(pk, txIx, c.eventId, EventType.Create)
+        val contracts = mkContracts(
+          eventPk = pk,
+          txIx,
+          c.contract,
+          c.synchronizerId,
+          reassignmentCounter = 0,
+          isCreate = true
         )
         contracts :+ evt
 
-      case canonical.Event.Archived(eid, tid, cid) =>
-        val evt = Event(
-          pk = pk,
-          txIx = txIx,
-          eventId = eid,
-          eventType = EventType.Archive
-        )
-        val archives = mkArchives(pk, txIx, cid, tid)
+      case a: canonical.Event.Archived =>
+        val evt      = Event(pk, txIx, a.eventId, EventType.Archive)
+        val archives = mkDeactivatedContracts(pk, txIx, a.contractId, a.templateId, a.synchronizerId, isArchive = true)
         archives :+ evt
 
-      case canonical.Event.Exercised(
-            eid,
-            tid,
-            entityId,
-            choice,
-            consuming,
-            cid,
-            arg,
-            result,
-            controllers,
-            witnesses,
-            lastDescendant
-          ) =>
-        val choiceRef = entityId.copy(entityName = EntityName(choice))
-        val evt = Event(
-          pk = pk,
-          txIx = txIx,
-          eventId = eid,
-          eventType = EventType.Exercise
-        )
+      case e: canonical.Event.Exercised =>
+        val event = Event(pk, txIx, e.eventId, EventType.Exercise)
         val exercise = Exercise(
-          qualifiedName = tid.qualifiedName,
-          entityType = exercisePkMap(entityId, choice),
-          contractEntityType = entityPkMap(entityId),
+          qualifiedName = e.templateId.qualifiedName,
+          entityType = exercisePkMap(e.entityId, e.choice),
+          contractEntityType = entityPkMap(e.entityId),
           exerciseEventPk = pk,
           exercisedAt = txIx,
-          contractId = cid,
-          choiceName = choice,
-          argument = codec.choiceArgument(entityId, choice).fromDynamicValue(arg),
-          result = codec.choiceResult(entityId, choice).fromDynamicValue(result),
-          controllers = controllers,
-          witnesses = witnesses,
-          lastDescendant = lastDescendant,
-          packagePk = packageMap(tid.packageId)
+          contractId = e.contractId,
+          choiceName = e.choice,
+          argument = codec.choiceArgument(e.entityId, e.choice).fromDynamicValue(e.arg),
+          result = codec.choiceResult(e.entityId, e.choice).fromDynamicValue(e.result),
+          controllers = e.controllers,
+          witnesses = e.witnesses,
+          lastDescendant = e.lastDescendant,
+          packagePk = packageMap(e.templateId.packageId)
         )
-        val archives = if consuming then mkArchives(pk, txIx, cid, tid) else Chunk.empty
-        archives :+ exercise :+ evt
+        val archives =
+          if e.consuming then
+            mkDeactivatedContracts(pk, txIx, e.contractId, e.templateId, e.synchronizerId, isArchive = true)
+          else Chunk.empty
+        archives :+ exercise :+ event
 
-      case evt: canonical.Event.Unassigned =>
-        Chunk(
-          mkReassignment(
-            reassignmentType = ReassignmentType.Unassign,
-            reassignmentId = evt.reassignmentId,
-            source = evt.source,
-            target = evt.target,
-            submitter = evt.submitter,
-            reassignmentCounter = evt.reassignmentCounter,
-            contractId = evt.contractId,
-            templateId = evt.templateId,
-            witnesses = evt.witnesses,
-            assignmentExclusivity = evt.assignmentExclusivity
-          ),
-          Event(
-            pk = pk,
-            txIx = txIx,
-            eventId = evt.eventId,
-            eventType = EventType.Unassign
-          )
+      case u: canonical.Event.Unassigned =>
+        val event = Event(pk, txIx, u.eventId, EventType.Unassign)
+        val unassignedContracts =
+          mkDeactivatedContracts(pk, txIx, u.contractId, u.templateId, u.synchronizerId, isArchive = false)
+        val reassignment = mkReassignment(
+          eventPk = pk,
+          txIx = txIx,
+          reassignmentType = ReassignmentType.Unassign,
+          templateId = u.templateId,
+          contractId = u.contractId,
+          reassignmentId = u.reassignmentId,
+          source = u.source,
+          target = u.target,
+          submitter = u.submitter,
+          reassignmentCounter = u.reassignmentCounter,
+          witnesses = u.witnesses,
+          assignmentExclusivity = u.assignmentExclusivity
         )
+        unassignedContracts :+ reassignment :+ event
 
-      case evt: canonical.Event.Assigned =>
-        Chunk(
-          mkReassignment(
-            reassignmentType = ReassignmentType.Assign,
-            reassignmentId = evt.reassignmentId,
-            source = evt.source,
-            target = evt.target,
-            submitter = evt.submitter,
-            reassignmentCounter = evt.reassignmentCounter,
-            contractId = evt.contractId,
-            templateId = evt.templateId,
-            witnesses = evt.witnesses,
-            assignmentExclusivity = None
-          ),
-          Event(
-            pk = pk,
-            txIx = txIx,
-            eventId = evt.eventId,
-            eventType = EventType.Assign
-          )
+      case e: canonical.Event.Assigned =>
+        val event     = Event(pk, txIx, e.eventId, EventType.Assign)
+        val contracts = mkContracts(pk, txIx, e.contract, e.synchronizerId, e.reassignmentCounter, isCreate = false)
+        val reassignment = mkReassignment(
+          eventPk = pk,
+          txIx = txIx,
+          reassignmentType = ReassignmentType.Assign,
+          templateId = e.contract.templateId,
+          contractId = e.contract.contractId,
+          reassignmentId = e.reassignmentId,
+          source = e.source,
+          target = e.target,
+          submitter = e.submitter,
+          reassignmentCounter = e.reassignmentCounter,
+          witnesses = e.contract.witnesses,
+          // only an unassignment carries an exclusivity deadline
+          assignmentExclusivity = None
         )
+        contracts :+ reassignment :+ event
   }
+
+  private def mkContracts(
+      eventPk: IdPlaceholder,
+      txIx: Long,
+      contract: canonical.Contract,
+      synchronizerId: SynchronizerId,
+      reassignmentCounter: Long,
+      isCreate: Boolean
+  ): Chunk[Contract] =
+    contract.payloads.map((entityId, value) =>
+      Contract(
+        qualifiedName = contract.templateId.qualifiedName,
+        entityType = entityPkMap(entityId),
+        createEventPk = Option.when(isCreate)(eventPk),
+        createdAtIx = Option.when(isCreate)(txIx),
+        assignEventPk = Option.when(!isCreate)(eventPk),
+        assignedAtIx = Option.when(!isCreate)(txIx),
+        contractId = contract.contractId,
+        synchronizerId = synchronizerId,
+        reassignmentCounter = reassignmentCounter,
+        signatories = contract.signatories,
+        observers = contract.observers,
+        witnesses = contract.witnesses,
+        payload = codec.template(entityId).fromDynamicValue(value),
+        // A create yields a row per payload: one for the template, one per interface view. Only a keyed
+        // template has a key codec, so checking templateKey codec drops both contractKey and contractKeyHash.
+        contractKey = codec.getTemplateKey(entityId).zip(contract.contractKey).map(_.fromDynamicValue(_)),
+        contractKeyHash = codec.getTemplateKey(entityId).flatMap(_ => contract.contractKeyHash),
+        metadata = contract.metadata,
+        acsDelta = contract.acsDelta,
+        packagePk = packageMap(contract.representativePackageId),
+        creationPackageId = contract.creationPackageId
+      )
+    )
+
+  private def mkDeactivatedContracts(
+      eventPk: IdPlaceholder,
+      txIx: Long,
+      contractId: ContractId,
+      templateId: Identifier,
+      synchronizerId: SynchronizerId,
+      isArchive: Boolean
+  ) =
+    val templateType = entityPkMap(templateId)
+    val interfaces   = implementsPkMap.getOrElse(templateId, Chunk.empty)
+    (interfaces :+ templateType).map { entityType =>
+      DeactivatedContract(
+        templateId.qualifiedName,
+        entityType,
+        contractId,
+        archiveEventPk = Option.when(isArchive)(eventPk),
+        archivedAtIx = Option.when(isArchive)(txIx),
+        unassignEventPk = Option.when(!isArchive)(eventPk),
+        unassignedAtIx = Option.when(!isArchive)(txIx),
+        synchronizerId
+      )
+    }
+
+  private def mkReassignment(
+      eventPk: IdPlaceholder,
+      txIx: Long,
+      reassignmentType: ReassignmentType,
+      templateId: Identifier,
+      contractId: ContractId,
+      reassignmentId: String,
+      source: SynchronizerId,
+      target: SynchronizerId,
+      submitter: Option[Party],
+      reassignmentCounter: Long,
+      witnesses: Chunk[Party],
+      assignmentExclusivity: Option[Instant]
+  ) =
+    Reassignment(
+      qualifiedName = templateId.qualifiedName,
+      entityType = entityPkMap(templateId),
+      reassignmentEventPk = eventPk,
+      reassignedAtIx = txIx,
+      reassignmentType = reassignmentType,
+      contractId = contractId,
+      reassignmentId = reassignmentId,
+      source = source,
+      target = target,
+      submitter = submitter,
+      reassignmentCounter = reassignmentCounter,
+      witnesses = witnesses,
+      assignmentExclusivity = assignmentExclusivity
+    )
 end DocumentPostgres
 
 object DocumentPostgres:

@@ -92,7 +92,7 @@ object Model {
         statAttribute(Event),
         statAttribute(Contract),
         statAttribute(Exercise),
-        statAttribute(Archive),
+        statAttribute(DeactivatedContract),
         statAttribute(Reassignment)
       )
     } *>
@@ -178,9 +178,13 @@ object Event
 final class Contract(
     qualifiedName: String,
     entityType: EntityTypePk,
-    createEventPk: IdPlaceholder,
-    createdAtIx: Long,
+    createEventPk: Option[IdPlaceholder],
+    createdAtIx: Option[Long],
+    assignEventPk: Option[IdPlaceholder],
+    assignedAtIx: Option[Long],
     contractId: ContractId,
+    synchronizerId: SynchronizerId,
+    reassignmentCounter: Long,
     signatories: Seq[Party],
     observers: Seq[Party],
     witnesses: Seq[Party],
@@ -197,7 +201,11 @@ final class Contract(
     entityType,
     createEventPk,
     createdAtIx,
+    assignEventPk,
+    assignedAtIx,
     contractId,
+    synchronizerId,
+    reassignmentCounter,
     payload,
     contractKey,
     contractKeyHash,
@@ -209,7 +217,9 @@ final class Contract(
     witnesses,
     !acsDelta
   )
-  val labels: Set[MetricLabel] = l("type" -> "create", "template" -> qualifiedName)
+  val labels: Set[MetricLabel] =
+    val tpe = if createdAtIx.isDefined then "create" else "assign"
+    l("type" -> tpe, "template" -> qualifiedName)
 
 object Contract
     extends Table(
@@ -218,7 +228,11 @@ object Contract
         "tpe_pk",
         "create_event_pk",
         "created_at_ix",
+        "assign_event_pk",
+        "assigned_at_ix",
         "contract_id",
+        "synchronizer_id",
+        "reassignment_counter",
         "payload",
         "contract_key",
         "contract_key_hash",
@@ -283,24 +297,45 @@ object Exercise
       insertOrder = 3
     )
 
-final class Archive(
+// Represents a contract deactivation: either an archive or an unassign.
+final class DeactivatedContract(
     qualifiedName: String,
     entityType: EntityTypePk,
-    eventPk: IdPlaceholder,
-    txIx: Long,
     contractId: ContractId,
-    packagePk: PackagePk
+    archiveEventPk: Option[IdPlaceholder],
+    archivedAtIx: Option[Long],
+    unassignEventPk: Option[IdPlaceholder],
+    unassignedAtIx: Option[Long],
+    synchronizerId: SynchronizerId
 ) extends Copy:
-  def table  = Archive
-  val row    = buildRow(eventPk, txIx, contractId, entityType, packagePk)
-  val labels = l("type" -> "archive", "template" -> qualifiedName)
+  def table = DeactivatedContract
+  val row = buildRow(
+    entityType,
+    contractId,
+    archiveEventPk,
+    archivedAtIx,
+    unassignEventPk,
+    unassignedAtIx,
+    synchronizerId
+  )
+  val labels =
+    val tpe = if archiveEventPk.isDefined then "archive" else "unassign"
+    l("type" -> tpe, "template" -> qualifiedName)
 
-// As opposed to the other tables, __archives is a view with an `instead of insert` trigger
-// `__insert_archive_trg` that updates the underlying __contracts row instead of inserting.
-object Archive
+// As opposed to the other tables, __tmp_deactivated_contracts is a staging table
+// the underlying __contracts is updated sequentially by __update_watermark_fn SQL function
+object DeactivatedContract
     extends Table(
-      "__archives",
-      Seq("archive_event_pk", "archived_at_ix", "contract_id", "tpe_pk", "package_pk"),
+      "__tmp_deactivated_contracts",
+      Seq(
+        "tpe_pk",
+        "contract_id",
+        "archive_event_pk",
+        "archived_at_ix",
+        "unassign_event_pk",
+        "unassigned_at_ix",
+        "synchronizer_id"
+      ),
       insertOrder = 4
     )
 
