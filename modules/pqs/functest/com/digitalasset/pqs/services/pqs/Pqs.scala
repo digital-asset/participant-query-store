@@ -57,28 +57,31 @@ object CliRun:
       )
     yield CliRun(exitCode, svc.get.io))
 
-object Pqs extends Pqs {
+object Pqs extends Pqs:
   override def version: PqsVersion = PqsVersion.Latest
   override def image: String       = localPqsDockerImage
   override def user: Option[Int]   = Some(65532)
   override def envPrefix: String   = "PQS_"
-}
 
-object Pqs34 extends Pqs {
-  override def version: PqsVersion = PqsVersion("3.4.6")
+object Pqs36 extends Pqs:
+  override def version: PqsVersion = PqsVersion("3.6.0-snapshot.20260922.1.298.v809eeb8")
   override def image: String     = s"europe-docker.pkg.dev/da-images/public-all/docker/participant-query-store:$version"
   override def user: Option[Int] = Some(1001)
-  override def envPrefix: String = "SCRIBE_"
-}
+  override def envPrefix: String = "PQS_"
 
-object Pqs35 extends Pqs {
+object Pqs35 extends Pqs:
   override def version: PqsVersion = PqsVersion("3.5.7")
   override def image: String     = s"europe-docker.pkg.dev/da-images/public-all/docker/participant-query-store:$version"
   override def user: Option[Int] = Some(1001)
   override def envPrefix: String = "SCRIBE_"
-}
 
-trait Pqs {
+object Pqs34 extends Pqs:
+  override def version: PqsVersion = PqsVersion("3.4.6")
+  override def image: String     = s"europe-docker.pkg.dev/da-images/public-all/docker/participant-query-store:$version"
+  override def user: Option[Int] = Some(1001)
+  override def envPrefix: String = "SCRIBE_"
+
+trait Pqs:
   def version: PqsVersion
   def image: String
   def user: Option[Int] = None
@@ -318,4 +321,3 @@ trait Pqs {
       .label(s"Difference between start and end is at least $count")
     FuncTest.retryUntilTimeout(zio.test.assertZIO(checkpoints)(difference))
   }
-}
