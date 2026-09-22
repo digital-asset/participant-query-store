@@ -289,8 +289,8 @@ object `package` extends RootModule { root =>
           "PQS_IMAGE_TAG_SUFFIX" -> localImageSuffix()
         )
         val sdkOverrides = Map(
-          CantonProtocolVersionEnvVar -> "35",
-          DamlLfTargetEnvVar          -> "2.3"
+          CantonProtocolVersionEnvVar -> "36",
+          DamlLfTargetEnvVar          -> "2.4"
         )
         commonOverrides ++ sdkOverrides ++ functestEnvInput() ++ super.forkEnv()
       }

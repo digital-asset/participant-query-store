@@ -7,7 +7,6 @@ import com.digitalasset.pqs.SharedLedgerAndPostgresTest
 import com.digitalasset.pqs.functest.matchers.*
 import com.digitalasset.pqs.functest.table.*
 import com.digitalasset.pqs.services.daml.*
-import com.digitalasset.pqs.services.daml.DamlSdk.onlyDamlLfVersion
 import com.digitalasset.pqs.services.postgres.Database.*
 import com.digitalasset.pqs.services.postgres.Postgres
 import com.digitalasset.pqs.services.pqs.{Pipeline, Pqs}
@@ -319,4 +318,4 @@ object AmbiguousPackageNameSupportSpec extends SharedLedgerAndPostgresTest:
             upgPkgId | s"$packageName:Interfaces:Labelable" | s"$packageName:Interfaces:Labelable:SetLabelChoice" | "SetLabelChoice" | cId2 | "exercised SetLabelChoice on upgraded contract"
           }
     )
-  ) @@ onlyDamlLfVersion("<1.16")
+  )
