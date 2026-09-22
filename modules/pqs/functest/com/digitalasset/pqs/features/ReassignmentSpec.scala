@@ -5,7 +5,7 @@ package com.digitalasset.pqs.features
 
 import com.daml.ledger.api.v2.value.*
 import com.digitalasset.pqs.docker.Service
-import com.digitalasset.pqs.functest.FuncTest
+import com.digitalasset.pqs.functest.FuncTestStandalone
 import com.digitalasset.pqs.functest.matchers.*
 import com.digitalasset.pqs.services.postgres.*
 import com.digitalasset.pqs.services.pqs.Pqs
@@ -17,7 +17,7 @@ import zio.jdbc.*
 
 import scala.language.implicitConversions
 
-object ReassignmentSpec extends FuncTest[Service[Ledger] & Postgres & DeployedDar & Database]:
+object ReassignmentSpec extends FuncTestStandalone:
   private val pingPong = DamlSource(
     "PingPong" -> """module PingPong where
                     |
@@ -34,17 +34,14 @@ object ReassignmentSpec extends FuncTest[Service[Ledger] & Postgres & DeployedDa
   private val sync1 = Synchronizer("synchronizer1")
   private val sync2 = Synchronizer("synchronizer2")
 
-  val shared =
-    DamlSdk.dar(pingPong) ++ DamlSdk.multiSyncLedger(sync1, sync2) ++ Postgres.instance
-      >+> DamlSdk.uploadAndVetDar(sync1, sync2) ++ Postgres.database
-
   def spec = suite("Multi-Sync")(
     funcTest("Contract is created, reassigned and archived") {
       val alice      = Party("Alice")
       val dar        = Capture[DeployedDar]
       val contractId = Capture[String]
       Given:
-        DamlSdk.allocateParties(alice -> Seq(sync1, sync2))
+        DamlSdk.dar(pingPong) ++ DamlSdk.multiSyncLedger(sync1, sync2) ++ Postgres.instance
+        >+> DamlSdk.uploadAndVetDar(sync1, sync2) ++ Postgres.database ++ DamlSdk.allocateParties(alice -> Seq(sync1, sync2))
       And:
         dar.captureFromService
       Then:
