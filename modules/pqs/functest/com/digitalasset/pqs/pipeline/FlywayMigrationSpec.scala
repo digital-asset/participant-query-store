@@ -126,7 +126,8 @@ object FlywayMigrationSpec extends FuncTestStandalone:
         Pqs.runPipeline(
           "--pipeline-datasource=TransactionStream",
           "--pipeline-ledger-start=Oldest",
-          "--pipeline-ledger-stop=Latest"
+          "--pipeline-ledger-stop=Latest",
+          "--retry-counter-attempts=0"
         )
       Expect:
         Database
@@ -161,7 +162,8 @@ object FlywayMigrationSpec extends FuncTestStandalone:
         Pqs35.runPipeline(
           "--pipeline-datasource=TransactionStream",
           "--pipeline-ledger-start=Genesis",
-          "--pipeline-ledger-stop=Latest"
+          "--pipeline-ledger-stop=Latest",
+          "--retry-counter-attempts=0"
         )
       Expect:
         Database
@@ -188,7 +190,8 @@ object FlywayMigrationSpec extends FuncTestStandalone:
         Pqs.runPipeline(
           "--pipeline-datasource=TransactionStream",
           "--pipeline-ledger-start=Oldest",
-          "--pipeline-ledger-stop=Latest"
+          "--pipeline-ledger-stop=Latest",
+          "--retry-counter-attempts=0"
         )
       Expect:
         Database
