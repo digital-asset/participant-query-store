@@ -41,7 +41,8 @@ object ReassignmentSpec extends FuncTestStandalone:
       val contractId = Capture[String]
       Given:
         DamlSdk.dar(pingPong) ++ DamlSdk.multiSyncLedger(sync1, sync2) ++ Postgres.instance
-        >+> DamlSdk.uploadAndVetDar(sync1, sync2) ++ Postgres.database ++ DamlSdk.allocateParties(alice -> Seq(sync1, sync2))
+          >+> DamlSdk.uploadAndVetDar(sync1, sync2) ++ Postgres.database
+          >+> DamlSdk.allocateParties(alice -> Seq(sync1, sync2))
       And:
         dar.captureFromService
       Then:
