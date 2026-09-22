@@ -7,7 +7,6 @@ import com.digitalasset.pqs.SharedLedgerAndPostgresTest
 import com.digitalasset.pqs.functest.matchers.*
 import com.digitalasset.pqs.functest.table.*
 import com.digitalasset.pqs.services.daml.*
-import com.digitalasset.pqs.services.daml.DamlSdk.onlyDamlLfVersion
 import com.digitalasset.pqs.services.postgres.Database.__contracts
 import com.digitalasset.pqs.services.postgres.Postgres
 import com.digitalasset.pqs.services.pqs.Pqs
@@ -126,7 +125,7 @@ object UpgradeAddingTemplateSpec extends SharedLedgerAndPostgresTest:
           upgPkgPk | pongCTpePk | anything | anything
         }
     }
-  ) @@ onlyDamlLfVersion(">=1.17")
+  )
 
   private def __packages(name: PackageName) =
     Postgres.query(sql"select pk, name, version, id from __packages where name=${name.toString} order by version")
