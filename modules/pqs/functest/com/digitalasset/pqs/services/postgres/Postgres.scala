@@ -163,6 +163,7 @@ object Postgres:
       sql"delete from __contracts where created_at_ix in (${txIndices.toList})".delete *>
         sql"update __contracts set archived_at_ix = null, archive_event_pk = null where archived_at_ix in (${txIndices.toList})".update *>
         sql"delete from __exercises where exercised_at_ix in (${txIndices.toList})".delete *>
+        sql"delete from __reassignments where reassigned_at_ix in (${txIndices.toList})".delete *>
         sql"delete from __events where tx_ix in (${txIndices.toList})".delete *>
         sql"delete from __transactions where ix in (${txIndices.toList})".delete
     }

@@ -46,6 +46,16 @@ CREATE TYPE public.__payload_type AS ENUM (
 
 
 --
+-- Name: __reassignment_type; Type: TYPE; Schema: public; Owner: -
+--
+
+CREATE TYPE public.__reassignment_type AS ENUM (
+    'assign',
+    'unassign'
+);
+
+
+--
 -- Name: checkpoint; Type: TYPE; Schema: public; Owner: -
 --
 
@@ -553,6 +563,11 @@ begin
         execute format(
                 'alter table %I alter column metadata set storage external',
                 '__contracts_' || new_tpe_pk
+                );
+        execute format(
+                'create table %I partition of __reassignments for values in(%L)',
+                '__reassignments_' || new_tpe_pk,
+                new_tpe_pk
                 );
     end if;
 end;
@@ -1912,6 +1927,47 @@ CREATE TABLE public.__pruning_metadata (
 
 
 --
+-- Name: __reassignments; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.__reassignments (
+    contract_tpe_pk bigint NOT NULL,
+    reassign_event_pk bigint NOT NULL,
+    reassigned_at_ix bigint NOT NULL,
+    type public.__reassignment_type NOT NULL,
+    contract_id text NOT NULL,
+    reassignment_id text NOT NULL,
+    source_synchronizer_id text NOT NULL,
+    target_synchronizer_id text NOT NULL,
+    submitter text,
+    reassignment_counter bigint NOT NULL,
+    witnesses text[] NOT NULL,
+    assignment_exclusivity timestamp with time zone
+)
+PARTITION BY LIST (contract_tpe_pk);
+
+
+--
+-- Name: __reassignments_1; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.__reassignments_1 (
+    contract_tpe_pk bigint NOT NULL,
+    reassign_event_pk bigint NOT NULL,
+    reassigned_at_ix bigint NOT NULL,
+    type public.__reassignment_type NOT NULL,
+    contract_id text NOT NULL,
+    reassignment_id text NOT NULL,
+    source_synchronizer_id text NOT NULL,
+    target_synchronizer_id text NOT NULL,
+    submitter text,
+    reassignment_counter bigint NOT NULL,
+    witnesses text[] NOT NULL,
+    assignment_exclusivity timestamp with time zone
+);
+
+
+--
 -- Name: __tmp_deactivated_contracts; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -2006,6 +2062,13 @@ ALTER TABLE ONLY public.__contracts ATTACH PARTITION public.__contracts_1 FOR VA
 --
 
 ALTER TABLE ONLY public.__exercises ATTACH PARTITION public.__exercises_1 FOR VALUES IN ('1');
+
+
+--
+-- Name: __reassignments_1; Type: TABLE ATTACH; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.__reassignments ATTACH PARTITION public.__reassignments_1 FOR VALUES IN ('1');
 
 
 --
@@ -2477,6 +2540,14 @@ ALTER TABLE public.__exercises
 
 ALTER TABLE public.__exercises
     ADD CONSTRAINT __exercises_tpe_pk_fkey FOREIGN KEY (tpe_pk) REFERENCES public.__exercise_tpe(pk);
+
+
+--
+-- Name: __reassignments __reassignments_contract_tpe_pk_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE public.__reassignments
+    ADD CONSTRAINT __reassignments_contract_tpe_pk_fkey FOREIGN KEY (contract_tpe_pk) REFERENCES public.__contract_tpe(pk);
 
 
 --

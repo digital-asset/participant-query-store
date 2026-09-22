@@ -25,19 +25,21 @@ local q = import '../lib-shared/queries.libsonnet';
     pipeline: {
       count: {
         all_events:
-          q.simple('sum(pipeline_events_total{job="$jvm", type=~"(create|archive|exercise)"})', 'events'),
+          q.simple('sum(pipeline_events_total{job="$jvm", type=~"(create|archive|exercise|assign|unassign)"})', 'events'),
       },
       throughput: {
         sums(type, label, type_op='='):
           q.simple('sum(rate(pipeline_events_total{job="$jvm", type%s"%s"}[$__rate_interval]))' % [type_op, type], label),
         transactions:
           q.simple('rate(pipeline_events_total{job="$jvm", type="transaction"}[$__rate_interval])', 'transactions'),
-        events: self.sums('(create|archive|exercise)', 'events', '=~'),
+        events: self.sums('(create|archive|exercise|assign|unassign)', 'events', '=~'),
         creates: self.sums('create', 'creates'),
         archives: self.sums('archive', 'archives'),
         exercises: self.sums('exercise', 'exercises'),
+        assigns: self.sums('assign', 'assigns'),
+        unassigns: self.sums('unassign', 'unassigns'),
         all_entities: [self.transactions, self.events],
-        all_events: [self.creates, self.archives, self.exercises],
+        all_events: [self.creates, self.archives, self.exercises, self.assigns, self.unassigns],
       },
 
       waitpoints: {

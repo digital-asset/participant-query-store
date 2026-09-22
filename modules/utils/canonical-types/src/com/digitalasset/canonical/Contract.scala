@@ -10,7 +10,7 @@ import java.time.Instant
 
 final case class Contract(
     representativePackageId: PackageId,
-    templateQualifiedName: String,
+    templateId: Identifier,
     contractId: ContractId,
     contractKey: Option[DynamicValue],
     contractKeyHash: Option[Array[Byte]],

@@ -59,6 +59,12 @@ object Database:
   def __exercises() = Postgres `query`
     sql"""select package_pk, tpe_pk, contract_tpe_pk, contract_id, argument ->> 'newLabel' from __exercises order by exercised_at_ix, tpe_pk"""
 
+  def __reassignments() = Postgres `query`
+    sql"""select tpe.template_fqn, r."type"::text, r.contract_id, r.reassignment_id,
+          r.source_synchronizer_id, r.target_synchronizer_id, r.submitter, r.reassignment_counter
+          from __reassignments r join __contract_tpe tpe on tpe.pk = r.contract_tpe_pk
+          order by r.reassigned_at_ix, tpe.template_fqn, r.reassign_event_pk"""
+
   def activeAtOffset(offset: Long, extraColumns: Seq[String] = Seq.empty) =
     selectContracts(sql"active(null, $offset)", extraColumns)
 

@@ -171,7 +171,7 @@ object eventConverters:
       val payloads = template.toList ++ interfaces
       Contract(
         representativePackageId = PackageId(evt.representativePackageId),
-        templateQualifiedName = templateId.qualifiedName,
+        templateId = templateId,
         contractId = ContractId(evt.contractId),
         contractKey = codecs.getTemplateKey(templateId).map(_.toDynamicValue(evt.getContractKey)),
         contractKeyHash = Option.when(!evt.contractKeyHash.isEmpty)(evt.contractKeyHash.toByteArray),

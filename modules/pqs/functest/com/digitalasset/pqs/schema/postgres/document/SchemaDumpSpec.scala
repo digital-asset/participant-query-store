@@ -24,7 +24,7 @@ import scala.language.implicitConversions
   * Whenever changes are effected to the SQL migrations in `postgres/document/resources/db/migration` , the reference
   * SQL dump must be regenerated, by setting the `REGENERATE_SCHEMA_DUMP` env var when running this spec:
   * {{{
-  * REGENERATE_SCHEMA_DUMP=true mill scribe.functest.testOnly com.digitalasset.scribe.schema.postgres.document.SchemaDumpSpec
+  * REGENERATE_SCHEMA_DUMP=true mill pqs.functest.testOnly com.digitalasset.pqs.schema.postgres.document.SchemaDumpSpec
   * }}}
   */
 object SchemaDumpSpec extends SharedLedgerAndPostgresTest:

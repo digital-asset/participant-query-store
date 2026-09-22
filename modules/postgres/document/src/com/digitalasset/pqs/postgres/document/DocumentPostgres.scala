@@ -4,7 +4,7 @@
 package com.digitalasset.pqs.postgres.document
 
 import com.digitalasset.canonical
-import com.digitalasset.canonical.{ContractId, Offset, SynchronizerId}
+import com.digitalasset.canonical.{ContractId, Offset, Party, SynchronizerId}
 import com.digitalasset.pqs.backend.Datastore
 import com.digitalasset.pqs.o11y.metrics.latency
 import com.digitalasset.pqs.o11y.traces
@@ -28,6 +28,7 @@ import zio.stream.{ZChannel, ZPipeline, ZSink}
 import zio.{Chunk, ChunkBuilder, Schedule, ZEnvironment, ZIO, ZLayer, durationInt, jdbc}
 
 import java.io.{Reader, StringReader}
+import java.time.Instant
 import java.util
 import scala.collection.mutable
 import scala.jdk.CollectionConverters.*
@@ -352,12 +353,40 @@ final case class DocumentPostgres(
         val event = Event(pk, txIx, u.eventId, EventType.Unassign)
         val unassignedContracts =
           mkDeactivatedContracts(pk, txIx, u.contractId, u.templateId, u.synchronizerId, isArchive = false)
-        unassignedContracts :+ event
+        val reassignment = mkReassignment(
+          eventPk = pk,
+          txIx = txIx,
+          reassignmentType = ReassignmentType.Unassign,
+          templateId = u.templateId,
+          contractId = u.contractId,
+          reassignmentId = u.reassignmentId,
+          source = u.source,
+          target = u.target,
+          submitter = u.submitter,
+          reassignmentCounter = u.reassignmentCounter,
+          witnesses = u.witnesses,
+          assignmentExclusivity = u.assignmentExclusivity
+        )
+        unassignedContracts :+ reassignment :+ event
 
       case e: canonical.Event.Assigned =>
         val event     = Event(pk, txIx, e.eventId, EventType.Assign)
         val contracts = mkContracts(pk, txIx, e.contract, e.synchronizerId, e.reassignmentCounter, isCreate = false)
-        contracts :+ event
+        val reassignment = mkReassignment(
+          eventPk = pk,
+          txIx = txIx,
+          reassignmentType = ReassignmentType.Assign,
+          templateId = e.contract.templateId,
+          contractId = e.contract.contractId,
+          reassignmentId = e.reassignmentId,
+          source = e.source,
+          target = e.target,
+          submitter = e.submitter,
+          reassignmentCounter = e.reassignmentCounter,
+          witnesses = e.contract.witnesses,
+          assignmentExclusivity = None
+        )
+        contracts :+ reassignment :+ event
   }
 
   private def mkContracts(
@@ -370,7 +399,7 @@ final case class DocumentPostgres(
   ): Chunk[Contract] =
     contract.payloads.map((entityId, value) =>
       Contract(
-        qualifiedName = contract.templateQualifiedName,
+        qualifiedName = contract.templateId.qualifiedName,
         entityType = entityPkMap(entityId),
         createEventPk = Option.when(isCreate)(eventPk),
         createdAtIx = Option.when(isCreate)(txIx),
@@ -416,6 +445,35 @@ final case class DocumentPostgres(
         synchronizerId
       )
     }
+
+  private def mkReassignment(
+      eventPk: IdPlaceholder,
+      txIx: Long,
+      reassignmentType: ReassignmentType,
+      templateId: Identifier,
+      contractId: ContractId,
+      reassignmentId: String,
+      source: SynchronizerId,
+      target: SynchronizerId,
+      submitter: Option[Party],
+      reassignmentCounter: Long,
+      witnesses: Chunk[Party],
+      assignmentExclusivity: Option[Instant]
+  ) =
+    Reassignment(
+      entityType = entityPkMap(templateId),
+      reassignmentEventPk = eventPk,
+      reassignedAtIx = txIx,
+      reassignmentType = reassignmentType,
+      contractId = contractId,
+      reassignmentId = reassignmentId,
+      source = source,
+      target = target,
+      submitter = submitter,
+      reassignmentCounter = reassignmentCounter,
+      witnesses = witnesses,
+      assignmentExclusivity = assignmentExclusivity
+    )
 end DocumentPostgres
 
 object DocumentPostgres:
