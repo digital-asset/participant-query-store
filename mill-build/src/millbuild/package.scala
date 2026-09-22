@@ -16,9 +16,9 @@ package object millbuild {
     // Latest stable: https://console.cloud.google.com/artifacts/docker/da-images/europe/public/components%2Fdamlc
     val damlc = "3.6.0-snapshot.20260915.14804.0.v53478765"
 
-    // Latest snapshot: https://console.cloud.google.com/artifacts/docker/da-images/europe/public-unstable/components%2Fcanton-open-source
-    // Latest stable: https://console.cloud.google.com/artifacts/docker/da-images/europe/public/components%2Fcanton-open-source
-    val canton = "3.6.0-snapshot.20260921.20299.0.v50e85c6a"
+    // Latest snapshot: https://console.cloud.google.com/artifacts/docker/da-images/europe/public-unstable/docker%2Fcanton-base
+    // Latest stable: https://console.cloud.google.com/artifacts/docker/da-images/europe/public/docker%2Fcanton-base
+    val canton = "3.6.0-snapshot.20260916.20284.0.vf27c4824"
 
     val dockerClient = "3.4.0"
     val flyway = "13.4.0"
