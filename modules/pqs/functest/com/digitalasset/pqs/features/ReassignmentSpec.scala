@@ -120,18 +120,15 @@ object ReassignmentSpec extends FuncTest[Service[Ledger] & Postgres & DeployedDa
             }
           )
 
-      val reassignmentId      = Capture[String]
-      val reassignmentCounter = Capture[Long]
+      val reassignmentId = Capture[String]
       Expect:
         // The unassign and assign halves share a reassignment_id and counter, so the same Capture is used on both rows.
         Database
           .__reassignments()
           .returns(
             table {
-              s"${pingPong.name}:PingPong:Ping" | "unassign" | contractId | reassignmentId.capture |
-                sync1.id                        | sync2.id   | alice.id   | reassignmentCounter.capture
-              s"${pingPong.name}:PingPong:Ping" | "assign"   | contractId | reassignmentId.capture |
-                sync1.id                        | sync2.id   | alice.id   | reassignmentCounter.capture
+              s"${pingPong.name}:PingPong:Ping" | "unassign" | contractId | reassignmentId.capture | sync1.id | sync2.id | alice.id | 1
+              s"${pingPong.name}:PingPong:Ping" | "assign" | contractId | reassignmentId.capture | sync1.id | sync2.id | alice.id | 1
             }
           )
       Expect:
@@ -252,18 +249,15 @@ object ReassignmentSpec extends FuncTest[Service[Ledger] & Postgres & DeployedDa
             }
           )
 
-      val reassignmentId      = Capture[String]
-      val reassignmentCounter = Capture[Long]
+      val reassignmentId = Capture[String]
       Expect:
         // Ordered by reassigned_at_ix, so with this replay order the assign row comes first, then unassign.
         Database
           .__reassignments()
           .returns(
             table {
-              s"${pingPong.name}:PingPong:Ping" | "assign"   | contractId | reassignmentId.capture |
-                sync1.id                        | sync2.id   | alice.id   | reassignmentCounter.capture
-              s"${pingPong.name}:PingPong:Ping" | "unassign" | contractId | reassignmentId.capture |
-                sync1.id                        | sync2.id   | alice.id   | reassignmentCounter.capture
+              s"${pingPong.name}:PingPong:Ping" | "assign" | contractId | reassignmentId.capture | sync1.id | sync2.id | alice.id | 1
+              s"${pingPong.name}:PingPong:Ping" | "unassign" | contractId | reassignmentId.capture | sync1.id | sync2.id | alice.id | 1
             }
           )
     },

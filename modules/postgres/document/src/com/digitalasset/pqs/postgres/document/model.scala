@@ -375,7 +375,7 @@ object Reassignment
       "__reassignments",
       Seq(
         "contract_tpe_pk",
-        "reassignment_event_pk",
+        "reassign_event_pk",
         "reassigned_at_ix",
         "type",
         "contract_id",

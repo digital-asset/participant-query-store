@@ -371,7 +371,6 @@ begin
         delete from __contracts where created_at_ix > cutoff_ix;
         update __contracts set archived_at_ix = null, archive_event_pk = null where archived_at_ix > cutoff_ix;
         delete from __exercises where exercised_at_ix > cutoff_ix;
-        delete from __reassignments where reassigned_at_ix > cutoff_ix;
         delete from __events where tx_ix > cutoff_ix;
         delete from __tmp_deactivated_contracts where deactivated_at_ix > cutoff_ix;
         delete from __transactions where ix > cutoff_ix;
@@ -1946,7 +1945,7 @@ CREATE TABLE public.__pruning_metadata (
 
 CREATE TABLE public.__reassignments (
     contract_tpe_pk bigint NOT NULL,
-    reassignment_event_pk bigint NOT NULL,
+    reassign_event_pk bigint NOT NULL,
     reassigned_at_ix bigint NOT NULL,
     type public.__reassignment_type NOT NULL,
     contract_id text NOT NULL,
@@ -1967,7 +1966,7 @@ PARTITION BY LIST (contract_tpe_pk);
 
 CREATE TABLE public.__reassignments_1 (
     contract_tpe_pk bigint NOT NULL,
-    reassignment_event_pk bigint NOT NULL,
+    reassign_event_pk bigint NOT NULL,
     reassigned_at_ix bigint NOT NULL,
     type public.__reassignment_type NOT NULL,
     contract_id text NOT NULL,

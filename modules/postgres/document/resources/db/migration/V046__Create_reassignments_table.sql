@@ -6,7 +6,7 @@ create type __reassignment_type as enum ('assign', 'unassign');
 create table __reassignments
 (
     contract_tpe_pk        bigint              not null references __contract_tpe,
-    reassignment_event_pk  bigint              not null,
+    reassign_event_pk      bigint              not null,
     reassigned_at_ix       bigint              not null,
     type                   __reassignment_type not null,
     contract_id            text                not null,

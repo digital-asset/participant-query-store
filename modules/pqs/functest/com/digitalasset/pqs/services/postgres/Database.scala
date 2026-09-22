@@ -63,7 +63,7 @@ object Database:
     sql"""select tpe.template_fqn, r."type"::text, r.contract_id, r.reassignment_id,
           r.source_synchronizer_id, r.target_synchronizer_id, r.submitter, r.reassignment_counter
           from __reassignments r join __contract_tpe tpe on tpe.pk = r.contract_tpe_pk
-          order by r.reassigned_at_ix, tpe.template_fqn, r.reassignment_event_pk"""
+          order by r.reassigned_at_ix, tpe.template_fqn, r.reassign_event_pk"""
 
   def activeAtOffset(offset: Long, extraColumns: Seq[String] = Seq.empty) =
     selectContracts(sql"active(null, $offset)", extraColumns)
