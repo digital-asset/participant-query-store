@@ -91,18 +91,18 @@ object ReassignmentSpec extends FuncTest[Service[Ledger] & Postgres & DeployedDa
 
       Expect:
         Database
-          .creates(extraColumns = Seq("created_at_offset", "synchronizer_id"))
+          .creates(extraColumns = Seq("created_at_offset", "synchronizer_id", "reassignment_counter"))
           .returns(
             table {
-              dar.get.packageId | s"${pingPong.name}:PingPong:Ping" | "template" | contractId | createdAtOffset | sync1.id
+              dar.get.packageId | s"${pingPong.name}:PingPong:Ping" | "template" | contractId | createdAtOffset | sync1.id | 0
             }
           )
       Expect:
         Database
-          .archives(extraColumns = Seq("archived_at_offset", "synchronizer_id"))
+          .archives(extraColumns = Seq("archived_at_offset", "synchronizer_id", "reassignment_counter"))
           .returns(
             table {
-              dar.get.packageId | s"${pingPong.name}:PingPong:Ping" | "template" | contractId | archivedAtOffset | sync2.id
+              dar.get.packageId | s"${pingPong.name}:PingPong:Ping" | "template" | contractId | archivedAtOffset | sync2.id | 1
             }
           )
 
@@ -212,40 +212,40 @@ object ReassignmentSpec extends FuncTest[Service[Ledger] & Postgres & DeployedDa
 
       Expect:
         Database
-          .creates(extraColumns = Seq("created_at_offset", "synchronizer_id"))
+          .creates(extraColumns = Seq("created_at_offset", "synchronizer_id", "reassignment_counter"))
           .returns(
             table {
-              dar.get.packageId | s"${pingPong.name}:PingPong:Ping" | "template" | contractId | createdAtOffset.toLong | sync1.id
+              dar.get.packageId | s"${pingPong.name}:PingPong:Ping" | "template" | contractId | createdAtOffset.toLong | sync1.id | 0
             }
           )
       Expect:
         Database
-          .archives(extraColumns = Seq("archived_at_offset", "synchronizer_id"))
+          .archives(extraColumns = Seq("archived_at_offset", "synchronizer_id", "reassignment_counter"))
           .returns(
             table {
-              dar.get.packageId | s"${pingPong.name}:PingPong:Ping" | "template" | contractId | archivedAtOffset.toLong | sync2.id
+              dar.get.packageId | s"${pingPong.name}:PingPong:Ping" | "template" | contractId | archivedAtOffset.toLong | sync2.id | 1
             }
           )
       Expect:
         Database
           .activeAtOffset(
             assignedAtOffset.toLong,
-            extraColumns = Seq("created_at_offset", "assigned_at_offset", "synchronizer_id")
+            extraColumns = Seq("created_at_offset", "assigned_at_offset", "synchronizer_id", "reassignment_counter")
           )
           .returns(
             table {
-              dar.get.packageId | s"${pingPong.name}:PingPong:Ping" | "template" | contractId | 0 | assignedAtOffset.toLong | sync2.id
+              dar.get.packageId | s"${pingPong.name}:PingPong:Ping" | "template" | contractId | 0 | assignedAtOffset.toLong | sync2.id | 1
             }
           )
       Expect:
         Database
           .activeAtOffset(
             createdAtOffset.toLong,
-            extraColumns = Seq("created_at_offset", "assigned_at_offset", "synchronizer_id")
+            extraColumns = Seq("created_at_offset", "assigned_at_offset", "synchronizer_id", "reassignment_counter")
           )
           .returns(
             table {
-              dar.get.packageId | s"${pingPong.name}:PingPong:Ping" | "template" | contractId | createdAtOffset.toLong | 0 | sync1.id
+              dar.get.packageId | s"${pingPong.name}:PingPong:Ping" | "template" | contractId | createdAtOffset.toLong | 0 | sync1.id | 0
             }
           )
 
@@ -318,42 +318,42 @@ object ReassignmentSpec extends FuncTest[Service[Ledger] & Postgres & DeployedDa
 
       Expect:
         Database
-          .creates(extraColumns = Seq("created_at_offset", "synchronizer_id"))
+          .creates(extraColumns = Seq("created_at_offset", "synchronizer_id", "reassignment_counter"))
           .returns(
             table {
-              dar.get.packageId | s"${pingPong.name}:PingPong:Ping" | "template" | contractId | createdAtOffset.toLong | sync1.id
+              dar.get.packageId | s"${pingPong.name}:PingPong:Ping" | "template" | contractId | createdAtOffset.toLong | sync1.id | 0
             }
           )
       Expect:
         Database
-          .archives(extraColumns = Seq("archived_at_offset", "synchronizer_id"))
+          .archives(extraColumns = Seq("archived_at_offset", "synchronizer_id", "reassignment_counter"))
           .returns(
             table {
-              dar.get.packageId | s"${pingPong.name}:PingPong:Ping" | "template" | contractId | archivedAtOffset.toLong | sync2.id
+              dar.get.packageId | s"${pingPong.name}:PingPong:Ping" | "template" | contractId | archivedAtOffset.toLong | sync2.id | 1
             }
           )
       Expect:
         Database
           .activeAtOffset(
             assignedAtOffset.toLong,
-            extraColumns = Seq("created_at_offset", "assigned_at_offset", "synchronizer_id")
+            extraColumns = Seq("created_at_offset", "assigned_at_offset", "synchronizer_id", "reassignment_counter")
           )
           .returns(
             table {
               // TODO #17 deduplication
-              dar.get.packageId | s"${pingPong.name}:PingPong:Ping" | "template" | contractId | createdAtOffset.toLong | 0 | sync1.id
-              dar.get.packageId | s"${pingPong.name}:PingPong:Ping" | "template" | contractId | 0 | assignedAtOffset.toLong | sync2.id
+              dar.get.packageId | s"${pingPong.name}:PingPong:Ping" | "template" | contractId | createdAtOffset.toLong | 0 | sync1.id | 0
+              dar.get.packageId | s"${pingPong.name}:PingPong:Ping" | "template" | contractId | 0 | assignedAtOffset.toLong | sync2.id | 1
             }
           )
       Expect:
         Database
           .activeAtOffset(
             unassignedAtOffset.toLong,
-            extraColumns = Seq("created_at_offset", "assigned_at_offset", "synchronizer_id")
+            extraColumns = Seq("created_at_offset", "assigned_at_offset", "synchronizer_id", "reassignment_counter")
           )
           .returns(
             table {
-              dar.get.packageId | s"${pingPong.name}:PingPong:Ping" | "template" | contractId | 0 | assignedAtOffset.toLong | sync2.id
+              dar.get.packageId | s"${pingPong.name}:PingPong:Ping" | "template" | contractId | 0 | assignedAtOffset.toLong | sync2.id | 1
             }
           )
 
@@ -411,14 +411,14 @@ object ReassignmentSpec extends FuncTest[Service[Ledger] & Postgres & DeployedDa
 
       Expect:
         Database
-          .__contracts(extraColumns = Seq("synchronizer_id"))
+          .__contracts(extraColumns = Seq("synchronizer_id", "reassignment_counter"))
           .returns(
             table {
-              anything | anything | contractId | "[1,3)"  | sync1.id
-              anything | anything | contractId | "[2,5)"  | sync2.id
-              anything | anything | contractId | "[4,7)"  | sync1.id
-              anything | anything | contractId | "[6,9)"  | sync2.id
-              anything | anything | contractId | "[8,10)" | sync1.id
+              anything | anything | contractId | "[1,3)"  | sync1.id | 0
+              anything | anything | contractId | "[2,5)"  | sync2.id | 1
+              anything | anything | contractId | "[4,7)"  | sync1.id | 2
+              anything | anything | contractId | "[6,9)"  | sync2.id | 3
+              anything | anything | contractId | "[8,10)" | sync1.id | 4
             }
           )
     }
