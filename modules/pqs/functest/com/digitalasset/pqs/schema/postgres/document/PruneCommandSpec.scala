@@ -86,6 +86,7 @@ object PruneCommandSpec extends SharedLedgerAndPostgresTest:
              |  Deleted contracts: 1
              |  Deleted choices: 1
              |  Deleted events: 2
+             |  Deleted reassignments: 0
              |  Deleted transactions: 2""".stripMargin
         )
       And:
@@ -117,6 +118,7 @@ object PruneCommandSpec extends SharedLedgerAndPostgresTest:
              |  Deleted contracts: 1
              |  Deleted choices: 1
              |  Deleted events: 2
+             |  Deleted reassignments: 0
              |  Deleted transactions: 2""".stripMargin
         )
       And:
@@ -203,6 +205,7 @@ object PruneCommandSpec extends SharedLedgerAndPostgresTest:
              |  Deleted contracts: 1
              |  Deleted choices: 1
              |  Deleted events: 2
+             |  Deleted reassignments: 0
              |  Deleted transactions: 2""".stripMargin
         )
       And:
@@ -279,6 +282,7 @@ object PruneCommandSpec extends SharedLedgerAndPostgresTest:
              |  Deleted contracts: 1
              |  Deleted choices: 1
              |  Deleted events: 2
+             |  Deleted reassignments: 0
              |  Deleted transactions: 2""".stripMargin
         )
       And:

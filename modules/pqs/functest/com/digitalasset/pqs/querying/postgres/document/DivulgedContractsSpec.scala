@@ -237,11 +237,11 @@ object DivulgedContractsSpec extends SharedLedgerAndPostgresTest:
       And:
         Postgres
           .query(sql"select * from prune_archived_to_offset_dry_run(${earlier_offset.get})")
-          .returns(table(anything | 4 | 4 | 8 | 3))
+          .returns(table(anything | 4 | 4 | 8 | 0 | 3))
       And:
         Postgres
           .query(sql"select * from prune_archived_to_offset(${earlier_offset.get})")
-          .returns(table(anything | 4 | 4 | 8 | 3))
+          .returns(table(anything | 4 | 4 | 8 | 0 | 3))
       And:
         Postgres query { // divulgences are pruned akin to exercises (i.e. if created_at_offset <= cutoff_offset)
           sql"select template_fqn, created_at_offset from creates() where divulged_only order by create_event_id"

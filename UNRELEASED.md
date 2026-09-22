@@ -18,6 +18,7 @@ This release includes the following SQL migrations:
   - Drop the internal `__archives` view.
   - Drop the `__tmp_archived_contracts` and replace with `__tmp_deactivated_contracts` for internal use by the PQS pipeline.
 - _V046__Create_reassignments_table.sql_: creates the `__reassignment_type` enum and the list-partitioned `__reassignments` table, then creates one partition per row already present in `__contract_tpe`. **[Impact: Instantaneous /< 1 min]**
+- _V047__Report_pruned_reassignments.sql_: drops `prune_archived_to_offset` and `prune_archived_to_offset_dry_run` so that they can be re-created with the new `deleted_reassignments` result column. **[Impact: Instantaneous]**
 
 ## What's New
 
@@ -26,6 +27,8 @@ This release includes the following SQL migrations:
 - PQS now subscribes to reassignments in addition to transactions.
 - Every `Reassignment` received from the ledger is recorded in `__transactions`, and its `Assigned` and `Unassigned` events are recorded in `__events` with the new `assign` and `unassign` types.
 - Each `Assigned` and `Unassigned` event is also recorded in the new `__reassignments` table. The table is a standalone audit log of what the ledger reported about the reassignment itself.
+- Pruning takes reassignments into account - SQL functions now also delete related `__reassignments` entries.
+- *BREAKING*: `prune_archived_to_offset` and `prune_archived_to_offset_dry_run` return an additional `deleted_reassignments integer` column. The `prune` command prints it as `Deleted reassignments`.
 - The SQL `contract` type, describing the output of the `active`, `creates` and `archives` SQL functions, is modified with new columns:
 ```sql
 assign_event_pk bigint,
