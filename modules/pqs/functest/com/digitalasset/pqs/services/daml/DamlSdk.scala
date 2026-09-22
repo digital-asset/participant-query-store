@@ -174,7 +174,7 @@ object DamlSdk:
 
   val deploy: RLayer[Docker & Service[Ledger] & DarFile, DeployedDar] = uploadAndVetDar()
 
-  def uploadAndVetDar(synchronizers: Synchronizer*): RLayer[Docker & Service[Ledger] & DarFile, DeployedDar] =
+  def uploadAndVetDar(synchronizers: => Synchronizer*): RLayer[Docker & Service[Ledger] & DarFile, DeployedDar] =
     ZLayer.fromZIO(
       for
         dar   <- ZIO.service[DarFile]
@@ -190,11 +190,13 @@ object DamlSdk:
   def parties(parties: Party*): RLayer[Docker & Service[Ledger], Parties] =
     allocateMany(parties.map(_ -> Seq("")))
 
-  def allocateParties(partySynchronizers: (Party, Seq[Synchronizer])*): RLayer[Docker & Service[Ledger], Parties] =
+  def allocateParties(partySynchronizers: => (Party, Seq[Synchronizer])*): RLayer[Docker & Service[Ledger], Parties] =
     allocateMany(partySynchronizers.map((p, ss) => (p, ss.map(_.id))))
 
   /** Allocate parties on ledger and wrap them in a layer */
-  private def allocateMany(partySynchronizers: Seq[(Party, Seq[String])]): RLayer[Docker & Service[Ledger], Parties] =
+  private def allocateMany(
+      partySynchronizers: => Seq[(Party, Seq[String])]
+  ): RLayer[Docker & Service[Ledger], Parties] =
     ZLayer.fromZIO(
       for
         partyCounter  <- Docker.share("party_cnt")(Ref.Synchronized.make(0)).flatMap(_.updateAndGet(_ + 1))
