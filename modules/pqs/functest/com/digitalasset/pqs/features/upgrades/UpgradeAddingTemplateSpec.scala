@@ -126,7 +126,7 @@ object UpgradeAddingTemplateSpec extends SharedLedgerAndPostgresTest:
           upgPkgPk | pongCTpePk | anything | anything
         }
     }
-  ) @@ onlyDamlLfVersion(">=1.17")
+  )
 
   private def __packages(name: PackageName) =
     Postgres.query(sql"select pk, name, version, id from __packages where name=${name.toString} order by version")
