@@ -368,10 +368,7 @@ final class Reassignment(
     witnesses,
     assignmentExclusivity
   )
-  // Unlabelled, like Event: the same ledger event already produces a Contract or DeactivatedContract row
-  // labelled ("type" -> assign|unassign, "template" -> ...), and pipeline_events_total groups by the whole
-  // label set, so labelling this row too would count every reassignment twice.
-  val labels: Set[MetricLabel] = Set.empty
+  val labels: Set[MetricLabel] = l("type" -> reassignmentType.toString.toLowerCase())
 
 object Reassignment
     extends Table(

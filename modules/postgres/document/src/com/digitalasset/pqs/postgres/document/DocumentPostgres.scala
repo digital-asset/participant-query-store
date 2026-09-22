@@ -384,7 +384,6 @@ final case class DocumentPostgres(
           submitter = e.submitter,
           reassignmentCounter = e.reassignmentCounter,
           witnesses = e.contract.witnesses,
-          // only an unassignment carries an exclusivity deadline
           assignmentExclusivity = None
         )
         contracts :+ reassignment :+ event

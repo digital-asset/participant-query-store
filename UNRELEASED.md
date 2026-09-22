@@ -16,7 +16,7 @@ This release includes the following SQL migrations:
   - **Full __contracts rewrite:** Redefine the `life_ix` column to take `assigned_at_ix` and `unassigned_at_ix` into account.
   - **Rebuild GiST index on __contracts.**
   - Drop the `__tmp_archived_contracts` and replace with `__tmp_deactivated_contracts` for internal use by the PQS pipeline.
-- _V046__Create_reassignments_table.sql_: creates the `__reassignment_type` enum and the list-partitioned `__reassignments` table, then creates one partition per row already present in `__contract_tpe`. No existing table is scanned or rewritten, but the work is proportional to the number of contract types the instance has registered, and all of it runs in a single transaction. **[Impact: Instantaneous /< 1 min]**
+- _V046__Create_reassignments_table.sql_: creates the `__reassignment_type` enum and the list-partitioned `__reassignments` table, then creates one partition per row already present in `__contract_tpe`. **[Impact: Instantaneous /< 1 min]**
 
 ## What's New
 
@@ -40,7 +40,7 @@ synchronizer_id text;
 - An `Assigned` event creates a new row in the `__contracts` table. Instead of setting `created_at_ix` and `create_event_pk`, it sets `assigned_at_ix` and `assign_event_pk`.
 - An `Unassigned` event deactivates its corresponding row from the `__contracts` table. Instead of setting `archived_at_ix` and `archive_event_pk`, it sets `unassigned_at_ix` and `unassign_event_pk`.
 - `Created` and `Assigned` events from the ledger now set `reassignment_counter` and `synchronizer_id`. These columns are left empty in legacy rows (PQS 3.6 or older).
-- Each `Assigned` and `Unassigned` event is also recorded in the new `__reassignments` table, with the contract id, the reassignment id and counter, the source and target synchronizers, the submitter, the witnesses, and — for an unassignment — the assignment exclusivity deadline. The table is a standalone audit log of what the ledger reported about the reassignment itself: it does not feed `active()`, and it carries no public SQL function yet. There is one row per reassignment event, keyed by the contract's template even when that template implements an interface.
+- Each `Assigned` and `Unassigned` event is also recorded in the new `__reassignments` table. The table is a standalone audit log of what the ledger reported about the reassignment itself.
 - *BREAKING*: The `__transactions` column `domain_id` is renamed to `synchronizer_id`, to match Canton's current vocabulary. It is now populated for every update — every transaction and every reassignment. Rows written before this release keep `NULL` and are not getting backfilled.
 - The `synchronizer_id text` column is added to the `transactions` SQL view.
 - The `synchronizer_id text` column is added to the output of the `exercises` and `lookup_exercise` SQL functions.
