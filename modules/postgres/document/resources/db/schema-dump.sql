@@ -1155,7 +1155,7 @@ begin
     with deleted_contracts as (
         delete from __contracts c
         where
-            -- prune contracts that were deactivated, by archival or unassignment, prior to cutoff
+            -- prune contracts that were deactivated prior to cutoff
             __deactivated_at_ix(c) < cutoff_ix
             -- prune divulged-only contracts that existed prior to cutoff
             or (c.divulged_only and __activated_at_ix(c) < cutoff_ix)
@@ -1253,7 +1253,7 @@ begin
         select create_event_pk, archive_event_pk, assign_event_pk, unassign_event_pk
         from __contracts c
         where
-            -- prune contracts that were deactivated, by archival or unassignment, prior to cutoff
+            -- prune contracts that were deactivated prior to cutoff
             __deactivated_at_ix(c) < cutoff_ix
             -- prune divulged-only contracts that existed prior to cutoff
             or (c.divulged_only and __activated_at_ix(c) < cutoff_ix)
@@ -1278,7 +1278,7 @@ begin
             select exercise_event_pk from deleted_exercises
         )
     ),
-    -- prune the reassignment log of the pruned contracts, in step with their events
+    -- prune the reassignment log of the pruned contracts
     deleted_reassignments as (
         select 1 from __reassignments
         where reassigned_at_ix < cutoff_ix
