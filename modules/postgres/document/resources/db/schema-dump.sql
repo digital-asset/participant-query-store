@@ -2401,6 +2401,20 @@ CREATE INDEX __packages_id_idx ON public.__packages USING hash (id);
 
 
 --
+-- Name: __reassignments_reassigned_at_ix_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX __reassignments_reassigned_at_ix_idx ON ONLY public.__reassignments USING btree (reassigned_at_ix);
+
+
+--
+-- Name: __reassignments_1_reassigned_at_ix_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX __reassignments_1_reassigned_at_ix_idx ON public.__reassignments_1 USING btree (reassigned_at_ix);
+
+
+--
 -- Name: __tmp_deactivated_contracts_ix_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -2517,6 +2531,13 @@ ALTER INDEX public.__exercises_exercised_at_ix_idx ATTACH PARTITION public.__exe
 --
 
 ALTER INDEX public.__exercises_package_pk_idx ATTACH PARTITION public.__exercises_1_package_pk_idx;
+
+
+--
+-- Name: __reassignments_1_reassigned_at_ix_idx; Type: INDEX ATTACH; Schema: public; Owner: -
+--
+
+ALTER INDEX public.__reassignments_reassigned_at_ix_idx ATTACH PARTITION public.__reassignments_1_reassigned_at_ix_idx;
 
 
 --
