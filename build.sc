@@ -283,7 +283,7 @@ object `package` extends RootModule { root =>
       override def forkEnv = T {
         pqs.docker.build()
         val commonOverrides = Map(
-          PostgresVersionEnvVar     -> "17",
+          PostgresVersionEnvVar     -> "18",
           DamlSdkVersionEnvVar      -> V.damlc,
           CantonVersionEnvVar       -> V.canton,
           "PQS_IMAGE_TAG_SUFFIX" -> localImageSuffix()

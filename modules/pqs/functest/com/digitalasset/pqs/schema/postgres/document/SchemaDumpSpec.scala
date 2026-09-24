@@ -68,6 +68,6 @@ object SchemaDumpSpec extends SharedLedgerAndPostgresTest:
     //
     // NOTE: Update this range when the default Postgres version in the build.sc changes
     onlyPostgresVersion(
-      ">=17.0 <18.0.0"
+      ">=17.0 <19.0.0"
     )
   }
