@@ -3,50 +3,24 @@
 
 package com.digitalasset.pqs.features
 
-import com.daml.ledger.api.v2.value.*
 import com.digitalasset.pqs.OffsetType
-import com.digitalasset.pqs.docker.{Docker, Service}
-import com.digitalasset.pqs.functest.FuncTest
 import com.digitalasset.pqs.functest.matchers.*
 import com.digitalasset.pqs.functest.table.*
 import com.digitalasset.pqs.services.daml.*
 import com.digitalasset.pqs.services.postgres.*
-import com.digitalasset.pqs.services.pqs.Pqs
-import zio.ZIO
-import zio.jdbc.*
+import com.digitalasset.pqs.services.pqs.Pqsimport zio.jdbc.*
 import zio.test.Assertion.*
 
 import scala.language.implicitConversions
 
-object ReassignmentPruningSpec extends FuncTest[Service[Ledger] & Postgres & DeployedDar]:
-  private val pingPong = DamlSource(
-    "PingPong" -> """module PingPong where
-                    |
-                    |import Daml.Script
-                    |import DA.Functor (void)
-                    |
-                    |template Ping
-                    |  with
-                    |    sender: Party
-                    |  where
-                    |    signatory sender
-                    |""".stripMargin
-  )
-
-  private val sync1 = Synchronizer("synchronizer1")
-  private val sync2 = Synchronizer("synchronizer2")
-
-  override val shared =
-    DamlSdk.dar(pingPong) ++ DamlSdk.multiSyncLedger(sync1, sync2) ++ Postgres.instance
-      >+> DamlSdk.uploadAndVetDar(sync1, sync2)
-
+object ReassignmentPruningSpec extends SharedMultiSyncLedgerSpec:
   def spec = suite("Multi-Sync")(
     suite("pruning")(
       funcTest("prune_archived_to_offset deletes unassigned contracts and reassignment events") {
-        val alice         = Party("Alice")
-        val reassignedCid = Capture[String]
-        val archivedCid   = Capture[String]
-        val activeCid     = Capture[String]
+        val alice: Party               = Party("Alice")
+        val reassignedCid: Capture[String] = Capture[String]
+        val archivedCid: Capture[String]   = Capture[String]
+        val activeCid: Capture[String]     = Capture[String]
 
         Given:
           DamlSdk.allocateParties(alice -> Seq(sync1, sync2))
@@ -67,9 +41,9 @@ object ReassignmentPruningSpec extends FuncTest[Service[Ledger] & Postgres & Dep
               "--pipeline-ledger-stop=Latest"
             )
 
-        val reassignedAssigned = Capture[OffsetType]
-        val archivedArchived   = Capture[OffsetType]
-        val activeCreated      = Capture[OffsetType]
+        val reassignedAssigned: Capture[OffsetType] = Capture[OffsetType]
+        val archivedArchived: Capture[OffsetType]   = Capture[OffsetType]
+        val activeCreated: Capture[OffsetType]      = Capture[OffsetType]
 
         And:
           // created, unassigned, assigned, created, archived, created
@@ -116,10 +90,10 @@ object ReassignmentPruningSpec extends FuncTest[Service[Ledger] & Postgres & Dep
             )
       },
       funcTest("prune_to_offset squashes assigned contracts into the new genesis") {
-        val alice         = Party("Alice")
-        val reassignedCid = Capture[String]
-        val archivedCid   = Capture[String]
-        val activeCid     = Capture[String]
+        val alice: Party               = Party("Alice")
+        val reassignedCid: Capture[String] = Capture[String]
+        val archivedCid: Capture[String]   = Capture[String]
+        val activeCid: Capture[String]     = Capture[String]
 
         Given:
           DamlSdk.allocateParties(alice -> Seq(sync1, sync2))
@@ -140,8 +114,8 @@ object ReassignmentPruningSpec extends FuncTest[Service[Ledger] & Postgres & Dep
               "--pipeline-ledger-stop=Latest"
             )
 
-        val archivedArchived = Capture[OffsetType]
-        val activeCreated    = Capture[OffsetType]
+        val archivedArchived: Capture[OffsetType] = Capture[OffsetType]
+        val activeCreated: Capture[OffsetType]    = Capture[OffsetType]
 
         And:
           Postgres query {
@@ -187,9 +161,3 @@ object ReassignmentPruningSpec extends FuncTest[Service[Ledger] & Postgres & Dep
       }
     )
   )
-
-  private def createContract(alice: Party): ZIO[Docker & Service[Ledger] & DeployedDar, Throwable, String] =
-    val args = Record.defaultInstance.addFields(RecordField("sender", Some(Value(Value.Sum.Party(alice.id)))))
-    Ledger
-      .create("PingPong:Ping", args, alice, sync1)
-      .map(_.getTransaction.events(0).getCreated.contractId)

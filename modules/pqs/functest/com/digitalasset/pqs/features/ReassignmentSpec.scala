@@ -3,10 +3,7 @@
 
 package com.digitalasset.pqs.features
 
-import com.daml.ledger.api.v2.value.*
 import com.digitalasset.canonical.{Event, Offset, Transaction}
-import com.digitalasset.pqs.docker.{Docker, Service}
-import com.digitalasset.pqs.functest.FuncTest
 import com.digitalasset.pqs.functest.matchers.*
 import com.digitalasset.pqs.functest.table.*
 import com.digitalasset.pqs.pipeline.InProcessPipeline
@@ -17,39 +14,18 @@ import com.digitalasset.pqs.services.pqs.Pqs
 import com.digitalasset.pqs.OffsetType
 import com.digitalasset.transcode.codec.json.JsonCodec
 import com.digitalasset.zio.daml.DamlSchema
-import zio.{Chunk, ZIO}
+import zio.Chunk
 import zio.jdbc.*
 import zio.test.Assertion.*
 
 import scala.language.implicitConversions
 
-object ReassignmentSpec extends FuncTest[Service[Ledger] & Postgres & DeployedDar]:
-  private val pingPong = DamlSource(
-    "PingPong" -> """module PingPong where
-                    |
-                    |import Daml.Script
-                    |import DA.Functor (void)
-                    |
-                    |template Ping
-                    |  with
-                    |    sender: Party
-                    |  where
-                    |    signatory sender
-                    |""".stripMargin
-  )
-
-  private val sync1 = Synchronizer("synchronizer1")
-  private val sync2 = Synchronizer("synchronizer2")
-
-  override val shared =
-    DamlSdk.dar(pingPong) ++ DamlSdk.multiSyncLedger(sync1, sync2) ++ Postgres.instance
-      >+> DamlSdk.uploadAndVetDar(sync1, sync2)
-
+object ReassignmentSpec extends SharedMultiSyncLedgerSpec:
   def spec = suite("Multi-Sync")(
     funcTest("Contract is created, reassigned and archived") {
-      val alice      = Party("Alice")
-      val dar        = Capture[DeployedDar]
-      val contractId = Capture[String]
+      val alice: Party             = Party("Alice")
+      val dar: Capture[DeployedDar] = Capture[DeployedDar]
+      val contractId: Capture[String] = Capture[String]
       Given:
         DamlSdk.allocateParties(alice -> Seq(sync1, sync2))
       And:
@@ -66,10 +42,10 @@ object ReassignmentSpec extends FuncTest[Service[Ledger] & Postgres & DeployedDa
             "--pipeline-ledger-stop=Latest"
           )
 
-      val createdAtOffset    = Capture[OffsetType]
-      val unassignedAtOffset = Capture[OffsetType]
-      val assignedAtOffset   = Capture[OffsetType]
-      val archivedAtOffset   = Capture[OffsetType]
+      val createdAtOffset: Capture[OffsetType]    = Capture[OffsetType]
+      val unassignedAtOffset: Capture[OffsetType] = Capture[OffsetType]
+      val assignedAtOffset: Capture[OffsetType]   = Capture[OffsetType]
+      val archivedAtOffset: Capture[OffsetType]   = Capture[OffsetType]
       Expect:
         // `effective_at is null` rather than the timestamp itself: the value of a transaction's
         // effective time is not predictable from the test, but which rows have one is exactly the
@@ -120,7 +96,7 @@ object ReassignmentSpec extends FuncTest[Service[Ledger] & Postgres & DeployedDa
             }
           )
 
-      val reassignmentId = Capture[String]
+      val reassignmentId: Capture[String] = Capture[String]
       Expect:
         // The unassign and assign halves share a reassignment_id and counter, so the same Capture is used on both rows.
         Database
@@ -153,9 +129,9 @@ object ReassignmentSpec extends FuncTest[Service[Ledger] & Postgres & DeployedDa
           .returns(table(createdAtOffset))
     },
     funcTest("Non-causal stream: archived before created") {
-      val alice      = Party("Alice")
-      val dar        = Capture[DeployedDar]
-      val contractId = Capture[String]
+      val alice: Party             = Party("Alice")
+      val dar: Capture[DeployedDar] = Capture[DeployedDar]
+      val contractId: Capture[String] = Capture[String]
 
       Given:
         DamlSdk.allocateParties(alice -> Seq(sync1, sync2))
@@ -172,11 +148,11 @@ object ReassignmentSpec extends FuncTest[Service[Ledger] & Postgres & DeployedDa
           >+> DamlSchema.protobufCodecs
           >+> Ledger.updateService ++ Ledger.stateService
 
-      val transactions       = Capture[Chunk[Transaction[Event]]]
-      val assignedAtOffset   = Offset.Absolute(1)
-      val archivedAtOffset   = Offset.Absolute(2)
-      val createdAtOffset    = Offset.Absolute(3)
-      val unassignedAtOffset = Offset.Absolute(4)
+      val transactions: Capture[Chunk[Transaction[Event]]] = Capture[Chunk[Transaction[Event]]]
+      val assignedAtOffset: Offset.Absolute                      = Offset.Absolute(1)
+      val archivedAtOffset: Offset.Absolute                      = Offset.Absolute(2)
+      val createdAtOffset: Offset.Absolute                       = Offset.Absolute(3)
+      val unassignedAtOffset: Offset.Absolute                    = Offset.Absolute(4)
 
       def assignTx   = transactions.get(2).copy(offset = assignedAtOffset)
       def archiveTx  = transactions.get(3).copy(offset = archivedAtOffset)
@@ -249,7 +225,7 @@ object ReassignmentSpec extends FuncTest[Service[Ledger] & Postgres & DeployedDa
             }
           )
 
-      val reassignmentId = Capture[String]
+      val reassignmentId: Capture[String] = Capture[String]
       Expect:
         // Ordered by reassigned_at_ix, so with this replay order the assign row comes first, then unassign.
         Database
@@ -262,9 +238,9 @@ object ReassignmentSpec extends FuncTest[Service[Ledger] & Postgres & DeployedDa
           )
     },
     funcTest("Non-causal stream: assigned before unassigned") {
-      val alice      = Party("Alice")
-      val dar        = Capture[DeployedDar]
-      val contractId = Capture[String]
+      val alice: Party             = Party("Alice")
+      val dar: Capture[DeployedDar] = Capture[DeployedDar]
+      val contractId: Capture[String] = Capture[String]
 
       Given:
         DamlSdk.allocateParties(alice -> Seq(sync1, sync2))
@@ -281,11 +257,11 @@ object ReassignmentSpec extends FuncTest[Service[Ledger] & Postgres & DeployedDa
           >+> DamlSchema.protobufCodecs
           >+> Ledger.updateService ++ Ledger.stateService
 
-      val transactions       = Capture[Chunk[Transaction[Event]]]
-      val createdAtOffset    = Offset.Absolute(1)
-      val assignedAtOffset   = Offset.Absolute(2)
-      val unassignedAtOffset = Offset.Absolute(3)
-      val archivedAtOffset   = Offset.Absolute(4)
+      val transactions: Capture[Chunk[Transaction[Event]]] = Capture[Chunk[Transaction[Event]]]
+      val createdAtOffset: Offset.Absolute                       = Offset.Absolute(1)
+      val assignedAtOffset: Offset.Absolute                      = Offset.Absolute(2)
+      val unassignedAtOffset: Offset.Absolute                    = Offset.Absolute(3)
+      val archivedAtOffset: Offset.Absolute                      = Offset.Absolute(4)
 
       def createTx   = transactions.get(0).copy(offset = createdAtOffset)
       def assignTx   = transactions.get(2).copy(offset = assignedAtOffset)
@@ -359,9 +335,9 @@ object ReassignmentSpec extends FuncTest[Service[Ledger] & Postgres & DeployedDa
 
     },
     funcTest("non-causal stream: repeated interleaved reassignments") {
-      val alice      = Party("Alice")
-      val dar        = Capture[DeployedDar]
-      val contractId = Capture[String]
+      val alice: Party             = Party("Alice")
+      val dar: Capture[DeployedDar] = Capture[DeployedDar]
+      val contractId: Capture[String] = Capture[String]
 
       Given:
         DamlSdk.allocateParties(alice -> Seq(sync1, sync2))
@@ -381,7 +357,7 @@ object ReassignmentSpec extends FuncTest[Service[Ledger] & Postgres & DeployedDa
           >+> DamlSchema.protobufCodecs
           >+> Ledger.updateService ++ Ledger.stateService
 
-      val transactions = Capture[Chunk[Transaction[Event]]]
+      val transactions: Capture[Chunk[Transaction[Event]]] = Capture[Chunk[Transaction[Event]]]
 
       // interleave reassignments: assigned before unassigned
       def reorderedTransactions = Chunk(
@@ -423,9 +399,3 @@ object ReassignmentSpec extends FuncTest[Service[Ledger] & Postgres & DeployedDa
           )
     }
   )
-
-  private def createContract(alice: Party): ZIO[Docker & Service[Ledger] & DeployedDar, Throwable, String] =
-    val args = Record.defaultInstance.addFields(RecordField("sender", Some(Value(Value.Sum.Party(alice.id)))))
-    Ledger
-      .create("PingPong:Ping", args, alice, sync1)
-      .map(_.getTransaction.events(0).getCreated.contractId)
