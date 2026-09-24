@@ -540,8 +540,8 @@ create or replace function prune_archived_to_offset(max_pruned_offset checkpoint
                 deleted_contracts integer,
                 deleted_exercises integer,
                 deleted_events integer,
-                deleted_reassignments integer,
-                deleted_transactions integer
+                deleted_transactions integer,
+                deleted_reassignments integer
             )
 as $$
 declare
@@ -632,7 +632,7 @@ begin
         deleted_contracts, deleted_exercises, deleted_events, deleted_reassignments, deleted_transactions;
 
     return query select pruning_boundary_offset, deleted_contracts, deleted_exercises, deleted_events,
-        deleted_reassignments, deleted_transactions;
+        deleted_transactions, deleted_reassignments;
 end;
 $$ language plpgsql strict;
 comment on function prune_archived_to_offset(checkpoint."offset"%type) is
@@ -650,8 +650,8 @@ create or replace function prune_archived_to_offset_dry_run(max_pruned_offset ch
                 deleted_contracts integer,
                 deleted_exercises integer,
                 deleted_events integer,
-                deleted_reassignments integer,
-                deleted_transactions integer
+                deleted_transactions integer,
+                deleted_reassignments integer
             )
 as $$
 declare
@@ -735,7 +735,7 @@ begin
         deleted_contracts, deleted_exercises, deleted_events, deleted_reassignments, deleted_transactions;
 
     return query select pruning_boundary_offset, deleted_contracts, deleted_exercises, deleted_events,
-        deleted_reassignments, deleted_transactions;
+        deleted_transactions, deleted_reassignments;
 end;
 $$ language plpgsql strict;
 comment on function prune_archived_to_offset_dry_run(checkpoint."offset"%type) is

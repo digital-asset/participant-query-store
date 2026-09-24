@@ -28,7 +28,7 @@ final case class Prune(config: PruneConfig, connectionPool: ZConnectionPool):
 
     val query =
       sql"""select pruning_boundary_offset, deleted_contracts, deleted_exercises, deleted_events,
-                deleted_reassignments, deleted_transactions from $sqlFunction($sqlArgument)"""
+                deleted_transactions, deleted_reassignments from $sqlFunction($sqlArgument)"""
     for
       maybeResult <-
         transaction(query.query[Prune.PruningResultRow].selectOne).provideEnvironment(env)
@@ -65,8 +65,8 @@ object Prune:
       deletedContracts: Int,
       deletedExercises: Int,
       deletedEvents: Int,
-      deletedReassignments: Int,
-      deletedTransactions: Int
+      deletedTransactions: Int,
+      deletedReassignments: Int
   )
 
   val layer = ZLayer.fromFunction(Prune.apply)

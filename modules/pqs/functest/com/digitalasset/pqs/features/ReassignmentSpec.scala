@@ -462,11 +462,11 @@ object ReassignmentSpec extends FuncTest[Service[Ledger] & Postgres & DeployedDa
         Expect:
           Postgres
             .query(sql"select * from prune_archived_to_offset_dry_run(${archivedArchived.get})")
-            .returns(table(activeCreated | 2 | 0 | 4 | 1 | 4))
+            .returns(table(activeCreated | 2 | 0 | 4 | 4 | 1))
         And:
           Postgres
             .query(sql"select * from prune_archived_to_offset(${archivedArchived.get})")
-            .returns(table(activeCreated | 2 | 0 | 4 | 1 | 4))
+            .returns(table(activeCreated | 2 | 0 | 4 | 4 | 1))
         And:
           // the assign of the still-active contract keeps its event and transaction
           Postgres

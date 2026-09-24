@@ -97,7 +97,7 @@ object DatastorePruningSpec extends SharedLedgerAndPostgresTest:
           // dry run
           Postgres
             .query(sql"select * from prune_archived_to_offset_dry_run(${twoArchived.get})")
-            .returns(table(threeCreated | 2 | 2 | 4 | 0 | 3))
+            .returns(table(threeCreated | 2 | 2 | 4 | 3 | 0))
         And:
           // dry run should NOT persist pruned_offset
           Postgres.query(sql"select pruned_offset() is null").returns(table(true))
@@ -105,7 +105,7 @@ object DatastorePruningSpec extends SharedLedgerAndPostgresTest:
           // actual pruning
           Postgres
             .query(sql"select * from prune_archived_to_offset(${twoArchived.get})")
-            .returns(table(threeCreated | 2 | 2 | 4 | 0 | 3))
+            .returns(table(threeCreated | 2 | 2 | 4 | 3 | 0))
         And:
           // force run should persist pruned_offset
           Postgres.query(sql"select pruned_offset()").returns(table(twoArchived))

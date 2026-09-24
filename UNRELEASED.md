@@ -18,7 +18,7 @@ This release includes the following SQL migrations:
   - Drop the internal `__archives` view.
   - Drop the `__tmp_archived_contracts` and replace with `__tmp_deactivated_contracts` for internal use by the PQS pipeline.
 - _V046__Create_reassignments_table.sql_: creates the `__reassignment_type` enum and the list-partitioned `__reassignments` table, then creates one partition per row already present in `__contract_tpe`. **[Impact: Instantaneous /< 1 min]**
-- _V047__Report_pruned_reassignments.sql_: drops `prune_archived_to_offset` and `prune_archived_to_offset_dry_run` so that they can be re-created with the new `deleted_reassignments` result column. **[Impact: Instantaneous]**
+- _V047__Prunning_reassignments.sql_: drops `prune_archived_to_offset` and `prune_archived_to_offset_dry_run` so that they can be re-created with the new `deleted_reassignments` result column. **[Impact: Instantaneous]**
 
 ## What's New
 
