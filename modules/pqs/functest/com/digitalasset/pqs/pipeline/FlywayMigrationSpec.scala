@@ -216,16 +216,9 @@ object FlywayMigrationSpec extends FuncTestStandalone:
           )
     } @@ DamlSdk.onlyDamlLfVersion("=2.3"),
     funcTest("Migrate from 3.6 to main: add support for reassignment") {
-      val alice      = Party("Alice")
-      val instanceId = Capture[String]
-      val sync1      = Synchronizer("sync1")
-      val sync2      = Synchronizer("sync2")
-
-      def createContract(sync: Synchronizer) =
-        val args = Record.defaultInstance.addFields(RecordField("owner", Some(Value(Value.Sum.Party(alice.id)))))
-        Ledger
-          .create("PingPong:Ping", args, alice, sync1)
-          .map(_.getTransaction.events(0).getCreated.contractId)
+      val alice = Party("Alice")
+      val sync1 = Synchronizer("sync1")
+      val sync2 = Synchronizer("sync2")
 
       Given:
         DamlSdk.multiSyncLedger(sync1, sync2) ++ DamlSdk.dar(pingPong) ++ Postgres.instance
@@ -235,10 +228,11 @@ object FlywayMigrationSpec extends FuncTestStandalone:
       val contractId1 = Capture[String]
       val contractId2 = Capture[String]
       Then:
-        createContract(sync1).is(contractId1.capture)
+        createContract(alice, sync1).is(contractId1.capture)
       And:
         Ledger.reassign(contractId1.get, alice, sync1, sync2)
-          *> createContract(sync2).is(contractId2.capture) // create another contract to force watermark advancement
+        // create another contract to force watermark advancement
+          *> createContract(alice, sync2).is(contractId2.capture)
       And:
         Pqs36.runPipeline(
           "--pipeline-datasource=TransactionStream",
@@ -302,3 +296,9 @@ object FlywayMigrationSpec extends FuncTestStandalone:
           )
     }
   )
+
+  private def createContract(party: Party, sync: Synchronizer) =
+    val args = Record.defaultInstance.addFields(RecordField("owner", Some(Value(Value.Sum.Party(party.id)))))
+    Ledger
+      .create("PingPong:Ping", args, party, sync)
+      .map(_.getTransaction.events(0).getCreated.contractId)
