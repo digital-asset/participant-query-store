@@ -3,12 +3,13 @@
 
 package com.digitalasset.pqs.pipeline
 
+import com.daml.ledger.api.v2.value.*
 import com.digitalasset.pqs.functest.FuncTestStandalone
 import com.digitalasset.pqs.functest.matchers.*
 import com.digitalasset.pqs.functest.table.*
 import com.digitalasset.pqs.services.daml.*
 import com.digitalasset.pqs.services.postgres.{Database, Postgres}
-import com.digitalasset.pqs.services.pqs.{Pqs34, Pqs35, Pqs}
+import com.digitalasset.pqs.services.pqs.*
 import scala.language.implicitConversions
 import zio.jdbc.*
 import zio.test.Assertion.*
@@ -143,7 +144,7 @@ object FlywayMigrationSpec extends FuncTestStandalone:
           .query(sql"select instance_id from __watermark")
           .returns(table(not(isNull) && not(equalTo(instanceId.get))))
     } @@ DamlSdk.onlyDamlLfVersion("<=2.2"),
-    funcTest("V042 clears the interface key hashes written by 3.5.7") {
+    funcTest("Migrate from 3.5.7 to main: V042 clears the interface key hashes") {
       val alice = Party("Alice")
       // Rows come back in creation order: A and B share the key (alice, 42) and so share a hash, C has
       // (alice, 43). Each capture is paired with a not-null check, because a null would otherwise be
@@ -213,5 +214,91 @@ object FlywayMigrationSpec extends FuncTestStandalone:
               anything | templateFqn | "template" | anything | keyHash42.capture
             }
           )
-    } @@ DamlSdk.onlyDamlLfVersion("=2.3")
+    } @@ DamlSdk.onlyDamlLfVersion("=2.3"),
+    funcTest("Migrate from 3.6 to main: add support for reassignment") {
+      val alice = Party("Alice")
+      val sync1 = Synchronizer("sync1")
+      val sync2 = Synchronizer("sync2")
+
+      Given:
+        DamlSdk.multiSyncLedger(sync1, sync2) ++ DamlSdk.dar(pingPong) ++ Postgres.instance
+          >+> DamlSdk
+            .allocateParties(alice -> Seq(sync1, sync2)) ++ DamlSdk.uploadAndVetDar(sync1, sync2) ++ Postgres.database
+
+      val contractId1 = Capture[String]
+      val contractId2 = Capture[String]
+      Then:
+        createContract(alice, sync1).is(contractId1.capture)
+      And:
+        Ledger.reassign(contractId1.get, alice, sync1, sync2)
+        // create another contract to force watermark advancement
+          *> createContract(alice, sync2).is(contractId2.capture)
+      And:
+        Pqs36.runPipeline(
+          "--pipeline-datasource=TransactionStream",
+          "--pipeline-ledger-start=Genesis",
+          "--pipeline-ledger-stop=Latest"
+        )
+
+      Expect:
+        // PQS 36 does not ingest reassignment events
+        Database
+          .active(Some(s"${pingPong.name}:PingPong:Ping"))
+          .returns(
+            table {
+              anything | s"${pingPong.name}:PingPong:Ping" | "template" | contractId1
+              anything | s"${pingPong.name}:PingPong:Ping" | "template" | contractId2
+            }
+          )
+
+      When:
+        Ledger.reassign(contractId1.get, alice, sync2, sync1)
+      And:
+        Pqs.runPipeline(
+          "--pipeline-datasource=TransactionStream",
+          "--pipeline-ledger-start=Oldest",
+          "--pipeline-ledger-stop=Latest",
+          "--retry-counter-attempts=0"
+        )
+      Expect:
+        // The second reassignment deactivates the initial row and creates a new one
+        Database
+          .__contracts(extraColumns = Seq("unassigned_at_ix", "reassignment_counter", "synchronizer_id"))
+          .returns(
+            table {
+              anything | anything | contractId1 | anything | not(equalTo(0)) | 0 | null
+              anything | anything | contractId2 | anything | 0               | 0 | null
+              anything | anything | contractId1 | anything | 0               | 2 | sync1.id
+            }
+          )
+      Expect:
+        Database
+          .active(
+            Some(s"${pingPong.name}:PingPong:Ping"),
+            extraColumns = Seq("reassignment_counter", "synchronizer_id")
+          )
+          .returns(
+            table {
+              anything | s"${pingPong.name}:PingPong:Ping" | "template" | contractId2 | 0 | null
+              anything | s"${pingPong.name}:PingPong:Ping" | "template" | contractId1 | 2 | sync1.id
+            }
+          )
+
+      val reassignmentId = Capture[String]
+      Expect:
+        Database
+          .__reassignments()
+          .returns(
+            table {
+              s"${pingPong.name}:PingPong:Ping" | "unassign" | contractId1 | reassignmentId.capture | sync2.id | sync1.id | alice.id | 2
+              s"${pingPong.name}:PingPong:Ping" | "assign" | contractId1 | reassignmentId.capture | sync2.id | sync1.id | alice.id | 2
+            }
+          )
+    }
   )
+
+  private def createContract(party: Party, sync: Synchronizer) =
+    val args = Record.defaultInstance.addFields(RecordField("owner", Some(Value(Value.Sum.Party(party.id)))))
+    Ledger
+      .create("PingPong:Ping", args, party, sync)
+      .map(_.getTransaction.events(0).getCreated.contractId)
