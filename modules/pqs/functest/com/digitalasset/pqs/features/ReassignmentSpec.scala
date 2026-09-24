@@ -566,14 +566,12 @@ object ReassignmentSpec extends SharedMultiSyncLedgerSpec:
         val reassignedCreated = Capture[OffsetType]
 
         And:
-          // created, unassigned, assigned, created
           Postgres query {
             sql"""select "offset" from __transactions order by ix"""
           } `returns` table {
             reassignedCreated.capture | anything | anything | anything
           }.transpose
         Expect:
-          // resetting to the create leaves the unassign, the assign and the second create behind
           Postgres
             .query(sql"select new_latest, affected_transactions from reset_to_offset(${reassignedCreated.get})")
             .returns(table(reassignedCreated | 3))
@@ -584,15 +582,71 @@ object ReassignmentSpec extends SharedMultiSyncLedgerSpec:
             .query(sql"""select e."type"::text, t."offset"
                          from __events e join __transactions t on e.tx_ix = t.ix""")
             .returns(table("create" | reassignedCreated))
+        And:
+          Postgres.query(sql"select count(*) from __reassignments").returns(table(0))
+        And:
+          // the assign-born row is gone and the unassigned one is open-ended again on its source synchronizer
+          Database
+            .__contracts(extraColumns = Seq("synchronizer_id"))
+            .returns(table(anything | anything | reassignedCid | "[1,)" | sync1.id))
+      },
+      funcTest("reset_to_offset between the unassign and the assign keeps the contract unassigned") {
+        val alice         = Party("Alice")
+        val reassignedCid = Capture[String]
+
+        Given:
+          DamlSdk.allocateParties(alice -> Seq(sync1, sync2))
+        Then:
+          createContract(alice).is(reassignedCid.capture)
+        When:
+          Ledger.reassign(reassignedCid.get, alice, sync1, sync2)
+        Then:
+          createContract(alice).is(anything)
+        When:
+          Postgres.database
+            >+> Pqs.runPipeline(
+              "--pipeline-ledger-start=Genesis",
+              "--pipeline-ledger-stop=Latest"
+            )
+
+        val reassignedCreated  = Capture[OffsetType]
+         val reassignedCreated = Capture[OffsetType]
+
          And:
-           Postgres.query(sql"select count(*) from __reassignments").returns(table(0))
-         And:
-           // the assign-born row is gone and the unassigned one is open-ended again on its source synchronizer
+           Postgres query {
+             sql"""select "offset" from __transactions order by ix"""
+           } `returns` table {
+             reassignedCreated.capture | anything | anything | anything
+           }.transpose
+         Expect:
+           Postgres
+             .query(sql"select new_latest, affected_transactions from reset_to_offset(${reassignedCreated.get})")
+             .returns(table(reassignedCreated | 3))
+        And:
+          Postgres
+            .query(sql"""select "offset" from __transactions order by ix""")
+            .returns(table(reassignedCreated | reassignedUnassign).transpose)
+        And:
+          Postgres
+            .query(sql"""select e."type"::text, t."offset"
+                         from __events e join __transactions t on e.tx_ix = t.ix
+                         order by t."offset"""")
+            .returns(
+              table {
+                "create"   | reassignedCreated
+                "unassign" | reassignedUnassign
+              }
+            )
+        And:
+          // the unassign half is at the cutoff, not after it, so it survives
+          Postgres.query(sql"select count(*) from __reassignments").returns(table(1))
+        And:
+           // the assign-born row is gone and the source-synchronizer row stays unassigned
            Database
              .__contracts(extraColumns = Seq("synchronizer_id"))
-             .returns(table(anything | anything | reassignedCid | "[1,)" | sync1.id))
+             .returns(table(anything | anything | reassignedCid | "[1,2)" | sync1.id))
        },
-       funcTest("reset_to_offset between the unassign and the assign keeps the contract unassigned") {
+       funcTest("__cleanup_transactions_after_watermark discards the reassignment written past the watermark") {
          val alice         = Party("Alice")
          val reassignedCid = Capture[String]
 
@@ -611,48 +665,36 @@ object ReassignmentSpec extends SharedMultiSyncLedgerSpec:
                "--pipeline-ledger-stop=Latest"
              )
 
-         val reassignedCreated  = Capture[OffsetType]
-         val reassignedUnassign = Capture[OffsetType]
+         val reassignedCreated = Capture[OffsetType]
 
          And:
-           // created, unassigned, assigned, created
            Postgres query {
              sql"""select "offset" from __transactions order by ix"""
            } `returns` table {
-             reassignedCreated.capture | reassignedUnassign.capture | anything | anything
+             reassignedCreated.capture | anything | anything | anything
            }.transpose
-         Expect:
-           // resetting to the unassign leaves the assign and the second create behind
-           Postgres
-             .query(sql"select new_latest, affected_transactions from reset_to_offset(${reassignedUnassign.get})")
-             .returns(table(reassignedUnassign | 2))
          And:
-           Postgres
-             .query(sql"""select "offset" from __transactions order by ix""")
-             .returns(table(reassignedCreated | reassignedUnassign).transpose)
+           Postgres.reverseWatermark(1) `returns` 1
+         Expect:
+           Postgres call {
+             sql"call __cleanup_transactions_after_watermark()"
+           } `returns` ()
+         And:
+           Postgres.query(sql"""select "offset" from __transactions""").returns(table(reassignedCreated))
          And:
            Postgres
              .query(sql"""select e."type"::text, t."offset"
-                          from __events e join __transactions t on e.tx_ix = t.ix
-                          order by t."offset"""")
-             .returns(
-               table {
-                 "create"   | reassignedCreated
-                 "unassign" | reassignedUnassign
-               }
-             )
+                          from __events e join __transactions t on e.tx_ix = t.ix""")
+             .returns(table("create" | reassignedCreated))
          And:
-           // the unassign half is at the cutoff, not after it, so it survives
-           Postgres.query(sql"select count(*) from __reassignments").returns(table(1))
+           Postgres.query(sql"select count(*) from __reassignments").returns(table(0))
          And:
-           // the assign-born row is gone and the source-synchronizer row stays unassigned
            Database
              .__contracts(extraColumns = Seq("synchronizer_id"))
-             .returns(table(anything | anything | reassignedCid | "[1,2)" | sync1.id))
+             .returns(table(anything | anything | reassignedCid | "[1,)" | sync1.id))
        }
      )
    )
-  )
 
   private def createContract(alice: Party): ZIO[Docker & Service[Ledger] & DeployedDar, Throwable, String] =
     val args = Record.defaultInstance.addFields(RecordField("sender", Some(Value(Value.Sum.Party(alice.id)))))

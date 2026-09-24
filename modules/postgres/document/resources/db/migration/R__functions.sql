@@ -987,9 +987,7 @@ begin
     select exists(select ix from __transactions where ix > cutoff_ix) into work_exists;
 
     if work_exists then
-        -- drop the contracts activated after the cutoff, by a create or an assign
         delete from __contracts c where __activated_at_ix(c) > cutoff_ix;
-        -- revive the ones deactivated after it, by an archive or an unassign
         update __contracts c
         set archived_at_ix = null, archive_event_pk = null,
             unassigned_at_ix = null, unassign_event_pk = null

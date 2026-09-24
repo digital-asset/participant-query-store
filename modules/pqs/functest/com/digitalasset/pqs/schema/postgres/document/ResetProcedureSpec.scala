@@ -98,6 +98,36 @@ object ResetProcedureSpec extends SharedLedgerAndPostgresTest:
           .query(sql"select instance_id from __watermark")
           .returns(table(not(equalTo(pipelineId.get))))
     ,
+    funcTest("__cleanup_transactions_after_watermark"):
+      val target      = Capture[OffsetType]
+      val staleWriter = Capture[String]
+      Given:
+        context
+      And:
+        Postgres
+          .query(sql"""select "offset" from __transactions order by ix""")
+          .returns(table(anything | target.capture | anything | anything).transpose)
+      And:
+        Postgres.reverseWatermark(2) `returns` 1
+      And:
+        Postgres
+          .query(sql"select instance_id from __watermark")
+          .returns(table(staleWriter.capture))
+      Expect:
+        Postgres call {
+          sql"call __cleanup_transactions_after_watermark()"
+        } `returns` ()
+      And:
+        Postgres
+          .query(sql"""select "offset" from __transactions order by ix""")
+          .returns(table(anything | target).transpose)
+      And:
+        Postgres.query(sql"select count(*) from __contracts").returns(table(2))
+      And:
+        Postgres
+          .query(sql"select instance_id from __watermark")
+          .returns(table(not(equalTo(staleWriter.get))))
+    ,
     funcTest("offset out of lower bounds"):
       Given:
         context
