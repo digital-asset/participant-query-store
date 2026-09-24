@@ -34,8 +34,8 @@ object SharedMultiSyncLedgerSpec:
 
 trait SharedMultiSyncLedgerSpec extends FuncTest[Service[Ledger] & Postgres & DeployedDar]:
   protected val pingPong: DamlSource = SharedMultiSyncLedgerSpec.pingPong
-  protected val sync1: Synchronizer   = SharedMultiSyncLedgerSpec.sync1
-  protected val sync2: Synchronizer   = SharedMultiSyncLedgerSpec.sync2
+  protected val sync1: Synchronizer  = SharedMultiSyncLedgerSpec.sync1
+  protected val sync2: Synchronizer  = SharedMultiSyncLedgerSpec.sync2
 
   override val shared: ZLayer[FTEnv & Dpm & Docker, Throwable, Service[Ledger] & Postgres & DeployedDar] =
     SharedMultiSyncLedgerSpec.shared
@@ -45,4 +45,3 @@ trait SharedMultiSyncLedgerSpec extends FuncTest[Service[Ledger] & Postgres & De
     Ledger
       .create("PingPong:Ping", args, alice, sync1)
       .map(_.getTransaction.events(0).getCreated.contractId)
-

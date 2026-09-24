@@ -23,9 +23,9 @@ import scala.language.implicitConversions
 object ReassignmentSpec extends SharedMultiSyncLedgerSpec:
   def spec = suite("Multi-Sync")(
     funcTest("Contract is created, reassigned and archived") {
-      val alice: Party             = Party("Alice")
-      val dar: Capture[DeployedDar] = Capture[DeployedDar]
-      val contractId: Capture[String] = Capture[String]
+      val alice      = Party("Alice")
+      val dar        = Capture[DeployedDar]
+      val contractId = Capture[String]
       Given:
         DamlSdk.allocateParties(alice -> Seq(sync1, sync2))
       And:
@@ -42,10 +42,10 @@ object ReassignmentSpec extends SharedMultiSyncLedgerSpec:
             "--pipeline-ledger-stop=Latest"
           )
 
-      val createdAtOffset: Capture[OffsetType]    = Capture[OffsetType]
-      val unassignedAtOffset: Capture[OffsetType] = Capture[OffsetType]
-      val assignedAtOffset: Capture[OffsetType]   = Capture[OffsetType]
-      val archivedAtOffset: Capture[OffsetType]   = Capture[OffsetType]
+      val createdAtOffset    = Capture[OffsetType]
+      val unassignedAtOffset = Capture[OffsetType]
+      val assignedAtOffset   = Capture[OffsetType]
+      val archivedAtOffset   = Capture[OffsetType]
       Expect:
         // `effective_at is null` rather than the timestamp itself: the value of a transaction's
         // effective time is not predictable from the test, but which rows have one is exactly the
@@ -96,7 +96,7 @@ object ReassignmentSpec extends SharedMultiSyncLedgerSpec:
             }
           )
 
-      val reassignmentId: Capture[String] = Capture[String]
+      val reassignmentId = Capture[String]
       Expect:
         // The unassign and assign halves share a reassignment_id and counter, so the same Capture is used on both rows.
         Database
@@ -129,9 +129,9 @@ object ReassignmentSpec extends SharedMultiSyncLedgerSpec:
           .returns(table(createdAtOffset))
     },
     funcTest("Non-causal stream: archived before created") {
-      val alice: Party             = Party("Alice")
-      val dar: Capture[DeployedDar] = Capture[DeployedDar]
-      val contractId: Capture[String] = Capture[String]
+      val alice      = Party("Alice")
+      val dar        = Capture[DeployedDar]
+      val contractId = Capture[String]
 
       Given:
         DamlSdk.allocateParties(alice -> Seq(sync1, sync2))
@@ -148,11 +148,11 @@ object ReassignmentSpec extends SharedMultiSyncLedgerSpec:
           >+> DamlSchema.protobufCodecs
           >+> Ledger.updateService ++ Ledger.stateService
 
-      val transactions: Capture[Chunk[Transaction[Event]]] = Capture[Chunk[Transaction[Event]]]
-      val assignedAtOffset: Offset.Absolute                      = Offset.Absolute(1)
-      val archivedAtOffset: Offset.Absolute                      = Offset.Absolute(2)
-      val createdAtOffset: Offset.Absolute                       = Offset.Absolute(3)
-      val unassignedAtOffset: Offset.Absolute                    = Offset.Absolute(4)
+      val transactions       = Capture[Chunk[Transaction[Event]]]
+      val assignedAtOffset   = Offset.Absolute(1)
+      val archivedAtOffset   = Offset.Absolute(2)
+      val createdAtOffset    = Offset.Absolute(3)
+      val unassignedAtOffset = Offset.Absolute(4)
 
       def assignTx   = transactions.get(2).copy(offset = assignedAtOffset)
       def archiveTx  = transactions.get(3).copy(offset = archivedAtOffset)
@@ -225,7 +225,7 @@ object ReassignmentSpec extends SharedMultiSyncLedgerSpec:
             }
           )
 
-      val reassignmentId: Capture[String] = Capture[String]
+      val reassignmentId = Capture[String]
       Expect:
         // Ordered by reassigned_at_ix, so with this replay order the assign row comes first, then unassign.
         Database
@@ -238,9 +238,9 @@ object ReassignmentSpec extends SharedMultiSyncLedgerSpec:
           )
     },
     funcTest("Non-causal stream: assigned before unassigned") {
-      val alice: Party             = Party("Alice")
-      val dar: Capture[DeployedDar] = Capture[DeployedDar]
-      val contractId: Capture[String] = Capture[String]
+      val alice      = Party("Alice")
+      val dar        = Capture[DeployedDar]
+      val contractId = Capture[String]
 
       Given:
         DamlSdk.allocateParties(alice -> Seq(sync1, sync2))
@@ -257,11 +257,11 @@ object ReassignmentSpec extends SharedMultiSyncLedgerSpec:
           >+> DamlSchema.protobufCodecs
           >+> Ledger.updateService ++ Ledger.stateService
 
-      val transactions: Capture[Chunk[Transaction[Event]]] = Capture[Chunk[Transaction[Event]]]
-      val createdAtOffset: Offset.Absolute                       = Offset.Absolute(1)
-      val assignedAtOffset: Offset.Absolute                      = Offset.Absolute(2)
-      val unassignedAtOffset: Offset.Absolute                    = Offset.Absolute(3)
-      val archivedAtOffset: Offset.Absolute                      = Offset.Absolute(4)
+      val transactions       = Capture[Chunk[Transaction[Event]]]
+      val createdAtOffset    = Offset.Absolute(1)
+      val assignedAtOffset   = Offset.Absolute(2)
+      val unassignedAtOffset = Offset.Absolute(3)
+      val archivedAtOffset   = Offset.Absolute(4)
 
       def createTx   = transactions.get(0).copy(offset = createdAtOffset)
       def assignTx   = transactions.get(2).copy(offset = assignedAtOffset)
@@ -335,9 +335,9 @@ object ReassignmentSpec extends SharedMultiSyncLedgerSpec:
 
     },
     funcTest("non-causal stream: repeated interleaved reassignments") {
-      val alice: Party             = Party("Alice")
-      val dar: Capture[DeployedDar] = Capture[DeployedDar]
-      val contractId: Capture[String] = Capture[String]
+      val alice      = Party("Alice")
+      val dar        = Capture[DeployedDar]
+      val contractId = Capture[String]
 
       Given:
         DamlSdk.allocateParties(alice -> Seq(sync1, sync2))
@@ -357,7 +357,7 @@ object ReassignmentSpec extends SharedMultiSyncLedgerSpec:
           >+> DamlSchema.protobufCodecs
           >+> Ledger.updateService ++ Ledger.stateService
 
-      val transactions: Capture[Chunk[Transaction[Event]]] = Capture[Chunk[Transaction[Event]]]
+      val transactions = Capture[Chunk[Transaction[Event]]]
 
       // interleave reassignments: assigned before unassigned
       def reorderedTransactions = Chunk(

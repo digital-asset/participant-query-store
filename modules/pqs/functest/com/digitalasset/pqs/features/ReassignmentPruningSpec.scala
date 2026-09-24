@@ -8,7 +8,8 @@ import com.digitalasset.pqs.functest.matchers.*
 import com.digitalasset.pqs.functest.table.*
 import com.digitalasset.pqs.services.daml.*
 import com.digitalasset.pqs.services.postgres.*
-import com.digitalasset.pqs.services.pqs.Pqsimport zio.jdbc.*
+import com.digitalasset.pqs.services.pqs.Pqs
+import zio.jdbc.*
 import zio.test.Assertion.*
 
 import scala.language.implicitConversions
@@ -17,10 +18,10 @@ object ReassignmentPruningSpec extends SharedMultiSyncLedgerSpec:
   def spec = suite("Multi-Sync")(
     suite("pruning")(
       funcTest("prune_archived_to_offset deletes unassigned contracts and reassignment events") {
-        val alice: Party               = Party("Alice")
-        val reassignedCid: Capture[String] = Capture[String]
-        val archivedCid: Capture[String]   = Capture[String]
-        val activeCid: Capture[String]     = Capture[String]
+        val alice         = Party("Alice")
+        val reassignedCid = Capture[String]
+        val archivedCid   = Capture[String]
+        val activeCid     = Capture[String]
 
         Given:
           DamlSdk.allocateParties(alice -> Seq(sync1, sync2))
@@ -41,9 +42,9 @@ object ReassignmentPruningSpec extends SharedMultiSyncLedgerSpec:
               "--pipeline-ledger-stop=Latest"
             )
 
-        val reassignedAssigned: Capture[OffsetType] = Capture[OffsetType]
-        val archivedArchived: Capture[OffsetType]   = Capture[OffsetType]
-        val activeCreated: Capture[OffsetType]      = Capture[OffsetType]
+        val reassignedAssigned = Capture[OffsetType]
+        val archivedArchived   = Capture[OffsetType]
+        val activeCreated      = Capture[OffsetType]
 
         And:
           // created, unassigned, assigned, created, archived, created
@@ -90,10 +91,10 @@ object ReassignmentPruningSpec extends SharedMultiSyncLedgerSpec:
             )
       },
       funcTest("prune_to_offset squashes assigned contracts into the new genesis") {
-        val alice: Party               = Party("Alice")
-        val reassignedCid: Capture[String] = Capture[String]
-        val archivedCid: Capture[String]   = Capture[String]
-        val activeCid: Capture[String]     = Capture[String]
+        val alice         = Party("Alice")
+        val reassignedCid = Capture[String]
+        val archivedCid   = Capture[String]
+        val activeCid     = Capture[String]
 
         Given:
           DamlSdk.allocateParties(alice -> Seq(sync1, sync2))
@@ -114,8 +115,8 @@ object ReassignmentPruningSpec extends SharedMultiSyncLedgerSpec:
               "--pipeline-ledger-stop=Latest"
             )
 
-        val archivedArchived: Capture[OffsetType] = Capture[OffsetType]
-        val activeCreated: Capture[OffsetType]    = Capture[OffsetType]
+        val archivedArchived = Capture[OffsetType]
+        val activeCreated    = Capture[OffsetType]
 
         And:
           Postgres query {
