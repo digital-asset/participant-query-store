@@ -1214,8 +1214,8 @@ begin
     -- Persist the pruning offset
     update __pruning_metadata set pruned_offset = max_pruned_offset;
 
-    raise log 'Pruned % contracts, % exercises, % events, % reassignments and % transactions',
-        deleted_contracts, deleted_exercises, deleted_events, deleted_reassignments, deleted_transactions;
+    raise log 'Pruned % contracts, % exercises, % reassignments, % events and % transactions',
+        deleted_contracts, deleted_exercises, deleted_reassignments, deleted_events, deleted_transactions;
 
     return query select pruning_boundary_offset, deleted_contracts, deleted_exercises, deleted_events,
         deleted_transactions, deleted_reassignments;
@@ -1307,8 +1307,8 @@ begin
         and (__deactivated_at_ix(c) is null or __deactivated_at_ix(c) >= cutoff_ix)
     );
 
-    raise notice 'DRY-RUN: pruning % contracts, % exercises, % events, % reassignments and % transactions',
-        deleted_contracts, deleted_exercises, deleted_events, deleted_reassignments, deleted_transactions;
+    raise notice 'DRY-RUN: pruning % contracts, % exercises, % reassignments, % events and % transactions',
+        deleted_contracts, deleted_exercises, deleted_reassignments, deleted_events, deleted_transactions;
 
     return query select pruning_boundary_offset, deleted_contracts, deleted_exercises, deleted_events,
         deleted_transactions, deleted_reassignments;

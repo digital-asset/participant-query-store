@@ -46,8 +46,8 @@ final case class Prune(config: PruneConfig, connectionPool: ZConnectionPool):
                   s"Pruning boundary offset: $boundary",
                   s"Deleted contracts: ${result.deletedContracts}",
                   s"Deleted choices: ${result.deletedExercises}",
-                  s"Deleted events: ${result.deletedEvents}",
                   s"Deleted reassignments: ${result.deletedReassignments}",
+                  s"Deleted events: ${result.deletedEvents}",
                   s"Deleted transactions: ${result.deletedTransactions}"
                 ).map("  " + _).mkString(System.lineSeparator)
               )
