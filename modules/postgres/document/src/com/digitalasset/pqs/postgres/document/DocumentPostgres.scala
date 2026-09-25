@@ -53,6 +53,8 @@ final case class DocumentPostgres(
   private val tx                            = ZLayer.succeedEnvironment(env) >>> transaction
   private val BatchEntitiesThreshold        = 10_000
   private val BatchReleaseWindow            = 200.millis
+  // Force ANALYZE when the watermark has grown by this factor since the previous ANALYZE.
+  private val AnalyzeGrowthFactor = 4L
 
   override def registerActiveWriterAndCleanupTransactions = tx(
     sql"call __cleanup_transactions_after_watermark()".execute
@@ -235,32 +237,56 @@ final case class DocumentPostgres(
         Boundaries.exponential(0.001, math.pow(10, 1.0 / 3), 13)
       )
       .contramap[Long](_.toDouble / 1e9)
-    ZPipeline[Watermark].mapZIO(wm =>
-      traces.span("advance datastore watermark") {
-        trackWatermark(updateWatermark(wm))
-          @@ traces.attributes(
-            "pqs.watermark.offset" -> wm.offset.toLong,
-            "pqs.watermark.ix"     -> wm.ix
-          )
-          *> ZIO.foreachDiscard(wm.txSpans) { s =>
-            s.linkToCurrentSpan("target" -> "↧ advance watermark")
-              *> s.addEvent(
-                "advanced datastore watermark",
-                "offset" -> wm.offset.toLong,
-                "index"  -> wm.ix
-              )
-              *> s.end()
-          }
-          *> ZIO.foreachDiscard(wm.persistSpans) { s =>
-            ZIO.unit @@ traces.link(s, "target" -> "↥ persist to datastore")
-          }
-          *> zio.Clock.nanoTime.flatMap(now =>
-            ZIO.foreachDiscard(wm.seenAts) { seenAt => txProcessingLatency.update(now - seenAt) }
-          )
-          *> watermarkIx.update(wm.ix)
-          *> logInfo(s"Advanced watermark: ix = ${wm.ix}, offset = ${wm.offset.toLong}")
+    ZPipeline.unwrap(
+      zio.Ref.make(0L).map { lastAnalyzedIx =>
+        ZPipeline[Watermark].mapZIO(wm =>
+          for
+            // Without accurate stats, __update_watermark_fn plans a nested-loop cross-product that can take minutes.
+            // Force an ANALYZE when the watermark has grown significantly since the previous ANALYZE.
+            last <- lastAnalyzedIx.get
+            _ <- ZIO
+              .when(wm.ix >= last * AnalyzeGrowthFactor)(analyzeContractTables(wm.ix) *> lastAnalyzedIx.set(wm.ix))
+            (duration, _) <- traces
+              .span("advance datastore watermark") {
+                trackWatermark(updateWatermark(wm))
+                  @@ traces.attributes(
+                    "pqs.watermark.offset" -> wm.offset.toLong,
+                    "pqs.watermark.ix"     -> wm.ix
+                  )
+                  *> ZIO.foreachDiscard(wm.txSpans) { s =>
+                    s.linkToCurrentSpan("target" -> "↧ advance watermark")
+                      *> s.addEvent(
+                        "advanced datastore watermark",
+                        "offset" -> wm.offset.toLong,
+                        "index"  -> wm.ix
+                      )
+                      *> s.end()
+                  }
+                  *> ZIO.foreachDiscard(wm.persistSpans) { s =>
+                    ZIO.unit @@ traces.link(s, "target" -> "↥ persist to datastore")
+                  }
+                  *> zio.Clock.nanoTime
+                    .flatMap(now =>
+                      ZIO.foreachDiscard(wm.seenAts) { seenAt => txProcessingLatency.update(now - seenAt) }
+                    )
+                  *> watermarkIx.update(wm.ix)
+              }
+              .timed
+            _ <- logInfo(s"Advanced watermark: ix = ${wm.ix}, offset = ${wm.offset.toLong} in ${duration.toMillis}ms")
+          yield ()
+        )
       }
     )
+
+  private def analyzeContractTables(nextIx: Long) =
+    traces.span("analyze watermark hot tables") {
+      logInfo(s"Running ANALYZE on __contracts and __tmp_deactivated_contracts before advance to ix = $nextIx")
+        *> tx(
+          sql"analyze __contracts".execute
+            *> sql"analyze __tmp_deactivated_contracts".execute
+        )
+        *> logInfo("ANALYZE on __contracts and __tmp_deactivated_contracts complete")
+    }
 
   private def updateWatermark(wm: Watermark) =
     tx(sql"""update __watermark set "offset" = ${wm.offset.toLong}, ix = ${wm.ix};""".update)

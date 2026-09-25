@@ -50,8 +50,7 @@ create table if not exists __tmp_deactivated_contracts
 );
 
 create index if not exists __tmp_deactivated_contracts_ix_idx
-  on __tmp_deactivated_contracts
-  using btree (deactivated_at_ix);
+  on __tmp_deactivated_contracts (tpe_pk, deactivated_at_ix);
 
 drop table if exists __tmp_archived_contracts;
 

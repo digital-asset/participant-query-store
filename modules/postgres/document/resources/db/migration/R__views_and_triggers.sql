@@ -52,12 +52,12 @@ begin
             from deleted d
             where c.tpe_pk = tpe.tpe_pk
                 and c.contract_id = d.contract_id
-                -- synchronizer_id may be null on rows written by PQS 3.6 or older
-                and (c.synchronizer_id is null or c.synchronizer_id = d.synchronizer_id)
-                -- pair each deactivation with the matching activation segment on this synchronizer
-                and __activated_at_ix(c) <= d.deactivated_at_ix
+                -- pair each deactivation with the matching activation
+                and (c.created_at_ix <= d.deactivated_at_ix or c.assigned_at_ix <= d.deactivated_at_ix) 
                 and c.archived_at_ix is null
-                and c.unassigned_at_ix is null;
+                and c.unassigned_at_ix is null
+                -- synchronizer_id may be null on rows written by PQS 3.6 or older
+                and (c.synchronizer_id is null or c.synchronizer_id = d.synchronizer_id);
         end loop;
     return new;
 end;
