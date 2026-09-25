@@ -261,9 +261,8 @@ final case class DocumentPostgres(
                 *> ZIO.foreachDiscard(wm.persistSpans) { s =>
                   ZIO.unit @@ traces.link(s, "target" -> "↥ persist to datastore")
                 }
-                *> zio.Clock.nanoTime.flatMap(now =>
-                  ZIO.foreachDiscard(wm.seenAts) { seenAt => txProcessingLatency.update(now - seenAt) }
-                )
+                *> zio.Clock.nanoTime
+                  .flatMap(now => ZIO.foreachDiscard(wm.seenAts) { seenAt => txProcessingLatency.update(now - seenAt) })
                 *> watermarkIx.update(wm.ix)
                 *> logInfo(s"Advanced watermark: ix = ${wm.ix}, offset = ${wm.offset.toLong}")
             }
