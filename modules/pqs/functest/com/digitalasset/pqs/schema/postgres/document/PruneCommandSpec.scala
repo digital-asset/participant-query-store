@@ -85,6 +85,7 @@ object PruneCommandSpec extends SharedLedgerAndPostgresTest:
              |  Pruning boundary offset: ${twoCreated.get}
              |  Deleted contracts: 1
              |  Deleted choices: 1
+             |  Deleted reassignments: 0
              |  Deleted events: 2
              |  Deleted transactions: 2""".stripMargin
         )
@@ -116,6 +117,7 @@ object PruneCommandSpec extends SharedLedgerAndPostgresTest:
              |  Pruning boundary offset: ${twoCreated.get}
              |  Deleted contracts: 1
              |  Deleted choices: 1
+             |  Deleted reassignments: 0
              |  Deleted events: 2
              |  Deleted transactions: 2""".stripMargin
         )
@@ -202,6 +204,7 @@ object PruneCommandSpec extends SharedLedgerAndPostgresTest:
              |  Pruning boundary offset: ${twoCreated.get}
              |  Deleted contracts: 1
              |  Deleted choices: 1
+             |  Deleted reassignments: 0
              |  Deleted events: 2
              |  Deleted transactions: 2""".stripMargin
         )
@@ -278,6 +281,7 @@ object PruneCommandSpec extends SharedLedgerAndPostgresTest:
              |  Pruning boundary offset: ${twoCreated.get}
              |  Deleted contracts: 1
              |  Deleted choices: 1
+             |  Deleted reassignments: 0
              |  Deleted events: 2
              |  Deleted transactions: 2""".stripMargin
         )

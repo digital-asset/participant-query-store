@@ -27,35 +27,48 @@ final case class Prune(config: PruneConfig, connectionPool: ZConnectionPool):
       case PruningBoundary.DurationBoundary(duration) => sql"nearest_offset(${duration.toString} :: interval)"
 
     val query =
-      sql"select pruning_boundary_offset, deleted_contracts, deleted_exercises, deleted_events, deleted_transactions from $sqlFunction($sqlArgument)"
+      sql"""select pruning_boundary_offset, deleted_contracts, deleted_exercises, deleted_events,
+                deleted_transactions, deleted_reassignments from $sqlFunction($sqlArgument)"""
     for
       maybeResult <-
-        transaction(query.query[(Option[String], Int, Int, Int, Int)].selectOne).provideEnvironment(env)
+        transaction(query.query[Prune.PruningResultRow].selectOne).provideEnvironment(env)
       _ <- maybeResult match
         // the pruning functions are STRICT: a NULL `nearest_offset` short-circuits them to an empty set
         case None =>
           printLine(s"No history older than ${config.target}, nothing to do.")
-        case Some((None, _, _, _, _)) =>
-          printLine(s"Already pruned past ${config.target}, nothing to do.")
-        case Some((Some(boundary), deletedContracts, deletedExercises, deletedEvents, deletedTransactions)) =>
-          val printResult = printLine(
-            List(
-              s"Pruning boundary offset: $boundary",
-              s"Deleted contracts: $deletedContracts",
-              s"Deleted choices: $deletedExercises",
-              s"Deleted events: $deletedEvents",
-              s"Deleted transactions: $deletedTransactions"
-            ).map("  " + _).mkString(System.lineSeparator)
-          )
-          config.mode match
-            case PruningMode.DryRun =>
-              printLine("Dry-run result:") *> printResult *> printLine(
-                "Re-run with --prune-mode Force to execute the pruning operation."
+        case Some(result) =>
+          result.pruningBoundaryOffset match
+            case None =>
+              printLine(s"Already pruned past ${config.target}, nothing to do.")
+            case Some(boundary) =>
+              val printResult = printLine(
+                List(
+                  s"Pruning boundary offset: $boundary",
+                  s"Deleted contracts: ${result.deletedContracts}",
+                  s"Deleted choices: ${result.deletedExercises}",
+                  s"Deleted reassignments: ${result.deletedReassignments}",
+                  s"Deleted events: ${result.deletedEvents}",
+                  s"Deleted transactions: ${result.deletedTransactions}"
+                ).map("  " + _).mkString(System.lineSeparator)
               )
-            case PruningMode.Force => printLine("Pruning operation result:") *> printResult
+              config.mode match
+                case PruningMode.DryRun =>
+                  printLine("Dry-run result:") *> printResult *> printLine(
+                    "Re-run with --prune-mode Force to execute the pruning operation."
+                  )
+                case PruningMode.Force => printLine("Pruning operation result:") *> printResult
     yield ()
 end Prune
 object Prune:
+  private type PruningResultRow = (
+      pruningBoundaryOffset: Option[String],
+      deletedContracts: Int,
+      deletedExercises: Int,
+      deletedEvents: Int,
+      deletedTransactions: Int,
+      deletedReassignments: Int
+  )
+
   val layer = ZLayer.fromFunction(Prune.apply)
 
 final case class PruneConfig(

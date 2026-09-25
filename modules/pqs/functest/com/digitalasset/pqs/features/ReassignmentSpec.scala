@@ -3,10 +3,7 @@
 
 package com.digitalasset.pqs.features
 
-import com.daml.ledger.api.v2.value.*
 import com.digitalasset.canonical.{Event, Offset, Transaction}
-import com.digitalasset.pqs.docker.{Docker, Service}
-import com.digitalasset.pqs.functest.FuncTest
 import com.digitalasset.pqs.functest.matchers.*
 import com.digitalasset.pqs.functest.table.*
 import com.digitalasset.pqs.pipeline.InProcessPipeline
@@ -14,37 +11,16 @@ import com.digitalasset.pqs.postgres.document.SqlSchema
 import com.digitalasset.pqs.services.daml.*
 import com.digitalasset.pqs.services.postgres.*
 import com.digitalasset.pqs.services.pqs.Pqs
-import com.digitalasset.pqs.OffsetType
+import com.digitalasset.pqs.{OffsetType, SharedMultiSyncLedgerSpec}
 import com.digitalasset.transcode.codec.json.JsonCodec
 import com.digitalasset.zio.daml.DamlSchema
-import zio.{Chunk, ZIO}
+import zio.Chunk
 import zio.jdbc.*
 import zio.test.Assertion.*
 
 import scala.language.implicitConversions
 
-object ReassignmentSpec extends FuncTest[Service[Ledger] & Postgres & DeployedDar]:
-  private val pingPong = DamlSource(
-    "PingPong" -> """module PingPong where
-                    |
-                    |import Daml.Script
-                    |import DA.Functor (void)
-                    |
-                    |template Ping
-                    |  with
-                    |    sender: Party
-                    |  where
-                    |    signatory sender
-                    |""".stripMargin
-  )
-
-  private val sync1 = Synchronizer("synchronizer1")
-  private val sync2 = Synchronizer("synchronizer2")
-
-  override val shared =
-    DamlSdk.dar(pingPong) ++ DamlSdk.multiSyncLedger(sync1, sync2) ++ Postgres.instance
-      >+> DamlSdk.uploadAndVetDar(sync1, sync2)
-
+object ReassignmentSpec extends SharedMultiSyncLedgerSpec:
   def spec = suite("Multi-Sync")(
     funcTest("Contract is created, reassigned and archived") {
       val alice      = Party("Alice")
@@ -423,9 +399,3 @@ object ReassignmentSpec extends FuncTest[Service[Ledger] & Postgres & DeployedDa
           )
     }
   )
-
-  private def createContract(alice: Party): ZIO[Docker & Service[Ledger] & DeployedDar, Throwable, String] =
-    val args = Record.defaultInstance.addFields(RecordField("sender", Some(Value(Value.Sum.Party(alice.id)))))
-    Ledger
-      .create("PingPong:Ping", args, alice, sync1)
-      .map(_.getTransaction.events(0).getCreated.contractId)
