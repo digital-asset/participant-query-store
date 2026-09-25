@@ -235,32 +235,51 @@ final case class DocumentPostgres(
         Boundaries.exponential(0.001, math.pow(10, 1.0 / 3), 13)
       )
       .contramap[Long](_.toDouble / 1e9)
-    ZPipeline[Watermark].mapZIO(wm =>
-      traces.span("advance datastore watermark") {
-        trackWatermark(updateWatermark(wm))
-          @@ traces.attributes(
-            "pqs.watermark.offset" -> wm.offset.toLong,
-            "pqs.watermark.ix"     -> wm.ix
-          )
-          *> ZIO.foreachDiscard(wm.txSpans) { s =>
-            s.linkToCurrentSpan("target" -> "↧ advance watermark")
-              *> s.addEvent(
-                "advanced datastore watermark",
-                "offset" -> wm.offset.toLong,
-                "index"  -> wm.ix
-              )
-              *> s.end()
-          }
-          *> ZIO.foreachDiscard(wm.persistSpans) { s =>
-            ZIO.unit @@ traces.link(s, "target" -> "↥ persist to datastore")
-          }
-          *> zio.Clock.nanoTime.flatMap(now =>
-            ZIO.foreachDiscard(wm.seenAts) { seenAt => txProcessingLatency.update(now - seenAt) }
-          )
-          *> watermarkIx.update(wm.ix)
-          *> logInfo(s"Advanced watermark: ix = ${wm.ix}, offset = ${wm.offset.toLong}")
+    ZPipeline.unwrap(
+      zio.Ref.make(true).map { needAnalyze =>
+        ZPipeline[Watermark].mapZIO(wm =>
+          // Fresh partitions of __contracts and __tmp_deactivated_contracts have no statistics until
+          // autoanalyze eventually catches up. The first __update_watermark_fn trigger plans a
+          // non-optimal nested-loop cross-product, taking minutes on a large backlog.
+          // Force an ANALYZE once, right before the first watermark advance, to give the planner accurate stats.
+          needAnalyze.getAndSet(false).flatMap(ZIO.when(_)(analyzeContractTables))
+            *> traces.span("advance datastore watermark") {
+              trackWatermark(updateWatermark(wm))
+                @@ traces.attributes(
+                  "pqs.watermark.offset" -> wm.offset.toLong,
+                  "pqs.watermark.ix"     -> wm.ix
+                )
+                *> ZIO.foreachDiscard(wm.txSpans) { s =>
+                  s.linkToCurrentSpan("target" -> "↧ advance watermark")
+                    *> s.addEvent(
+                      "advanced datastore watermark",
+                      "offset" -> wm.offset.toLong,
+                      "index"  -> wm.ix
+                    )
+                    *> s.end()
+                }
+                *> ZIO.foreachDiscard(wm.persistSpans) { s =>
+                  ZIO.unit @@ traces.link(s, "target" -> "↥ persist to datastore")
+                }
+                *> zio.Clock.nanoTime.flatMap(now =>
+                  ZIO.foreachDiscard(wm.seenAts) { seenAt => txProcessingLatency.update(now - seenAt) }
+                )
+                *> watermarkIx.update(wm.ix)
+                *> logInfo(s"Advanced watermark: ix = ${wm.ix}, offset = ${wm.offset.toLong}")
+            }
+        )
       }
     )
+
+  private def analyzeContractTables =
+    traces.span("analyze watermark hot tables") {
+      logInfo("Running ANALYZE on __contracts and __tmp_deactivated_contracts before first watermark advance")
+        *> tx(
+          sql"analyze __contracts".execute
+            *> sql"analyze __tmp_deactivated_contracts".execute
+        )
+        *> logInfo("ANALYZE on __contracts and __tmp_deactivated_contracts complete")
+    }
 
   private def updateWatermark(wm: Watermark) =
     tx(sql"""update __watermark set "offset" = ${wm.offset.toLong}, ix = ${wm.ix};""".update)
