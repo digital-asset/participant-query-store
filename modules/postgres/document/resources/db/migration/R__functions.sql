@@ -987,10 +987,14 @@ begin
     select exists(select ix from __transactions where ix > cutoff_ix) into work_exists;
 
     if work_exists then
-        delete from __contracts where created_at_ix > cutoff_ix;
-        update __contracts set archived_at_ix = null, archive_event_pk = null where archived_at_ix > cutoff_ix;
+        delete from __contracts c where __activated_at_ix(c) > cutoff_ix;
+        update __contracts c
+        set archived_at_ix = null, archive_event_pk = null,
+            unassigned_at_ix = null, unassign_event_pk = null
+        where __deactivated_at_ix(c) > cutoff_ix;
         delete from __exercises where exercised_at_ix > cutoff_ix;
         delete from __events where tx_ix > cutoff_ix;
+        delete from __reassignments where reassigned_at_ix > cutoff_ix;
         delete from __tmp_deactivated_contracts where deactivated_at_ix > cutoff_ix;
         delete from __transactions where ix > cutoff_ix;
     end if;
