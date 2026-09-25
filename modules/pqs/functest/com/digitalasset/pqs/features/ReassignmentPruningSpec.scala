@@ -3,7 +3,7 @@
 
 package com.digitalasset.pqs.features
 
-import com.digitalasset.pqs.OffsetType
+import com.digitalasset.pqs.{OffsetType, SharedMultiSyncLedgerSpec}
 import com.digitalasset.pqs.functest.matchers.*
 import com.digitalasset.pqs.functest.table.*
 import com.digitalasset.pqs.services.daml.*

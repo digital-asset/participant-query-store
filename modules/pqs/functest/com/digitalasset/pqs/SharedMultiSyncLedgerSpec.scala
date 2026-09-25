@@ -1,10 +1,11 @@
 // Copyright (c) 2026 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-package com.digitalasset.pqs.features
+package com.digitalasset.pqs
 
 import com.daml.ledger.api.v2.value.*
 import com.digitalasset.pqs.docker.{Docker, Service}
+import com.digitalasset.pqs.features.SharedMultiSyncLedgerSpec
 import com.digitalasset.pqs.functest.{Dpm, FTEnv, FuncTest}
 import com.digitalasset.pqs.services.daml.*
 import com.digitalasset.pqs.services.postgres.Postgres

@@ -11,7 +11,7 @@ import com.digitalasset.pqs.postgres.document.SqlSchema
 import com.digitalasset.pqs.services.daml.*
 import com.digitalasset.pqs.services.postgres.*
 import com.digitalasset.pqs.services.pqs.Pqs
-import com.digitalasset.pqs.OffsetType
+import com.digitalasset.pqs.{OffsetType, SharedMultiSyncLedgerSpec}
 import com.digitalasset.transcode.codec.json.JsonCodec
 import com.digitalasset.zio.daml.DamlSchema
 import zio.Chunk
