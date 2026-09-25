@@ -11,7 +11,7 @@ _Write summary of release_
 This release includes the following SQL migrations:
 - _V043__Add_reassignment_event_types.sql_: adds the `assign` and `unassign` labels to the `__event_type` enum. Metadata-only, no table is scanned or rewritten. **[Impact: Instantaneous]**
 - _V044__Rename_domain_id_to_synchronizer_id.sql_: renames the `domain_id` column of `__transactions` to `synchronizer_id`. Metadata-only, no table is scanned or rewritten. **[Impact: Instantaneous]**
-- _V045__Add_multisync_contract_columns.sql_ **[Impact: ~10 min]**:
+- _V045__Add_multisync_contract_columns.sql_ **[Impact: ~2 min/10M contracts]**:
   - Add the multi-sync columns (`assigned_at_ix`, `unassigned_at_ix`, `reassignment_counter`, `synchronizer_id`) to the `__contracts` table and `contract` type.
   - **Full __contracts rewrite:** Redefine the `life_ix` column to take `assigned_at_ix` and `unassigned_at_ix` into account.
   - **Rebuild GiST index on __contracts.**
