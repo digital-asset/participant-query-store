@@ -28,6 +28,7 @@ This release includes the following SQL migrations:
 - Every `Reassignment` received from the ledger is recorded in `__transactions`, and its `Assigned` and `Unassigned` events are recorded in `__events` with the new `assign` and `unassign` types.
 - Each `Assigned` and `Unassigned` event is also recorded in the new `__reassignments` table. The table is a standalone audit log of what the ledger reported about the reassignment itself.
 - Pruning takes reassignments into account - SQL functions now also delete related `__reassignments` entries.
+- Resetting to an offset takes reassignments into account: `reset_to_offset` and `__cleanup_transactions_after_watermark` delete the contracts assigned after the offset and the `__reassignments` entries recorded after it, and revives the contracts unassigned after it.
 - *BREAKING*: `prune_archived_to_offset` and `prune_archived_to_offset_dry_run` return an additional `deleted_reassignments integer` column. The `prune` command prints it as `Deleted reassignments`.
 - The SQL `contract` type, describing the output of the `active`, `creates` and `archives` SQL functions, is modified with new columns:
 ```sql
