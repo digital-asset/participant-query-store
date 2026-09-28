@@ -33,12 +33,7 @@ object SharedMultiSyncLedgerSpec:
       >+> DamlSdk.uploadAndVetDar(sync1, sync2)
 
 trait SharedMultiSyncLedgerSpec extends FuncTest[Service[Ledger] & Postgres & DeployedDar]:
-  protected val pingPong: DamlSource = SharedMultiSyncLedgerSpec.pingPong
-  protected val sync1: Synchronizer  = SharedMultiSyncLedgerSpec.sync1
-  protected val sync2: Synchronizer  = SharedMultiSyncLedgerSpec.sync2
-
-  override val shared: ZLayer[FTEnv & Dpm & Docker, Throwable, Service[Ledger] & Postgres & DeployedDar] =
-    SharedMultiSyncLedgerSpec.shared
+  export SharedMultiSyncLedgerSpec.*
 
   protected def createContract(alice: Party): ZIO[Docker & Service[Ledger] & DeployedDar, Throwable, String] =
     val args = Record.defaultInstance.addFields(RecordField("sender", Some(Value(Value.Sum.Party(alice.id)))))
