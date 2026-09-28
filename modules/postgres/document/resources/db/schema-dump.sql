@@ -765,14 +765,22 @@ begin
                 unassign_event_pk = d.unassign_event_pk,
                 unassigned_at_ix = d.unassigned_at_ix
             from deleted d
-            where c.tpe_pk = tpe.tpe_pk
-                and c.contract_id = d.contract_id
+            cross join lateral (
+                -- for each deactivation, pick the latest still-open activation that predates it
+                select c2.ctid as contract_ctid
+                from __contracts c2
+                where c2.tpe_pk = tpe.tpe_pk
+                    and c2.contract_id = d.contract_id
+                    and c2.archived_at_ix is null
+                    and c2.unassigned_at_ix is null
+                    and coalesce(c2.created_at_ix, c2.assigned_at_ix) <= d.deactivated_at_ix
                 -- synchronizer_id may be null on rows written by PQS 3.6 or older
-                and (c.synchronizer_id is null or c.synchronizer_id = d.synchronizer_id)
-                -- pair each deactivation with the matching activation segment on this synchronizer
-                and __activated_at_ix(c) <= d.deactivated_at_ix
-                and c.archived_at_ix is null
-                and c.unassigned_at_ix is null;
+                    and (c2.synchronizer_id is null or c2.synchronizer_id = d.synchronizer_id)
+                order by coalesce(c2.created_at_ix, c2.assigned_at_ix) desc
+                limit 1
+            ) c2
+            where c.ctid = c2.contract_ctid
+                and c.tpe_pk = tpe.tpe_pk;
         end loop;
     return new;
 end;
@@ -2426,7 +2434,7 @@ CREATE INDEX __reassignments_1_reassigned_at_ix_idx ON public.__reassignments_1 
 -- Name: __tmp_deactivated_contracts_ix_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX __tmp_deactivated_contracts_ix_idx ON public.__tmp_deactivated_contracts USING btree (deactivated_at_ix);
+CREATE INDEX __tmp_deactivated_contracts_ix_idx ON public.__tmp_deactivated_contracts USING btree (tpe_pk, deactivated_at_ix);
 
 
 --
