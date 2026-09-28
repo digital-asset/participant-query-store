@@ -3,7 +3,7 @@
 
 package com.digitalasset.pqs.features
 
-import com.digitalasset.pqs.{OffsetType, SharedMultiSyncLedgerSpec}
+import com.digitalasset.pqs.SharedMultiSyncLedgerSpec
 import com.digitalasset.pqs.functest.matchers.*
 import com.digitalasset.pqs.functest.table.*
 import com.digitalasset.pqs.services.daml.*
@@ -36,25 +36,17 @@ object ReassignmentResetSpec extends SharedMultiSyncLedgerSpec:
               "--pipeline-ledger-stop=Latest"
             )
 
-        val reassignedCreated = Capture[OffsetType]
-
-        And:
-          Postgres query {
-            sql"""select "offset" from __transactions order by ix"""
-          } `returns` table {
-            reassignedCreated.capture | anything | anything | anything
-          }.transpose
         Expect:
           Postgres
-            .query(sql"select new_latest, affected_transactions from reset_to_offset(${reassignedCreated.get})")
-            .returns(table(reassignedCreated | 3))
+            .query(sql"select new_latest, affected_transactions from reset_to_offset(1)")
+            .returns(table(1 | 3))
         And:
-          Postgres.query(sql"""select "offset" from __transactions""").returns(table(reassignedCreated))
+          Postgres.query(sql"""select "offset" from __transactions""").returns(table(1))
         And:
           Postgres
             .query(sql"""select e."type"::text, t."offset"
                          from __events e join __transactions t on e.tx_ix = t.ix""")
-            .returns(table("create" | reassignedCreated))
+            .returns(table("create" | 1))
         And:
           Postgres.query(sql"select count(*) from __reassignments").returns(table(0))
         And:
@@ -82,23 +74,14 @@ object ReassignmentResetSpec extends SharedMultiSyncLedgerSpec:
               "--pipeline-ledger-stop=Latest"
             )
 
-        val reassignedCreated  = Capture[OffsetType]
-        val reassignedUnassign = Capture[OffsetType]
-
-        And:
-          Postgres query {
-            sql"""select "offset" from __transactions order by ix"""
-          } `returns` table {
-            reassignedCreated.capture | reassignedUnassign.capture | anything | anything
-          }.transpose
         Expect:
           Postgres
-            .query(sql"select new_latest, affected_transactions from reset_to_offset(${reassignedUnassign.get})")
-            .returns(table(reassignedUnassign | 2))
+            .query(sql"select new_latest, affected_transactions from reset_to_offset(2)")
+            .returns(table(2 | 2))
         And:
           Postgres
             .query(sql"""select "offset" from __transactions order by ix""")
-            .returns(table(reassignedCreated | reassignedUnassign).transpose)
+            .returns(table(1 | 2).transpose)
         And:
           Postgres
             .query(sql"""select e."type"::text, t."offset"
@@ -106,8 +89,8 @@ object ReassignmentResetSpec extends SharedMultiSyncLedgerSpec:
                          order by t."offset"""")
             .returns(
               table {
-                "create"   | reassignedCreated
-                "unassign" | reassignedUnassign
+                "create"   | 1
+                "unassign" | 2
               }
             )
         And:
@@ -138,14 +121,6 @@ object ReassignmentResetSpec extends SharedMultiSyncLedgerSpec:
               "--pipeline-ledger-stop=Latest"
             )
 
-        val reassignedCreated = Capture[OffsetType]
-
-        And:
-          Postgres query {
-            sql"""select "offset" from __transactions order by ix"""
-          } `returns` table {
-            reassignedCreated.capture | anything | anything | anything
-          }.transpose
         And:
           Postgres.reverseWatermark(1) `returns` 1
         Expect:
@@ -153,12 +128,12 @@ object ReassignmentResetSpec extends SharedMultiSyncLedgerSpec:
             sql"call __cleanup_transactions_after_watermark()"
           } `returns` ()
         And:
-          Postgres.query(sql"""select "offset" from __transactions""").returns(table(reassignedCreated))
+          Postgres.query(sql"""select "offset" from __transactions""").returns(table(1))
         And:
           Postgres
             .query(sql"""select e."type"::text, t."offset"
                          from __events e join __transactions t on e.tx_ix = t.ix""")
-            .returns(table("create" | reassignedCreated))
+            .returns(table("create" | 1))
         And:
           Postgres.query(sql"select count(*) from __reassignments").returns(table(0))
         And:
@@ -168,10 +143,4 @@ object ReassignmentResetSpec extends SharedMultiSyncLedgerSpec:
       }
     )
   )
-
-  private def createContract(alice: Party): ZIO[Docker & Service[Ledger] & DeployedDar, Throwable, String] =
-    val args = Record.defaultInstance.addFields(RecordField("sender", Some(Value(Value.Sum.Party(alice.id)))))
-    Ledger
-      .create("PingPong:Ping", args, alice, sync1)
-      .map(_.getTransaction.events(0).getCreated.contractId)
 
