@@ -392,22 +392,36 @@ begin
     select exists(select ix from __transactions where ix < cutoff_ix) into work_exists;
 
     if work_exists then
-        delete from __contracts where
-            -- prune disclosed contracts that were archived prior to cutoff
-            archived_at_ix < cutoff_ix or
+        delete from __contracts c where
+            -- prune disclosed contracts that were deactivated prior to cutoff
+            __deactivated_at_ix(c) < cutoff_ix or
             -- prune divulged-only contracts that existed prior to cutoff
-            divulged_only and created_at_ix < cutoff_ix;
+            c.divulged_only and __activated_at_ix(c) < cutoff_ix;
         -- prune exercises that happened prior to cutoff
         delete from __exercises where exercised_at_ix < cutoff_ix;
 
+        -- Set the new genesis for active contracts to the cutoff_ix.
+        -- We preserve the source of the contract (create or assign) by updating only the corresponding column.
         with event_pks as (
-            update __contracts set created_at_ix = cutoff_ix where created_at_ix < cutoff_ix returning create_event_pk)
-        update __events
-        set tx_ix = cutoff_ix
-        from event_pks
-        where pk = create_event_pk;
+            update __contracts c
+            set created_at_ix = case when created_at_ix is not null then cutoff_ix end,
+                assigned_at_ix = case when assigned_at_ix is not null then cutoff_ix end
+            where __activated_at_ix(c) < cutoff_ix
+            returning coalesce(create_event_pk, assign_event_pk) as activation_event_pk),
+        squashed_events as (
+            update __events
+            set tx_ix = cutoff_ix
+            from event_pks
+            where pk = activation_event_pk
+            returning pk)
+
+        update __reassignments
+        set reassigned_at_ix = cutoff_ix
+        from squashed_events
+        where reassign_event_pk = squashed_events.pk;
 
         delete from __events where tx_ix < cutoff_ix;
+        delete from __reassignments where reassigned_at_ix < cutoff_ix;
         delete from __transactions where ix < cutoff_ix;
     end if;
 end
@@ -1113,7 +1127,7 @@ $$;
 -- Name: prune_archived_to_offset(bigint); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public.prune_archived_to_offset(max_pruned_offset bigint) RETURNS TABLE(pruning_boundary_offset bigint, deleted_contracts integer, deleted_exercises integer, deleted_events integer, deleted_transactions integer)
+CREATE FUNCTION public.prune_archived_to_offset(max_pruned_offset bigint) RETURNS TABLE(pruning_boundary_offset bigint, deleted_contracts integer, deleted_exercises integer, deleted_events integer, deleted_transactions integer, deleted_reassignments integer)
     LANGUAGE plpgsql STRICT
     AS $$
 declare
@@ -1132,20 +1146,20 @@ begin
 
     -- Already pruned: return zeroed stats
     if pruning_boundary_offset is null then
-        return query select null::bigint, 0, 0, 0, 0;
+        return query select null::bigint, 0, 0, 0, 0, 0;
         return;
     end if;
 
     select ix into cutoff_ix from __transactions where "offset" = pruning_boundary_offset;
 
     with deleted_contracts as (
-        delete from __contracts
+        delete from __contracts c
         where
-            -- prune contracts that were archived prior to cutoff
-            archived_at_ix < cutoff_ix
+            -- prune contracts that were deactivated prior to cutoff
+            __deactivated_at_ix(c) < cutoff_ix
             -- prune divulged-only contracts that existed prior to cutoff
-            or (divulged_only and created_at_ix < cutoff_ix)
-        returning create_event_pk, archive_event_pk
+            or (c.divulged_only and __activated_at_ix(c) < cutoff_ix)
+        returning create_event_pk, archive_event_pk, assign_event_pk, unassign_event_pk
     ),
     -- prune exercises that happened prior to cutoff
     deleted_exercises as (
@@ -1157,25 +1171,41 @@ begin
         delete from __events
         where tx_ix < cutoff_ix
         and pk in (
-            select create_event_pk from deleted_contracts
+            select create_event_pk from deleted_contracts where create_event_pk is not null
             union all
             select archive_event_pk from deleted_contracts where archive_event_pk is not null
             union all
+            select assign_event_pk from deleted_contracts where assign_event_pk is not null
+            union all
+            select unassign_event_pk from deleted_contracts where unassign_event_pk is not null
+            union all
             select exercise_event_pk from deleted_exercises
+        )
+        returning 1
+    ),
+    -- prune the reassignment log of the pruned contracts, in step with their events
+    deleted_reassignments as (
+        delete from __reassignments
+        where reassigned_at_ix < cutoff_ix
+        and reassign_event_pk in (
+            select assign_event_pk from deleted_contracts where assign_event_pk is not null
+            union all
+            select unassign_event_pk from deleted_contracts where unassign_event_pk is not null
         )
         returning 1
     )
     select
         (select count(*) from deleted_contracts),
         (select count(*) from deleted_exercises),
-        (select count(*) from deleted_events)
-    into deleted_contracts, deleted_exercises, deleted_events;
+        (select count(*) from deleted_events),
+        (select count(*) from deleted_reassignments)
+    into deleted_contracts, deleted_exercises, deleted_events, deleted_reassignments;
 
     -- after we have removed the archived contracts, we can remove the orphaned transactions
     with deleted_transactions as (
         delete from __transactions
         where ix < cutoff_ix and not exists (
-            select 1 from __contracts where __contracts.created_at_ix = __transactions.ix
+            select 1 from __contracts c where __activated_at_ix(c) = __transactions.ix
         )
         returning 1
     )
@@ -1184,10 +1214,11 @@ begin
     -- Persist the pruning offset
     update __pruning_metadata set pruned_offset = max_pruned_offset;
 
-    raise log 'Pruned % contracts, % exercises, % events and % transactions',
-        deleted_contracts, deleted_exercises, deleted_events, deleted_transactions;
+    raise log 'Pruned % contracts, % exercises, % reassignments, % events and % transactions',
+        deleted_contracts, deleted_exercises, deleted_reassignments, deleted_events, deleted_transactions;
 
-    return query select pruning_boundary_offset, deleted_contracts, deleted_exercises, deleted_events, deleted_transactions;
+    return query select pruning_boundary_offset, deleted_contracts, deleted_exercises, deleted_events,
+        deleted_transactions, deleted_reassignments;
 end;
 $$;
 
@@ -1196,7 +1227,7 @@ $$;
 -- Name: prune_archived_to_offset_dry_run(bigint); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public.prune_archived_to_offset_dry_run(max_pruned_offset bigint) RETURNS TABLE(pruning_boundary_offset bigint, deleted_contracts integer, deleted_exercises integer, deleted_events integer, deleted_transactions integer)
+CREATE FUNCTION public.prune_archived_to_offset_dry_run(max_pruned_offset bigint) RETURNS TABLE(pruning_boundary_offset bigint, deleted_contracts integer, deleted_exercises integer, deleted_events integer, deleted_transactions integer, deleted_reassignments integer)
     LANGUAGE plpgsql STRICT
     AS $$
 declare
@@ -1212,20 +1243,20 @@ begin
 
     -- Already pruned: return zeroed stats
     if pruning_boundary_offset is null then
-        return query select null::bigint, 0, 0, 0, 0;
+        return query select null::bigint, 0, 0, 0, 0, 0;
         return;
     end if;
 
     select ix into cutoff_ix from __transactions where "offset" = pruning_boundary_offset;
 
     with deleted_contracts as (
-        select create_event_pk, archive_event_pk
-        from __contracts
+        select create_event_pk, archive_event_pk, assign_event_pk, unassign_event_pk
+        from __contracts c
         where
-            -- prune contracts that were archived prior to cutoff
-            archived_at_ix < cutoff_ix
+            -- prune contracts that were deactivated prior to cutoff
+            __deactivated_at_ix(c) < cutoff_ix
             -- prune divulged-only contracts that existed prior to cutoff
-            or (divulged_only and created_at_ix < cutoff_ix)
+            or (c.divulged_only and __activated_at_ix(c) < cutoff_ix)
     ),
     -- prune exercises that happened prior to cutoff
     deleted_exercises as (
@@ -1236,35 +1267,51 @@ begin
         select 1 from __events
         where tx_ix < cutoff_ix
         and pk in (
-            select create_event_pk from deleted_contracts
+            select create_event_pk from deleted_contracts where create_event_pk is not null
             union all
             select archive_event_pk from deleted_contracts where archive_event_pk is not null
             union all
+            select assign_event_pk from deleted_contracts where assign_event_pk is not null
+            union all
+            select unassign_event_pk from deleted_contracts where unassign_event_pk is not null
+            union all
             select exercise_event_pk from deleted_exercises
+        )
+    ),
+    -- prune the reassignment log of the pruned contracts
+    deleted_reassignments as (
+        select 1 from __reassignments
+        where reassigned_at_ix < cutoff_ix
+        and reassign_event_pk in (
+            select assign_event_pk from deleted_contracts where assign_event_pk is not null
+            union all
+            select unassign_event_pk from deleted_contracts where unassign_event_pk is not null
         )
     )
     select
         (select count(*) from deleted_contracts),
         (select count(*) from deleted_exercises),
-        (select count(*) from deleted_events)
-    into deleted_contracts, deleted_exercises, deleted_events;
+        (select count(*) from deleted_events),
+        (select count(*) from deleted_reassignments)
+    into deleted_contracts, deleted_exercises, deleted_events, deleted_reassignments;
 
     -- prune orphaned transactions
     select count(*) into deleted_transactions
     from __transactions
     where ix < cutoff_ix and not exists (
-        select 1 from __contracts
-        where __contracts.created_at_ix = __transactions.ix
+        select 1 from __contracts c
+        where __activated_at_ix(c) = __transactions.ix
         -- the contract is not divulged
-        and not __contracts.divulged_only
-        -- the contract is not archived or it is archived after the cutoff
-        and (__contracts.archived_at_ix is null or __contracts.archived_at_ix >= cutoff_ix)
+        and not c.divulged_only
+        -- the contract is still active, or it is deactivated at or after the cutoff
+        and (__deactivated_at_ix(c) is null or __deactivated_at_ix(c) >= cutoff_ix)
     );
 
-    raise notice 'DRY-RUN: pruning % contracts, % exercises, % events and % transactions',
-        deleted_contracts, deleted_exercises, deleted_events, deleted_transactions;
+    raise notice 'DRY-RUN: pruning % contracts, % exercises, % reassignments, % events and % transactions',
+        deleted_contracts, deleted_exercises, deleted_reassignments, deleted_events, deleted_transactions;
 
-    return query select pruning_boundary_offset, deleted_contracts, deleted_exercises, deleted_events, deleted_transactions;
+    return query select pruning_boundary_offset, deleted_contracts, deleted_exercises, deleted_events,
+        deleted_transactions, deleted_reassignments;
 end;
 $$;
 
@@ -2354,6 +2401,20 @@ CREATE INDEX __packages_id_idx ON public.__packages USING hash (id);
 
 
 --
+-- Name: __reassignments_reassigned_at_ix_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX __reassignments_reassigned_at_ix_idx ON ONLY public.__reassignments USING btree (reassigned_at_ix);
+
+
+--
+-- Name: __reassignments_1_reassigned_at_ix_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX __reassignments_1_reassigned_at_ix_idx ON public.__reassignments_1 USING btree (reassigned_at_ix);
+
+
+--
 -- Name: __tmp_deactivated_contracts_ix_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -2470,6 +2531,13 @@ ALTER INDEX public.__exercises_exercised_at_ix_idx ATTACH PARTITION public.__exe
 --
 
 ALTER INDEX public.__exercises_package_pk_idx ATTACH PARTITION public.__exercises_1_package_pk_idx;
+
+
+--
+-- Name: __reassignments_1_reassigned_at_ix_idx; Type: INDEX ATTACH; Schema: public; Owner: -
+--
+
+ALTER INDEX public.__reassignments_reassigned_at_ix_idx ATTACH PARTITION public.__reassignments_1_reassigned_at_ix_idx;
 
 
 --
