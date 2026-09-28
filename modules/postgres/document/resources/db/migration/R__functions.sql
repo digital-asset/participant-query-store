@@ -838,7 +838,6 @@ begin
                     contract_key_hash = null,
                     redaction_id = redact_contract.redaction_id
                 where c.contract_id = redact_contract.contract_id and c.redaction_id is null
-                    and __deactivated_at_ix(c) is not null
                 returning 1
         )
         select count(*)

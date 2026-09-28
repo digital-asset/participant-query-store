@@ -180,6 +180,18 @@ object ReassignmentRedactionSpec extends SharedMultiSyncLedgerSpec:
           InProcessPipeline.processTransactions(Chunk(createTx, unassignTx))
 
         Expect:
+          Postgres
+            .query(
+              sql"""select payload, redaction_id from lookup_contract(${contractId.get})
+                   order by coalesce(created_at_ix, assigned_at_ix)"""
+            )
+            .returns(
+              table {
+                isNull      | "reason"
+                not(isNull) | isNull
+              }
+            )
+        And:
           Postgres.query(sql"select redact_contract(${contractId.get}, 'reason')").returns(table(1))
         And:
           Postgres
