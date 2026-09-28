@@ -801,18 +801,21 @@ create or replace procedure __validate_redaction_contract(contract_id __contract
 as $$
 declare
     active_count integer;
-    redacted_count integer;
+    total_count integer;
+    unredacted_count integer;
 begin
-    select count(*) filter (where archived_at_ix is null) as active_count,
-           count(*) filter (where redaction_id is not null) as redacted_count
-        into active_count, redacted_count
-        from lookup_contract(contract_id);
+    select count(*) filter (where __deactivated_at_ix(c) is null) as active_count,
+           count(*) as total_count,
+           count(*) filter (where redaction_id is null) as unredacted_count
+        into active_count, total_count, unredacted_count
+        from __contracts c
+        where c.contract_id = __validate_redaction_contract.contract_id;
 
     if active_count > 0 then
         raise exception 'Cannot redact contract % because it is active', contract_id;
     end if;
 
-    if redacted_count > 0 then
+    if total_count > 0 and unredacted_count = 0 then
         raise exception 'Cannot redact contract % because it is already redacted', contract_id;
     end if;
 end;
@@ -826,6 +829,7 @@ declare
 begin
     raise notice 'Redacting payload and contract key from contract: %', contract_id;
     call __validate_redaction_contract(contract_id);
+    -- Rows inserted after redaction (e.g. an assign following the redacted unassign) keep their payload; redact again once they are deactivated.
     with affected_contracts as
         (
             update __contracts c
@@ -834,6 +838,7 @@ begin
                     contract_key_hash = null,
                     redaction_id = redact_contract.redaction_id
                 where c.contract_id = redact_contract.contract_id and c.redaction_id is null
+                    and __deactivated_at_ix(c) is not null
                 returning 1
         )
         select count(*)
@@ -846,7 +851,7 @@ begin
 end;
 $$ language plpgsql strict;
 comment on function redact_contract is
-    'Assign a redaction_id to an archived contract by contract ID and redact its payload and contract key';
+    'Assign a redaction_id to a deactivated (archived or unassigned) contract by contract ID and redact its payload and contract key';
 
 create or replace procedure __validate_redaction_exercise(event_id __events.event_id%type) as
 $$
