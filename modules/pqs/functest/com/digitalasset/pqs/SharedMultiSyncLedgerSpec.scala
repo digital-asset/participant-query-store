@@ -5,7 +5,6 @@ package com.digitalasset.pqs
 
 import com.daml.ledger.api.v2.value.*
 import com.digitalasset.pqs.docker.{Docker, Service}
-import com.digitalasset.pqs.features.SharedMultiSyncLedgerSpec
 import com.digitalasset.pqs.functest.{Dpm, FTEnv, FuncTest}
 import com.digitalasset.pqs.services.daml.*
 import com.digitalasset.pqs.services.postgres.Postgres
