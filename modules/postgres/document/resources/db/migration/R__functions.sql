@@ -801,13 +801,13 @@ create or replace procedure __validate_redaction_contract(contract_id __contract
 as $$
 declare
     active_count integer;
-    total_count integer;
     unredacted_count integer;
+    total_count integer;
 begin
     select count(*) filter (where __deactivated_at_ix(c) is null) as active_count,
-           count(*) as total_count,
-           count(*) filter (where redaction_id is null) as unredacted_count
-        into active_count, total_count, unredacted_count
+           count(*) filter (where redaction_id is null) as unredacted_count,
+           count(*) as total_count
+        into active_count, unredacted_count, total_count
         from __contracts c
         where c.contract_id = __validate_redaction_contract.contract_id;
 
