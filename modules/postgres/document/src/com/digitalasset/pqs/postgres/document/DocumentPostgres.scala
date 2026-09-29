@@ -240,57 +240,50 @@ final case class DocumentPostgres(
     ZPipeline.unwrap(
       zio.Ref.make(0L).map { lastAnalyzedIx =>
         ZPipeline[Watermark].mapZIO(wm =>
-          for
-            // Without accurate stats, __update_watermark_fn plans a nested-loop cross-product that can take minutes.
-            // Force an ANALYZE when the watermark has grown significantly since the previous ANALYZE.
-            last <- lastAnalyzedIx.get
-            _ <- ZIO
-              .when(wm.ix >= last * AnalyzeGrowthFactor)(analyzeContractTables(wm.ix) *> lastAnalyzedIx.set(wm.ix))
-            (duration, _) <- traces
-              .span("advance datastore watermark") {
-                trackWatermark(updateWatermark(wm))
-                  @@ traces.attributes(
-                    "pqs.watermark.offset" -> wm.offset.toLong,
-                    "pqs.watermark.ix"     -> wm.ix
-                  )
-                  *> ZIO.foreachDiscard(wm.txSpans) { s =>
-                    s.linkToCurrentSpan("target" -> "↧ advance watermark")
-                      *> s.addEvent(
-                        "advanced datastore watermark",
-                        "offset" -> wm.offset.toLong,
-                        "index"  -> wm.ix
-                      )
-                      *> s.end()
-                  }
-                  *> ZIO.foreachDiscard(wm.persistSpans) { s =>
-                    ZIO.unit @@ traces.link(s, "target" -> "↥ persist to datastore")
-                  }
-                  *> zio.Clock.nanoTime
-                    .flatMap(now =>
-                      ZIO.foreachDiscard(wm.seenAts) { seenAt => txProcessingLatency.update(now - seenAt) }
+          // Without accurate stats, __update_watermark_fn plans a nested-loop cross-product that can take minutes.
+          // Force an ANALYZE when the watermark has grown significantly since the previous ANALYZE.
+          lastAnalyzedIx.get.flatMap(last =>
+            ZIO.when(wm.ix >= last * AnalyzeGrowthFactor)(analyzeContractTables(wm.ix) *> lastAnalyzedIx.set(wm.ix))
+          )
+            *> traces.span("advance datastore watermark") {
+              trackWatermark(updateWatermark(wm)) @@ traces
+                .attributes("pqs.watermark.offset" -> wm.offset.toLong, "pqs.watermark.ix" -> wm.ix)
+                *> ZIO.foreachDiscard(wm.txSpans) { s =>
+                  s.linkToCurrentSpan("target" -> "↧ advance watermark")
+                    *> s.addEvent(
+                      "advanced datastore watermark",
+                      "offset" -> wm.offset.toLong,
+                      "index"  -> wm.ix
                     )
-                  *> watermarkIx.update(wm.ix)
-              }
-              .timed
-            _ <- logInfo(s"Advanced watermark: ix = ${wm.ix}, offset = ${wm.offset.toLong} in ${duration.toMillis}ms")
-          yield ()
+                    *> s.end()
+                }
+                *> ZIO.foreachDiscard(wm.persistSpans) { s =>
+                  ZIO.unit @@ traces.link(s, "target" -> "↥ persist to datastore")
+                }
+                *> zio.Clock.nanoTime
+                  .flatMap(now => ZIO.foreachDiscard(wm.seenAts) { seenAt => txProcessingLatency.update(now - seenAt) })
+                *> watermarkIx.update(wm.ix)
+            }
         )
       }
     )
 
   private def analyzeContractTables(nextIx: Long) =
-    traces.span("analyze watermark hot tables") {
-      logInfo(s"Running ANALYZE on __contracts and __tmp_deactivated_contracts before advance to ix = $nextIx")
-        *> tx(
-          sql"analyze __contracts".execute
-            *> sql"analyze __tmp_deactivated_contracts".execute
-        )
-        *> logInfo("ANALYZE on __contracts and __tmp_deactivated_contracts complete")
+    traces.span("analyze contracts tables") {
+      for
+        _ <- logInfo(s"Running ANALYZE on __contracts and __tmp_deactivated_contracts before advance to ix = $nextIx")
+        (duration, _) <- tx(sql"analyze __contracts".execute *> sql"analyze __tmp_deactivated_contracts".execute).timed
+        _ <- logInfo(s"ANALYZE on __contracts and __tmp_deactivated_contracts complete in ${duration.toMillis}ms")
+      yield ()
     }
 
   private def updateWatermark(wm: Watermark) =
     tx(sql"""update __watermark set "offset" = ${wm.offset.toLong}, ix = ${wm.ix};""".update)
       .filterOrFail(_ == 1)(RuntimeException("Failed to update watermark."))
+      .timed
+      .flatMap((duration, _) =>
+        logInfo(s"Advanced watermark: ix = ${wm.ix}, offset = ${wm.offset.toLong} in ${duration.toMillis}ms")
+      )
 
   private def updateAcsOffsets =
     ZPipeline[Watermark].tap(wm =>
