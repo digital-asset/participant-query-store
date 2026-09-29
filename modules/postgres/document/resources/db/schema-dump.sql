@@ -773,10 +773,10 @@ begin
                     and c2.contract_id = d.contract_id
                     and c2.archived_at_ix is null
                     and c2.unassigned_at_ix is null
-                    and coalesce(c2.created_at_ix, c2.assigned_at_ix) <= d.deactivated_at_ix
+                    and __activated_at_ix(c2) <= d.deactivated_at_ix
                 -- synchronizer_id may be null on rows written by PQS 3.6 or older
                     and (c2.synchronizer_id is null or c2.synchronizer_id = d.synchronizer_id)
-                order by coalesce(c2.created_at_ix, c2.assigned_at_ix) desc
+                order by __activated_at_ix(c2) desc
                 limit 1
             ) c2
             where c.ctid = c2.contract_ctid
