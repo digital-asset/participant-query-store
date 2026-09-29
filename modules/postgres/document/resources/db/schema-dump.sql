@@ -832,18 +832,21 @@ CREATE PROCEDURE public.__validate_redaction_contract(IN contract_id text)
     AS $$
 declare
     active_count integer;
-    redacted_count integer;
+    unredacted_count integer;
+    total_count integer;
 begin
-    select count(*) filter (where archived_at_ix is null) as active_count,
-           count(*) filter (where redaction_id is not null) as redacted_count
-        into active_count, redacted_count
-        from lookup_contract(contract_id);
+    select count(*) filter (where __deactivated_at_ix(c) is null) as active_count,
+           count(*) filter (where redaction_id is null) as unredacted_count,
+           count(*) as total_count
+        into active_count, unredacted_count, total_count
+        from __contracts c
+        where c.contract_id = __validate_redaction_contract.contract_id;
 
     if active_count > 0 then
         raise exception 'Cannot redact contract % because it is active', contract_id;
     end if;
 
-    if redacted_count > 0 then
+    if total_count > 0 and unredacted_count = 0 then
         raise exception 'Cannot redact contract % because it is already redacted', contract_id;
     end if;
 end;
@@ -1382,6 +1385,7 @@ declare
 begin
     raise notice 'Redacting payload and contract key from contract: %', contract_id;
     call __validate_redaction_contract(contract_id);
+    -- Rows inserted after redaction (e.g. an assign following the redacted unassign) keep their payload; redact again once they are deactivated.
     with affected_contracts as
         (
             update __contracts c
