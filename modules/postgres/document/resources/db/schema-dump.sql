@@ -1047,9 +1047,10 @@ $$;
 CREATE FUNCTION public.lookup_contract(contract_id text, qname text DEFAULT NULL::text) RETURNS SETOF public.contract
     LANGUAGE sql STABLE
     AS $$
-select c.*
+select distinct on (c.tpe_pk) c.*
 from __contracts(qname) c
 where c.contract_id = lookup_contract.contract_id
+order by c.tpe_pk, reassignment_counter desc
 $$;
 
 

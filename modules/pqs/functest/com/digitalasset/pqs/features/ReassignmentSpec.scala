@@ -81,6 +81,15 @@ object ReassignmentSpec extends SharedMultiSyncLedgerSpec:
               dar.get.packageId | s"${pingPong.name}:PingPong:Ping" | "template" | contractId | archivedAtOffset | sync2.id | 1
             }
           )
+      Expect:
+        // lookup_contract returns the row with the highest reassignment_counter
+        Database
+          .lookupContract(contractId.get, extraColumns = Seq("synchronizer_id", "reassignment_counter"))
+          .returns(
+            table {
+              dar.get.packageId | s"${pingPong.name}:PingPong:Ping" | "template" | contractId | sync2.id | 1
+            }
+          )
 
       Expect:
         Postgres
@@ -224,6 +233,15 @@ object ReassignmentSpec extends SharedMultiSyncLedgerSpec:
               dar.get.packageId | s"${pingPong.name}:PingPong:Ping" | "template" | contractId | createdAtOffset.toLong | 0 | sync1.id | 0
             }
           )
+      Expect:
+        // lookup_contract returns the row with the highest reassignment_counter
+        Database
+          .lookupContract(contractId.get, extraColumns = Seq("synchronizer_id", "reassignment_counter"))
+          .returns(
+            table {
+              dar.get.packageId | s"${pingPong.name}:PingPong:Ping" | "template" | contractId | sync2.id | 1
+            }
+          )
 
       val reassignmentId = Capture[String]
       Expect:
@@ -336,6 +354,15 @@ object ReassignmentSpec extends SharedMultiSyncLedgerSpec:
               dar.get.packageId | s"${pingPong.name}:PingPong:Ping" | "template" | contractId | 0 | assignedAtOffset.toLong | sync2.id | 1
             }
           )
+      Expect:
+        // lookup_contract returns the row with the highest reassignment_counter
+        Database
+          .lookupContract(contractId.get, extraColumns = Seq("synchronizer_id", "reassignment_counter"))
+          .returns(
+            table {
+              dar.get.packageId | s"${pingPong.name}:PingPong:Ping" | "template" | contractId | sync2.id | 1
+            }
+          )
 
     },
     funcTest("non-causal stream: repeated interleaved reassignments") {
@@ -399,6 +426,15 @@ object ReassignmentSpec extends SharedMultiSyncLedgerSpec:
               anything | anything | contractId | "[4,7)"  | sync1.id | 2
               anything | anything | contractId | "[6,9)"  | sync2.id | 3
               anything | anything | contractId | "[8,10)" | sync1.id | 4
+            }
+          )
+      Expect:
+        // lookup_contract returns the row with the highest reassignment_counter
+        Database
+          .lookupContract(contractId.get, extraColumns = Seq("synchronizer_id", "reassignment_counter"))
+          .returns(
+            table {
+              dar.get.packageId | s"${pingPong.name}:PingPong:Ping" | "template" | contractId | sync1.id | 4
             }
           )
     }

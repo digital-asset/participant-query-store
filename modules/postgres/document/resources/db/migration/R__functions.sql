@@ -1399,9 +1399,10 @@ create or replace function lookup_contract(
     qname text default null
 ) returns setof contract as
 $$
-select c.*
+select distinct on (c.tpe_pk) c.*
 from __contracts(qname) c
 where c.contract_id = lookup_contract.contract_id
+order by c.tpe_pk, reassignment_counter desc
 $$ language sql stable;
 comment on function lookup_contract is 'Lookup contract and its interface views data by contract ID.';
 
