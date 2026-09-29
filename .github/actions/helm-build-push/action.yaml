@@ -41,6 +41,7 @@ runs:
       shell: nix-shell ${{ github.action_path }}/shell.nix --run "exec bash -euo pipefail {0}"
       run: ${{ github.action_path }}/helm-build-push.sh
     - name: Upload Chart
+      if: ${{ steps.build-push.outputs.package != '' }}
       uses: actions/upload-artifact@v7
       with:
         name: chart
