@@ -79,11 +79,11 @@ final case class DocumentPostgres(
       >>> executePar(16)
       >>> ZPipeline.flattenChunks
       >>> updateAcsOffsets
-      >>> handleWatermarks
+      >>> handleWatermarks(0L)
       >>> ZSink.drain
   ).provideEnvironment(env)
 
-  override def processTransactions = (
+  override def processTransactions(initialIx: Long) = (
     waitPoint("pipeline_wp_events", poolConfig.bufferSize, 1024 min poolConfig.bufferSize)
       >>> convertTransactionEventsToStatements(8)
       >>> waitPoint("pipeline_wp_statements", poolConfig.bufferSize, 1024 min poolConfig.bufferSize)
@@ -94,7 +94,7 @@ final case class DocumentPostgres(
       >>> executeParUnordered(poolConfig.maxConnections)
       >>> waitPoint("pipeline_wp_watermarks", 1024)
       >>> reorderCheckpoints
-      >>> handleWatermarks
+      >>> handleWatermarks(initialIx)
       >>> ZSink.drain
   ).provideEnvironment(env)
 
@@ -225,7 +225,7 @@ final case class DocumentPostgres(
     )
 
   /** Update watermarks */
-  private def handleWatermarks =
+  private def handleWatermarks(initialIx: Long) =
     val trackWatermark = latency("pipeline_progress_watermark", "Latency of watermark progression")
     val watermarkIx = Metric
       .gauge("watermark_ix", "Current watermark index (transaction ordinal number for consistent reads)")
@@ -238,7 +238,7 @@ final case class DocumentPostgres(
       )
       .contramap[Long](_.toDouble / 1e9)
     ZPipeline.unwrap(
-      zio.Ref.make(0L).map { lastAnalyzedIx =>
+      zio.Ref.make(initialIx).map { lastAnalyzedIx =>
         ZPipeline[Watermark].mapZIO(wm =>
           // Without accurate stats, __update_watermark_fn plans a nested-loop cross-product that can take minutes.
           // Force an ANALYZE when the watermark has grown significantly since the previous ANALYZE.
