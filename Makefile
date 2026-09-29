@@ -209,6 +209,14 @@ populate-blackduck-dir:
 	cp -v out/pqs/pom.dest/pom.xml .blackduck-input/${PQS_VERSION}/pom.xml
 
 ###############################################################################
+## Schema Dump Test ###########################################################
+###############################################################################
+
+.PHONY: generate-schema-dump
+generate-schema-dump:
+	REGENERATE_SCHEMA_DUMP=true mill pqs.functest.testOnly com.digitalasset.pqs.schema.postgres.document.SchemaDumpSpec
+
+###############################################################################
 ## Matrix Compatibility Tests #################################################
 ###############################################################################
 

@@ -48,7 +48,7 @@ drifted from what the current migrations actually produce. After updating any of
 by running:
 
 ```bash
-REGENERATE_SCHEMA_DUMP=true mill pqs.functest.testOnly com.digitalasset.pqs.schema.postgres.document.SchemaDumpSpec
+make generate-schema-dump
 ```
 
 # Which release?

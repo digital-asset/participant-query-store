@@ -189,7 +189,10 @@ object Postgres:
     sql"""update __watermark set "offset" = tx."offset", ix = tx.ix, instance_id = 'reverse-watermark' from __transactions tx where tx.ix = $transactionIx""".update
   )
 
-  /** Returns the SQL schema dump (DDL only, no data/roles/ownership) of the currently connected PQS database as text,
+  /** Dumps the schema (DDL only, no data/roles/ownership) of the currently connected database to the given local file.
+    * Useful to eyeball how the schema looks like once all Flyway migrations have been applied.
+    *
+    * Returns the SQL schema dump (DDL only, no data/roles/ownership) of the currently connected PQS database as text,
     * by running `pg_dump` inside the already running Postgres container (the equivalent of `docker exec`).
     */
   def dumpSchema: ZIO[Postgres & Database, Throwable, String] =
@@ -211,15 +214,6 @@ object Postgres:
         .fail(RuntimeException(s"pg_dump failed with exit code ${result.exitCode.code}: ${result.stdErr}"))
         .unless(result.exitCode === ExitCode.success)
     yield result.stdOut
-
-  /** Dumps the schema (DDL only, no data/roles/ownership) of the currently connected database to the given local file.
-    * Useful to eyeball how the schema looks like once all Flyway migrations have been applied.
-    */
-  def dumpSchemaTo(target: os.Path): ZIO[Postgres & Database, Throwable, Unit] =
-    dumpSchema.flatMap(content =>
-      attemptBlocking(os.write.over(target, content, createFolders = true))
-        *> logDebug(s"Dumped database schema to $target")
-    )
 
   /////////////////
   // Session API //
