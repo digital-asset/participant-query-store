@@ -126,7 +126,8 @@ select tpe.template_fqn,
        c.unassigned_at_ix,
        unassign_t."offset",
        c.reassignment_counter,
-       c.synchronizer_id
+       c.synchronizer_id,
+       c.tpe_pk
 from __contracts c
          left join __contract_tpe tpe on tpe.pk = c.tpe_pk
          left join __transactions ct on c.created_at_ix = ct.ix
@@ -1184,10 +1185,11 @@ create or replace function active(
 ) returns setof contract
 as
 $$
-select c.*
+select distinct on (c.tpe_pk, c.contract_id) c.*
 from __contracts(qname) c
 where c.life_ix @> (select __nearest_ix_floor("offset"))
-  and not c.divulged_only -- exclude contracts that were merely divulged
+    and not c.divulged_only -- exclude contracts that were merely divulged
+order by c.tpe_pk, c.contract_id, c.reassignment_counter desc
 $$ language sql stable
                 parallel safe;
 comment on function active is $$Returns payload and metadata for active contracts of the given Daml qualified name.
@@ -1203,11 +1205,13 @@ create or replace function summary_active(
 ) returns setof contract_summary
 as
 $$
-with stats as (select c.tpe_pk as tpe_pk, count(*) as count
-               from __contracts c
-               where c.life_ix @> (select __nearest_ix_floor("offset"))
-                 and not c.divulged_only -- exclude contracts that were merely divulged
-               group by c.tpe_pk)
+with stats as (
+    select c.tpe_pk as tpe_pk, count(distinct c.contract_id) as count
+    from __contracts c
+    where c.life_ix @> (select __nearest_ix_floor("offset"))
+        and not c.divulged_only -- exclude contracts that were merely divulged
+    group by c.tpe_pk
+)
 select tpe.template_fqn,
        tpe.payload_type,
        stats.count
@@ -1261,7 +1265,8 @@ select c.template_fqn,
        c.unassigned_at_ix,
        c.unassigned_at_offset, 
        c.reassignment_counter,
-       c.synchronizer_id
+       c.synchronizer_id,
+       c.tpe_pk
 from __contracts(qname) c
 where c.archived_at_ix between (select __nearest_ix_ceil(from_offset)) and (select __nearest_ix_floor(to_offset))
 $$ language sql stable
@@ -1387,7 +1392,7 @@ from unnest(e.signatories || e.observers) t(x);
 $$ language sql immutable
                 strict
                 parallel safe;
-comment on function stakeholders(exercise) is $$Helper function to simplify reference to stakeholders of an exercise's contract.$$;
+comment on function stakeholders(exercise) is $$Helper function to simplify reference to stakeholders of an exercise\'s contract.$$;
 
 create or replace function lookup_contract(
     contract_id __contracts.contract_id%type,

@@ -316,11 +316,15 @@ object ReassignmentSpec extends SharedMultiSyncLedgerSpec:
           )
           .returns(
             table {
-              // TODO #17 deduplication
-              dar.get.packageId | s"${pingPong.name}:PingPong:Ping" | "template" | contractId | createdAtOffset.toLong | 0 | sync1.id | 0
+              // deduplication by highest reassignment counter
               dar.get.packageId | s"${pingPong.name}:PingPong:Ping" | "template" | contractId | 0 | assignedAtOffset.toLong | sync2.id | 1
             }
           )
+      Expect:
+        // count unique contract IDs
+        Database
+          .summaryActiveAtOffset(assignedAtOffset.toLong)
+          .returns(table(s"${pingPong.name}:PingPong:Ping" | "template" | 1))
       Expect:
         Database
           .activeAtOffset(

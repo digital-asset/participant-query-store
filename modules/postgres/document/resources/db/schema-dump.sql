@@ -116,7 +116,8 @@ CREATE TYPE public.contract AS (
 	unassigned_at_ix bigint,
 	unassigned_at_offset bigint,
 	reassignment_counter bigint,
-	synchronizer_id text
+	synchronizer_id text,
+	tpe_pk bigint
 );
 
 
@@ -319,7 +320,8 @@ select tpe.template_fqn,
        c.unassigned_at_ix,
        unassign_t."offset",
        c.reassignment_counter,
-       c.synchronizer_id
+       c.synchronizer_id,
+       c.tpe_pk
 from __contracts c
          left join __contract_tpe tpe on tpe.pk = c.tpe_pk
          left join __transactions ct on c.created_at_ix = ct.ix
@@ -897,10 +899,11 @@ $$;
 CREATE FUNCTION public.active(qname text DEFAULT NULL::text, "offset" bigint DEFAULT public.latest_offset()) RETURNS SETOF public.contract
     LANGUAGE sql STABLE PARALLEL SAFE
     AS $$
-select c.*
+select distinct on (c.tpe_pk, c.contract_id) c.*
 from __contracts(qname) c
 where c.life_ix @> (select __nearest_ix_floor("offset"))
-  and not c.divulged_only -- exclude contracts that were merely divulged
+    and not c.divulged_only -- exclude contracts that were merely divulged
+order by c.tpe_pk, c.contract_id, c.reassignment_counter desc
 $$;
 
 
@@ -973,7 +976,8 @@ select c.template_fqn,
        c.unassigned_at_ix,
        c.unassigned_at_offset, 
        c.reassignment_counter,
-       c.synchronizer_id
+       c.synchronizer_id,
+       c.tpe_pk
 from __contracts(qname) c
 where c.archived_at_ix between (select __nearest_ix_ceil(from_offset)) and (select __nearest_ix_floor(to_offset))
 $$;
@@ -1546,11 +1550,13 @@ $$;
 CREATE FUNCTION public.summary_active("offset" bigint DEFAULT public.latest_offset()) RETURNS SETOF public.contract_summary
     LANGUAGE sql STABLE PARALLEL SAFE
     AS $$
-with stats as (select c.tpe_pk as tpe_pk, count(*) as count
-               from __contracts c
-               where c.life_ix @> (select __nearest_ix_floor("offset"))
-                 and not c.divulged_only -- exclude contracts that were merely divulged
-               group by c.tpe_pk)
+with stats as (
+    select c.tpe_pk as tpe_pk, count(distinct c.contract_id) as count
+    from __contracts c
+    where c.life_ix @> (select __nearest_ix_floor("offset"))
+        and not c.divulged_only -- exclude contracts that were merely divulged
+    group by c.tpe_pk
+)
 select tpe.template_fqn,
        tpe.payload_type,
        stats.count

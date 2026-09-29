@@ -35,7 +35,9 @@ alter type contract
     add attribute unassigned_at_ix bigint,
     add attribute unassigned_at_offset bigint,
     add attribute reassignment_counter bigint,
-    add attribute synchronizer_id text;
+    add attribute synchronizer_id text,
+    -- tpe_pk is added to optimize deduplication in active function
+    add attribute tpe_pk bigint;
 
 create table if not exists __tmp_deactivated_contracts
 (
