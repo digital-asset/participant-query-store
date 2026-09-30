@@ -52,8 +52,8 @@ These top-level sections in the `values.yaml` control the standard lifecycle, id
 * **NOTE:** Port matches what is defined in the `values.yaml` file in the `pqs.health.port` block and needs to match it
 
 #### `jvm`
-* **extraOptions:** Allows you to append additional entries to the JDK_TOOLS_OPTIONS variable that is passed to the JVM.
-* **options:** Allows you to override the JDK_TOOLS_OPTIONS that are passed to the JVM. This is useful for tuning the JVM heap size and other performance parameters, if you want to deviate from the defaults.
+* **extraOptions:** Allows you to append additional entries to the JDK_JAVA_OPTIONS variable that is passed to the JVM.
+* **options:** Allows you to override the JDK_JAVA_OPTIONS that are passed to the JVM. This is useful for tuning the JVM heap size and other performance parameters, if you want to deviate from the defaults.
 
 
   * **Example `values.yaml` Configuration:**

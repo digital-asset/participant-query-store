@@ -57,7 +57,7 @@ spec:
             {{- end }}
             {{- end }}
             - name: JDK_JAVA_OPTIONS
-              value: {{ join " " (concat .Values.containers.resources.jvm.options .Values.containers.resources.jvm.extraOptions) | quote }}
+              value: {{ join " " (concat .Values.containers.jvm.options .Values.containers.jvm.extraOptions) | quote }}
           resources:
             {{- toYaml .Values.containers.resources | nindent 12 }}
           readinessProbe:
