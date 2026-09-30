@@ -1626,6 +1626,23 @@ $$;
 
 
 --
+-- Name: summary_reassignments(bigint, bigint); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.summary_reassignments(from_offset bigint DEFAULT COALESCE(public.pruned_offset(), public.oldest_offset()), to_offset bigint DEFAULT public.latest_offset()) RETURNS TABLE(template_fqn text, type public.__reassignment_type, source_synchronizer_id text, target_synchronizer_id text, count bigint)
+    LANGUAGE sql STABLE PARALLEL SAFE
+    AS $$
+    with stats as (select r.contract_tpe_pk, r.type, r.source_synchronizer_id, r.target_synchronizer_id, count(*) as count
+                   from __reassignments r
+                   where r.reassigned_at_ix between (select __nearest_ix_ceil(from_offset)) and (select __nearest_ix_floor(to_offset))
+                   group by r.contract_tpe_pk, r.type, r.source_synchronizer_id, r.target_synchronizer_id)
+    select tpe.template_fqn, stats.type, stats.source_synchronizer_id, stats.target_synchronizer_id, stats.count
+    from stats
+         join __contract_tpe tpe on tpe.pk = stats.contract_tpe_pk
+$$;
+
+
+--
 -- Name: summary_transients(bigint, bigint); Type: FUNCTION; Schema: public; Owner: -
 --
 

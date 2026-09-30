@@ -54,6 +54,7 @@ synchronizer_id text;
 - *BREAKING*: The `__transactions` column `domain_id` is renamed to `synchronizer_id`, to match Canton's current vocabulary. It is now populated for every update — every transaction and every reassignment. Rows written before this release keep `NULL` and are not getting backfilled.
 - The `synchronizer_id text` column is added to the `transactions` SQL view.
 - The `synchronizer_id text` column is added to the output of the `exercises` and `lookup_exercise` SQL functions.
+- The `summary_reassignments` SQL function returns the number of assign and unassign events per Daml fully qualified name and per source and target synchronizer in the `[from_offset, to_offset]` range.
 
 
 #### Pruning, Reset to offset and Redaction

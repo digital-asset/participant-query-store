@@ -1179,6 +1179,30 @@ $$ language sql stable parallel safe;
 comment on function summary_exercises(__transactions."offset"%type, __transactions."offset"%type)
     is 'Returns the number of exercised events per Daml coordinates in the [from_offset, to_offset] range.';
 
+create or replace function summary_reassignments(
+    from_offset __transactions."offset"%type default coalesce(pruned_offset(), oldest_offset()),
+    to_offset __transactions."offset"%type default latest_offset()
+)
+    returns table
+            (
+                template_fqn           __contract_tpe.template_fqn%type,
+                type                   __reassignment_type,
+                source_synchronizer_id text,
+                target_synchronizer_id text,
+                count                  bigint
+            ) as
+$$
+    with stats as (select r.contract_tpe_pk, r.type, r.source_synchronizer_id, r.target_synchronizer_id, count(*) as count
+                   from __reassignments r
+                   where r.reassigned_at_ix between (select __nearest_ix_ceil(from_offset)) and (select __nearest_ix_floor(to_offset))
+                   group by r.contract_tpe_pk, r.type, r.source_synchronizer_id, r.target_synchronizer_id)
+    select tpe.template_fqn, stats.type, stats.source_synchronizer_id, stats.target_synchronizer_id, stats.count
+    from stats
+         join __contract_tpe tpe on tpe.pk = stats.contract_tpe_pk
+$$ language sql stable parallel safe;
+comment on function summary_reassignments(__transactions."offset"%type, __transactions."offset"%type)
+    is 'Returns the number of assign and unassign events per Daml fully qualified name and per source and target synchronizer in the [from_offset, to_offset] range.';
+
 create or replace function active(
     qname text default null,
     "offset" __transactions."offset"%type default latest_offset()
