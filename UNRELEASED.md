@@ -62,3 +62,9 @@ synchronizer_id text;
 - Pruning takes reassignments into account - SQL functions now also delete related `__reassignments` entries.
 - `redact_contract` redacts a contract once all its rows are deactivated (archived or unassigned), so reassigned and unassigned contracts can be redacted; rows inserted after a redaction (a late assign or create, or rows replayed by `reset_to_offset`) keep their payload — call `redact_contract` again once they are deactivated, and it fails with "already redacted" only when every row is redacted.
 - Resetting to an offset takes reassignments into account: `reset_to_offset` and `__cleanup_transactions_after_watermark` delete the contracts assigned after the offset and the `__reassignments` entries recorded after it, and revives the contracts unassigned after it.
+
+### Minor improvements
+
+#### Helm Chart
+
+- Allow for managing JVM `JDK_JAVA_OPTIONS` env var via values file.  Default to assigning max of 75% of available container memory to the JVM process.  Allow for the entire `JDK_JAVA_OPTIONS` to be configured via `values.yaml` - `options` to override or `extraOptions` to append an additional value
