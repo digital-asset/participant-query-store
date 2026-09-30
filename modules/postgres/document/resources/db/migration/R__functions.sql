@@ -1189,7 +1189,7 @@ select distinct on (c.tpe_pk, c.contract_id) c.*
 from __contracts(qname) c
 where c.life_ix @> (select __nearest_ix_floor("offset"))
     and not c.divulged_only -- exclude contracts that were merely divulged
-order by c.tpe_pk, c.contract_id, c.reassignment_counter desc
+order by c.tpe_pk, c.contract_id, c.reassignment_counter desc nulls last
 $$ language sql stable
                 parallel safe;
 comment on function active is $$Returns payload and metadata for active contracts of the given Daml qualified name.
@@ -1402,7 +1402,7 @@ $$
 select distinct on (c.tpe_pk) c.*
 from __contracts(qname) c
 where c.contract_id = lookup_contract.contract_id
-order by c.tpe_pk, reassignment_counter desc
+order by c.tpe_pk, reassignment_counter desc nulls last
 $$ language sql stable;
 comment on function lookup_contract is 'Lookup contract and its interface views data by contract ID.';
 

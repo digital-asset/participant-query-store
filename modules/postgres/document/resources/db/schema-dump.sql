@@ -903,7 +903,7 @@ select distinct on (c.tpe_pk, c.contract_id) c.*
 from __contracts(qname) c
 where c.life_ix @> (select __nearest_ix_floor("offset"))
     and not c.divulged_only -- exclude contracts that were merely divulged
-order by c.tpe_pk, c.contract_id, c.reassignment_counter desc
+order by c.tpe_pk, c.contract_id, c.reassignment_counter desc nulls last
 $$;
 
 
@@ -1050,7 +1050,7 @@ CREATE FUNCTION public.lookup_contract(contract_id text, qname text DEFAULT NULL
 select distinct on (c.tpe_pk) c.*
 from __contracts(qname) c
 where c.contract_id = lookup_contract.contract_id
-order by c.tpe_pk, reassignment_counter desc
+order by c.tpe_pk, reassignment_counter desc nulls last
 $$;
 
 
