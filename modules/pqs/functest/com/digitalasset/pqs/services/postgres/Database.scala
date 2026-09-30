@@ -77,8 +77,13 @@ object Database:
   def creates(qname: Option[String] = None, extraColumns: Seq[String] = Seq.empty) =
     selectContracts(sql"creates($qname)", extraColumns)
 
+  def lookupContract(contractId: String, qname: Option[String] = None, extraColumns: Seq[String] = Seq.empty) =
+    selectContracts(sql"lookup_contract($contractId, $qname)", extraColumns)
+
   def exercises(qname: Option[String] = None) = Postgres `query`
     sql"""select package_id, template_fqn, choice_fqn, choice, contract_id, argument ->> 'newLabel' from exercises($qname) order by exercised_at_ix, template_fqn, choice_fqn"""
+
+  def summaryActiveAtOffset(offset: Long) = Postgres.query(sql"select * from summary_active($offset)")
 
   def transactionCount() =
     Postgres.query(sql"select count(*) from __transactions".query[Long].selectOne).someOrElse(0L)

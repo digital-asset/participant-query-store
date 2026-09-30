@@ -1,7 +1,7 @@
 // Copyright (c) 2026 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-package com.digitalasset.pqs.features
+package com.digitalasset.pqs.features.redaction
 
 import com.digitalasset.canonical.{Event, Offset, Transaction}
 import com.digitalasset.pqs.SharedMultiSyncLedgerSpec
@@ -47,7 +47,7 @@ object ReassignmentRedactionSpec extends SharedMultiSyncLedgerSpec:
           Postgres.query(sql"select redact_contract(${cid.get}, 'reason')").returns(table(2))
         And:
           Postgres
-            .query(sql"select payload, redaction_id from lookup_contract(${cid.get})")
+            .query(sql"select payload, redaction_id from __contracts where contract_id=${cid.get}")
             .returns(
               table {
                 isNull | "reason"
@@ -129,7 +129,7 @@ object ReassignmentRedactionSpec extends SharedMultiSyncLedgerSpec:
           Postgres.query(sql"select redact_contract(${contractId.get}, 'reason')").returns(table(1))
         And:
           Postgres
-            .query(sql"select payload, redaction_id from lookup_contract(${contractId.get})")
+            .query(sql"select payload, redaction_id from __contracts where contract_id=${contractId.get}")
             .returns(table(isNull | "reason"))
       },
       funcTest("redacts rows inserted after a redaction on a second call") {
@@ -182,7 +182,7 @@ object ReassignmentRedactionSpec extends SharedMultiSyncLedgerSpec:
         Expect:
           Postgres
             .query(
-              sql"""select payload, redaction_id from lookup_contract(${contractId.get})
+              sql"""select payload, redaction_id from __contracts where contract_id=${contractId.get}
                    order by coalesce(created_at_ix, assigned_at_ix)"""
             )
             .returns(
@@ -195,7 +195,7 @@ object ReassignmentRedactionSpec extends SharedMultiSyncLedgerSpec:
           Postgres.query(sql"select redact_contract(${contractId.get}, 'reason')").returns(table(1))
         And:
           Postgres
-            .query(sql"select payload, redaction_id from lookup_contract(${contractId.get})")
+            .query(sql"select payload, redaction_id from __contracts where contract_id=${contractId.get}")
             .returns(
               table {
                 isNull | "reason"

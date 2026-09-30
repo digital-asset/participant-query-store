@@ -24,13 +24,18 @@ This release includes the following SQL migrations:
 
 ### Multi-sync support
 
+#### Ingestion of reassignment events and reassigned contracts
+
 - PQS now subscribes to reassignments in addition to transactions.
 - Every `Reassignment` received from the ledger is recorded in `__transactions`, and its `Assigned` and `Unassigned` events are recorded in `__events` with the new `assign` and `unassign` types.
 - Each `Assigned` and `Unassigned` event is also recorded in the new `__reassignments` table. The table is a standalone audit log of what the ledger reported about the reassignment itself.
-- Pruning takes reassignments into account - SQL functions now also delete related `__reassignments` entries.
-- `redact_contract` redacts a contract once all its rows are deactivated (archived or unassigned), so reassigned and unassigned contracts can be redacted; rows inserted after a redaction (a late assign or create, or rows replayed by `reset_to_offset`) keep their payload — call `redact_contract` again once they are deactivated, and it fails with "already redacted" only when every row is redacted.
-- Resetting to an offset takes reassignments into account: `reset_to_offset` and `__cleanup_transactions_after_watermark` delete the contracts assigned after the offset and the `__reassignments` entries recorded after it, and revives the contracts unassigned after it.
-- *BREAKING*: `prune_archived_to_offset` and `prune_archived_to_offset_dry_run` return an additional `deleted_reassignments integer` column. The `prune` command prints it as `Deleted reassignments`.
+- An `Assigned` event creates a new row in the `__contracts` table. Instead of setting `created_at_ix` and `create_event_pk`, it sets `assigned_at_ix` and `assign_event_pk`.
+- An `Unassigned` event deactivates its corresponding row from the `__contracts` table. Instead of setting `archived_at_ix` and `archive_event_pk`, it sets `unassigned_at_ix` and `unassign_event_pk`.
+- `Created` and `Assigned` events from the ledger now set `reassignment_counter` and `synchronizer_id`. These columns are left empty in legacy rows (PQS 3.6 or older).
+
+
+#### SQL API
+
 - The SQL `contract` type, describing the output of the `active`, `creates` and `archives` SQL functions, is modified with new columns:
 ```sql
 assign_event_pk bigint,
@@ -44,12 +49,19 @@ unassigned_at_offset bigint,
 reassignment_counter bigint,
 synchronizer_id text;
 ```
-- An `Assigned` event creates a new row in the `__contracts` table. Instead of setting `created_at_ix` and `create_event_pk`, it sets `assigned_at_ix` and `assign_event_pk`.
-- An `Unassigned` event deactivates its corresponding row from the `__contracts` table. Instead of setting `archived_at_ix` and `archive_event_pk`, it sets `unassigned_at_ix` and `unassign_event_pk`.
-- `Created` and `Assigned` events from the ledger now set `reassignment_counter` and `synchronizer_id`. These columns are left empty in legacy rows (PQS 3.6 or older).
+- `active` and `lookup_contract` now return a single row per `(contract_id, template_fqn)`, keeping the row with the highest `reassignment_counter`.
+- `summary_active` counts each `contract_id` only once per `template_fqn`.
 - *BREAKING*: The `__transactions` column `domain_id` is renamed to `synchronizer_id`, to match Canton's current vocabulary. It is now populated for every update — every transaction and every reassignment. Rows written before this release keep `NULL` and are not getting backfilled.
 - The `synchronizer_id text` column is added to the `transactions` SQL view.
 - The `synchronizer_id text` column is added to the output of the `exercises` and `lookup_exercise` SQL functions.
+
+
+#### Pruning, Reset to offset and Redaction
+
+- *BREAKING*: `prune_archived_to_offset` and `prune_archived_to_offset_dry_run` return an additional `deleted_reassignments integer` column. The `prune` command prints it as `Deleted reassignments`.
+- Pruning takes reassignments into account - SQL functions now also delete related `__reassignments` entries.
+- `redact_contract` redacts a contract once all its rows are deactivated (archived or unassigned), so reassigned and unassigned contracts can be redacted; rows inserted after a redaction (a late assign or create, or rows replayed by `reset_to_offset`) keep their payload — call `redact_contract` again once they are deactivated, and it fails with "already redacted" only when every row is redacted.
+- Resetting to an offset takes reassignments into account: `reset_to_offset` and `__cleanup_transactions_after_watermark` delete the contracts assigned after the offset and the `__reassignments` entries recorded after it, and revives the contracts unassigned after it.
 
 ### Minor improvements
 

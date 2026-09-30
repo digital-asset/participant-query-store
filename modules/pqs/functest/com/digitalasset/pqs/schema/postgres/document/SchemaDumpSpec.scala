@@ -53,7 +53,14 @@ object SchemaDumpSpec extends SharedLedgerAndPostgresTest:
         // against a brand-new, empty database.
         Pqs.runPipeline("--pipeline-ledger-stop=Latest")
       Then:
-        if regenerate then Postgres.dumpSchemaTo(target).as(assertCompletes)
+        if regenerate then
+          for
+            exists    <- ZIO.attemptBlocking(os.exists(target))
+            checkedIn <- ZIO.attemptBlocking(if exists then os.read(target) else "")
+            content   <- Postgres.dumpSchema
+            header = copyrightHeaderRegex.findFirstIn(checkedIn).getOrElse("")
+            _ <- ZIO.attemptBlocking(os.write.over(target, header + content, createFolders = true))
+          yield assertCompletes
         else
           for
             current   <- Postgres.dumpSchema
