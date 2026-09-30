@@ -50,6 +50,11 @@ final case class Watermark(
 given watermarkOrdering: Ordering[Watermark] = Ordering.by(_.ix)
 private def l(kv: (String, Any)*)            = kv.map((k, v) => MetricLabel(k, v.toString)).toSet
 
+private def reassignmentLabels(source: Option[SynchronizerId], target: Option[SynchronizerId]) =
+  source
+    .zip(target)
+    .fold(Set.empty[MetricLabel])((s, t) => l("source_synchronizer_id" -> s, "target_synchronizer_id" -> t))
+
 object Model {
   private val counter = Metric.counter("pipeline_events", "Processed ledger events")
 
@@ -139,7 +144,7 @@ final class Transaction(
     externalTransactionHash,
     paidTrafficCost
   )
-  val labels: Set[MetricLabel] = l("type" -> "transaction")
+  val labels: Set[MetricLabel] = l("type" -> "transaction", "synchronizer_id" -> synchronizerId.getOrElse("unknown"))
 
 object Transaction
     extends Table(
@@ -194,7 +199,9 @@ final class Contract(
     metadata: Option[Array[Byte]],
     acsDelta: Boolean,
     packagePk: PackagePk,
-    creationPackageId: Option[String]
+    creationPackageId: Option[String],
+    sourceSynchronizerId: Option[SynchronizerId],
+    targetSynchronizerId: Option[SynchronizerId]
 ) extends Copy:
   def table = Contract
   val row = buildRow(
@@ -219,7 +226,8 @@ final class Contract(
   )
   val labels: Set[MetricLabel] =
     val tpe = if createdAtIx.isDefined then "create" else "assign"
-    l("type" -> tpe, "template" -> qualifiedName)
+    l("type" -> tpe, "template" -> qualifiedName, "synchronizer_id" -> synchronizerId)
+      ++ reassignmentLabels(sourceSynchronizerId, targetSynchronizerId)
 
 object Contract
     extends Table(
@@ -260,7 +268,8 @@ final class Exercise(
     controllers: Seq[Party],
     witnesses: Seq[Party],
     lastDescendant: NodeId,
-    packagePk: PackagePk
+    packagePk: PackagePk,
+    synchronizerId: SynchronizerId
 ) extends Copy:
   def table = Exercise
   val row = buildRow(
@@ -276,7 +285,8 @@ final class Exercise(
     lastDescendant,
     packagePk
   )
-  val labels: Set[MetricLabel] = l("type" -> "exercise", "template" -> qualifiedName, "choice" -> choiceName)
+  val labels: Set[MetricLabel] =
+    l("type" -> "exercise", "template" -> qualifiedName, "choice" -> choiceName, "synchronizer_id" -> synchronizerId)
 
 object Exercise
     extends Table(
@@ -306,7 +316,9 @@ final class DeactivatedContract(
     archivedAtIx: Option[Long],
     unassignEventPk: Option[IdPlaceholder],
     unassignedAtIx: Option[Long],
-    synchronizerId: SynchronizerId
+    synchronizerId: SynchronizerId,
+    sourceSynchronizerId: Option[SynchronizerId],
+    targetSynchronizerId: Option[SynchronizerId]
 ) extends Copy:
   def table = DeactivatedContract
   val row = buildRow(
@@ -320,7 +332,8 @@ final class DeactivatedContract(
   )
   val labels =
     val tpe = if archiveEventPk.isDefined then "archive" else "unassign"
-    l("type" -> tpe, "template" -> qualifiedName)
+    l("type" -> tpe, "template" -> qualifiedName, "synchronizer_id" -> synchronizerId)
+      ++ reassignmentLabels(sourceSynchronizerId, targetSynchronizerId)
 
 // As opposed to the other tables, __tmp_deactivated_contracts is a staging table
 // the underlying __contracts is updated sequentially by __update_watermark_fn SQL function
@@ -368,7 +381,7 @@ final class Reassignment(
     witnesses,
     assignmentExclusivity
   )
-  val labels: Set[MetricLabel] = l("type" -> reassignmentType.toString.toLowerCase())
+  val labels = Set.empty
 
 object Reassignment
     extends Table(

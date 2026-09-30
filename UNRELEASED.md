@@ -64,6 +64,11 @@ synchronizer_id text;
 - `redact_contract` redacts a contract once all its rows are deactivated (archived or unassigned), so reassigned and unassigned contracts can be redacted; rows inserted after a redaction (a late assign or create, or rows replayed by `reset_to_offset`) keep their payload — call `redact_contract` again once they are deactivated, and it fails with "already redacted" only when every row is redacted.
 - Resetting to an offset takes reassignments into account: `reset_to_offset` and `__cleanup_transactions_after_watermark` delete the contracts assigned after the offset and the `__reassignments` entries recorded after it, and revives the contracts unassigned after it.
 
+
+#### Observability
+
+- The `pipeline_events_total` metric counts `assign` and `unassign` events. It has a `synchronizer_id` label on every type except `watermark`, and `source_synchronizer_id` and `target_synchronizer_id` labels on `assign` and `unassign`.
+
 ### Minor improvements
 
 - At startup, the PQS pipeline runs `ANALYZE` on `__contracts` and `__tmp_deactivated_contracts` to populate planner statistics and speed up ingestion.

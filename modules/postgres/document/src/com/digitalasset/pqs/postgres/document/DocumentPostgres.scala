@@ -360,7 +360,8 @@ final case class DocumentPostgres(
           controllers = e.controllers,
           witnesses = e.witnesses,
           lastDescendant = e.lastDescendant,
-          packagePk = packageMap(e.templateId.packageId)
+          packagePk = packageMap(e.templateId.packageId),
+          synchronizerId = e.synchronizerId
         )
         val archives =
           if e.consuming then
@@ -370,8 +371,16 @@ final case class DocumentPostgres(
 
       case u: canonical.Event.Unassigned =>
         val event = Event(pk, txIx, u.eventId, EventType.Unassign)
-        val unassignedContracts =
-          mkDeactivatedContracts(pk, txIx, u.contractId, u.templateId, u.synchronizerId, isArchive = false)
+        val unassignedContracts = mkDeactivatedContracts(
+          pk,
+          txIx,
+          u.contractId,
+          u.templateId,
+          u.synchronizerId,
+          isArchive = false,
+          sourceSynchronizerId = Some(u.source),
+          targetSynchronizerId = Some(u.target)
+        )
         val reassignment = mkReassignment(
           eventPk = pk,
           txIx = txIx,
@@ -389,8 +398,17 @@ final case class DocumentPostgres(
         unassignedContracts :+ reassignment :+ event
 
       case e: canonical.Event.Assigned =>
-        val event     = Event(pk, txIx, e.eventId, EventType.Assign)
-        val contracts = mkContracts(pk, txIx, e.contract, e.synchronizerId, e.reassignmentCounter, isCreate = false)
+        val event = Event(pk, txIx, e.eventId, EventType.Assign)
+        val contracts = mkContracts(
+          pk,
+          txIx,
+          e.contract,
+          e.synchronizerId,
+          e.reassignmentCounter,
+          isCreate = false,
+          sourceSynchronizerId = Some(e.source),
+          targetSynchronizerId = Some(e.target)
+        )
         val reassignment = mkReassignment(
           eventPk = pk,
           txIx = txIx,
@@ -414,7 +432,9 @@ final case class DocumentPostgres(
       contract: canonical.Contract,
       synchronizerId: SynchronizerId,
       reassignmentCounter: Long,
-      isCreate: Boolean
+      isCreate: Boolean,
+      sourceSynchronizerId: Option[SynchronizerId] = None,
+      targetSynchronizerId: Option[SynchronizerId] = None
   ): Chunk[Contract] =
     contract.payloads.map((entityId, value) =>
       Contract(
@@ -438,7 +458,9 @@ final case class DocumentPostgres(
         metadata = contract.metadata,
         acsDelta = contract.acsDelta,
         packagePk = packageMap(contract.representativePackageId),
-        creationPackageId = contract.creationPackageId
+        creationPackageId = contract.creationPackageId,
+        sourceSynchronizerId = sourceSynchronizerId,
+        targetSynchronizerId = targetSynchronizerId
       )
     )
 
@@ -448,7 +470,9 @@ final case class DocumentPostgres(
       contractId: ContractId,
       templateId: Identifier,
       synchronizerId: SynchronizerId,
-      isArchive: Boolean
+      isArchive: Boolean,
+      sourceSynchronizerId: Option[SynchronizerId] = None,
+      targetSynchronizerId: Option[SynchronizerId] = None
   ) =
     val templateType = entityPkMap(templateId)
     val interfaces   = implementsPkMap.getOrElse(templateId, Chunk.empty)
@@ -461,7 +485,9 @@ final case class DocumentPostgres(
         archivedAtIx = Option.when(isArchive)(txIx),
         unassignEventPk = Option.when(!isArchive)(eventPk),
         unassignedAtIx = Option.when(!isArchive)(txIx),
-        synchronizerId
+        synchronizerId,
+        sourceSynchronizerId,
+        targetSynchronizerId
       )
     }
 
