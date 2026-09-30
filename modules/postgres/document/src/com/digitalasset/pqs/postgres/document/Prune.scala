@@ -5,6 +5,7 @@ package com.digitalasset.pqs.postgres.document
 
 import com.digitalasset.canonical.Offset
 import com.digitalasset.pqs.configuration
+import com.digitalasset.pqs.postgres.backend.executeTransaction
 import com.digitalasset.pqs.postgres.document.PruningBoundary
 import zio.Console.printLine
 import zio.ZLayer.*
@@ -31,7 +32,7 @@ final case class Prune(config: PruneConfig, connectionPool: ZConnectionPool):
                 deleted_transactions, deleted_reassignments from $sqlFunction($sqlArgument)"""
     for
       maybeResult <-
-        transaction(query.query[Prune.PruningResultRow].selectOne).provideEnvironment(env)
+        executeTransaction(query.query[Prune.PruningResultRow].selectOne).provideEnvironment(env)
       _ <- maybeResult match
         // the pruning functions are STRICT: a NULL `nearest_offset` short-circuits them to an empty set
         case None =>

@@ -508,7 +508,9 @@ object DocumentPostgres:
       yield ()
     } *> traces.span("apply mappings") {
       logInfo("Applying mappings") *>
-        ZIO.serviceWithZIO[SqlSchema](schema => logTrace(schema.mappings) *> transaction(schema.mappings.execute))
+        ZIO.serviceWithZIO[SqlSchema] { schema =>
+          logTrace(schema.mappings) *> executeTransaction(schema.mappings.execute)
+        }
     } <* logInfo("Schema and mappings applied")
 
   val live = ZLayer.scoped {

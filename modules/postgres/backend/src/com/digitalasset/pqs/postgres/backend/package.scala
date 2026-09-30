@@ -13,14 +13,17 @@ import zio.{ZIO, ZLayer}
 import java.io.File
 
 package object backend:
+  def executeTransaction[A](call: ZIO[ZConnection, Throwable, A]): ZIO[ZConnectionPool, Throwable, A] =
+    // `transaction` commits in a scope finalizer
+    // resurrect promotes commit failures back to typed errors
+    transaction(call).resurrect @@ traces.span("execute datastore transaction")
+
   /** Execute each transaction in parallel */
   def executePar[A](
       n: Int
   ): ZPipeline[ZConnectionPool & PostgresConfig, Throwable, ZIO[ZConnection, Throwable, A], A] =
     ZPipeline.serviceWithPipeline[PostgresConfig](config =>
-      ZPipeline[ZIO[ZConnection, Throwable, A]].mapZIOPar(n) { call =>
-        transaction(call) @@ traces.span("execute datastore transaction")
-      }
+      ZPipeline[ZIO[ZConnection, Throwable, A]].mapZIOPar(n)(executeTransaction)
     )
 
   /** Execute each transaction in parallel in breaking the order downstream */
@@ -28,9 +31,7 @@ package object backend:
       n: Int
   ): ZPipeline[ZConnectionPool & PostgresConfig, Throwable, ZIO[ZConnection, Throwable, A], A] =
     ZPipeline.serviceWithPipeline[PostgresConfig](config =>
-      ZPipeline[ZIO[ZConnection, Throwable, A]].mapZIOParUnordered(n) { call =>
-        transaction(call) @@ traces.span("execute datastore transaction")
-      }
+      ZPipeline[ZIO[ZConnection, Throwable, A]].mapZIOParUnordered(n)(executeTransaction)
     )
 
   /** Execute all SQL statements in one large transaction */

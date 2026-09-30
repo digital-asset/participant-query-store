@@ -62,9 +62,16 @@ object postgres {
                   for
                     autoCommitMode <- connection.access(_.getAutoCommit).orElseSucceed(true)
                     _ <- ZIO.unless(autoCommitMode) {
-                      (connection.access(_.commit())
+                      connection
+                        .access(_.commit())
+                        // Kill the fiber to let the caller know the transaction commit failed (see CommitFailureSpec).
+                        .tapErrorCause(cause =>
+                          ZIO.logErrorCause("Failed to commit transaction", cause) *>
+                            pool.invalidate(connection)
+                        )
+                        .orDie
                         @@ connectionCommitLatency
-                        @@ traces.span("commit transaction")).ignoreLogged
+                        @@ traces.span("commit transaction")
                     }
                     _   <- connection.restore
                     end <- zio.Clock.nanoTime
