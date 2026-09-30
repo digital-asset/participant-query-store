@@ -47,11 +47,9 @@ private case class Impl(
           ledgerEnd   <- ledger.getLedgerEnd
           // Registering this instance as the active writer to prevent stale instances from updating the watermark
           _                <- datastore.registerActiveWriterAndCleanupTransactions
-          dbEndOffsetAndIx <- datastore.getLastCheckpoint
-          (dbEnd, dbEndIx)                 = dbEndOffsetAndIx
+          (dbEnd, dbEndIx) <- datastore.getLastCheckpoint
           (normalizedStart, normalizedEnd) = getNormalizedOffsetsFromConfig(ledgerStart, ledgerEnd, dbEnd)
-          dbStartOffsetAndIx <- datastore.getFirstCheckpoint
-          (dbStart, _) = dbStartOffsetAndIx
+          (dbStart, _) <- datastore.getFirstCheckpoint
           _ <- ZIO.unit @@ traces.attributes(
             "pqs.init.ledger.start"     -> ledgerStart.toString,
             "pqs.init.ledger.end"       -> ledgerEnd.toString,
@@ -106,7 +104,7 @@ private case class Impl(
         case TransactionApi.TransactionTreeStream => ledger.getTransactionTrees
       _ <- datasource(rights, continueFromOffset, actualEnd)
         .mapAccum(continueFromIx + 1)((index, a) => (index + 1, (a, index)))
-        .run(datastore.processTransactions)
+        .run(datastore.processTransactions(continueFromIx))
     yield {}).ensuring(Pipeline.streamUpGauge.set(0))
 
   private def getNormalizedOffsetsFromConfig(ledgerStart: Offset, ledgerEnd: Offset, dbEnd: Offset) = {

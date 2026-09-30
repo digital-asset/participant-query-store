@@ -41,8 +41,9 @@ trait Datastore:
   def processAcs: ProcessingSink[Event.Created | Offset]
 
   /** Process the remaining transactions */
-  def processTransactions
-      : ProcessingSink[(Transaction[Event | TreeEvent | ReassignmentEvent], Datastore.TransactionIndex)]
+  def processTransactions(
+      initialIx: Long
+  ): ProcessingSink[(Transaction[Event | TreeEvent | ReassignmentEvent], Datastore.TransactionIndex)]
 end Datastore
 
 object Datastore:

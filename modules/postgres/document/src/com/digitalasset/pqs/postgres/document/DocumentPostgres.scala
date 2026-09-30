@@ -53,6 +53,8 @@ final case class DocumentPostgres(
   private val tx                            = ZLayer.succeedEnvironment(env) >>> transaction
   private val BatchEntitiesThreshold        = 10_000
   private val BatchReleaseWindow            = 200.millis
+  // Force ANALYZE when the watermark has grown by this factor since the previous ANALYZE.
+  private val AnalyzeGrowthFactor = 4L
 
   override def registerActiveWriterAndCleanupTransactions = tx(
     sql"call __cleanup_transactions_after_watermark()".execute
@@ -77,11 +79,11 @@ final case class DocumentPostgres(
       >>> executePar(16)
       >>> ZPipeline.flattenChunks
       >>> updateAcsOffsets
-      >>> handleWatermarks
+      >>> handleWatermarks(0L)
       >>> ZSink.drain
   ).provideEnvironment(env)
 
-  override def processTransactions = (
+  override def processTransactions(initialIx: Long) = (
     waitPoint("pipeline_wp_events", poolConfig.bufferSize, 1024 min poolConfig.bufferSize)
       >>> convertTransactionEventsToStatements(8)
       >>> waitPoint("pipeline_wp_statements", poolConfig.bufferSize, 1024 min poolConfig.bufferSize)
@@ -92,7 +94,7 @@ final case class DocumentPostgres(
       >>> executeParUnordered(poolConfig.maxConnections)
       >>> waitPoint("pipeline_wp_watermarks", 1024)
       >>> reorderCheckpoints
-      >>> handleWatermarks
+      >>> handleWatermarks(initialIx)
       >>> ZSink.drain
   ).provideEnvironment(env)
 
@@ -223,7 +225,7 @@ final case class DocumentPostgres(
     )
 
   /** Update watermarks */
-  private def handleWatermarks =
+  private def handleWatermarks(initialIx: Long) =
     val trackWatermark = latency("pipeline_progress_watermark", "Latency of watermark progression")
     val watermarkIx = Metric
       .gauge("watermark_ix", "Current watermark index (transaction ordinal number for consistent reads)")
@@ -235,36 +237,53 @@ final case class DocumentPostgres(
         Boundaries.exponential(0.001, math.pow(10, 1.0 / 3), 13)
       )
       .contramap[Long](_.toDouble / 1e9)
-    ZPipeline[Watermark].mapZIO(wm =>
-      traces.span("advance datastore watermark") {
-        trackWatermark(updateWatermark(wm))
-          @@ traces.attributes(
-            "pqs.watermark.offset" -> wm.offset.toLong,
-            "pqs.watermark.ix"     -> wm.ix
+    ZPipeline.unwrap(
+      zio.Ref.make(initialIx).map { lastAnalyzedIx =>
+        ZPipeline[Watermark].mapZIO(wm =>
+          // Without accurate stats, __update_watermark_fn plans a nested-loop cross-product that can take minutes.
+          // Force an ANALYZE when the watermark has grown significantly since the previous ANALYZE.
+          lastAnalyzedIx.get.flatMap(last =>
+            ZIO.when(wm.ix >= last * AnalyzeGrowthFactor)(analyzeContractTables(wm.ix) *> lastAnalyzedIx.set(wm.ix))
           )
-          *> ZIO.foreachDiscard(wm.txSpans) { s =>
-            s.linkToCurrentSpan("target" -> "↧ advance watermark")
-              *> s.addEvent(
-                "advanced datastore watermark",
-                "offset" -> wm.offset.toLong,
-                "index"  -> wm.ix
-              )
-              *> s.end()
-          }
-          *> ZIO.foreachDiscard(wm.persistSpans) { s =>
-            ZIO.unit @@ traces.link(s, "target" -> "↥ persist to datastore")
-          }
-          *> zio.Clock.nanoTime.flatMap(now =>
-            ZIO.foreachDiscard(wm.seenAts) { seenAt => txProcessingLatency.update(now - seenAt) }
-          )
-          *> watermarkIx.update(wm.ix)
-          *> logInfo(s"Advanced watermark: ix = ${wm.ix}, offset = ${wm.offset.toLong}")
+            *> traces.span("advance datastore watermark") {
+              trackWatermark(updateWatermark(wm)) @@ traces
+                .attributes("pqs.watermark.offset" -> wm.offset.toLong, "pqs.watermark.ix" -> wm.ix)
+                *> ZIO.foreachDiscard(wm.txSpans) { s =>
+                  s.linkToCurrentSpan("target" -> "↧ advance watermark")
+                    *> s.addEvent(
+                      "advanced datastore watermark",
+                      "offset" -> wm.offset.toLong,
+                      "index"  -> wm.ix
+                    )
+                    *> s.end()
+                }
+                *> ZIO.foreachDiscard(wm.persistSpans) { s =>
+                  ZIO.unit @@ traces.link(s, "target" -> "↥ persist to datastore")
+                }
+                *> zio.Clock.nanoTime
+                  .flatMap(now => ZIO.foreachDiscard(wm.seenAts) { seenAt => txProcessingLatency.update(now - seenAt) })
+                *> watermarkIx.update(wm.ix)
+            }
+        )
       }
     )
+
+  private def analyzeContractTables(nextIx: Long) =
+    traces.span("analyze contracts tables") {
+      for
+        _ <- logInfo(s"Running ANALYZE on __contracts and __tmp_deactivated_contracts before advance to ix = $nextIx")
+        (duration, _) <- tx(sql"analyze __contracts".execute *> sql"analyze __tmp_deactivated_contracts".execute).timed
+        _ <- logInfo(s"ANALYZE on __contracts and __tmp_deactivated_contracts complete in ${duration.toMillis}ms")
+      yield ()
+    }
 
   private def updateWatermark(wm: Watermark) =
     tx(sql"""update __watermark set "offset" = ${wm.offset.toLong}, ix = ${wm.ix};""".update)
       .filterOrFail(_ == 1)(RuntimeException("Failed to update watermark."))
+      .timed
+      .flatMap((duration, _) =>
+        logInfo(s"Advanced watermark: ix = ${wm.ix}, offset = ${wm.offset.toLong} in ${duration.toMillis}ms")
+      )
 
   private def updateAcsOffsets =
     ZPipeline[Watermark].tap(wm =>
