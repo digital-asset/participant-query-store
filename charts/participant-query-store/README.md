@@ -19,8 +19,8 @@ These top-level sections in the `values.yaml` control the standard lifecycle, id
 * **Example `values.yaml` Configuration:**
   ```yaml
   image:
-    repo: europe-docker.pkg.dev/da-images/public-private-all/docker
-    tag: "3.4.5"
+    repo: europe-docker.pkg.dev/da-images/public/docker
+    tag: "3.5.8"
   ```
 
 ### `serviceAccount`
@@ -48,30 +48,42 @@ These top-level sections in the `values.yaml` control the standard lifecycle, id
 ### `containers`
 * **Description:** Defines container-level specifications of `requests`, `limits`, `readinessProbe`, and `livnessProbe` to ensure proper cluster scheduling and prevent resource starvation.
 * **How it informs `deployment.yaml`:** Injected directly into the `resources`, `readinessProbe`, and `livenessProbe` block of the `pqs` container.
+
 * **NOTE:** Port matches what is defined in the `values.yaml` file in the `pqs.health.port` block and needs to match it
-* **Example `values.yaml` Configuration:**
-  ```yaml
-  containers:
-    resources:
-      requests:
-        memory: 256M
-        cpu: 500m
-      limits:
-        memory: 3G
-        cpu: 1000m
-    readinessProbe:
-      httpGet:
-        path: /livez
-        port: 8091
-      initialDelaySeconds: 60
-      periodSeconds: 15
-    livenessProbe:
-      httpGet:
-        path: /livez
-        port: 8091
-      initialDelaySeconds: 60
-      periodSeconds: 30
-  ```
+
+#### `jvm`
+* **extraOptions:** Allows you to append additional entries to the JDK_TOOLS_OPTIONS variable that is passed to the JVM.
+* **options:** Allows you to override the JDK_TOOLS_OPTIONS that are passed to the JVM. This is useful for tuning the JVM heap size and other performance parameters, if you want to deviate from the defaults.
+
+
+  * **Example `values.yaml` Configuration:**
+    ```yaml
+    containers:
+      resources:
+        requests:
+          memory: 256M
+          cpu: 500m
+        limits:
+          memory: 3G
+          cpu: 1000m
+        jvm:
+            options:
+                - "-XX:MaxRAMPercentage=50"
+                - "-XX:InitialRAMPercentage=50"
+            extraOptions: []  
+      readinessProbe:
+        httpGet:
+          path: /livez
+          port: 8091
+        initialDelaySeconds: 60
+        periodSeconds: 15
+      livenessProbe:
+        httpGet:
+          path: /livez
+          port: 8091
+        initialDelaySeconds: 60
+        periodSeconds: 30
+    ```
 
 ### `autoPrune`
 * **Description:** Enable PQS auto pruning as per defined schedule and retention period
