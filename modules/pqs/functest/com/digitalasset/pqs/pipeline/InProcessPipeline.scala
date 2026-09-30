@@ -33,5 +33,5 @@ object InProcessPipeline:
       _ <- ZStream
         .from(transactions)
         .mapAccum(ix + 1)((index, a) => (index + 1, (a, index)))
-        .run(datastore.processTransactions)
+        .run(datastore.processTransactions(0L))
     yield ()

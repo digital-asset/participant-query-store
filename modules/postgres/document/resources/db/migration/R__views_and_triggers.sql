@@ -50,14 +50,22 @@ begin
                 unassign_event_pk = d.unassign_event_pk,
                 unassigned_at_ix = d.unassigned_at_ix
             from deleted d
-            where c.tpe_pk = tpe.tpe_pk
-                and c.contract_id = d.contract_id
-                -- synchronizer_id may be null on rows written by PQS 3.6 or older
-                and (c.synchronizer_id is null or c.synchronizer_id = d.synchronizer_id)
-                -- pair each deactivation with the matching activation segment on this synchronizer
-                and __activated_at_ix(c) <= d.deactivated_at_ix
-                and c.archived_at_ix is null
-                and c.unassigned_at_ix is null;
+            cross join lateral (
+                -- for each deactivation, pick the latest still-open activation that predates it
+                select c2.ctid as contract_ctid
+                from __contracts c2
+                where c2.tpe_pk = tpe.tpe_pk
+                    and c2.contract_id = d.contract_id
+                    and c2.archived_at_ix is null
+                    and c2.unassigned_at_ix is null
+                    and __activated_at_ix(c2) <= d.deactivated_at_ix
+                    -- synchronizer_id may be null on rows written by PQS 3.6 or older
+                    and (c2.synchronizer_id is null or c2.synchronizer_id = d.synchronizer_id)
+                order by __activated_at_ix(c2) desc
+                limit 1
+            ) c2
+            where c.ctid = c2.contract_ctid
+                and c.tpe_pk = tpe.tpe_pk;
         end loop;
     return new;
 end;
