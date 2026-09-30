@@ -59,6 +59,17 @@ These top-level sections in the `values.yaml` control the standard lifecycle, id
   * **Example `values.yaml` Configuration:**
     ```yaml
     containers:
+      jvm:
+        options:
+          - "-XX:MaxRAMPercentage=50"
+          - "-XX:InitialRAMPercentage=50"
+        extraOptions:
+          - "-Dcom.sun.management.jmxremote=true"
+          - "-Dcom.sun.management.jmxremote.port=9999"
+          - "-Dcom.sun.management.jmxremote.rmi.port=9999"
+          - "-Dcom.sun.management.jmxremote.authenticate=false"
+          - "-Dcom.sun.management.jmxremote.ssl=false"
+          - "-Dcom.sun.management.jmxremote.ssl.need.client.auth=false"      
       resources:
         requests:
           memory: 256M
@@ -66,11 +77,6 @@ These top-level sections in the `values.yaml` control the standard lifecycle, id
         limits:
           memory: 3G
           cpu: 1000m
-        jvm:
-            options:
-                - "-XX:MaxRAMPercentage=50"
-                - "-XX:InitialRAMPercentage=50"
-            extraOptions: []  
       readinessProbe:
         httpGet:
           path: /livez
