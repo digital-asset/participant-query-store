@@ -54,3 +54,7 @@ synchronizer_id text;
 ### Minor improvements
 
 - At startup, the PQS pipeline runs `ANALYZE` on `__contracts` and `__tmp_deactivated_contracts` to populate planner statistics and speed up ingestion.
+
+### Helm Chart
+
+- Allow for managing JVM `JDK_JAVA_OPTIONS` env var via values file.  Default to assigning max of 75% of available container memory to the JVM process.  Allow for the entire `JDK_JAVA_OPTIONS` to be configured via `values.yaml` - `options` to override or `extraOptions` to append an additional value.
