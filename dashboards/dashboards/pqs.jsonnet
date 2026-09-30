@@ -11,6 +11,7 @@ local v = import '../lib-shared/variables.libsonnet';
 local annotations = import '../lib/annotations.libsonnet';
 local panels = import '../lib/panels.libsonnet';
 local queries = import '../lib/queries.libsonnet';
+local variables = import '../lib/variables.libsonnet';
 
 local db = g.dashboard;
 local row = g.panel.row;
@@ -35,6 +36,7 @@ db.new('Participant Query Store (PQS)')
   v.container('jvm_memory_used_bytes'),
   v.jvm,
   v.jvm_mempool,
+  variables.synchronizer,
 ])
 
 + db.withAnnotations([

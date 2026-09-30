@@ -4,6 +4,8 @@
 local g = import '../lib-shared/g.libsonnet';
 local q = import '../lib-shared/queries.libsonnet';
 
+local sync_sel = 'synchronizer_id=~"$synchronizer"';
+
 {
   pqs: {
     info:
@@ -25,13 +27,13 @@ local q = import '../lib-shared/queries.libsonnet';
     pipeline: {
       count: {
         all_events:
-          q.simple('sum(pipeline_events_total{job="$jvm", type=~"(create|archive|exercise|assign|unassign)"})', 'events'),
+          q.simple('sum(pipeline_events_total{job="$jvm", type=~"(create|archive|exercise|assign|unassign)", %s})' % sync_sel, 'events'),
       },
       throughput: {
         sums(type, label, type_op='='):
-          q.simple('sum(rate(pipeline_events_total{job="$jvm", type%s"%s"}[$__rate_interval]))' % [type_op, type], label),
+          q.simple('sum(rate(pipeline_events_total{job="$jvm", type%s"%s", %s}[$__rate_interval]))' % [type_op, type, sync_sel], label),
         transactions:
-          q.simple('rate(pipeline_events_total{job="$jvm", type="transaction"}[$__rate_interval])', 'transactions'),
+          q.simple('sum(rate(pipeline_events_total{job="$jvm", type="transaction", %s}[$__rate_interval]))' % sync_sel, 'transactions'),
         events: self.sums('(create|archive|exercise|assign|unassign)', 'events', '=~'),
         creates: self.sums('create', 'creates'),
         archives: self.sums('archive', 'archives'),
@@ -118,13 +120,16 @@ local q = import '../lib-shared/queries.libsonnet';
     contracts: {
       churn: {
         base(type, mult=1):
-          q.simple('label_replace(rate(pipeline_events_total{job="$jvm", type="%s"}[$__rate_interval]) * %d, "short_template", "$1", "template", ".*?:(.*)")' % [type, mult], '{{short_template}}'),
+          q.simple('label_replace(sum by(template, type) (rate(pipeline_events_total{job="$jvm", type="%s", %s}[$__rate_interval])) * %d, "short_template", "$1", "template", ".*?:(.*)")' % [type, sync_sel, mult], '{{short_template}} {{type}}'),
         creates: self.base('create'),
         archives: self.base('archive', -1),
-        all: [self.creates, self.archives],
+        assigns: self.base('assign'),
+        unassigns: self.base('unassign', -1),
+        all: [self.creates, self.archives, self.assigns, self.unassigns],
       },
       active:
-        q.simple('label_replace(sum without(type) (pipeline_events_total{job="$jvm", type="create"}) - ((sum without(type) (pipeline_events_total{job="$jvm", type="archive"})) or (sum without(type) (pipeline_events_total{job="$jvm", type="create"}) * 0)), "short_template", "$1", "template", ".*?:(.*)")', '{{short_template}}'),
+        local total(types) = 'sum without(type, synchronizer_id, source_synchronizer_id, target_synchronizer_id) (pipeline_events_total{job="$jvm", type=~"%s", %s})' % [types, sync_sel];
+        q.simple('label_replace(%s - (%s or %s * 0), "short_template", "$1", "template", ".*?:(.*)")' % [total('create|assign'), total('archive|unassign'), total('create|assign')], '{{short_template}}'),
     },
   },
 
