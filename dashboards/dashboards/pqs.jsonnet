@@ -59,6 +59,26 @@ db.new('Participant Query Store (PQS)')
     panels.pqs.timeSeries.activeContracts('Active *', qs.contracts.active),
   ], panelWidth=24)),
 
+  row.new('Reassignments')
+  + row.withCollapsed(true)
+  + row.withPanels(grid.wrapPanels([
+    pts.throughput('Assigns and unassigns', qs.reassignments.throughput),
+    pts.throughputStacked('Reassignments by template', qs.reassignments.by_template),
+    pts.throughput('Reassignment flows', qs.reassignments.flows)
+    + ptsOpts.withDescription('A participant hosting stakeholders on both synchronizers sees both the unassign and the assign of a reassignment, so the two series of a pair normally track each other'),
+    p.stat('Reassignments ingested *', qs.reassignments.count)
+    + ptsOpts.withDescription('\\* as observed since last restart'),
+  ], panelWidth=12)),
+
+  row.new('Synchronizers')
+  + row.withCollapsed(true)
+  + row.withPanels(grid.wrapPanels([
+    pts.throughput('Transactions by synchronizer', qs.synchronizers.transactions),
+    pts.throughputStacked('Events by synchronizer', qs.synchronizers.events),
+    p.stat('Synchronizers seen *', qs.synchronizers.count)
+    + ptsOpts.withDescription('\\* as observed since last restart'),
+  ], panelWidth=12)),
+
   row.new('Throughput')
   + row.withCollapsed(true)
   + row.withPanels(grid.wrapPanels([
