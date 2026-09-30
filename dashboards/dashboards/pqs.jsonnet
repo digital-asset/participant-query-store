@@ -65,7 +65,7 @@ db.new('Participant Query Store (PQS)')
     pts.throughput('Assigns and unassigns', qs.reassignments.throughput),
     pts.throughputStacked('Reassignments by template', qs.reassignments.by_template),
     pts.throughput('Reassignment flows', qs.reassignments.flows)
-    + ptsOpts.withDescription('A participant hosting stakeholders on both synchronizers sees both the unassign and the assign of a reassignment, so the two series of a pair normally track each other'),
+    + ptsOpts.withDescription('Each reassignment counts once, whether this participant sees its unassign, its assign or both'),
     p.stat('Reassignments ingested *', qs.reassignments.count)
     + ptsOpts.withDescription('\\* as observed since last restart'),
   ], panelWidth=12)),
