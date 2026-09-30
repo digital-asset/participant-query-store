@@ -16,7 +16,7 @@ local q = var.query;
     + q.refresh.onTime()
     + q.queryTypes.withLabelValues(
       'synchronizer_id',
-      'pipeline_events_total{job="$jvm"}',
+      'pipeline_events_total{job="$jvm", synchronizer_id!="unknown"}',
     )
     + q.selectionOptions.withMulti()
     + q.selectionOptions.withIncludeAll(customAllValue='.*')
