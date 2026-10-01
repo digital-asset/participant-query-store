@@ -8,6 +8,20 @@ local var = g.dashboard.variable;
 local q = var.query;
 
 {
+  synchronizer:
+    q.new('synchronizer')
+    + q.generalOptions.withLabel('Synchronizer')
+    + q.generalOptions.withDescription('Synchronizer the ledger activity happened on')
+    + q.withDatasourceFromVariable(v.datasource)
+    + q.refresh.onTime()
+    + q.queryTypes.withLabelValues(
+      'synchronizer_id',
+      'pipeline_events_total{job="$jvm", synchronizer_id!="unknown"}',
+    )
+    + q.selectionOptions.withMulti()
+    + q.selectionOptions.withIncludeAll(customAllValue='.*')
+    + q.generalOptions.withCurrent('All', '$__all'),
+
   pg_relname:
     q.new('pg_relname')
     + q.generalOptions.withLabel('Table')

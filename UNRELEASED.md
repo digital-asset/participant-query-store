@@ -54,6 +54,7 @@ synchronizer_id text;
 - *BREAKING*: The `__transactions` column `domain_id` is renamed to `synchronizer_id`, to match Canton's current vocabulary. It is now populated for every update — every transaction and every reassignment. Rows written before this release keep `NULL` and are not getting backfilled.
 - The `synchronizer_id text` column is added to the `transactions` SQL view.
 - The `synchronizer_id text` column is added to the output of the `exercises` and `lookup_exercise` SQL functions.
+- The `summary_reassignments` SQL function returns the number of assign and unassign events per Daml fully qualified name and per source and target synchronizer in the `[from_offset, to_offset]` range.
 
 
 #### Pruning, Reset to offset and Redaction
@@ -62,6 +63,12 @@ synchronizer_id text;
 - Pruning takes reassignments into account - SQL functions now also delete related `__reassignments` entries.
 - `redact_contract` redacts a contract once all its rows are deactivated (archived or unassigned), so reassigned and unassigned contracts can be redacted; rows inserted after a redaction (a late assign or create, or rows replayed by `reset_to_offset`) keep their payload — call `redact_contract` again once they are deactivated, and it fails with "already redacted" only when every row is redacted.
 - Resetting to an offset takes reassignments into account: `reset_to_offset` and `__cleanup_transactions_after_watermark` delete the contracts assigned after the offset and the `__reassignments` entries recorded after it, and revives the contracts unassigned after it.
+
+
+#### Observability
+
+- The `pipeline_events_total` metric counts `assign` and `unassign` events. It has a `synchronizer_id` label on every type except `watermark`, and `source_synchronizer_id` and `target_synchronizer_id` labels on `assign` and `unassign`.
+- The PQS Grafana dashboard has a `synchronizer` variable and new `Reassignments` and `Synchronizers` rows. The `Churn` and `Active *` panels include assigned and unassigned contracts.
 
 ### Minor improvements
 

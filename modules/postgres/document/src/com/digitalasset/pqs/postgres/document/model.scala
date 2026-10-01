@@ -139,7 +139,7 @@ final class Transaction(
     externalTransactionHash,
     paidTrafficCost
   )
-  val labels: Set[MetricLabel] = l("type" -> "transaction")
+  val labels: Set[MetricLabel] = l("type" -> "transaction", "synchronizer_id" -> synchronizerId.getOrElse("unknown"))
 
 object Transaction
     extends Table(
@@ -217,9 +217,11 @@ final class Contract(
     witnesses,
     !acsDelta
   )
+  // Assigns are counted by their Reassignment.
   val labels: Set[MetricLabel] =
-    val tpe = if createdAtIx.isDefined then "create" else "assign"
-    l("type" -> tpe, "template" -> qualifiedName)
+    if createdAtIx.isDefined then
+      l("type" -> "create", "template" -> qualifiedName, "synchronizer_id" -> synchronizerId)
+    else Set.empty
 
 object Contract
     extends Table(
@@ -260,7 +262,8 @@ final class Exercise(
     controllers: Seq[Party],
     witnesses: Seq[Party],
     lastDescendant: NodeId,
-    packagePk: PackagePk
+    packagePk: PackagePk,
+    synchronizerId: SynchronizerId
 ) extends Copy:
   def table = Exercise
   val row = buildRow(
@@ -276,7 +279,8 @@ final class Exercise(
     lastDescendant,
     packagePk
   )
-  val labels: Set[MetricLabel] = l("type" -> "exercise", "template" -> qualifiedName, "choice" -> choiceName)
+  val labels: Set[MetricLabel] =
+    l("type" -> "exercise", "template" -> qualifiedName, "choice" -> choiceName, "synchronizer_id" -> synchronizerId)
 
 object Exercise
     extends Table(
@@ -318,9 +322,11 @@ final class DeactivatedContract(
     unassignedAtIx,
     synchronizerId
   )
-  val labels =
-    val tpe = if archiveEventPk.isDefined then "archive" else "unassign"
-    l("type" -> tpe, "template" -> qualifiedName)
+  // Unassigns are counted by their Reassignment.
+  val labels: Set[MetricLabel] =
+    if archiveEventPk.isDefined then
+      l("type" -> "archive", "template" -> qualifiedName, "synchronizer_id" -> synchronizerId)
+    else Set.empty
 
 // As opposed to the other tables, __tmp_deactivated_contracts is a staging table
 // the underlying __contracts is updated sequentially by __update_watermark_fn SQL function
@@ -340,6 +346,7 @@ object DeactivatedContract
     )
 
 final class Reassignment(
+    qualifiedName: String,
     entityType: EntityTypePk,
     reassignmentEventPk: IdPlaceholder,
     reassignedAtIx: Long,
@@ -368,7 +375,16 @@ final class Reassignment(
     witnesses,
     assignmentExclusivity
   )
-  val labels: Set[MetricLabel] = l("type" -> reassignmentType.toString.toLowerCase())
+  val labels: Set[MetricLabel] = l(
+    "type"     -> reassignmentType.toString.toLowerCase(),
+    "template" -> qualifiedName,
+    "synchronizer_id" -> (reassignmentType match
+      case ReassignmentType.Unassign => source
+      case ReassignmentType.Assign   => target
+    ),
+    "source_synchronizer_id" -> source,
+    "target_synchronizer_id" -> target
+  )
 
 object Reassignment
     extends Table(

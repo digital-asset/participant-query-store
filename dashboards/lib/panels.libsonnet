@@ -12,7 +12,7 @@ local p = import '../lib-shared/panels.libsonnet';
 
       contractsChurn(title, targets, width=null):
         p.timeSeries.throughput(title, targets, width)
-        + ts.panelOptions.withDescription('Per-template activity (creates/archives) on the ledger')
+        + ts.panelOptions.withDescription('Per-template activity (creates/archives/assigns/unassigns) on the ledger')
         + ts.standardOptions.withMin(null)
         + options.legend.withDisplayMode('table')
         + options.legend.withPlacement('right'),
