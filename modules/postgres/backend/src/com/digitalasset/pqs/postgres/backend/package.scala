@@ -6,6 +6,7 @@ package com.digitalasset.pqs.postgres
 import com.digitalasset.pqs.o11y.traces
 import com.digitalasset.pqs.postgres.backend.TlsConfig.SslMode
 import org.postgresql.PGProperty
+import org.postgresql.util.PSQLException
 import zio.jdbc.*
 import zio.stream.{ZPipeline, ZSink}
 import zio.{ZIO, ZLayer}
@@ -14,9 +15,9 @@ import java.io.File
 
 package object backend:
   def executeTransaction[A](call: ZIO[ZConnection, Throwable, A]): ZIO[ZConnectionPool, Throwable, A] =
-    // `transaction` commits in a scope finalizer
-    // resurrect promotes commit failures back to typed errors
-    transaction(call).resurrect @@ traces.span("execute datastore transaction")
+    // The transaction layer commits the call in a scope finalizer
+    // We use unrefine to promote any PSQL failure from fiber error to the ZIO typed error
+    transaction(call).unrefine { case e: PSQLException => e } @@ traces.span("execute datastore transaction")
 
   /** Execute each transaction in parallel */
   def executePar[A](
