@@ -50,11 +50,6 @@ final case class Watermark(
 given watermarkOrdering: Ordering[Watermark] = Ordering.by(_.ix)
 private def l(kv: (String, Any)*)            = kv.map((k, v) => MetricLabel(k, v.toString)).toSet
 
-private def reassignmentLabels(source: Option[SynchronizerId], target: Option[SynchronizerId]) =
-  source
-    .zip(target)
-    .fold(Set.empty[MetricLabel])((s, t) => l("source_synchronizer_id" -> s, "target_synchronizer_id" -> t))
-
 object Model {
   private val counter = Metric.counter("pipeline_events", "Processed ledger events")
 
@@ -199,9 +194,7 @@ final class Contract(
     metadata: Option[Array[Byte]],
     acsDelta: Boolean,
     packagePk: PackagePk,
-    creationPackageId: Option[String],
-    sourceSynchronizerId: Option[SynchronizerId],
-    targetSynchronizerId: Option[SynchronizerId]
+    creationPackageId: Option[String]
 ) extends Copy:
   def table = Contract
   val row = buildRow(
@@ -224,10 +217,11 @@ final class Contract(
     witnesses,
     !acsDelta
   )
+  // Assigns are counted by their Reassignment.
   val labels: Set[MetricLabel] =
-    val tpe = if createdAtIx.isDefined then "create" else "assign"
-    l("type" -> tpe, "template" -> qualifiedName, "synchronizer_id" -> synchronizerId)
-      ++ reassignmentLabels(sourceSynchronizerId, targetSynchronizerId)
+    if createdAtIx.isDefined then
+      l("type" -> "create", "template" -> qualifiedName, "synchronizer_id" -> synchronizerId)
+    else Set.empty
 
 object Contract
     extends Table(
@@ -316,9 +310,7 @@ final class DeactivatedContract(
     archivedAtIx: Option[Long],
     unassignEventPk: Option[IdPlaceholder],
     unassignedAtIx: Option[Long],
-    synchronizerId: SynchronizerId,
-    sourceSynchronizerId: Option[SynchronizerId],
-    targetSynchronizerId: Option[SynchronizerId]
+    synchronizerId: SynchronizerId
 ) extends Copy:
   def table = DeactivatedContract
   val row = buildRow(
@@ -330,10 +322,11 @@ final class DeactivatedContract(
     unassignedAtIx,
     synchronizerId
   )
-  val labels =
-    val tpe = if archiveEventPk.isDefined then "archive" else "unassign"
-    l("type" -> tpe, "template" -> qualifiedName, "synchronizer_id" -> synchronizerId)
-      ++ reassignmentLabels(sourceSynchronizerId, targetSynchronizerId)
+  // Unassigns are counted by their Reassignment.
+  val labels: Set[MetricLabel] =
+    if archiveEventPk.isDefined then
+      l("type" -> "archive", "template" -> qualifiedName, "synchronizer_id" -> synchronizerId)
+    else Set.empty
 
 // As opposed to the other tables, __tmp_deactivated_contracts is a staging table
 // the underlying __contracts is updated sequentially by __update_watermark_fn SQL function
@@ -353,6 +346,7 @@ object DeactivatedContract
     )
 
 final class Reassignment(
+    qualifiedName: String,
     entityType: EntityTypePk,
     reassignmentEventPk: IdPlaceholder,
     reassignedAtIx: Long,
@@ -381,7 +375,16 @@ final class Reassignment(
     witnesses,
     assignmentExclusivity
   )
-  val labels = Set.empty
+  val labels: Set[MetricLabel] = l(
+    "type"     -> reassignmentType.toString.toLowerCase(),
+    "template" -> qualifiedName,
+    "synchronizer_id" -> (reassignmentType match
+      case ReassignmentType.Unassign => source
+      case ReassignmentType.Assign   => target
+    ),
+    "source_synchronizer_id" -> source,
+    "target_synchronizer_id" -> target
+  )
 
 object Reassignment
     extends Table(
