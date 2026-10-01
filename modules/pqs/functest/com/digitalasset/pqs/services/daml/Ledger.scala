@@ -17,6 +17,7 @@ import com.daml.ledger.api.v2.command_service.ZioCommandService.CommandServiceCl
 import com.daml.ledger.api.v2.command_service.*
 import com.daml.ledger.api.v2.commands.*
 import com.daml.ledger.api.v2.event.CreatedEvent
+import com.daml.ledger.api.v2.package_service.{ListVettedPackagesRequest, PackageMetadataFilter}
 import com.daml.ledger.api.v2.reassignment_commands.*
 import com.daml.ledger.api.v2.state_service.GetConnectedSynchronizersRequest
 import com.daml.ledger.api.v2.state_service.ZioStateService.StateServiceClient
@@ -59,6 +60,7 @@ object Ledger:
     PartyManagementServiceClient.live
       ++ UserManagementServiceClient.live
       ++ PackageManagementServiceClient.live
+      ++ PackageServiceClient.live
       ++ ParticipantPruningServiceClient.live
       ++ UpdateServiceClient.live
       ++ CommandServiceClient.live
@@ -97,6 +99,27 @@ object Ledger:
       .withSynchronizerId(synchronizer.id)
     PackageManagementServiceClient.updateVettedPackages(request)
   }
+
+  // only the main package: dependencies such as daml-stdlib are shared with every other spec
+  def unvetDar(dar: DarFile, synchronizer: Synchronizer) = svc {
+    val packageRefs = dar.packageInfo.collect {
+      case (name, version, id) if id === dar.packageId => VettedPackagesRef(id, name, version)
+    }
+    val unvet =
+      VettedPackagesChange.Operation.Unvet(VettedPackagesChange.Unvet.defaultInstance.withPackages(packageRefs))
+    val request = UpdateVettedPackagesRequest.defaultInstance
+      .withChanges(Seq(VettedPackagesChange(unvet)))
+      .withSynchronizerId(synchronizer.id)
+    PackageManagementServiceClient.updateVettedPackages(request)
+  }
+
+  def listVettedPackages(packageId: String) = svc(
+    PackageServiceClient.listVettedPackages(
+      ListVettedPackagesRequest.defaultInstance.withPackageMetadataFilter(
+        PackageMetadataFilter.defaultInstance.withPackageIds(Seq(packageId))
+      )
+    )
+  )
 
   def allocateParty(synchronizerId: String, hint: String) = svc {
     val request = AllocatePartyRequest.defaultInstance
