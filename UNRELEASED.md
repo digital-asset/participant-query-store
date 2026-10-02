@@ -14,5 +14,4 @@ _Write summary of release_
 
 ### Minor Improvements
 
-- Add a `--target-postgres-properties-<key>=<value>` to pass arbitrary additional pgjdbc connection properties through to the driver. Enables driver-level features such as JDBC authentication plugins (e.g. Azure Entra ID).
-  Example: `--target-postgres-properties-authenticationPluginClassName=com.azure.identity.extensions.jdbc.postgresql.AzurePostgresqlAuthenticationPlugin`
+- Added support for `AzurePostgresqlAuthenticationPlugin` by bundling `com.azure:azure-identity-extensions:1.2.2` into assembly JAR and Docker image.
