@@ -140,7 +140,8 @@ object `package` extends RootModule { root =>
     override def mainClass = Some("com.digitalasset.scribe.Main")
 
     override def assemblyRules = super.assemblyRules ++ Seq(
-      Rule.AppendPattern("META-INF/services/.*", separator = "\n"), // A.k.a. merge services - required for GRPC clients
+      Assembly.Rule.AppendPattern("META-INF/services/.*", separator = "\n"), // A.k.a. merge services - required for GRPC clients
+      Assembly.Rule.AppendPattern("META-INF/io.netty.versions.properties", separator = "\n"),
       Assembly.Rule.ExcludePattern(".*\\.(js|proto|tasty|jar)"),
       Assembly.Rule.ExcludePattern("org/jline/.*"),
       Assembly.Rule.ExcludePattern("scala/tools/nsc/doc/html/resource/lib/.*"),
@@ -165,7 +166,12 @@ object `package` extends RootModule { root =>
         "class com.fasterxml.** extends java.lang.Enum { *; } ",
         "class io.netty.util.concurrent.ConcurrentSkipListIntObjMultimap { *; }",
         "class tools.jackson.databind.** extends java.lang.Enum { *; }",
-        
+        // Loaded reflectively by AzurePostgresqlAuthenticationPlugin
+        "class com.azure.identity.extensions.jdbc.postgresql.AzurePostgresqlAuthenticationPlugin { *; }",
+        "class com.azure.identity.extensions.implementation.credential.provider.DefaultTokenCredentialProvider { *; }",
+        "class com.fasterxml.jackson.core.StreamReadConstraints** { *; }",
+        "class com.fasterxml.jackson.core.JsonFactory { *; }",
+        "class com.azure.core.http.netty.NettyAsyncHttpClientProvider { *; }", 
       )
     }
 
@@ -201,6 +207,12 @@ object `package` extends RootModule { root =>
       "lombok.Generated",
       "org.checkerframework.**",
       "org.osgi.annotation.bundle.Export",
+      // Warnings from azure-identity-extensions
+      "com.azure.identity.extensions.jdbc.mysql.AzureMysqlAuthenticationPlugin",
+      "reactor.core.publisher.**",
+      "reactor.core.scheduler.**",
+      "com.microsoft.aad.msal4j.**",
+      "com.nimbusds.**"
     )
 
     override def proguardOptimize: T[Boolean] = false
@@ -322,17 +334,12 @@ object `package` extends RootModule { root =>
 
     override def ivyDeps = Agg(
       L.zio.zio,
-      L.netty.codecHttp,
-      L.netty.handlerProxy,
-      L.netty.pkiTesting,
-      L.netty.transportNativeEpoll,
-      L.netty.transportNativeKqueue,
       L.bouncyCastle.prov,
       L.zio.http,
       L.zio.streams,
       // Bump transitive dep to resolve vulnerabilities
       L.protoJava
-    )
+    ) ++ L.nettyAll
 
     object test extends ScribeTests
   }
@@ -358,7 +365,13 @@ object `package` extends RootModule { root =>
         L.zio.zio,
         L.zio.streams,
         L.zio.jdbc,
-        L.jdbc.postgres
+        L.jdbc.postgres,
+        // Provides the optional AzurePostgresqlAuthenticationPlugin
+        L.azureIdentityExtensions,
+        // bump transitive deps to address vulnerabilities
+        L.reactorNetty,
+        L.jackson2.core
+
       )
 
       override def moduleDeps = Seq(
@@ -373,8 +386,8 @@ object `package` extends RootModule { root =>
         L.commons.text,
         L.flyway.core,
         L.flyway.driverPostgres,
-        L.jackson.core,
-        L.jackson.databind,
+        L.jackson3.core,
+        L.jackson3.databind,
         L.classgraph,
         L.transcode.json
       )

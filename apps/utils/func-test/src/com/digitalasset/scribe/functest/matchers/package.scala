@@ -36,6 +36,9 @@ package object matchers:
     )(implicit diff: OptionalImplicit[Diff[A]], trace: Trace, sourceLocation: SourceLocation): ZIO[R, E, TestResult] =
       ${ utils.Macros.assertZIO_eq_impl('io)('expected)('diff) }
 
+  def assertAll[A](assertions: Seq[Assertion[A]]): Assertion[A] =
+    assertions.foldLeft[Assertion[A]](Assertion.anything)(_ && _)
+
   val empty: Assertion[String]                               = Assertion.isEmptyString
   def stringContaining(substring: String): Assertion[String] = Assertion.containsString(substring)
   def stringMatching(regex: String): Assertion[String]       = Assertion.matchesRegex(regex)
