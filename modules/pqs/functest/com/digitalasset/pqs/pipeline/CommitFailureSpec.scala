@@ -12,7 +12,7 @@ import zio.jdbc.*
 
 import scala.language.{implicitConversions, postfixOps}
 
-/** Test highlighting a bug where gaps in transaction history cna appear due to COMMIT failure . */
+/** Verify that COMMIT failures are propagated and ingestion is retried. */
 object CommitFailureSpec extends FuncTestStandalone:
   private val foo = DamlSource(
     "Foo" -> """module Foo where
