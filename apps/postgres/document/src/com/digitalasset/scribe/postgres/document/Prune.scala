@@ -5,6 +5,7 @@ package com.digitalasset.scribe.postgres.document
 
 import com.digitalasset.canonical.specific.Offset
 import com.digitalasset.scribe.configuration
+import com.digitalasset.scribe.postgres.backend.executeTransaction
 import com.digitalasset.scribe.postgres.document.specific.*
 import com.digitalasset.scribe.postgres.document.specific.PruningBoundary.*
 import zio.Console.printLine
@@ -56,7 +57,7 @@ object Prune:
         sql"select pruning_boundary_offset, deleted_contracts, deleted_exercises, deleted_events, deleted_transactions from $sqlFunction($sqlArgument)"
       for
         maybeResult <-
-          transaction(query.query[(Option[String], Int, Int, Int, Int)].selectOne).provideEnvironment(env)
+          executeTransaction(query.query[(Option[String], Int, Int, Int, Int)].selectOne).provideEnvironment(env)
         _ <- maybeResult match
           // the pruning functions are STRICT: a NULL `nearest_offset` short-circuits them to an empty set
           case None =>

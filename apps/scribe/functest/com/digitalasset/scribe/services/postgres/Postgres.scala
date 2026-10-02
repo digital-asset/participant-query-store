@@ -113,6 +113,11 @@ object Postgres:
   //////////
   // APIs //
   //////////
+  def call(sql: SqlFragment): ZIO[Database, Throwable, Unit] =
+    transact(sql.execute)
+
+  def get(sql: SqlFragment): ZIO[Database, Throwable, Option[String]] =
+    transact(sql.query[String].selectOne)
 
   def query(sql: SqlFragment): ZIO[Database, Throwable, Table] =
     transact(sql.query[Row].selectAll).map(Table.apply)

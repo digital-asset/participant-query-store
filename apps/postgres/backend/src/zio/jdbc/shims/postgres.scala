@@ -8,7 +8,7 @@ import com.digitalasset.scribe.o11y.traces
 import com.digitalasset.scribe.postgres.backend.PostgresConfig
 import zio.jdbc.*
 import zio.metrics.MetricKeyType.Histogram.Boundaries
-import zio.{Exit, Schedule, UIO, ZIO, ZLayer, ZPool}
+import zio.*
 
 import java.sql.Connection
 import scala.language.implicitConversions
@@ -59,15 +59,23 @@ object postgres {
           start      <- zio.Clock.nanoTime
           connection <- pool.get
           _ <- ZIO.addFinalizerExit { exit =>
-            ZIO.ifZIO((connection.isValid() @@ connectionIsValidLatency).orElseSucceed(false))(
+            val isValid = connection
+              .isValid()
+              .orFailConnectionAndDie("Failed to get connection validity", connection, pool)
+              @@ connectionIsValidLatency
+            ZIO.ifZIO(isValid)(
               onTrue = exit match {
                 case Exit.Success(_) =>
                   for
-                    autoCommitMode <- connection.access(_.getAutoCommit).orElseSucceed(true)
+                    autoCommitMode <- connection
+                      .access(_.getAutoCommit)
+                      .orFailConnectionAndDie("Failed to get auto-commit", connection, pool)
                     _ <- ZIO.unless(autoCommitMode) {
-                      (connection.access(_.commit())
+                      connection
+                        .access(_.commit())
+                        .orFailConnectionAndDie("Failed to commit transaction", connection, pool)
                         @@ connectionCommitLatency
-                        @@ traces.span("commit transaction")).ignoreLogged
+                        @@ traces.span("commit transaction")
                     }
                     _   <- connection.restore
                     end <- zio.Clock.nanoTime
@@ -145,4 +153,9 @@ object postgres {
     def transaction: ZLayer[Any, Throwable, ZConnection] = tx
     def invalidate(conn: ZConnection): UIO[Any]          = pool.invalidate(conn)
   })
+
+  extension [A](task: Task[A])
+    private def orFailConnectionAndDie(message: String, connection: ZConnection, pool: ZPool[Throwable, ZConnection]) =
+      // Kill the fiber to let the caller know the transaction failed (see CommitFailureSpec).
+      task.tapErrorCause(ZIO.logWarningCause(message, _) *> pool.invalidate(connection)).orDie
 }
