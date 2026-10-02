@@ -16,9 +16,9 @@ final case class Service[T](
     getFileContents: os.Path => Task[Array[Byte]]
 ) {
   def blockUntilStdOut(predicate: String => Boolean)(implicit trace: Trace): Task[Unit] =
-    blockUntilOutput { case StdOut(line) if predicate(line) => () }
+    blockUntilOutput { case StdIO.Out(line) if predicate(line) => () }
   def blockUntilStdErr(predicate: String => Boolean)(implicit trace: Trace): Task[Unit] =
-    blockUntilOutput { case StdErr(line) if predicate(line) => () }
+    blockUntilOutput { case StdIO.Err(line) if predicate(line) => () }
   def blockUntilOutput[A](p: PartialFunction[StdIO, A])(implicit trace: Trace): Task[A] =
     ContainerImage(container.image)(
       logDebug("Blocking for output...")

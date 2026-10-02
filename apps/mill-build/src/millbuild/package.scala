@@ -178,5 +178,7 @@ package object millbuild {
       // Keep in sync with the version shipped with `zio-metrics-connectors-micrometer`
       val micrometerCore = ivy"io.micrometer:micrometer-core:1.17.1"
     }
+
+    val azureIdentityExtensions = ivy"com.azure:azure-identity-extensions:1.2.2"
   }
 }
