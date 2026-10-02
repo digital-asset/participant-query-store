@@ -132,6 +132,44 @@ object SingleWriterSpec extends SharedMultiSyncLedgerSpec:
         b.get.exitCode.timeout(30.seconds).is(isNone)
       And:
         advances.map(rows => assertTrue(collapse(rows.map(_._1)) == Chunk("pqs-a", "pqs-b")))
+    } @@ TestAspect.ignore,
+    // Fails today: a restart during ACS seeding leaves ix 0 behind and every later seed hits __transactions_pkey (#124)
+    funcTest("scaling out during initial ACS seeding does not wedge the database") {
+      val alice   = Party("Alice")
+      val release = Capture[Promise[Nothing, Unit]]
+      val seeder  = Capture[String]
+      val a       = Capture[Service[Pipeline]]
+      val b       = Capture[Service[Pipeline]]
+
+      Given:
+        DamlSdk.allocateParties(alice -> Seq(sync1)) ++ Postgres.database
+      When:
+        Pqs.runPipeline(genesis, "--pipeline-ledger-stop=Latest")
+      When:
+        ZIO.foreachDiscard(1 to 20)(_ => createContract(alice))
+      Then:
+        holdLock(sql"lock table __events in exclusive mode".execute).is(release.capture)
+      And:
+        startPqs("a").is(a.capture)
+      And:
+        Postgres
+          .query(sql"select count(*) from __transactions where ix = 0".query[Long].selectOne)
+          .is(isSome(equalTo(1L)))
+          .retryUntilTimeout(50.seconds)
+      And:
+        lockWaiters("pqs-a").is(1L).retryUntilTimeout(30.seconds)
+      And:
+        writerId.is(seeder.captureOptional)
+      And:
+        startPqs("b").is(b.capture)
+      And:
+        writerId.is(isSome(not(equalTo(seeder.get)))).retryUntilTimeout(50.seconds)
+      When:
+        release.get.succeed(())
+      Then:
+        continuing(b.get).timeout(50.seconds).is(isSome(anything))
+      And:
+        Postgres.query(sql"select count(*) from latest_checkpoint()".query[Long].selectOne).is(isSome(equalTo(1L)))
     } @@ TestAspect.ignore
   )
 
@@ -307,3 +345,6 @@ object SingleWriterSpec extends SharedMultiSyncLedgerSpec:
               where datname = current_database() and application_name = $app""".query[Boolean].selectAll
       )
       .unit
+
+  private val writerId: ZIO[Database, Throwable, Option[String]] =
+    Postgres.query(sql"select instance_id from __watermark".query[String].selectOne)
