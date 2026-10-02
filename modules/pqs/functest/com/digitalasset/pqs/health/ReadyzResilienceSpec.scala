@@ -48,9 +48,9 @@ object ReadyzResilienceSpec extends FuncTestStandalone:
     funcTest("Postgres failure and recovery"):
       val alice = Party("Alice")
       Given:
-        DamlSdk.dar(ping) ++ DamlSdk.ledger ++ Postgres.instance
+        DamlSdk.ledger ++ Postgres.instance
       And:
-        DamlSdk.deploy ++ DamlSdk.parties(alice) ++ Postgres.database
+        DamlSdk.deploy(ping) ++ DamlSdk.parties(alice) ++ Postgres.database
       And:
         DamlSdk.runScript[String]("Ping:transact1", alice.id)
       And:
@@ -81,9 +81,9 @@ object ReadyzResilienceSpec extends FuncTestStandalone:
     funcTest("Canton failure and recovery"):
       val alice = Party("Alice")
       Given:
-        DamlSdk.dar(ping) ++ DamlSdk.ledger ++ Postgres.instance
+        DamlSdk.ledger ++ Postgres.instance
       And:
-        DamlSdk.deploy ++ DamlSdk.parties(alice) ++ Postgres.database
+        DamlSdk.deploy(ping) ++ DamlSdk.parties(alice) ++ Postgres.database
       And:
         DamlSdk.runScript[String]("Ping:transact1", alice.id)
       And:

@@ -75,17 +75,17 @@ object UpgradeAddingTemplateSpec extends SharedLedgerAndPostgresTest:
   def spec = suite("Upgrades Adding Entities")(
     funcTest("Templates added by an upgraded package are ingested alongside the version that lacks them.") {
       val alice = Party("Alice")
-      val dar   = Capture[DeployedDar]
+      val dar   = Capture[DarFile]
       Given:
-        DamlSdk.dar(ping) ++ DamlSdk.parties(alice) ++ Postgres.database
-          >+> DamlSdk.deploy
+        DamlSdk.parties(alice) ++ Postgres.database
+          >+> DamlSdk.deploy(ping)
           >+> DamlSdk.runScript("Ping:ping", alice.id)
       And:
         dar.captureFromService
 
-      val upgradedDar = Capture[DeployedDar]
+      val upgradedDar = Capture[DarFile]
       When:
-        DamlSdk.dar(pingUpgrade) >+> DamlSdk.deploy >+> DamlSdk.runScript("Ping:pong", alice.id)
+        DamlSdk.deploy(pingUpgrade) >+> DamlSdk.runScript("Ping:pong", alice.id)
       And:
         upgradedDar.captureFromService
 
@@ -100,8 +100,8 @@ object UpgradeAddingTemplateSpec extends SharedLedgerAndPostgresTest:
           s"--pipeline-filter-contracts=${ping.name}:*"
         )
 
-      lazy val pkgId    = dar.get.dar.packageId
-      lazy val upgPkgId = upgradedDar.get.dar.packageId
+      lazy val pkgId    = dar.get.packageId
+      lazy val upgPkgId = upgradedDar.get.packageId
       val pkgPk         = Capture[Int]
       val upgPkgPk      = Capture[Int]
       Expect:

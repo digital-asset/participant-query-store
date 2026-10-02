@@ -56,9 +56,7 @@ object PipelineUpdateSpec extends SharedLedgerAndPostgresTest:
       val alice = Party("Alice")
       val bob   = Party("Bob")
       Given:
-        DamlSdk.dar(pingPong)
-      And:
-        DamlSdk.deploy ++ DamlSdk.parties(alice, bob) ++ Postgres.database
+        DamlSdk.deploy(pingPong) ++ DamlSdk.parties(alice, bob) ++ Postgres.database
       And:
         DamlSdk.runScript("PingPong:transact1", (alice.id, bob.id, "test"))
       When:
@@ -117,9 +115,7 @@ object PipelineUpdateSpec extends SharedLedgerAndPostgresTest:
       @volatile var releaseTransaction: Promise[Nothing, Unit] = null
 
       Given:
-        DamlSdk.dar(pingPong)
-      And:
-        DamlSdk.deploy ++ DamlSdk.parties(alice, bob) ++ Postgres.database
+        DamlSdk.deploy(pingPong) ++ DamlSdk.parties(alice, bob) ++ Postgres.database
       When:
         // Run pipeline once to initialize the schema
         Pqs.runPipeline("--pipeline-ledger-stop=Latest").unit
@@ -171,9 +167,7 @@ object PipelineUpdateSpec extends SharedLedgerAndPostgresTest:
       @volatile var releaseTransaction: Promise[Nothing, Unit] = null
 
       Given:
-        DamlSdk.dar(pingPong)
-      And:
-        DamlSdk.deploy ++ DamlSdk.parties(alice, bob) ++ Postgres.database
+        DamlSdk.deploy(pingPong) ++ DamlSdk.parties(alice, bob) ++ Postgres.database
       When:
         // Run pipeline once to initialize the schema
         Pqs.runPipeline("--pipeline-ledger-stop=Latest").unit

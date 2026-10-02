@@ -38,7 +38,7 @@ object AuthSpec extends SharedLedgerAndPostgresAndAuthTest:
   )
 
   private def context(parties: Party*) =
-    (DamlSdk.dar(pingPong) >+> DamlSdk.deploy) ++ DamlSdk.parties(parties*) ++ Postgres.database
+    DamlSdk.deploy(pingPong) ++ DamlSdk.parties(parties*) ++ Postgres.database
 
   def spec = suite("auth")(
     funcTest("no party filter"):

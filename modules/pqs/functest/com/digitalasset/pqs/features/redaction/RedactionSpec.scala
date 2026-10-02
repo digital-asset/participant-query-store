@@ -94,8 +94,8 @@ object RedactionSpec extends SharedLedgerAndPostgresTest {
 
   def context(dataSource: TransactionApi) =
     val alice = Party("Alice")
-    DamlSdk.dar(pingDaml) ++ DamlSdk.parties(alice) ++ Postgres.database
-      >+> DamlSdk.deploy
+    DamlSdk.parties(alice) ++ Postgres.database
+      >+> DamlSdk.deploy(pingDaml)
       >+> DamlSdk.runScript("Pings:setup", alice.id)
       >+> Pqs.runPipeline(
         s"--pipeline-datasource=$dataSource",
@@ -265,8 +265,8 @@ object RedactionSpec extends SharedLedgerAndPostgresTest {
         val alice       = Party("Alice")
         val archivedCid = Capture[String]
         Given:
-          DamlSdk.dar(withKey) ++ DamlSdk.parties(alice) ++ Postgres.database
-            >+> DamlSdk.deploy
+          DamlSdk.parties(alice) ++ Postgres.database
+            >+> DamlSdk.deploy(withKey)
             >+> DamlSdk.runScript("WithKey:setup", alice.id)
         And:
           Pqs.runPipeline(

@@ -75,11 +75,11 @@ object RpidTwoParticipantSpec extends FuncTestStandalone:
       Given:
         Postgres.instance
       And:
-        DamlSdk.dar(packageV1)
+        DamlSdk.buildDar(packageV1).is(v1Dar.capture)
       And:
         v1Dar.captureFromService
       And:
-        DamlSdk.dar(packageV2)
+        DamlSdk.buildDar(packageV2).is(v2Dar.capture)
       And:
         v2Dar.captureFromService
       And:
@@ -159,7 +159,7 @@ object RpidTwoParticipantSpec extends FuncTestStandalone:
       alice: Party,
       v1Dar: DarFile,
       v2Dar: DarFile
-  ): RLayer[FTEnv & Docker & Postgres, Service[Ledger] & DeployedDar & Parties] =
+  ): RLayer[FTEnv & Docker & Postgres, Service[Ledger] & DarFile & Parties] =
     ZLayer
       .fromZIO(
         for
@@ -212,7 +212,7 @@ object RpidTwoParticipantSpec extends FuncTestStandalone:
             .tap(_.get.blockUntilStdOut(_.contains(CantonConf.bootstrapCompleteMessage)))
         yield svc
       )
-      .flatten >+> (DamlSdk.allocatedParties(alice) ++ ZLayer.succeed(DeployedDar(v2Dar)))
+      .flatten >+> (DamlSdk.allocatedParties(alice) ++ ZLayer.succeed(v2Dar))
 
   private def storageContracts() = Postgres `query`
     sql"""SELECT

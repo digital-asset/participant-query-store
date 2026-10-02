@@ -151,7 +151,7 @@ object Ledger:
       args: com.daml.ledger.api.v2.value.Record,
       actAs: Party,
       sync: Synchronizer
-  ): ZIO[Docker & Service[Ledger] & DeployedDar, Throwable, SubmitAndWaitForTransactionResponse] = svc {
+  ): ZIO[Docker & Service[Ledger] & DarFile, Throwable, SubmitAndWaitForTransactionResponse] = svc {
     for
       templateId <- toIdentifier(templateQname)
       command = CreateCommand.defaultInstance.withTemplateId(templateId).withCreateArguments(args)
@@ -303,7 +303,7 @@ object Ledger:
       )
     yield resp
 
-  private def toIdentifier(templateQname: String) = ZIO.service[DeployedDar].mapAttempt { dar =>
+  private def toIdentifier(templateQname: String) = ZIO.service[DarFile].mapAttempt { dar =>
     val parts = templateQname.split(':')
     Identifier(dar.packageId, parts(0), parts(1))
   }

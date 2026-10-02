@@ -28,14 +28,13 @@ object SharedMultiSyncLedgerSpec:
   val sync1: Synchronizer = Synchronizer("synchronizer1")
   val sync2: Synchronizer = Synchronizer("synchronizer2")
 
-  val shared: ZLayer[FTEnv & Dpm & Docker, Throwable, Service[Ledger] & Postgres & DeployedDar] =
-    DamlSdk.dar(pingPong) ++ DamlSdk.multiSyncLedger(sync1, sync2) ++ Postgres.instance
-      >+> DamlSdk.uploadAndVetDar(sync1, sync2)
+  val shared: ZLayer[FTEnv & Dpm & Docker, Throwable, Service[Ledger] & Postgres & DarFile] =
+    DamlSdk.multiSyncLedger(sync1, sync2) ++ Postgres.instance >+> DamlSdk.uploadAndVetDar(pingPong)(sync1, sync2)
 
-trait SharedMultiSyncLedgerSpec extends FuncTest[Service[Ledger] & Postgres & DeployedDar]:
+trait SharedMultiSyncLedgerSpec extends FuncTest[Service[Ledger] & Postgres & DarFile]:
   export SharedMultiSyncLedgerSpec.*
 
-  protected def createContract(alice: Party): ZIO[Docker & Service[Ledger] & DeployedDar, Throwable, String] =
+  protected def createContract(alice: Party): ZIO[Docker & Service[Ledger] & DarFile, Throwable, String] =
     val args = Record.defaultInstance.addFields(RecordField("sender", Some(Value(Value.Sum.Party(alice.id)))))
     Ledger
       .create("PingPong:Ping", args, alice, sync1)
