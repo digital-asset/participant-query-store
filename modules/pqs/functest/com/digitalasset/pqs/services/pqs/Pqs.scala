@@ -93,13 +93,13 @@ trait Pqs:
 
   /** Pqs Pipeline Service wrapped into Layer */
   def pipeline(extraArgs: String*): ZLayer[
-    Docker & Parties & Postgres & Database & Service[Ledger] & DeployedDar,
+    Docker & Parties & Postgres & Database & Service[Ledger] & DarFile,
     Throwable,
     Service[Pipeline]
   ] = attemptPipeline(extraArgs*).tap(_.get.blockUntilStdOut(_.contains("Continuing from offset")))
 
   def attemptPipeline(extraArgs: String*): ZLayer[
-    Docker & Parties & Postgres & Database & Service[Ledger] & DeployedDar,
+    Docker & Parties & Postgres & Database & Service[Ledger] & DarFile,
     Throwable,
     Service[Pipeline]
   ] = conf.flatMap(conf =>
@@ -119,7 +119,7 @@ trait Pqs:
   )
 
   def prune(extraArgs: String*): ZLayer[
-    Docker & Parties & Postgres & Database & Service[Ledger] & DeployedDar,
+    Docker & Parties & Postgres & Database & Service[Ledger] & DarFile,
     Throwable,
     Service[Prune]
   ] =
@@ -173,15 +173,17 @@ trait Pqs:
       collectorInstance <- Docker.inspectMaybe[Collector.Instance]
       dbName            <- ZIO.service[Database]
       parties           <- ZIO.service[Parties]
-      dar               <- ZIO.service[DeployedDar]
+      dar               <- ZIO.service[DarFile]
       partyIds = parties.get.map(_.id)
 
       unprefixedBase = Map(
         "SOURCE_LEDGER_CACHEDIR" -> "/ft/pqs-cache",
         "HEALTH_PORT"            -> Pipeline.healthPort,
-        "PIPELINE_FILTER_CONTRACTS" -> (if version.semVer >= Semver.parse("0.4.0")
-                                        then dar.dar.packageInfo.map((name, _, _) => s"$name:*").mkString("|")
-                                        else dar.dar.packageInfo.map((_, _, id) => s"$id:*").mkString("|")),
+        "PIPELINE_FILTER_CONTRACTS" -> (
+          if version.semVer >= Semver.parse("0.4.0")
+          then dar.packageInfo.map((name, _, _) => s"$name:*").mkString("|")
+          else dar.packageInfo.map((_, _, id) => s"$id:*").mkString("|")
+        ),
         "SOURCE_LEDGER_HOST"         -> ledger.container.hostName,
         "SOURCE_LEDGER_PORT"         -> CantonConf.participantPort,
         "TARGET_POSTGRES_HOST"       -> pg.container.hostName,
@@ -236,13 +238,13 @@ trait Pqs:
 
   /** Run pipeline and wrap the result into Layer. Fails the layer if the pipeline exits with a non-zero exit code. */
   def runPipeline(extraArgs: String*): ZLayer[
-    Docker & Parties & Postgres & Database & Service[Ledger] & DeployedDar,
+    Docker & Parties & Postgres & Database & Service[Ledger] & DarFile,
     Throwable,
     CliRun
   ] = attemptPipeline(extraArgs*).flatMap(CliRun.fromSvcExpectSuccess)
 
   def runPrune(extraArgs: String*): ZLayer[
-    Docker & Parties & Postgres & Database & Service[Ledger] & DeployedDar,
+    Docker & Parties & Postgres & Database & Service[Ledger] & DarFile,
     Throwable,
     CliRun
   ] = prune(extraArgs*).flatMap(CliRun.fromSvc)

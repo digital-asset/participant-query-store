@@ -78,16 +78,16 @@ object InterfaceRowsUseTemplatePackageIdSpec extends SharedLedgerAndPostgresTest
   def spec = suite("Interface rows use the underlying template package ID")(
     funcTest("public contract queries keep the template package ID on interface rows") {
       val alice    = Party("Alice")
-      val ifaceDar = Capture[DeployedDar]
+      val ifaceDar = Capture[DarFile]
       Given:
-        (DamlSdk.dar(pingIface) >+> DamlSdk.deploy)
+        DamlSdk.deploy(pingIface)
           ++ DamlSdk.parties(alice) ++ Postgres.database
       And:
         ifaceDar.captureFromService
 
-      val dar = Capture[DeployedDar]
+      val dar = Capture[DarFile]
       And:
-        DamlSdk.dar(ping) >+> DamlSdk.deploy
+        DamlSdk.deploy(ping)
       And:
         dar.captureFromService
       When:
@@ -100,8 +100,8 @@ object InterfaceRowsUseTemplatePackageIdSpec extends SharedLedgerAndPostgresTest
           s"--pipeline-filter-contracts=${Pipeline.allContractsWithoutAdminWorkflows}"
         )
 
-      lazy val ifacePkgId = ifaceDar.get.dar.packageId
-      lazy val pkgId      = dar.get.dar.packageId
+      lazy val ifacePkgId = ifaceDar.get.packageId
+      lazy val pkgId      = dar.get.packageId
 
       val cId1 = Capture[String]
       val cId2 = Capture[String]

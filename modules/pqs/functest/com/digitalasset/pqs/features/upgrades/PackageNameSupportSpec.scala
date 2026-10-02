@@ -3,7 +3,6 @@
 
 package com.digitalasset.pqs.features.upgrades
 
-import com.digitalasset.pqs.docker.Service
 import com.digitalasset.pqs.functest.FuncTestStandalone
 import com.digitalasset.pqs.functest.matchers.*
 import com.digitalasset.pqs.functest.table.*
@@ -101,20 +100,20 @@ object PackageNameSupportSpec extends FuncTestStandalone:
     suite("transactions")(
       funcTest("Package Names are correctly handled when using transactions.") {
         val alice = Party("Alice")
-        val dar   = Capture[DeployedDar]
+        val dar   = Capture[DarFile]
         Given:
-          DamlSdk.dar(ping.withVersion("0.0.0")) ++ DamlSdk.ledger ++ Postgres.instance
+          DamlSdk.ledger ++ Postgres.instance
         And:
-          DamlSdk.deploy ++ DamlSdk.parties(alice) ++ Postgres.database
+          DamlSdk.deploy(ping.withVersion("0.0.0")) ++ DamlSdk.parties(alice) ++ Postgres.database
         And:
           dar.captureFromService
         And:
           DamlSdk.runScript("Ping:transact", alice.id)
 
         // upload the second dar
-        val upgradedDar = Capture[DeployedDar]
+        val upgradedDar = Capture[DarFile]
         When:
-          DamlSdk.dar(pingUpgrade.withVersion("0.0.1")) >+> DamlSdk.deploy >+> DamlSdk
+          DamlSdk.deploy(pingUpgrade.withVersion("0.0.1")) >+> DamlSdk
             .runScript("Ping:transact", alice.id)
         And:
           upgradedDar.captureFromService
@@ -127,8 +126,8 @@ object PackageNameSupportSpec extends FuncTestStandalone:
             s"--pipeline-filter-contracts=${Pipeline.allContractsWithoutAdminWorkflows}"
           )
 
-        lazy val pkgId    = dar.get.dar.packageId
-        lazy val upgPkgId = upgradedDar.get.dar.packageId
+        lazy val pkgId    = dar.get.packageId
+        lazy val upgPkgId = upgradedDar.get.packageId
         val pkgPk         = Capture[Int]
         val upgPkgPk      = Capture[Int]
         Expect:
@@ -227,20 +226,20 @@ object PackageNameSupportSpec extends FuncTestStandalone:
     suite("transaction trees")(
       funcTest("Package Names are correctly handled when using transaction trees."):
         val alice = Party("Alice")
-        val dar   = Capture[DeployedDar]
+        val dar   = Capture[DarFile]
         Given:
-          DamlSdk.dar(ping.withVersion("0.0.0")) ++ DamlSdk.ledger ++ Postgres.instance
+          DamlSdk.ledger ++ Postgres.instance
         And:
-          DamlSdk.deploy ++ DamlSdk.parties(alice) ++ Postgres.database
+          DamlSdk.deploy(ping.withVersion("0.0.0")) ++ DamlSdk.parties(alice) ++ Postgres.database
         And:
           dar.captureFromService
         And:
           DamlSdk.runScript("Ping:transact", alice.id)
 
         // upload the second dar
-        val upgradedDar = Capture[DeployedDar]
+        val upgradedDar = Capture[DarFile]
         When:
-          DamlSdk.dar(pingUpgrade.withVersion("0.0.1")) >+> DamlSdk.deploy >+> DamlSdk
+          DamlSdk.deploy(pingUpgrade.withVersion("0.0.1")) >+> DamlSdk
             .runScript("Ping:transact", alice.id)
         And:
           upgradedDar.captureFromService
@@ -253,8 +252,8 @@ object PackageNameSupportSpec extends FuncTestStandalone:
             s"--pipeline-filter-contracts=${Pipeline.allContractsWithoutAdminWorkflows}"
           )
 
-        lazy val pkgId    = dar.get.dar.packageId
-        lazy val upgPkgId = upgradedDar.get.dar.packageId
+        lazy val pkgId    = dar.get.packageId
+        lazy val upgPkgId = upgradedDar.get.packageId
         val pkgPk         = Capture[Int]
         val upgPkgPk      = Capture[Int]
         Expect:

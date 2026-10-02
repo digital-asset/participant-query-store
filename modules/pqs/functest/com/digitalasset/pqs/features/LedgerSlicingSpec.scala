@@ -39,7 +39,7 @@ object LedgerSlicingSpec extends SharedLedgerAndPostgresTest:
                     |""".stripMargin
   )
   private def context(alice: Party) =
-    DamlSdk.dar(pingPong) >+> DamlSdk.deploy
+    DamlSdk.deploy(pingPong)
       ++ DamlSdk.parties(alice) ++ Postgres.database
       >+> DamlSdk.runScript("PingPong:transact1", alice.id)
 

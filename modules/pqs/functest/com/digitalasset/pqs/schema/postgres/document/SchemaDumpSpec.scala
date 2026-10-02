@@ -47,7 +47,7 @@ object SchemaDumpSpec extends SharedLedgerAndPostgresTest:
   def spec = suite("SchemaDumpSpec")(
     funcTest(s"$target matches the schema produced by the current Flyway migrations"):
       Given:
-        DamlSdk.dar(Dars.pingPongTransact) ++ DamlSdk.parties(alice) ++ Postgres.database >+> DamlSdk.deploy
+        DamlSdk.parties(alice) ++ Postgres.database ++ DamlSdk.deploy(Dars.pingPongTransact)
       When:
         // Running the pipeline once triggers PQS's normal schema auto-apply (Flyway migrate + mappings)
         // against a brand-new, empty database.

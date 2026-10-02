@@ -38,8 +38,8 @@ object HealthSpec extends SharedLedgerAndPostgresTest:
   )
   private def context =
     val alice = Party("Alice")
-    DamlSdk.dar(pingPong) ++ DamlSdk.parties(alice) ++ Postgres.database
-      >+> DamlSdk.deploy
+    DamlSdk.parties(alice) ++ Postgres.database
+      >+> DamlSdk.deploy(pingPong)
       >+> DamlSdk.runScript("PingPong:transact1", alice.id)
 
   def spec = suite("health")(

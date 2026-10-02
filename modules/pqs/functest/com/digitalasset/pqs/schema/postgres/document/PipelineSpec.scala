@@ -51,8 +51,8 @@ object PipelineSpec extends SharedLedgerAndPostgresTest:
   private val archiveRef  = s"$templateRef:Archive"
 
   def context(alice: Party, bob: Party, script: String = "PingPong:transact1", testText: String = "test") =
-    DamlSdk.dar(pingPong) ++ DamlSdk.parties(alice, bob) ++ Postgres.database
-      >+> DamlSdk.deploy
+    DamlSdk.parties(alice, bob) ++ Postgres.database
+      >+> DamlSdk.deploy(pingPong)
       >+> DamlSdk.runScript(script, (alice.id, bob.id, testText))
 
   def spec = suite("pipeline")(
