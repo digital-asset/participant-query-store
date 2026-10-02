@@ -19,7 +19,6 @@ object CommitFailureSpec extends FuncTestStandalone:
                |
                |import Daml.Script
                |import DA.Functor (void)
-               |import DA.List (sort)
                |
                |template Foo
                |  with
