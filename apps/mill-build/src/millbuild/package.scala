@@ -29,10 +29,14 @@ package object millbuild {
 
     // Pulled transitively by Flyway
     // Force specific version to address vulnerabilities
-    val jackson = "3.2.2"
+    val jackson3 = "3.2.2"
 
-    // Pulled transitively by ZIO HTTP
-    // force specific version to address vulnerabilities
+    // Pulled transitively by azure-identity-extensions
+    // Force specific version to address vulnerabilities
+    val jackson2 = "2.21.7"
+
+    // Pulled transitively by ZIO HTTP and azure-identity-extensions
+    // Force specific version to address vulnerabilities
     val nettyVersion = "4.2.18.Final"
 
     val openTelemetryAgent = "2.28.1"
@@ -55,13 +59,21 @@ package object millbuild {
 
     val protoJava = ivy"com.google.protobuf:protobuf-java:3.25.9"
 
-    object netty {
-      val codecHttp = ivy"io.netty:netty-codec-http:${V.nettyVersion}"
-      val handlerProxy = ivy"io.netty:netty-handler-proxy:${V.nettyVersion}"
-      val pkiTesting = ivy"io.netty:netty-pkitesting:${V.nettyVersion}"
-      val transportNativeEpoll = ivy"io.netty:netty-transport-native-epoll:${V.nettyVersion}"
-      val transportNativeKqueue = ivy"io.netty:netty-transport-native-kqueue:${V.nettyVersion}"
-    }
+    
+    val nettyAll = Seq(
+      "netty-codec",
+      "netty-codec-dns",
+      "netty-codec-http",
+      "netty-codec-http2",
+      "netty-handler-proxy",
+      "netty-pkitesting",
+      "netty-resolver-dns",
+      "netty-transport-native-epoll",
+      "netty-transport-native-kqueue"
+    ).map(name => ivy"io.netty:$name:${V.nettyVersion}")
+
+    // transitive dependency of azure-identity-extensions
+    val reactorNetty = ivy"io.projectreactor.netty:reactor-netty-core:1.3.7".excludeOrg("io.netty")
 
     object canton {
       val ledgerApiProto = ivy"com.daml:ledger-api-proto:${V.canton}"
@@ -89,9 +101,13 @@ package object millbuild {
       val zerodepTransport = ivy"com.github.docker-java:docker-java-transport-zerodep:${V.dockerClient}"
     }
 
-    object jackson {
-      val core = ivy"tools.jackson.core:jackson-core:${V.jackson}"
-      val databind = ivy"tools.jackson.core:jackson-databind:${V.jackson}"
+    object jackson3 {
+      val core = ivy"tools.jackson.core:jackson-core:${V.jackson3}"
+      val databind = ivy"tools.jackson.core:jackson-databind:${V.jackson3}"
+    }
+
+    object jackson2 {
+      val core = ivy"com.fasterxml.jackson.core:jackson-core:${V.jackson2}"
     }
 
     object grpc {
@@ -179,6 +195,6 @@ package object millbuild {
       val micrometerCore = ivy"io.micrometer:micrometer-core:1.17.1"
     }
 
-    val azureIdentityExtensions = ivy"com.azure:azure-identity-extensions:1.2.2"
+    val azureIdentityExtensions = ivy"com.azure:azure-identity-extensions:1.2.2".excludeOrg("io.netty")
   }
 }

@@ -334,17 +334,12 @@ object `package` extends RootModule { root =>
 
     override def ivyDeps = Agg(
       L.zio.zio,
-      L.netty.codecHttp,
-      L.netty.handlerProxy,
-      L.netty.pkiTesting,
-      L.netty.transportNativeEpoll,
-      L.netty.transportNativeKqueue,
       L.bouncyCastle.prov,
       L.zio.http,
       L.zio.streams,
       // Bump transitive dep to resolve vulnerabilities
       L.protoJava
-    )
+    ) ++ L.nettyAll
 
     object test extends ScribeTests
   }
@@ -372,7 +367,11 @@ object `package` extends RootModule { root =>
         L.zio.jdbc,
         L.jdbc.postgres,
         // Provides the optional AzurePostgresqlAuthenticationPlugin
-        L.azureIdentityExtensions
+        L.azureIdentityExtensions,
+        // bump transitive deps to address vulnerabilities
+        L.reactorNetty,
+        L.jackson2.core
+
       )
 
       override def moduleDeps = Seq(
@@ -387,8 +386,8 @@ object `package` extends RootModule { root =>
         L.commons.text,
         L.flyway.core,
         L.flyway.driverPostgres,
-        L.jackson.core,
-        L.jackson.databind,
+        L.jackson3.core,
+        L.jackson3.databind,
         L.classgraph,
         L.transcode.json
       )
