@@ -32,6 +32,7 @@ This release includes the following SQL migrations:
 
 - Optimize core SQL functions (`creates`, `exercises`, `active`, `archives`) to compute the nearest offset only once per query.
 - Treat a timestamp or duration prune target older than all recorded history as a successful no-op, instead of failing.
+- Fixed silent handling of PostgreSQL commit failures that could leave gaps in `__transactions`. Commit errors now invalidate the connection and fail the pipeline so ingestion is retried.
 
 ### Minor Improvements
 
