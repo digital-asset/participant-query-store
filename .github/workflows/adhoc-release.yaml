@@ -59,7 +59,7 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
-  ship-docker:
+  ship-docker-unstable:
     runs-on: digital-asset-participant-query-store
     needs: build
     steps:
@@ -93,7 +93,7 @@ jobs:
       - name: Docker build-debug push
         run: make docker/images/pqs/build-debug BAKE_ACTION='--push' GAR_REPOSITORY='da-images/public-unstable'
 
-  ship-component:
+  ship-component-unstable:
     runs-on: digital-asset-participant-query-store
     needs: build
     steps:
@@ -117,22 +117,25 @@ jobs:
       - name: Push dpm component to da-images/public-unstable
         run: make publish-component ASSISTANT_ARGS="oci://europe-docker.pkg.dev/da-images/public-unstable/components"
 
-  ship-helm:
+  ship-helm-unstable:
     runs-on: digital-asset-participant-query-store
-    needs: ship-docker
+    needs: ship-docker-unstable
     steps:
       - uses: actions/checkout@v5
+      - uses: ./.github/actions/nix
+      - uses: ./.github/actions/gen-version
+        id: gen-version
       - name: Login to GAR
         uses: docker/login-action@v3
         with:
           registry: europe-docker.pkg.dev
           username: _json_key
           password: ${{ secrets.DA_IMAGES }}
-      - name: Helm Build and Publish (Stable)
+      - name: Helm Build and Publish (Unstable)
         uses: ./.github/actions/helm-build-push
         with:
           chart: charts/participant-query-store
           registry: europe-docker.pkg.dev/da-images/public-unstable/charts
-          version: ${{ github.ref_name }}
+          version: ${{ steps.gen-version.outputs.version }}
           username: _json_key
           password: ${{ secrets.DA_IMAGES }}
