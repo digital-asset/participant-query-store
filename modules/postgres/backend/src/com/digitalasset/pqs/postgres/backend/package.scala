@@ -17,14 +17,16 @@ package object backend:
   def executeTransaction[A](call: ZIO[ZConnection, Throwable, A]): ZIO[ZConnectionPool, Throwable, A] =
     // The transaction layer commits the call in a scope finalizer
     // We use unrefine to promote any PSQL failure from fiber error to the ZIO typed error
-    transaction(call).unrefine { case e: PSQLException => e } @@ traces.span("execute datastore transaction")
+    transaction(call).unrefine { case e: PSQLException => e }
 
   /** Execute each transaction in parallel */
   def executePar[A](
       n: Int
   ): ZPipeline[ZConnectionPool & PostgresConfig, Throwable, ZIO[ZConnection, Throwable, A], A] =
     ZPipeline.serviceWithPipeline[PostgresConfig](config =>
-      ZPipeline[ZIO[ZConnection, Throwable, A]].mapZIOPar(n)(executeTransaction)
+      ZPipeline[ZIO[ZConnection, Throwable, A]].mapZIOPar(n) { call =>
+        executeTransaction(call) @@ traces.span("execute datastore transaction")
+      }
     )
 
   /** Execute each transaction in parallel in breaking the order downstream */
@@ -32,7 +34,9 @@ package object backend:
       n: Int
   ): ZPipeline[ZConnectionPool & PostgresConfig, Throwable, ZIO[ZConnection, Throwable, A], A] =
     ZPipeline.serviceWithPipeline[PostgresConfig](config =>
-      ZPipeline[ZIO[ZConnection, Throwable, A]].mapZIOParUnordered(n)(executeTransaction)
+      ZPipeline[ZIO[ZConnection, Throwable, A]].mapZIOParUnordered(n) { call =>
+        executeTransaction(call) @@ traces.span("execute datastore transaction")
+      }
     )
 
   /** Execute all SQL statements in one large transaction */
