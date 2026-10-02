@@ -3,7 +3,6 @@
 
 package com.digitalasset.pqs.schema.postgres.document
 
-import com.digitalasset.pqs.docker.Service
 import com.digitalasset.pqs.functest.FuncTestStandalone
 import com.digitalasset.pqs.functest.matchers.*
 import com.digitalasset.pqs.services.daml.{DamlSdk, DamlSource, Party}

@@ -10,7 +10,6 @@ import com.digitalasset.pqs.services.daml.{DamlSdk, DamlSource, Party}
 import com.digitalasset.pqs.services.postgres.Postgres
 import com.digitalasset.pqs.services.pqs.Pqs
 import com.digitalasset.transcode.schema.packageName
-import zio.ZLayer
 import zio.jdbc.{SqlFragment, sqlInterpolator}
 import zio.test.*
 import zio.test.Assertion.equalTo
