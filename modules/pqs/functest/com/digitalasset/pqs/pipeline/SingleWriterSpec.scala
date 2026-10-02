@@ -95,7 +95,44 @@ object SingleWriterSpec extends SharedMultiSyncLedgerSpec:
             increasing
           )
         }
-    }
+    },
+    // Fails today: a deposed instance re-claims the writer slot when it restarts after a recoverable error (#124)
+    funcTest("a deposed instance does not take the writer slot back") {
+      val alice  = Party("Alice")
+      val load   = Capture[Load]
+      val idleAt = Capture[Long]
+      val a      = Capture[Service[Pipeline]]
+      val b      = Capture[Service[Pipeline]]
+
+      Given:
+        DamlSdk.allocateParties(alice -> Seq(sync1)) ++ Postgres.database
+      Then:
+        startLoad(alice).is(load.capture)
+      And:
+        startPqs("a", genesis, "--target-postgres-probeinterval=PT0S").is(a.capture)
+      And:
+        streaming(a.get)
+      When:
+        installAudit
+      Then:
+        stopLoad(alice, load.get).is(idleAt.capture)
+      And:
+        caughtUp(idleAt.get)
+      And:
+        startPqs("b", resume).is(b.capture)
+      And:
+        continuing(b.get).timeout(50.seconds).is(isSome(anything))
+      And:
+        running(a.get)
+      When:
+        terminateSessions("pqs-a")
+      When:
+        startLoad(alice)
+      Then:
+        b.get.exitCode.timeout(30.seconds).is(isNone)
+      And:
+        advances.map(rows => assertTrue(collapse(rows.map(_._1)) == Chunk("pqs-a", "pqs-b")))
+    } @@ TestAspect.ignore
   )
 
   private final case class Load(live: Ref[Set[String]], stop: Promise[Nothing, Unit], fiber: Fiber[Throwable, Unit])
@@ -262,3 +299,11 @@ object SingleWriterSpec extends SharedMultiSyncLedgerSpec:
 
   private val activeIds: ZIO[Database, Throwable, Set[String]] =
     Postgres.query(sql"select contract_id from active($pingFqn)".query[String].selectAll).map(_.toSet)
+
+  private def terminateSessions(app: String): ZIO[Database, Throwable, Unit] =
+    Postgres
+      .query(
+        sql"""select pg_terminate_backend(pid) from pg_stat_activity
+              where datname = current_database() and application_name = $app""".query[Boolean].selectAll
+      )
+      .unit
