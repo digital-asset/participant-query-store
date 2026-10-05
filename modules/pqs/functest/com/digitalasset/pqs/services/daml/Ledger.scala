@@ -101,17 +101,8 @@ object Ledger:
   }
 
   // only the main package: dependencies such as daml-stdlib are shared with every other spec
-  def unvetDar(dar: DarFile, synchronizer: Synchronizer) = svc {
-    val packageRefs = dar.packageInfo.collect {
-      case (name, version, id) if id === dar.packageId => VettedPackagesRef(id, name, version)
-    }
-    val unvet =
-      VettedPackagesChange.Operation.Unvet(VettedPackagesChange.Unvet.defaultInstance.withPackages(packageRefs))
-    val request = UpdateVettedPackagesRequest.defaultInstance
-      .withChanges(Seq(VettedPackagesChange(unvet)))
-      .withSynchronizerId(synchronizer.id)
-    PackageManagementServiceClient.updateVettedPackages(request)
-  }
+  def unvetDar(dar: DarFile): ZIO[Docker & Service[Ledger], Throwable, UpdateVettedPackagesResponse] =
+    getSingleConnectedSynchronizerId.flatMap(unvetDar(dar, _))
 
   def listVettedPackages(packageId: String) = svc(
     PackageServiceClient.listVettedPackages(
@@ -181,6 +172,13 @@ object Ledger:
       response <- submitAndWaitForTransaction(actAs, sync, Command(Command.Command.Create(command)))
     yield response
   }
+
+  def create(
+      templateQname: String,
+      args: com.daml.ledger.api.v2.value.Record,
+      actAs: Party
+  ): ZIO[Docker & Service[Ledger] & DeployedDar, Throwable, SubmitAndWaitForTransactionResponse] =
+    getSingleConnectedSynchronizerId.flatMap(create(templateQname, args, actAs, _))
 
   def archive(templateQname: String, contractId: String, actAs: Party, sync: Synchronizer) =
     for
@@ -347,6 +345,27 @@ object Ledger:
     EventFormat.defaultInstance.withFiltersByParty(
       parties.map(p => p.id -> Filters.of(Seq(CumulativeFilter.of(filter)))).toMap
     )
+
+  private def unvetDar(
+      dar: DarFile,
+      synchronizerId: Synchronizer
+  ): ZIO[Docker & Service[Ledger], Throwable, UpdateVettedPackagesResponse] = svc {
+    val packageRefs = dar.packageInfo.collect {
+      case (name, version, id) if id === dar.packageId => VettedPackagesRef(id, name, version)
+    }
+    val unvet =
+      VettedPackagesChange.Operation.Unvet(VettedPackagesChange.Unvet.defaultInstance.withPackages(packageRefs))
+    val request = UpdateVettedPackagesRequest.defaultInstance
+      .withChanges(Seq(VettedPackagesChange(unvet)))
+      .withSynchronizerId(synchronizerId.id)
+    PackageManagementServiceClient.updateVettedPackages(request)
+  }
+
+  private def getSingleConnectedSynchronizerId: ZIO[Docker & Service[Ledger], Throwable, Synchronizer] =
+    getAllSynchronizers.flatMap {
+      case Seq(single) => ZIO.attempt(Synchronizer(single.synchronizerAlias).set(single.synchronizerId))
+      case other       => ZIO.fail(Throwable(s"expected exactly one connected synchronizer, found ${other.size}"))
+    }
 
   private def wildcardFilter(includeCreatedEventBlob: Boolean) =
     CumulativeFilter.IdentifierFilter.WildcardFilter(WildcardFilter(includeCreatedEventBlob))
