@@ -3,14 +3,12 @@
 
 package com.digitalasset.pqs.features
 
-import com.daml.ledger.api.v2.package_service.ListVettedPackagesResponse
 import com.daml.ledger.api.v2.value.*
 import com.digitalasset.pqs.docker.{Docker, Service}
 import com.digitalasset.pqs.functest.matchers.*
 import com.digitalasset.pqs.functest.table.*
 import com.digitalasset.pqs.services.postgres.*
 import com.digitalasset.pqs.services.pqs.{CliRun, Pqs}
-import com.digitalasset.pqs.utils.safeequals.*
 import com.digitalasset.pqs.functest.{Dpm, FTEnv, FuncTest}
 import com.digitalasset.pqs.services.daml.*
 import com.digitalasset.pqs.services.postgres.Postgres
@@ -55,15 +53,13 @@ object OrphanedPackageDecodingSpec extends FuncTest[Service[Ledger] & Postgres &
     And:
       dar.captureFromService
     Expect:
-      Ledger.listVettedPackages(dar.get.packageId).map(vettedIds(_, dar.get.packageId)) `is`
-        Seq(dar.get.packageId) retryUntilTimeout
+      vettedIds(dar.get.packageId) `is` Seq(dar.get.packageId) retryUntilTimeout
     Then:
       createContract(alice).is(contractId.capture)
     When:
       Ledger.unvetDar(dar.get.dar)
     Expect:
-      Ledger.listVettedPackages(dar.get.packageId).map(vettedIds(_, dar.get.packageId)) `is`
-        Seq.empty[String] retryUntilTimeout
+      vettedIds(dar.get.packageId) `is` Seq.empty retryUntilTimeout
     When:
       Postgres.database
         >+> Pqs.runPipeline(
@@ -80,8 +76,8 @@ object OrphanedPackageDecodingSpec extends FuncTest[Service[Ledger] & Postgres &
           }
         )
 
-  private def vettedIds(response: ListVettedPackagesResponse, packageId: String) =
-    response.vettedPackages.flatMap(_.packages).map(_.packageId).filter(_ === packageId)
+  private def vettedIds(packageId: String) =
+    Ledger.listVettedPackages(packageId).map(_.vettedPackages.flatMap(_.packages).map(_.packageId))
 
   private def createContract(alice: Party): ZIO[Docker & Service[Ledger] & DeployedDar, Throwable, String] =
     val args = Record.defaultInstance.addFields(RecordField("sender", Some(Value(Value.Sum.Party(alice.id)))))
