@@ -4,19 +4,20 @@
 package com.digitalasset.pqs.features
 
 import com.daml.ledger.api.v2.value.*
+import com.digitalasset.pqs.SharedLedgerAndPostgresTest
 import com.digitalasset.pqs.docker.{Docker, Service}
 import com.digitalasset.pqs.functest.matchers.*
 import com.digitalasset.pqs.functest.table.*
 import com.digitalasset.pqs.services.postgres.*
 import com.digitalasset.pqs.services.pqs.{CliRun, Pqs}
-import com.digitalasset.pqs.functest.{Dpm, FTEnv, FuncTest}
+import com.digitalasset.pqs.functest.FuncTest
 import com.digitalasset.pqs.services.daml.*
 import com.digitalasset.pqs.services.postgres.Postgres
-import zio.{Scope, ZLayer, ZIO}
+import zio.{ZIO, ZLayer}
 
 import scala.language.{implicitConversions, postfixOps}
 
-object OrphanedPackageDecodingSpec extends FuncTest[Service[Ledger] & Postgres & DeployedDar]:
+object OrphanedPackageDecodingSpec extends SharedLedgerAndPostgresTest:
   private val pingPong = DamlSource(
     "PingPong" -> """module PingPong where
                     |
@@ -31,25 +32,20 @@ object OrphanedPackageDecodingSpec extends FuncTest[Service[Ledger] & Postgres &
                     |""".stripMargin
   )
 
-  val shared: ZLayer[FTEnv & Dpm & Docker, Throwable, Service[Ledger] & Postgres & DeployedDar] =
-    DamlSdk.dar(pingPong) ++ DamlSdk.ledger ++ Postgres.instance >+> DamlSdk.deploy
-
   def spec = suite("Orphaned package decoding")(
-    funcTest("Contract of an unvetted package is decoded - updates stream")(orphanedDecoding(acsStream = false)),
-    funcTest("Contract of an unvetted package is decoded - ACS stream")(orphanedDecoding(acsStream = true))
+    orphanedDecoding("Contract of an unvetted package is decoded - updates stream", acsStream = false),
+    orphanedDecoding("Contract of an unvetted package is decoded - ACS stream", acsStream = true)
   )
 
-  private def orphanedDecoding(acsStream: Boolean)(using
-      Ctx[Parties & DarFile & DeployedDar & Database & CliRun, Parties & Database & Environment & Scope]
-  ): Unit =
+  private def orphanedDecoding(label: String, acsStream: Boolean) = funcTest(label):
     val alice       = Party("Alice")
     val orphaned    = pingPong.withNameSuffix(if acsStream then "orphaned-acs" else "orphaned-updates")
-    val dar         = Capture[DeployedDar]
+    val dar         = Capture[DarFile]
     val contractId  = Capture[String]
     val templateFqn = s"${orphaned.name}:PingPong:Ping"
 
     Given:
-      DamlSdk.parties(alice) ++ (DamlSdk.dar(orphaned) >+> DamlSdk.deploy)
+      DamlSdk.parties(alice) >+> DamlSdk.deploy(orphaned)
     And:
       dar.captureFromService
     Expect:
@@ -57,7 +53,7 @@ object OrphanedPackageDecodingSpec extends FuncTest[Service[Ledger] & Postgres &
     Then:
       createContract(alice).is(contractId.capture)
     When:
-      Ledger.unvetDar(dar.get.dar)
+      Ledger.unvetDar(dar.get)
     Expect:
       vettedIds(dar.get.packageId) `is` Seq.empty retryUntilTimeout
     When:
@@ -79,7 +75,7 @@ object OrphanedPackageDecodingSpec extends FuncTest[Service[Ledger] & Postgres &
   private def vettedIds(packageId: String) =
     Ledger.listVettedPackages(packageId).map(_.vettedPackages.flatMap(_.packages).map(_.packageId))
 
-  private def createContract(alice: Party): ZIO[Docker & Service[Ledger] & DeployedDar, Throwable, String] =
+  private def createContract(alice: Party): ZIO[Docker & Service[Ledger] & DarFile, Throwable, String] =
     val args = Record.defaultInstance.addFields(RecordField("sender", Some(Value(Value.Sum.Party(alice.id)))))
     Ledger
       .create("PingPong:Ping", args, alice)

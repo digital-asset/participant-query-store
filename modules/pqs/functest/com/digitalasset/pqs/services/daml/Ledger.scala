@@ -177,7 +177,7 @@ object Ledger:
       templateQname: String,
       args: com.daml.ledger.api.v2.value.Record,
       actAs: Party
-  ): ZIO[Docker & Service[Ledger] & DeployedDar, Throwable, SubmitAndWaitForTransactionResponse] =
+  ): ZIO[Docker & Service[Ledger] & DarFile, Throwable, SubmitAndWaitForTransactionResponse] =
     getSingleConnectedSynchronizerId.flatMap(create(templateQname, args, actAs, _))
 
   def archive(templateQname: String, contractId: String, actAs: Party, sync: Synchronizer) =
