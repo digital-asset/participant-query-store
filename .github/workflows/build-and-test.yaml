@@ -184,8 +184,9 @@ jobs:
 
   ship-helm-unstable:
     runs-on: digital-asset-participant-query-store
-    needs:
-      - helm-unittest
+    needs: helm-unittest
+    env:
+      GAR_REPOSITORY: ${{ github.event_name == 'push' && 'da-images/public-unstable' || 'da-images/playground' }}
     steps:
       - uses: actions/checkout@v5
       - uses: ./.github/actions/nix
@@ -201,7 +202,7 @@ jobs:
         uses: ./.github/actions/helm-build-push
         with:
           chart: charts/participant-query-store
-          registry: europe-docker.pkg.dev/da-images/public-unstable/charts
+          registry: europe-docker.pkg.dev/${{ env.GAR_REPOSITORY }}/charts
           version: ${{ steps.gen-version.outputs.version }}
           username: _json_key
           password: ${{ secrets.DA_IMAGES }}
