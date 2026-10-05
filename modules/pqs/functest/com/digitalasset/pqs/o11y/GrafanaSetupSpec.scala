@@ -44,8 +44,8 @@ object GrafanaSetupSpec extends SharedLedgerAndPostgresTest:
   private def upAndRunning =
     val alice = Party("Alice")
     (Loki.instance ++ Prometheus.instance ++ Tempo.instance >>> (Collector.instance ++ Grafana.instance))
-      ++ (Postgres.database ++ DamlSdk.dar(pingPong) ++ DamlSdk.parties(alice))
-      >+> DamlSdk.deploy
+      ++ (Postgres.database ++ DamlSdk.parties(alice))
+      >+> DamlSdk.deploy(pingPong)
       >+> DamlSdk.runScript("PingPong:transact1", alice.id)
 
   def spec = suite("observability signals can be queried with Grafana")(

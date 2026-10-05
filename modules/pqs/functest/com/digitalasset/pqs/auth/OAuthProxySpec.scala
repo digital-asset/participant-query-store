@@ -18,7 +18,7 @@ import scala.language.implicitConversions
 
 object OAuthProxySpec
     extends FuncTest[
-      Service[OAuth.Instance] & Service[ForwardProxy.Instance] & TokenService & Service[Ledger] & Postgres & DeployedDar
+      Service[OAuth.Instance] & Service[ForwardProxy.Instance] & TokenService & Service[Ledger] & Postgres & DarFile
     ]:
 
   // Starts OAuth and ForwardProxy, then creates a proxy network and moves OAuth off the main
@@ -68,8 +68,7 @@ object OAuthProxySpec
   lazy val shared =
     networkIsolation(OAuth.instance, ForwardProxy.instance(OAuth.port)) >+> TokenService.liveViaProxy
       >+> DamlSdk.ledger ++ Postgres.instance
-      >+> DamlSdk.dar(pingPong)
-      >+> DamlSdk.deploy
+      >+> DamlSdk.deploy(pingPong)
 
   private def context =
     Postgres.database ++ DamlSdk.parties(Party("Alice"))

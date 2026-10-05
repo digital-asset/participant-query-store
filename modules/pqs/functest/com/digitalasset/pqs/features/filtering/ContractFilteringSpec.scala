@@ -152,8 +152,8 @@ object ContractFilteringSpec extends SharedLedgerAndPostgresTest:
 
   private def context =
     val alice = Party("Alice")
-    (DamlSdk.dar(templates) ++ DamlSdk.parties(alice) ++ Postgres.database)
-      >+> DamlSdk.deploy >+> DamlSdk.runScript("Templates:setup", alice.id)
+    (DamlSdk.deploy(templates) ++ DamlSdk.parties(alice) ++ Postgres.database)
+      >+> DamlSdk.runScript("Templates:setup", alice.id)
 
   private def run(start: String, source: String, filter: String) =
     Pqs.runPipeline(
@@ -442,7 +442,7 @@ object ContractFilteringSpec extends SharedLedgerAndPostgresTest:
           }
       },
       funcTest("filter by package ids: captures only templates and templates/interface choices") {
-        lazy val dar = Capture[DeployedDar]
+        lazy val dar = Capture[DarFile]
         Given:
           context
         And:
@@ -452,7 +452,7 @@ object ContractFilteringSpec extends SharedLedgerAndPostgresTest:
           run(
             start = "Oldest",
             source = "TransactionTreeStream",
-            filter = s"${templates.name}@${dar.get.dar.packageId} | ${interfaces.name}"
+            filter = s"${templates.name}@${dar.get.packageId} | ${interfaces.name}"
           )
         Expect:
           queryActive() `returns` table {

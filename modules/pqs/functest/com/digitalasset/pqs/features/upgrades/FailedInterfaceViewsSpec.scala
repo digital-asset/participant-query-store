@@ -112,11 +112,11 @@ object FailedInterfaceViewsSpec extends SharedLedgerAndPostgresTest:
       val token        = createToken(if acsStream then "acs-stream" else "updates-stream")
       val tokenUpgrade = createTokenUpgrade(token)
 
-      val tokenV1Dar = Capture[DeployedDar]
-      val tokenV2Dar = Capture[DeployedDar]
+      val tokenV1Dar = Capture[DarFile]
+      val tokenV2Dar = Capture[DarFile]
 
       Given:
-        (DamlSdk.dar(token) >+> DamlSdk.deploy)
+        DamlSdk.deploy(token)
           ++ DamlSdk.parties(issuer, owner) ++ Postgres.database
 
       And:
@@ -125,7 +125,7 @@ object FailedInterfaceViewsSpec extends SharedLedgerAndPostgresTest:
         DamlSdk.runScript("Token:create", issuer.id)
 
       When:
-        DamlSdk.dar(tokenUpgrade) >+> DamlSdk.deploy >+> DamlSdk.runScript("Token:create", (issuer.id, owner.id))
+        DamlSdk.deploy(tokenUpgrade) >+> DamlSdk.runScript("Token:create", (issuer.id, owner.id))
       And:
         tokenV2Dar.captureFromService
 
@@ -136,20 +136,20 @@ object FailedInterfaceViewsSpec extends SharedLedgerAndPostgresTest:
           "--pipeline-ledger-stop=Latest"
         )
 
-      lazy val assetV1PkgId = tokenV1Dar.get.dar.packageInfo
+      lazy val assetV1PkgId = tokenV1Dar.get.packageInfo
         .collectFirst {
           case (pkgName, _pkvVer, pkgId) if pkgName.packageName.contains("assetV1") => pkgId
         }
         .getOrElse(sys.error("unavailable"))
 
-      lazy val assetV2PkgId = tokenV2Dar.get.dar.packageInfo
+      lazy val assetV2PkgId = tokenV2Dar.get.packageInfo
         .collectFirst {
           case (pkgName, _pkvVer, pkgId) if pkgName.packageName.contains("assetV2") => pkgId
         }
         .getOrElse(sys.error("unavailable"))
 
-      lazy val tokenPkgIdV1 = tokenV1Dar.get.dar.packageId
-      lazy val tokenPkgIdV2 = tokenV2Dar.get.dar.packageId
+      lazy val tokenPkgIdV1 = tokenV1Dar.get.packageId
+      lazy val tokenPkgIdV2 = tokenV2Dar.get.packageId
 
       val contract1Cid = Capture[String]
       val contract2Cid = Capture[String]

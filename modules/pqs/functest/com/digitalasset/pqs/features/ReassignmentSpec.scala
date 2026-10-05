@@ -24,7 +24,7 @@ object ReassignmentSpec extends SharedMultiSyncLedgerSpec:
   def spec = suite("Multi-Sync")(
     funcTest("Contract is created, reassigned and archived") {
       val alice      = Party("Alice")
-      val dar        = Capture[DeployedDar]
+      val dar        = Capture[DarFile]
       val contractId = Capture[String]
       Given:
         DamlSdk.allocateParties(alice -> Seq(sync1, sync2))
@@ -139,7 +139,7 @@ object ReassignmentSpec extends SharedMultiSyncLedgerSpec:
     },
     funcTest("Non-causal stream: archived before created") {
       val alice      = Party("Alice")
-      val dar        = Capture[DeployedDar]
+      val dar        = Capture[DarFile]
       val contractId = Capture[String]
 
       Given:
@@ -257,7 +257,7 @@ object ReassignmentSpec extends SharedMultiSyncLedgerSpec:
     },
     funcTest("Non-causal stream: assigned before unassigned") {
       val alice      = Party("Alice")
-      val dar        = Capture[DeployedDar]
+      val dar        = Capture[DarFile]
       val contractId = Capture[String]
 
       Given:
@@ -367,7 +367,7 @@ object ReassignmentSpec extends SharedMultiSyncLedgerSpec:
     },
     funcTest("non-causal stream: repeated interleaved reassignments") {
       val alice      = Party("Alice")
-      val dar        = Capture[DeployedDar]
+      val dar        = Capture[DarFile]
       val contractId = Capture[String]
 
       Given:

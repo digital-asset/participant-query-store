@@ -5,7 +5,6 @@ package com.digitalasset.pqs.schema
 
 import com.digitalasset.pqs.functest.FuncTestDefault
 import com.digitalasset.pqs.services.daml.{DamlSdk, DamlSource, DarFile}
-import zio.ZIO.serviceWith
 import zio.test.*
 
 object CompileToDarSpec extends FuncTestDefault:
@@ -22,16 +21,11 @@ object CompileToDarSpec extends FuncTestDefault:
   )
 
   def spec = funcTest("compile small model to dar"):
-    Given:
-      DamlSdk.dar(pingPong)
-
     Expect:
-      serviceWith[DarFile](dar =>
+      DamlSdk.buildDar(pingPong).map { dar =>
         assertTrue(
           dar.darBytes.nonEmpty,
           dar.packageId.length == 64,
           os.exists(dar.mainPackageDir)
         )
-      )
-
-end CompileToDarSpec
+      }

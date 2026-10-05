@@ -4,7 +4,6 @@
 package com.digitalasset.pqs.errors
 
 import com.digitalasset.canonical.Offset
-import com.digitalasset.pqs.docker.Service
 import com.digitalasset.pqs.functest.FuncTestStandalone
 import com.digitalasset.pqs.functest.matchers.*
 import com.digitalasset.pqs.functest.table.*
@@ -51,8 +50,8 @@ object PrunedDataAccessSpec extends FuncTestStandalone:
       val alice     = Party("Alice")
       val pruneUpTo = Capture[OffsetType]
       Given:
-        (DamlSdk.dar(pingPong) ++ DamlSdk.ledger ++ Postgres.instance)
-          >+> (DamlSdk.deploy ++ DamlSdk.parties(alice) ++ Postgres.database)
+        (DamlSdk.ledger ++ Postgres.instance)
+          >+> (DamlSdk.deploy(pingPong) ++ DamlSdk.parties(alice) ++ Postgres.database)
           >+> DamlSdk.runScript("PingPong:transact1", alice.id)
       And:
         Conf.pipeline

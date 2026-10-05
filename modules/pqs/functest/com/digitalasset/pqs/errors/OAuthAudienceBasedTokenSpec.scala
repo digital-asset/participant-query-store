@@ -38,8 +38,8 @@ object OAuthAudienceBasedTokenSpec extends SharedLedgerAndPostgresAndAuthTest:
       val alice = Party("Alice")
       val user  = User(primaryParty = alice)
       Given:
-        (DamlSdk.dar(pingPong) ++ DamlSdk.parties(alice) ++ Postgres.database)
-          >+> DamlSdk.deploy >+> DamlSdk.runScript("PingPong:transact1", alice.id)
+        (DamlSdk.deploy(pingPong) ++ DamlSdk.parties(alice) ++ Postgres.database)
+          >+> DamlSdk.runScript("PingPong:transact1", alice.id)
 
       And:
         Conf.pipeline
