@@ -267,9 +267,9 @@ object FlywayMigrationSpec extends FuncTestStandalone:
           .__contracts(extraColumns = Seq("unassigned_at_ix", "reassignment_counter", "synchronizer_id"))
           .returns(
             table {
-              anything | anything | contractId1 | anything | not(equalTo(0)) | 0 | null
-              anything | anything | contractId2 | anything | 0               | 0 | null
-              anything | anything | contractId1 | anything | 0               | 2 | sync1.id
+              anything | anything | contractId1 | "[1,3)" | not(equalTo(0)) | 0 | null
+              anything | anything | contractId2 | "[2,)"  | 0               | 0 | null
+              anything | anything | contractId1 | "[4,)"  | 0               | 2 | sync1.id
             }
           )
       Expect:
