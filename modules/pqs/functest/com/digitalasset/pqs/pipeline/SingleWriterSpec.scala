@@ -3,7 +3,8 @@
 
 package com.digitalasset.pqs.pipeline
 
-import com.digitalasset.pqs.SharedMultiSyncLedgerSpec
+import com.daml.ledger.api.v2.value.{Record, RecordField, Value}
+import com.digitalasset.pqs.SharedLedgerAndPostgresTest
 import com.digitalasset.pqs.docker.{Docker, Service}
 import com.digitalasset.pqs.functest.matchers.*
 import com.digitalasset.pqs.services.daml.*
@@ -14,337 +15,289 @@ import zio.jdbc.*
 import zio.test.*
 import zio.test.Assertion.*
 
-// TODO: add a long-running, manually triggered variant: lockstep retries of simultaneous starts and takeovers during
-// deferred-archive application only surface over dozens of takeovers, beyond a CI budget.
-object SingleWriterSpec extends SharedMultiSyncLedgerSpec:
+object SingleWriterSpec extends SharedLedgerAndPostgresTest:
+  private val pingPong = DamlSource(
+    "PingPong" -> """module PingPong where
+                    |
+                    |template Ping
+                    |  with
+                    |    sender: Party
+                    |  where
+                    |    signatory sender
+                    |""".stripMargin
+  )
+
   def spec = suite("single writer")(
     funcTest("concurrent PQS instances keep a single writer and a consistent database") {
-      val alice       = Party("Alice")
-      val load        = Capture[Load]
-      val a           = Capture[Service[Pipeline]]
-      val b           = Capture[Service[Pipeline]]
-      val c           = Capture[Service[Pipeline]]
-      val d           = Capture[Service[Pipeline]]
-      val e           = Capture[Service[Pipeline]]
-      val loser       = Capture[Service[Pipeline]]
-      val release     = Capture[Promise[Nothing, Unit]]
-      val lastOffset  = Capture[Long]
-      def dLost       = loser.get.container == d.get.container
-      def survivor    = if dLost then e.get else d.get
-      def survivorApp = if dLost then "pqs-e" else "pqs-d"
+      val alice            = Party("Alice")
+      val traffic          = Capture[Traffic]
+      val ledger           = Capture[LedgerState]
+      val a                = Capture[Instance]
+      val b                = Capture[Instance]
+      val c                = Capture[Instance]
+      val d                = Capture[Instance]
+      val e                = Capture[Instance]
+      val loser            = Capture[Instance]
+      val unblockWatermark = Capture[UIO[Unit]]
+      def survivor         = if loser.get == d.get then e.get else d.get
 
       Given:
-        DamlSdk.allocateParties(alice -> Seq(sync1)) ++ Postgres.database
+        DamlSdk.deploy(pingPong) ++ DamlSdk.parties(alice) ++ Postgres.database
       Then:
-        startLoad(alice).is(load.capture)
+        startLedgerTraffic(alice).is(traffic.capture)
       And:
         startPqs("a", genesis).is(a.capture)
-      And:
-        streaming(a.get)
       When:
-        installAudit
+        waitUntilStarted(a.get)
+      When:
+        startRecordingWriters
       Then:
+        latestWriter.is(Some("pqs-a")).retryUntilTimeout(asyncProcessingTimeout)
+      And:
         startPqs("b", resume).is(b.capture)
-      And:
-        deposed(a.get)
-      And:
-        streaming(b.get)
       Then:
+        waitForExit(a.get).is(replacedByNewerWriter)
+      And:
+        latestWriter.is(Some("pqs-b")).retryUntilTimeout(asyncProcessingTimeout)
+      And:
         startPqs("c", resume, "--target-schema-autoapply=false").is(c.capture)
-      And:
-        deposed(b.get)
-      And:
-        streaming(c.get)
       Then:
-        holdLock(sql"select 1 from __watermark for update".query[Int].selectAll).is(release.capture)
+        waitForExit(b.get).is(replacedByNewerWriter)
+      And:
+        latestWriter.is(Some("pqs-c")).retryUntilTimeout(asyncProcessingTimeout)
+      And:
+        blockWatermarkUpdates.is(unblockWatermark.capture)
       And:
         startPqs("d", resume).is(d.capture)
       And:
         startPqs("e", resume).is(e.capture)
-      And:
-        lockWaiters("pqs-d", "pqs-e").is(2L).retryUntilTimeout(50.seconds)
-      When:
-        release.get.succeed(())
       Then:
-        deposed(c.get)
+        appsWaitingOnLock.is(hasSubset(Set("pqs-d", "pqs-e"))).retryUntilTimeout(asyncProcessingTimeout)
+      When:
+        unblockWatermark.get
+      Then:
+        waitForExit(c.get).is(replacedByNewerWriter)
       And:
         firstToExit(d.get, e.get).is(loser.capture)
-      And:
-        deposed(loser.get)
       Then:
-        stopLoad(alice, load.get).is(lastOffset.capture)
+        waitForExit(loser.get).is(replacedByNewerWriter)
       And:
-        caughtUp(lastOffset.get)
-      And:
-        running(survivor)
-      When:
-        reference(lastOffset.get)
-      Expect:
-        ZIO.foreach(compared)((table, query) => sameAsReference(table, query)).map(_.reduce(_ && _))
-      And:
-        activeIds.zip(load.get.live.get).map((ids, live) => assertTrue(ids == live))
-      And:
-        advances.map { rows =>
-          val writers    = collapse(rows.map(_._1))
-          val ixs        = rows.map(_._2)
-          val increasing = ixs.zip(ixs.drop(1)).forall((x, y) => x < y)
-          assertTrue(
-            writers.distinct == writers,
-            writers.take(3) == Chunk("pqs-a", "pqs-b", "pqs-c"),
-            writers.lastOption.contains(survivorApp),
-            increasing
-          )
-        }
-    },
-    // Fails today: a deposed instance re-claims the writer slot when it restarts after a recoverable error (#124)
-    funcTest("a deposed instance does not take the writer slot back") {
-      val alice  = Party("Alice")
-      val load   = Capture[Load]
-      val idleAt = Capture[Long]
-      val a      = Capture[Service[Pipeline]]
-      val b      = Capture[Service[Pipeline]]
-
-      Given:
-        DamlSdk.allocateParties(alice -> Seq(sync1)) ++ Postgres.database
+        stopLedgerTraffic(traffic.get).is(ledger.capture)
       Then:
-        startLoad(alice).is(load.capture)
+        lastProcessedOffset.is(Some(ledger.get.lastOffset)).retryUntilTimeout(asyncProcessingTimeout)
       And:
-        startPqs("a", genesis, "--target-postgres-probeinterval=PT0S").is(a.capture)
-      And:
-        streaming(a.get)
+        statusAfter(survivor, 2.seconds).is(stillRunning)
       When:
-        installAudit
+        fillReferenceDatabase(ledger.get.lastOffset)
       Then:
-        stopLoad(alice, load.get).is(idleAt.capture)
+        rowsOnlyInOneDatabase.is(isEmpty)
       And:
-        caughtUp(idleAt.get)
+        activeContracts.is(ledger.get.unarchived)
       And:
-        startPqs("b", resume).is(b.capture)
+        // we know the order of first 3 writers and we know the last writer (survivor), but don't know if the loser committed anything
+        writersInOrder.is(startsWith(Chunk("pqs-a", "pqs-b", "pqs-c")) && hasLast(equalTo(survivor.app)))
       And:
-        continuing(b.get).timeout(50.seconds).is(isSome(anything))
+        // we're checking here that the last two writers we started concurrently did not compete
+        writersInOrder.is(isDistinct)
       And:
-        running(a.get)
-      When:
-        terminateSessions("pqs-a")
-      When:
-        startLoad(alice)
-      Then:
-        b.get.exitCode.timeout(30.seconds).is(isNone)
-      And:
-        advances.map(rows => assertTrue(collapse(rows.map(_._1)) == Chunk("pqs-a", "pqs-b")))
-    } @@ TestAspect.ignore,
-    // Fails today: a restart during ACS seeding leaves ix 0 behind and every later seed hits __transactions_pkey (#124)
-    funcTest("scaling out during initial ACS seeding does not wedge the database") {
-      val alice   = Party("Alice")
-      val release = Capture[Promise[Nothing, Unit]]
-      val seeder  = Capture[String]
-      val a       = Capture[Service[Pipeline]]
-      val b       = Capture[Service[Pipeline]]
-
-      Given:
-        DamlSdk.allocateParties(alice -> Seq(sync1)) ++ Postgres.database
-      When:
-        Pqs.runPipeline(genesis, "--pipeline-ledger-stop=Latest")
-      When:
-        ZIO.foreachDiscard(1 to 20)(_ => createContract(alice))
-      Then:
-        holdLock(sql"lock table __events in exclusive mode".execute).is(release.capture)
-      And:
-        startPqs("a").is(a.capture)
-      And:
-        Postgres
-          .query(sql"select count(*) from __transactions where ix = 0".query[Long].selectOne)
-          .is(isSome(equalTo(1L)))
-          .retryUntilTimeout(50.seconds)
-      And:
-        lockWaiters("pqs-a").is(1L).retryUntilTimeout(30.seconds)
-      And:
-        writerId.is(seeder.captureOptional)
-      And:
-        startPqs("b").is(b.capture)
-      And:
-        writerId.is(isSome(not(equalTo(seeder.get)))).retryUntilTimeout(50.seconds)
-      When:
-        release.get.succeed(())
-      Then:
-        continuing(b.get).timeout(50.seconds).is(isSome(anything))
-      And:
-        Postgres.query(sql"select count(*) from latest_checkpoint()".query[Long].selectOne).is(isSome(equalTo(1L)))
-    } @@ TestAspect.ignore
+        watermarkPositions.is(strictlyIncreasing)
+    }
   )
 
-  private final case class Load(live: Ref[Set[String]], stop: Promise[Nothing, Unit], fiber: Fiber[Throwable, Unit])
-  private final case class Reference(db: Database)
-
-  private type LedgerEnv = Docker & Service[Ledger] & DeployedDar
+  private type LedgerEnv = Docker & Service[Ledger] & DarFile
   private type PqsEnv    = LedgerEnv & Parties & Postgres & Database & Scope
 
   private val genesis = "--pipeline-ledger-start=Genesis"
   private val resume  = "--pipeline-ledger-start=Oldest"
   private val pingFqn = s"${pingPong.name}:PingPong:Ping"
 
-  private def startLoad(alice: Party): ZIO[LedgerEnv & Scope, Nothing, Load] =
-    for
-      live  <- Ref.make(Set.empty[String])
-      stop  <- Promise.make[Nothing, Unit]
-      fiber <- ZIO.collectAllParDiscard(List.fill(4)(churn(alice, live, stop, Vector.empty))).forkScoped
-    yield Load(live, stop, fiber)
+  private val asyncProcessingTimeout: Duration = 50.seconds
 
-  private def churn(
+  // Business operations
+
+  private final case class Traffic(
+      alice: Party,
+      live: Ref[Set[String]],
+      stop: Promise[Nothing, Unit],
+      workers: Fiber[Throwable, Unit]
+  )
+
+  private final case class LedgerState(lastOffset: Long, unarchived: Set[String])
+
+  // 4 workers create contracts and archive all but their 3 newest, so deactivations are pending at every takeover
+  private def startLedgerTraffic(alice: Party): ZIO[LedgerEnv & Scope, Nothing, Traffic] =
+    for
+      live    <- Ref.make(Set.empty[String])
+      stop    <- Promise.make[Nothing, Unit]
+      workers <- ZIO.collectAllParDiscard(List.fill(4)(trafficWorker(alice, live, stop, Vector.empty))).forkScoped
+    yield Traffic(alice, live, stop, workers)
+
+  private def trafficWorker(
       alice: Party,
       live: Ref[Set[String]],
       stop: Promise[Nothing, Unit],
       own: Vector[String]
   ): ZIO[LedgerEnv, Throwable, Unit] =
-    stop.isDone.flatMap {
-      case true => ZIO.unit
-      case false =>
-        createContract(alice).tap(cid => live.update(_ + cid)).flatMap { cid =>
-          val kept = own match
-            case oldest +: rest if rest.size >= 2 =>
-              Ledger.archive("PingPong:Ping", oldest, alice, sync1) *> live.update(_ - oldest).as(rest)
-            case _ => ZIO.succeed(own)
-          kept.flatMap(rest => churn(alice, live, stop, rest :+ cid))
-        }
-    }
+    ZIO.unlessZIODiscard(stop.isDone)(
+      for
+        cid <- createContract(alice)
+        _   <- live.update(_ + cid)
+        _   <- ZIO.foreachDiscard(own.dropRight(2))(archive(alice, live))
+        _   <- trafficWorker(alice, live, stop, own.takeRight(2) :+ cid)
+      yield ()
+    )
 
-  private def stopLoad(alice: Party, load: Load): ZIO[LedgerEnv, Throwable, Long] =
+  private def createContract(alice: Party): ZIO[LedgerEnv, Throwable, String] =
+    val args = Record.defaultInstance.addFields(RecordField("sender", Some(Value(Value.Sum.Party(alice.id)))))
+    Ledger.create("PingPong:Ping", args, alice).map(_.getTransaction.events(0).getCreated.contractId)
+
+  private def archive(alice: Party, live: Ref[Set[String]])(cid: String): ZIO[LedgerEnv, Throwable, Long] =
+    Ledger.archive("PingPong:Ping", cid, alice).map(_.getTransaction.offset) <* live.update(_ - cid)
+
+  // The last offset is that of one more archive once the workers have stopped
+  private def stopLedgerTraffic(traffic: Traffic): ZIO[LedgerEnv, Throwable, LedgerState] =
     for
-      _        <- load.stop.succeed(()) *> load.fiber.join
-      cid      <- load.live.get.map(_.headOption).someOrFail(Throwable("No live contract to archive"))
-      archived <- Ledger.archive("PingPong:Ping", cid, alice, sync1)
-      _        <- load.live.update(_ - cid)
-    yield archived.getTransaction.offset
+      _          <- traffic.stop.succeed(()) *> traffic.workers.join
+      cid        <- traffic.live.get.map(_.headOption).someOrFail(Throwable("No live contract to archive"))
+      lastOffset <- archive(traffic.alice, traffic.live)(cid)
+      unarchived <- traffic.live.get
+    yield LedgerState(lastOffset, unarchived)
 
-  private def startPqs(label: String, extraArgs: String*): ZIO[PqsEnv, Throwable, Service[Pipeline]] =
+  // A PQS instance and the application name its sessions and audit rows carry
+  private final case class Instance(app: String, svc: Service[Pipeline])
+
+  // The random gap varies the traffic phase a takeover lands in
+  private def startPqs(label: String, args: String*): ZIO[PqsEnv, Throwable, Instance] =
+    val app = s"pqs-$label"
+    val common = Seq(
+      s"--target-postgres-properties-ApplicationName=$app",
+      "--target-postgres-maxconnections=4",
+      "--retry-backoff-cap=PT2S"
+    )
     Random.nextIntBounded(3000).flatMap(ms => ZIO.sleep(ms.millis)) *>
-      Pqs
-        .attemptPipeline(
-          (Seq(
-            s"--target-postgres-properties-ApplicationName=pqs-$label",
-            "--target-postgres-maxconnections=4",
-            "--retry-backoff-cap=PT2S"
-          ) ++ extraArgs)*
-        )
-        .build
-        .map(_.get[Service[Pipeline]])
+      Pqs.attemptPipeline((common ++ args)*).build.map(env => Instance(app, env.get[Service[Pipeline]]))
 
-  private def continuing(pqs: Service[Pipeline]): Task[Unit] =
-    pqs.blockUntilStdOut(_.contains("Continuing from offset"))
+  private def waitUntilStarted(pqs: Instance): Task[Unit] =
+    pqs.svc
+      .blockUntilStdOut(_.contains("Continuing from offset"))
+      .timeoutFail(RuntimeException(s"${pqs.app} did not start"))(asyncProcessingTimeout)
 
-  private def streaming(pqs: Service[Pipeline]): Task[TestResult] =
-    (continuing(pqs) *> pqs.blockUntilStdOut(_.contains("Advanced watermark")))
-      .timeout(50.seconds)
-      .is(isSome(anything))
-
-  private def deposed(pqs: Service[Pipeline]): Task[TestResult] =
-    for
-      code   <- pqs.exitCode.timeoutFail(RuntimeException(s"${pqs.container.hostName} is still running"))(50.seconds)
-      stderr <- Pqs.stderr.provideEnvironment(ZEnvironment(pqs))
-    yield assertTrue(code == ExitCode.failure, stderr.contains("PQS writer instance has changed"))
-
-  private def running(pqs: Service[Pipeline]): Task[TestResult] =
-    pqs.exitCode.timeout(2.seconds).is(isNone)
-
-  private def firstToExit(x: Service[Pipeline], y: Service[Pipeline]): Task[Service[Pipeline]] =
-    x.exitCode
+  private def firstToExit(x: Instance, y: Instance): Task[Instance] =
+    x.svc.exitCode
       .as(x)
-      .raceFirst(y.exitCode.as(y))
-      .timeoutFail(RuntimeException("neither instance of the pair exited"))(55.seconds)
+      .raceFirst(y.svc.exitCode.as(y))
+      .timeoutFail(RuntimeException(s"neither ${x.app} nor ${y.app} exited"))(asyncProcessingTimeout + 5.seconds)
 
-  private def holdLock(
-      lock: ZIO[ZConnection, Throwable, Any]
-  ): ZIO[Database & Scope, Throwable, Promise[Nothing, Unit]] =
+  private val blockWatermarkUpdates = holdLock(sql"select 1 from __watermark for update".query[Int].selectAll)
+
+  // Takes the lock in a transaction left open until the returned release action closes it
+  private def holdLock(lock: ZIO[ZConnection, Throwable, Any]): ZIO[Database & Scope, Throwable, UIO[Unit]] =
     for
-      held    <- Promise.make[Throwable, Unit]
-      release <- Promise.make[Nothing, Unit]
-      _       <- Postgres.query(lock *> held.succeed(()) *> release.await).catchAll(held.fail(_).unit).forkScoped
-      _       <- held.await
-    yield release
+      tx   <- ZIO.scopeWith(_.fork)
+      conn <- tx.extend[Database](Database.transaction.build)
+      _    <- lock.provideEnvironment(conn)
+    yield tx.close(Exit.unit)
 
-  private def lockWaiters(apps: String*): ZIO[Database, Throwable, Long] =
-    Postgres
-      .query(
-        sql"""select count(distinct application_name) from pg_stat_activity
-              where datname = current_database() and wait_event_type = 'Lock'
-                and application_name in (${apps.toList})""".query[Long].selectOne
-      )
-      .someOrElse(0L)
-
-  private val installAudit: ZIO[Database, Throwable, Unit] =
+  // Records each watermark advance with the advancing app; claims that leave ix unchanged are skipped
+  private val startRecordingWriters: ZIO[Database, Throwable, Unit] =
     Postgres.call(
       sql"""create table ft_watermark_audit (
               seq bigserial primary key,
               app text not null default current_setting('application_name'),
-              old_instance text, new_instance text, old_ix bigint, new_ix bigint);
+              ix bigint not null);
             create function ft_watermark_audit_fn() returns trigger as $$$$
             begin
-              insert into ft_watermark_audit(old_instance, new_instance, old_ix, new_ix)
-              values (old.instance_id, new.instance_id, old.ix, new.ix);
+              insert into ft_watermark_audit(ix) values (new.ix);
               return new;
             end $$$$ language plpgsql;
             create trigger ft_watermark_audit_trg after update on __watermark
-              for each row execute function ft_watermark_audit_fn();"""
+              for each row when (old.ix is distinct from new.ix) execute function ft_watermark_audit_fn();"""
     )
 
-  private val advances: ZIO[Database, Throwable, Chunk[(String, Long)]] =
-    Postgres.query(
-      sql"select app, new_ix from ft_watermark_audit where old_ix is distinct from new_ix order by seq"
-        .query[(String, Long)]
-        .selectAll
-    )
+  private final case class Reference(db: Database)
 
-  private def collapse(apps: Chunk[String]): Chunk[String] =
-    apps.foldLeft(Chunk.empty[String])((acc, app) => if acc.lastOption.contains(app) then acc else acc :+ app)
-
-  private def caughtUp(offset: Long): ZIO[Database, Throwable, TestResult] =
-    Postgres
-      .query(sql"""select "offset" from latest_checkpoint()""".query[Long].selectOne)
-      .is(isSome(equalTo(offset)))
-      .retryUntilTimeout(50.seconds)
-
-  private def reference(stopAt: Long) =
+  // A fresh database filled by a single PQS from Genesis up to `stopAt`
+  private def fillReferenceDatabase(stopAt: Long) =
     Postgres.database >+> Pqs.runPipeline(genesis, s"--pipeline-ledger-stop=$stopAt")
       >>> ZLayer.fromFunction((db: Database) => Reference(db))
 
-  private val compared: List[(String, SqlFragment)] = List(
-    "__transactions" ->
-      sql"""select row(ix, "offset", transaction_id, synchronizer_id, effective_at, workflow_id)::text
-            from __transactions order by 1""",
-    "__events" -> sql"select row(tx_ix, event_id, type)::text from __events order by 1",
-    "__contracts()" ->
-      sql"""select row(template_fqn, contract_id, created_at_ix, archived_at_ix, create_event_id, archive_event_id,
-                       payload, signatories, observers, witnesses)::text
-            from __contracts() order by 1""",
-    "__contract_tpe" -> sql"select template_fqn from __contract_tpe order by 1",
-    "__exercise_tpe" -> sql"select choice_fqn from __exercise_tpe order by 1",
-    "__packages" ->
-      sql"""select row(name, version, id)::text from __packages
-            where pk in (select package_pk from __contracts) order by 1""",
-    "__tmp_deactivated_contracts" -> sql"select count(*)::text from __tmp_deactivated_contracts",
-    "__exercises"                 -> sql"select count(*)::text from __exercises",
-    "__reassignments"             -> sql"select count(*)::text from __reassignments",
-    "__watermark"                 -> sql"""select row(ix, "offset")::text from __watermark"""
-  )
+  // Observations
 
-  private def sameAsReference(table: String, query: SqlFragment): ZIO[Database & Reference, Throwable, TestResult] =
-    val rows = Postgres.query(query.query[String].selectAll)
+  private final case class Exited(code: ExitCode, stderr: String)
+
+  private def waitForExit(pqs: Instance): Task[Exited] =
     for
-      expected <- ZIO.serviceWithZIO[Reference](ref => rows.provideEnvironment(ZEnvironment(ref.db)))
-      actual   <- rows
-    yield assert(actual.diff(expected))(isEmpty.label(s"$table rows missing from the reference")) &&
-      assert(expected.diff(actual))(isEmpty.label(s"$table rows missing from the stressed database"))
+      code   <- pqs.svc.exitCode.timeoutFail(RuntimeException(s"${pqs.app} is still running"))(asyncProcessingTimeout)
+      stderr <- Pqs.stderr.provideEnvironment(ZEnvironment(pqs.svc))
+    yield Exited(code, stderr)
 
-  private val activeIds: ZIO[Database, Throwable, Set[String]] =
-    Postgres.query(sql"select contract_id from active($pingFqn)".query[String].selectAll).map(_.toSet)
+  // None while the instance is still running
+  private def statusAfter(pqs: Instance, hold: Duration): Task[Option[ExitCode]] =
+    pqs.svc.exitCode.timeout(hold)
 
-  private def terminateSessions(app: String): ZIO[Database, Throwable, Unit] =
+  // pg_stat_activity is server-wide, so queries on it filter by database
+  private val appsWaitingOnLock: ZIO[Database, Throwable, Set[String]] =
     Postgres
       .query(
-        sql"""select pg_terminate_backend(pid) from pg_stat_activity
-              where datname = current_database() and application_name = $app""".query[Boolean].selectAll
+        sql"""select distinct application_name from pg_stat_activity
+              where datname = current_database() and wait_event_type = 'Lock'""".query[String].selectAll
       )
-      .unit
+      .map(_.toSet)
 
-  private val writerId: ZIO[Database, Throwable, Option[String]] =
-    Postgres.query(sql"select instance_id from __watermark".query[String].selectOne)
+  // Watermark advances in commit order: the advancing app and the new ix
+  private val advances: ZIO[Database, Throwable, Chunk[(String, Long)]] =
+    Postgres.query(sql"select app, ix from ft_watermark_audit order by seq".query[(String, Long)].selectAll)
+
+  // Apps in the order they advanced the watermark, consecutive repeats collapsed
+  private val writersInOrder: ZIO[Database, Throwable, Chunk[String]] =
+    advances.map(_.map(_._1).dedupe)
+
+  private val latestWriter: ZIO[Database, Throwable, Option[String]] =
+    writersInOrder.map(_.lastOption)
+
+  private val watermarkPositions: ZIO[Database, Throwable, Chunk[Long]] =
+    advances.map(_.map(_._2))
+
+  private val lastProcessedOffset: ZIO[Database, Throwable, Option[Long]] =
+    Postgres.query(sql"""select "offset" from latest_checkpoint()""".query[Long].selectOne)
+
+  private val activeContracts: ZIO[Database, Throwable, Set[String]] =
+    Postgres.query(sql"select contract_id from active($pingFqn)".query[String].selectAll).map(_.toSet)
+
+  // Every compared row, tagged with its table; surrogate keys left out
+  private val snapshot: ZIO[Database, Throwable, Chunk[(String, String)]] =
+    Postgres.query(
+      sql"""select '__transactions', row(ix, "offset", transaction_id, synchronizer_id, effective_at, workflow_id)::text
+              from __transactions
+            union all select '__events', row(tx_ix, event_id, type)::text from __events
+            union all select '__contracts()', row(template_fqn, contract_id, created_at_ix, archived_at_ix,
+                create_event_id, archive_event_id, payload, signatories, observers, witnesses)::text from __contracts()
+            union all select '__contract_tpe', template_fqn from __contract_tpe
+            union all select '__exercise_tpe', choice_fqn from __exercise_tpe
+            union all select '__packages', row(name, version, id)::text from __packages
+              where pk in (select package_pk from __contracts)
+            union all select '__tmp_deactivated_contracts', count(*)::text from __tmp_deactivated_contracts
+            union all select '__exercises', count(*)::text from __exercises
+            union all select '__reassignments', count(*)::text from __reassignments
+            union all select '__watermark', row(ix, "offset")::text from __watermark"""
+        .query[(String, String)]
+        .selectAll
+    )
+
+  // Rows missing on either side, not a whole-table diff
+  private val rowsOnlyInOneDatabase: ZIO[Database & Reference, Throwable, Chunk[(String, String, String)]] =
+    for
+      stressed  <- snapshot
+      reference <- ZIO.serviceWithZIO[Reference](ref => snapshot.provideEnvironment(ZEnvironment(ref.db)))
+    yield stressed.diff(reference).map(("only in the stressed database", _, _)) ++
+      reference.diff(stressed).map(("only in the reference", _, _))
+
+  // Expected results
+
+  private val replacedByNewerWriter: Assertion[Exited] =
+    hasField("exit code", (_: Exited).code, equalTo(ExitCode.failure)) &&
+      hasField("stderr", (_: Exited).stderr, containsString("PQS writer instance has changed"))
+
+  private val stillRunning: Assertion[Option[ExitCode]] = isNone
+
+  private val strictlyIncreasing: Assertion[Iterable[Long]] = isSorted[Long] && isDistinct

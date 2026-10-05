@@ -159,7 +159,26 @@ object Ledger:
     yield response
   }
 
-  def archive(templateQname: String, contractId: String, actAs: Party, sync: Synchronizer) =
+  def create(
+      templateQname: String,
+      args: com.daml.ledger.api.v2.value.Record,
+      actAs: Party
+  ): ZIO[Docker & Service[Ledger] & DarFile, Throwable, SubmitAndWaitForTransactionResponse] =
+    getSingleConnectedSynchronizerId.flatMap(create(templateQname, args, actAs, _))
+
+  def archive(
+      templateQname: String,
+      contractId: String,
+      actAs: Party
+  ): ZIO[Docker & Service[Ledger] & DarFile, Throwable, SubmitAndWaitForTransactionResponse] =
+    getSingleConnectedSynchronizerId.flatMap(archive(templateQname, contractId, actAs, _))
+
+  def archive(
+      templateQname: String,
+      contractId: String,
+      actAs: Party,
+      sync: Synchronizer
+  ): ZIO[Docker & Service[Ledger] & DarFile, Throwable, SubmitAndWaitForTransactionResponse] =
     for
       templateId <- toIdentifier(templateQname)
       command = ExerciseCommand.defaultInstance
@@ -324,6 +343,12 @@ object Ledger:
     EventFormat.defaultInstance.withFiltersByParty(
       parties.map(p => p.id -> Filters.of(Seq(CumulativeFilter.of(filter)))).toMap
     )
+
+  private def getSingleConnectedSynchronizerId: ZIO[Docker & Service[Ledger], Throwable, Synchronizer] =
+    getAllSynchronizers.flatMap {
+      case Seq(single) => ZIO.attempt(Synchronizer(single.synchronizerAlias).set(single.synchronizerId))
+      case other       => ZIO.fail(Throwable(s"expected exactly one connected synchronizer, found ${other.size}"))
+    }
 
   private def wildcardFilter(includeCreatedEventBlob: Boolean) =
     CumulativeFilter.IdentifierFilter.WildcardFilter(WildcardFilter(includeCreatedEventBlob))
