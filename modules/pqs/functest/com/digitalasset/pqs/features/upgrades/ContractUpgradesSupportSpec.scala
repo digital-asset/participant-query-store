@@ -104,17 +104,17 @@ object ContractUpgradesSupportSpec extends SharedLedgerAndPostgresTest:
         val ping        = createPing(pingIface)
         val pingUpgrade = createPingUpgrade(pingIface, ping)
         val alice       = Party("Alice")
-        val dar         = Capture[DeployedDar]
+        val dar         = Capture[DarFile]
         Given:
-          (DamlSdk.dar(ping) >+> DamlSdk.deploy) ++ DamlSdk.parties(alice) ++ Postgres.database
+          DamlSdk.deploy(ping) ++ DamlSdk.parties(alice) ++ Postgres.database
         And:
           dar.captureFromService
         And:
           DamlSdk.runScript("Ping:transact", alice.id)
 
-        val upgradedDar = Capture[DeployedDar]
+        val upgradedDar = Capture[DarFile]
         When:
-          DamlSdk.dar(pingUpgrade) >+> DamlSdk.deploy >+> DamlSdk.runScript("Ping:transact", alice.id)
+          DamlSdk.deploy(pingUpgrade) >+> DamlSdk.runScript("Ping:transact", alice.id)
         And:
           upgradedDar.captureFromService
 
@@ -126,8 +126,8 @@ object ContractUpgradesSupportSpec extends SharedLedgerAndPostgresTest:
             s"--pipeline-filter-contracts=${Pipeline.allContractsWithoutAdminWorkflows}"
           )
 
-        lazy val pkgId    = dar.get.dar.packageId
-        lazy val upgPkgId = upgradedDar.get.dar.packageId
+        lazy val pkgId    = dar.get.packageId
+        lazy val upgPkgId = upgradedDar.get.packageId
         val pkgPk         = Capture[Int]
         val upgPkgPk      = Capture[Int]
         Expect:
@@ -171,7 +171,7 @@ object ContractUpgradesSupportSpec extends SharedLedgerAndPostgresTest:
           __exercises() `returns` Table.empty
 
         And:
-          DamlSdk.dar(pingUpgrade) >+> DamlSdk.runScript("Ping:setLabel", (alice.id, cId1.get))
+          DamlSdk.runScript("Ping:setLabel", (alice.id, cId1.get))
 
         And:
           Pqs.runPipeline(
@@ -256,18 +256,18 @@ object ContractUpgradesSupportSpec extends SharedLedgerAndPostgresTest:
         val ping        = createPing(pingIface)
         val pingUpgrade = createPingUpgrade(pingIface, ping)
         val alice       = Party("Alice")
-        val dar         = Capture[DeployedDar]
+        val dar         = Capture[DarFile]
         Given:
-          (DamlSdk.dar(ping) >+> DamlSdk.deploy) ++ DamlSdk.parties(alice) ++ Postgres.database
+          DamlSdk.deploy(ping) ++ DamlSdk.parties(alice) ++ Postgres.database
         And:
           dar.captureFromService
         And:
           DamlSdk.runScript("Ping:transact", alice.id)
 
         // upload the second dar
-        val upgradedDar = Capture[DeployedDar]
+        val upgradedDar = Capture[DarFile]
         When:
-          DamlSdk.dar(pingUpgrade) >+> DamlSdk.deploy >+> DamlSdk.runScript("Ping:transact", alice.id)
+          DamlSdk.deploy(pingUpgrade) >+> DamlSdk.runScript("Ping:transact", alice.id)
         And:
           upgradedDar.captureFromService
 
@@ -279,8 +279,8 @@ object ContractUpgradesSupportSpec extends SharedLedgerAndPostgresTest:
             s"--pipeline-filter-contracts=${Pipeline.allContractsWithoutAdminWorkflows}"
           )
 
-        lazy val pkgId    = dar.get.dar.packageId
-        lazy val upgPkgId = upgradedDar.get.dar.packageId
+        lazy val pkgId    = dar.get.packageId
+        lazy val upgPkgId = upgradedDar.get.packageId
         val pkgPk         = Capture[Int]
         val upgPkgPk      = Capture[Int]
         Expect:

@@ -26,10 +26,7 @@ object DamlSdk:
   ////////////
 
   /** Compile DAML sources and wrap them into DarFile layer */
-  def dar(source: DamlSource): RLayer[Dpm & FTEnv, DarFile] = ZLayer.fromZIO(buildDar(source))
-
-  /** Compile DAML sources and wrap them into DarFile layer */
-  private def buildDar(source: DamlSource): ZIO[Dpm & FTEnv, Throwable, DarFile] =
+  def buildDar(source: DamlSource): ZIO[Dpm & FTEnv, Throwable, DarFile] =
     val packages = (source :: source.deps).distinct.toList
     for
       multiPackageDir <- FTEnv.createUniqueDirectory(s"build-dar-${source.name}")
@@ -171,19 +168,21 @@ object DamlSdk:
       _ <- svc.blockUntilStdOut(_.contains(CantonConf.bootstrapCompleteMessage))
     yield svc
 
-  val deploy: RLayer[Docker & Service[Ledger] & DarFile, DeployedDar] = uploadAndVetDar()
+  def deploy(source: DamlSource): RLayer[Dpm & FTEnv & Docker & Service[Ledger], DarFile] = uploadAndVetDar(source)()
 
-  def uploadAndVetDar(synchronizers: Synchronizer*): RLayer[Docker & Service[Ledger] & DarFile, DeployedDar] =
+  def uploadAndVetDar(
+      source: DamlSource
+  )(synchronizers: Synchronizer*): RLayer[Dpm & FTEnv & Docker & Service[Ledger], DarFile] =
     ZLayer.fromZIO(
       for
-        dar   <- ZIO.service[DarFile]
+        dar   <- buildDar(source)
         mutex <- Docker.share("upload_dar" -> dar.packageId)(Semaphore.make(1))
         alreadyExists = Ledger.listPackageIds.map(_.toSet.contains(dar.packageId))
         // Force vetting if synchronizers is unspecified
         upload = suspend(Ledger.uploadDar(dar, withVetting = synchronizers.isEmpty))
         _ <- mutex.withPermit(upload.unlessZIO(alreadyExists))
         _ <- ZIO.foreach(synchronizers)(sync => Ledger.vetDar(dar, sync))
-      yield DeployedDar(dar)
+      yield dar
     )
 
   def parties(parties: Party*): RLayer[Docker & Service[Ledger], Parties] =

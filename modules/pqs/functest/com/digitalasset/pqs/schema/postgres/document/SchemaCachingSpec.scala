@@ -3,7 +3,6 @@
 
 package com.digitalasset.pqs.schema.postgres.document
 
-import com.digitalasset.pqs.docker.Service
 import com.digitalasset.pqs.functest.FuncTestStandalone
 import com.digitalasset.pqs.functest.matchers.*
 import com.digitalasset.pqs.services.daml.{DamlSdk, DamlSource, Party}
@@ -61,9 +60,9 @@ object SchemaCachingSpec extends FuncTestStandalone:
     funcTest("schema is cached"):
       val alice = Party("Alice")
       Given:
-        DamlSdk.dar(pingPong) ++ DamlSdk.ledger ++ Postgres.instance
+        DamlSdk.ledger ++ Postgres.instance
       And:
-        DamlSdk.deploy ++ DamlSdk.parties(alice) ++ Postgres.database
+        DamlSdk.deploy(pingPong) ++ DamlSdk.parties(alice) ++ Postgres.database
       When:
         Pqs.runPipeline(
           "--pipeline-ledger-stop=Latest",

@@ -41,8 +41,8 @@ object JsonEncodingsSpec extends SharedLedgerAndPostgresTest:
   )
 
   private def context(alice: Party) =
-    DamlSdk.dar(pingPong) ++ DamlSdk.parties(alice) ++ Postgres.database
-      >+> DamlSdk.deploy
+    DamlSdk.parties(alice) ++ Postgres.database
+      >+> DamlSdk.deploy(pingPong)
       >+> DamlSdk.runScript("PingPong:addValues", (alice.id, "test", "1", "1"))
 
   def spec = suite("json encoding")(
