@@ -77,11 +77,7 @@ object RpidTwoParticipantSpec extends FuncTestStandalone:
       And:
         DamlSdk.buildDar(packageV1).is(v1Dar.capture)
       And:
-        v1Dar.captureFromService
-      And:
         DamlSdk.buildDar(packageV2).is(v2Dar.capture)
-      And:
-        v2Dar.captureFromService
       And:
         cantonParticipantWithACSImportContract(alice, v1Dar.get, v2Dar.get) ++ Postgres.database
       When:
