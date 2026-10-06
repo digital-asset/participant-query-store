@@ -49,13 +49,13 @@ object OrphanedPackageDecodingSpec extends SharedLedgerAndPostgresTest:
     And:
       dar.captureFromService
     Expect:
-      vettedIds(dar.get.packageId) `is` Seq(dar.get.packageId) retryUntilTimeout
+      Ledger.isPackageVetted(dar.get.packageId).is(true)
     Then:
       createContract(alice).is(contractId.capture)
     When:
       Ledger.unvetDar(dar.get)
     Expect:
-      vettedIds(dar.get.packageId) `is` Seq.empty retryUntilTimeout
+      Ledger.isPackageVetted(dar.get.packageId).is(false)
     When:
       Postgres.database
         >+> Pqs.runPipeline(
@@ -71,9 +71,6 @@ object OrphanedPackageDecodingSpec extends SharedLedgerAndPostgresTest:
             dar.get.packageId | templateFqn | "template" | contractId | s"""{"sender": "${alice.id}"}"""
           }
         )
-
-  private def vettedIds(packageId: String) =
-    Ledger.listVettedPackages(packageId).map(_.vettedPackages.flatMap(_.packages).map(_.packageId))
 
   private def createContract(alice: Party): ZIO[Docker & Service[Ledger] & DarFile, Throwable, String] =
     val args = Record.defaultInstance.addFields(RecordField("sender", Some(Value(Value.Sum.Party(alice.id)))))

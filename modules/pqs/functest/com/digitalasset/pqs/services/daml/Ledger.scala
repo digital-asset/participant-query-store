@@ -104,12 +104,14 @@ object Ledger:
   def unvetDar(dar: DarFile): ZIO[Docker & Service[Ledger], Throwable, UpdateVettedPackagesResponse] =
     getSingleConnectedSynchronizerId.flatMap(unvetDar(dar, _))
 
-  def listVettedPackages(packageId: String) = svc(
-    PackageServiceClient.listVettedPackages(
-      ListVettedPackagesRequest.defaultInstance.withPackageMetadataFilter(
-        PackageMetadataFilter.defaultInstance.withPackageIds(Seq(packageId))
+  def isPackageVetted(packageId: String) = svc(
+    PackageServiceClient
+      .listVettedPackages(
+        ListVettedPackagesRequest.defaultInstance.withPackageMetadataFilter(
+          PackageMetadataFilter.defaultInstance.withPackageIds(Seq(packageId))
+        )
       )
-    )
+      .map(_.vettedPackages.nonEmpty)
   )
 
   def allocateParty(synchronizerId: String, hint: String) = svc {
