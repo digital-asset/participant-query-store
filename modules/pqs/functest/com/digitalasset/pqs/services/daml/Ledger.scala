@@ -151,27 +151,16 @@ object Ledger:
       args: com.daml.ledger.api.v2.value.Record,
       actAs: Party,
       sync: Synchronizer
-  ): ZIO[Docker & Service[Ledger] & DarFile, Throwable, SubmitAndWaitForTransactionResponse] = svc {
-    for
-      templateId <- toIdentifier(templateQname)
-      command = CreateCommand.defaultInstance.withTemplateId(templateId).withCreateArguments(args)
-      response <- submitAndWaitForTransaction(actAs, sync, Command(Command.Command.Create(command)))
-    yield response
-  }
+  ): ZIO[Docker & Service[Ledger] & DarFile, Throwable, SubmitAndWaitForTransactionResponse] =
+    createCommand(templateQname, args).flatMap(submitAndWaitForTransaction(actAs, Some(sync), _))
 
+  /** Canton picks the synchronizer, which on a single-synchronizer ledger is the connected one */
   def create(
       templateQname: String,
       args: com.daml.ledger.api.v2.value.Record,
       actAs: Party
   ): ZIO[Docker & Service[Ledger] & DarFile, Throwable, SubmitAndWaitForTransactionResponse] =
-    getSingleConnectedSynchronizerId.flatMap(create(templateQname, args, actAs, _))
-
-  def archive(
-      templateQname: String,
-      contractId: String,
-      actAs: Party
-  ): ZIO[Docker & Service[Ledger] & DarFile, Throwable, SubmitAndWaitForTransactionResponse] =
-    getSingleConnectedSynchronizerId.flatMap(archive(templateQname, contractId, actAs, _))
+    createCommand(templateQname, args).flatMap(submitAndWaitForTransaction(actAs, None, _))
 
   def archive(
       templateQname: String,
@@ -179,15 +168,32 @@ object Ledger:
       actAs: Party,
       sync: Synchronizer
   ): ZIO[Docker & Service[Ledger] & DarFile, Throwable, SubmitAndWaitForTransactionResponse] =
-    for
-      templateId <- toIdentifier(templateQname)
-      command = ExerciseCommand.defaultInstance
+    archiveCommand(templateQname, contractId).flatMap(submitAndWaitForTransaction(actAs, Some(sync), _))
+
+  /** Canton picks the synchronizer, which on a single-synchronizer ledger is the connected one */
+  def archive(
+      templateQname: String,
+      contractId: String,
+      actAs: Party
+  ): ZIO[Docker & Service[Ledger] & DarFile, Throwable, SubmitAndWaitForTransactionResponse] =
+    archiveCommand(templateQname, contractId).flatMap(submitAndWaitForTransaction(actAs, None, _))
+
+  private def createCommand(templateQname: String, args: com.daml.ledger.api.v2.value.Record) =
+    toIdentifier(templateQname).map { templateId =>
+      Command(
+        Command.Command.Create(CreateCommand.defaultInstance.withTemplateId(templateId).withCreateArguments(args))
+      )
+    }
+
+  private def archiveCommand(templateQname: String, contractId: String) =
+    toIdentifier(templateQname).map { templateId =>
+      val command = ExerciseCommand.defaultInstance
         .withTemplateId(templateId)
         .withContractId(contractId)
         .withChoice("Archive")
         .withChoiceArgument(Value(Value.Sum.Record(com.daml.ledger.api.v2.value.Record())))
-      response <- submitAndWaitForTransaction(actAs, sync, Command(Command.Command.Exercise(command)))
-    yield response
+      Command(Command.Command.Exercise(command))
+    }
 
   def reassign(contractId: String, submitter: Party, source: Synchronizer, target: Synchronizer) = svc {
     val unassignCommand = ReassignmentCommand.Command.UnassignCommand(
@@ -290,7 +296,7 @@ object Ledger:
       channel <- ZManagedChannel(mkBuilder(), 128, interceptor).build
     yield channel.get
 
-  private def submitAndWaitForTransaction(actAs: Party, sync: Synchronizer, command: Command) = svc {
+  private def submitAndWaitForTransaction(actAs: Party, sync: Option[Synchronizer], command: Command) = svc {
     for
       commandId <- nextCommandId
       resp <- CommandServiceClient.submitAndWaitForTransaction(
@@ -299,7 +305,7 @@ object Ledger:
             .withCommandId(commandId)
             .withUserId(actAs.name)
             .withActAs(Seq(actAs.id))
-            .withSynchronizerId(sync.id)
+            .withSynchronizerId(sync.fold("")(_.id))
             .addCommands(command)
         )
       )
@@ -343,12 +349,6 @@ object Ledger:
     EventFormat.defaultInstance.withFiltersByParty(
       parties.map(p => p.id -> Filters.of(Seq(CumulativeFilter.of(filter)))).toMap
     )
-
-  private def getSingleConnectedSynchronizerId: ZIO[Docker & Service[Ledger], Throwable, Synchronizer] =
-    getAllSynchronizers.flatMap {
-      case Seq(single) => ZIO.attempt(Synchronizer(single.synchronizerAlias).set(single.synchronizerId))
-      case other       => ZIO.fail(Throwable(s"expected exactly one connected synchronizer, found ${other.size}"))
-    }
 
   private def wildcardFilter(includeCreatedEventBlob: Boolean) =
     CumulativeFilter.IdentifierFilter.WildcardFilter(WildcardFilter(includeCreatedEventBlob))
