@@ -19,13 +19,13 @@ import org.flywaydb.core.api.ResourceProvider
 import org.flywaydb.core.api.resource.LoadableResource
 import org.flywaydb.core.internal.jdbc.DriverDataSource
 import ujson.Value
+import zio.*
 import zio.ZIO.{logDebug, logInfo, logTrace}
 import zio.jdbc.*
 import zio.jdbc.SqlFragment.{Segment, Setter}
 import zio.metrics.Metric
 import zio.metrics.MetricKeyType.Histogram.Boundaries
 import zio.stream.{ZChannel, ZPipeline, ZSink}
-import zio.{Chunk, ChunkBuilder, Schedule, ZEnvironment, ZIO, ZLayer, durationInt, jdbc}
 
 import java.io.{Reader, StringReader}
 import java.time.Instant
@@ -50,7 +50,6 @@ final case class DocumentPostgres(
 
   private val Genesis: Datastore.Checkpoint = (Offset.Genesis, 0L)
   private val env                           = ZEnvironment(pool) ++ ZEnvironment(poolConfig)
-  private val tx                            = ZLayer.succeedEnvironment(env) >>> transaction
   private val BatchEntitiesThreshold        = 10_000
   private val BatchReleaseWindow            = 200.millis
   // Force ANALYZE when the watermark has grown by this factor since the previous ANALYZE.
@@ -495,6 +494,9 @@ final case class DocumentPostgres(
       witnesses = witnesses,
       assignmentExclusivity = assignmentExclusivity
     )
+
+  private def tx[A](call: ZIO[ZConnection, Throwable, A]): Task[A] =
+    executeTransaction(call).provideEnvironment(env)
 end DocumentPostgres
 
 object DocumentPostgres:
@@ -510,7 +512,9 @@ object DocumentPostgres:
       yield ()
     } *> traces.span("apply mappings") {
       logInfo("Applying mappings") *>
-        ZIO.serviceWithZIO[SqlSchema](schema => logTrace(schema.mappings) *> transaction(schema.mappings.execute))
+        ZIO.serviceWithZIO[SqlSchema] { schema =>
+          logTrace(schema.mappings) *> executeTransaction(schema.mappings.execute)
+        }
     } <* logInfo("Schema and mappings applied")
 
   val live = ZLayer.scoped {
@@ -525,7 +529,7 @@ object DocumentPostgres:
 
         _ <- applySchema(poolConfig, config.baseline) when config.autoApply // initialize schema if needed
 
-        entities <- transaction {
+        entities <- executeTransaction {
           sql"""select p.id, ct.module_name, ct.entity_name, ct.pk as pk
               from __contract_tpe ct, __packages p
               where ct.package_name = p.name"""
@@ -542,7 +546,7 @@ object DocumentPostgres:
         _ <- logInfo(s"Initialised ${entities.size} entity types")
         _ <- logDebug(pprint(entities, height = Int.MaxValue).toString)
 
-        exercises <- transaction {
+        exercises <- executeTransaction {
           sql"""select p.id, et.module_name, et.entity_name, et.choice, et.pk as pk
               from __exercise_tpe et, __packages p
               where et.package_name = p.name"""
@@ -562,7 +566,7 @@ object DocumentPostgres:
         _ <- logInfo(s"Initialised ${exercises.size} exercise types")
         _ <- logDebug(pprint(exercises, height = Int.MaxValue).toString)
 
-        implementsRelations <- transaction {
+        implementsRelations <- executeTransaction {
           sql"select template_pk, interface_pk from __contract_implements"
             .query[(EntityTypePk, EntityTypePk)]
             .selectAll
@@ -572,7 +576,7 @@ object DocumentPostgres:
         _ <- logInfo(s"Initialised ${implementsMap.size} contract<->interface mappings")
         _ <- logDebug(pprint(implementsMap, height = Int.MaxValue).toString)
 
-        packages <- transaction {
+        packages <- executeTransaction {
           sql"select id, pk from __packages"
             .query[(String, PackagePk)]
             .selectAll
@@ -581,7 +585,7 @@ object DocumentPostgres:
         _ <- logInfo(s"Initialised ${packages.size} packages")
         _ <- logDebug(pprint(packages).toString)
 
-        lastId <- transaction {
+        lastId <- executeTransaction {
           sql"""select max(pk) pk from __events"""
             .query[Long]
             .selectOne

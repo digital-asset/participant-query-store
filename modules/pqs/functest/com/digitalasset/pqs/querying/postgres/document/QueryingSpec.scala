@@ -120,8 +120,8 @@ object QueryingSpec extends SharedLedgerAndPostgresTest:
 
   private def upAndRunning =
     val alice = Party("Alice")
-    DamlSdk.dar(nameRegistry) ++ DamlSdk.parties(alice) ++ Postgres.database
-      >+> DamlSdk.deploy
+    DamlSdk.parties(alice) ++ Postgres.database
+      >+> DamlSdk.deploy(nameRegistry)
       >+> DamlSdk.runScript("NameRegistry:setup", alice.id)
       >+> Pqs.runPipeline(
         "--pipeline-ledger-start=Genesis",

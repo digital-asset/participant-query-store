@@ -112,8 +112,8 @@ object DivulgedContractsSpec extends SharedLedgerAndPostgresTest:
   )
 
   private def context(alice: Party, bob: Party, bank1: Party, bank2: Party) =
-    DamlSdk.dar(damlSource) ++ DamlSdk.parties(alice, bob, bank1, bank2) ++ Postgres.database
-      >+> DamlSdk.deploy
+    DamlSdk.parties(alice, bob, bank1, bank2) ++ Postgres.database
+      >+> DamlSdk.deploy(damlSource)
       >+> DamlSdk.runScript("AssetApp:transact1", (alice.id, bob.id, bank1.id, bank2.id))
 
   private def run(source: String, partyHint: String) =

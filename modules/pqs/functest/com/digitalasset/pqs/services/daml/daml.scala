@@ -38,11 +38,6 @@ case class DarFile(
   val packageId: PackageId     = packageInfo.map((name, version, id) => name -> id).toMap.apply(source.name)
   def packageName: PackageName = source.name
 
-case class DeployedDar(dar: DarFile):
-  export dar.*
-
-type ParticipantId = String
-
 @SuppressWarnings(Array("org.wartremover.warts.AsInstanceOf"))
 def inspectMaybe[T: Tag]: UIO[Option[T]] =
   ZIO.environment[Any].mapAttempt(_.asInstanceOf[ZEnvironment[T]].get[T]).option

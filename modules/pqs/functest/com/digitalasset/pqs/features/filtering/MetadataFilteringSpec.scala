@@ -68,8 +68,8 @@ object MetadataFilteringSpec extends SharedLedgerAndPostgresTest:
 
   private def context =
     val alice = Party("Alice")
-    DamlSdk.dar(sample) ++ DamlSdk.parties(alice) ++ Postgres.database
-      >+> DamlSdk.deploy >+> DamlSdk.runScript("Sample:setup", alice.id)
+    DamlSdk.parties(alice) ++ Postgres.database
+      >+> DamlSdk.deploy(sample) >+> DamlSdk.runScript("Sample:setup", alice.id)
 
   private val metadataQuery = Postgres `query`
     sql"""select tp.template_fqn, count(c.*)

@@ -10,7 +10,6 @@ import com.digitalasset.pqs.services.daml.{DamlSdk, DamlSource, Party}
 import com.digitalasset.pqs.services.postgres.Postgres
 import com.digitalasset.pqs.services.pqs.Pqs
 import com.digitalasset.transcode.schema.packageName
-import zio.ZLayer
 import zio.jdbc.{SqlFragment, sqlInterpolator}
 import zio.test.*
 import zio.test.Assertion.equalTo
@@ -48,7 +47,7 @@ object SchemaSpec extends SharedLedgerAndPostgresTest:
   ).dependsOn(interfaces)
 
   private def context =
-    DamlSdk.dar(pingPong) ++ DamlSdk.parties(Party("Alice")) ++ Postgres.database >+> DamlSdk.deploy
+    DamlSdk.parties(Party("Alice")) ++ Postgres.database ++ DamlSdk.deploy(pingPong)
 
   def spec = suite("schema spec")(
     suite("create_index_for_contract")(

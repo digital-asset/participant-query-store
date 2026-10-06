@@ -51,8 +51,8 @@ object PruneCommandSpec extends SharedLedgerAndPostgresTest:
 
   def context =
     val alice = Party("Alice")
-    DamlSdk.dar(pingDaml) ++ DamlSdk.parties(alice) ++ Postgres.database
-      >+> DamlSdk.deploy
+    DamlSdk.parties(alice) ++ Postgres.database
+      >+> DamlSdk.deploy(pingDaml)
       >+> DamlSdk.runScript("Pings:setup", alice.id)
       >+> Pqs
         .pipeline(

@@ -86,8 +86,8 @@ object FlywayMigrationSpec extends FuncTestStandalone:
       val instanceId = Capture[String]
       Given:
         DamlSdk.ledger ++ Postgres.instance
-          >+> DamlSdk.dar(pingPong) ++ DamlSdk.parties(alice) ++ Postgres.database
-          >+> DamlSdk.deploy
+          >+> DamlSdk.parties(alice) ++ Postgres.database
+          >+> DamlSdk.deploy(pingPong)
 
       And:
         DamlSdk.runScript("PingPong:transact", alice.id)
@@ -154,8 +154,8 @@ object FlywayMigrationSpec extends FuncTestStandalone:
       val keyHash43 = Capture[String]
       Given:
         DamlSdk.ledger ++ Postgres.instance
-          >+> DamlSdk.dar(pingPongWithKey) ++ DamlSdk.parties(alice) ++ Postgres.database
-          >+> DamlSdk.deploy
+          >+> DamlSdk.parties(alice) ++ Postgres.database
+          >+> DamlSdk.deploy(pingPongWithKey)
       And:
         DamlSdk.runScript("PingPongWithKey:setup", alice.id)
       And:
@@ -221,9 +221,10 @@ object FlywayMigrationSpec extends FuncTestStandalone:
       val sync2 = Synchronizer("sync2")
 
       Given:
-        DamlSdk.multiSyncLedger(sync1, sync2) ++ DamlSdk.dar(pingPong) ++ Postgres.instance
+        DamlSdk.multiSyncLedger(sync1, sync2) ++ Postgres.instance
           >+> DamlSdk
-            .allocateParties(alice -> Seq(sync1, sync2)) ++ DamlSdk.uploadAndVetDar(sync1, sync2) ++ Postgres.database
+            .allocateParties(alice -> Seq(sync1, sync2)) ++ DamlSdk
+            .uploadAndVetDar(pingPong)(sync1, sync2) ++ Postgres.database
 
       val contractId1 = Capture[String]
       val contractId2 = Capture[String]

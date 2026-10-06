@@ -49,7 +49,7 @@ object DamlDecodingSpec extends SharedLedgerAndPostgresTest:
       val alice = Party("Alice")
       val cid   = Capture[String]
       Given:
-        DamlSdk.dar(void) >+> DamlSdk.deploy
+        DamlSdk.deploy(void)
           ++ DamlSdk.parties(alice)
           ++ Postgres.database
       And:

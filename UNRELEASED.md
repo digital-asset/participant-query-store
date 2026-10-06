@@ -70,6 +70,10 @@ synchronizer_id text;
 - The `pipeline_events_total` metric counts `assign` and `unassign` events. It has a `synchronizer_id` label on every type except `watermark`, and `source_synchronizer_id` and `target_synchronizer_id` labels on `assign` and `unassign`.
 - The PQS Grafana dashboard has a `synchronizer` variable and new `Reassignments` and `Synchronizers` rows. The `Churn` and `Active *` panels include assigned and unassigned contracts.
 
+### Bug fixes
+
+- Fixed silent handling of PostgreSQL commit failures that could leave gaps in `__transactions`. Commit errors now invalidate the connection and fail the pipeline so ingestion is retried.
+
 ### Minor improvements
 
 - At startup, the PQS pipeline runs `ANALYZE` on `__contracts` and `__tmp_deactivated_contracts` to populate planner statistics and speed up ingestion.

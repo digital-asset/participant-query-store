@@ -1,13 +1,7 @@
-name: CI
-on:
-  push:
-    branches: [ main, release-line-* ]
-  pull_request:
+name: Adhoc release
+on: 
+  workflow_dispatch: # Enables manual triggering
 
-# Cancel in-progress CI runs for the same PR
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
   MILL_OPTS: "-Dcoursier.cache.dir=/data/coursier"
@@ -38,14 +32,16 @@ jobs:
       - uses: ./.github/actions/render-dashboard
         with:
           version: v11.0.0
+      - run: make populate-blackduck-dir
+      - name: Blackduck Scan
+        run: blackduck_scan -p "${GITHUB_REPOSITORY_OWNER}_${GITHUB_REPOSITORY#*/}" -b "$GITHUB_REF_NAME" -c NONE
+        env:
+          BLACKDUCK_HUBDETECT_TOKEN: ${{ secrets.DA_BLACKDUCK }}
+      - name: Edit NOTICES
+        run: |
+          sed '3d' /home/runner/blackduck/runs/*_Black_Duck_Notices_Report.txt \
+          > .dist/$(cat VERSION)/NOTICES
       - run: ls -alhR .dist/
-      - name: Store Mill outputs
-        uses: actions/upload-artifact@v7
-        with:
-          name: mill-out
-          path: out
-          if-no-files-found: error
-          retention-days: 7
       - name: Store dist
         uses: actions/upload-artifact@v7
         with:
@@ -54,55 +50,6 @@ jobs:
           include-hidden-files: true
           if-no-files-found: error
           retention-days: 7
-
-  func-tests:
-    runs-on: digital-asset-participant-query-store
-    needs: build
-    steps:
-      - uses: actions/checkout@v5
-      - uses: ./.github/actions/nix
-      - uses: ./.github/actions/gen-version
-      - name: Restore Mill outputs
-        uses: actions/download-artifact@v8
-        with:
-          name: mill-out
-          path: out
-      - name: Unit tests
-        run: make test
-      - name: Functional tests
-        run: make func-test FUNC_TEST_CONTROLS="--pools 3 --lanes 4"
-      - name: Consolidate test results
-        if: always()
-        run: make consolidate-test-results
-      - name: Show junit test results
-        if: always()
-        uses: dorny/test-reporter@v1
-        with:
-          name: Functional Tests
-          reporter: 'java-junit'
-          path: 'out/tests/**/*.xml'
-#      - name: Send slack notification
-#        if: ${{ failure() && regexMatches(github.ref_name, '^(main|release-line-.*|v[0-9].*)$') }}
-#        uses: 8398a7/action-slack@v3
-#        with:
-#          status: ${{ job.status }}
-#          fields: repo,message,commit,author
-#        env:
-#          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
-
-  blackduck-scan:
-    runs-on: digital-asset-participant-query-store
-    needs: build
-    steps:
-      - uses: actions/checkout@v5
-      - uses: ./.github/actions/nix
-      - uses: ./.github/actions/gen-version
-      - run: make populate-blackduck-dir
-      - run: ls -alhR .blackduck-input/
-      - name: Blackduck Scan
-        run: blackduck_scan -p "${GITHUB_REPOSITORY_OWNER}_${GITHUB_REPOSITORY#*/}" -b "$GITHUB_REF_NAME" -c MAJOR,CRITICAL,BLOCKER
-        env:
-          BLACKDUCK_HUBDETECT_TOKEN: ${{ secrets.DA_BLACKDUCK }}
       - name: Store Blackduck Scan
         uses: actions/upload-artifact@v7
         with:
@@ -115,8 +62,6 @@ jobs:
   ship-docker-unstable:
     runs-on: digital-asset-participant-query-store
     needs: build
-    env:
-      GAR_REPOSITORY: ${{ github.event_name == 'push' && 'da-images/public-unstable' || 'da-images/playground' }}
     steps:
       - uses: actions/checkout@v5
       - uses: ./.github/actions/nix
@@ -144,15 +89,13 @@ jobs:
         run: make docker/images/pqs/build-debug
       - run: ls -alhR .dist/
       - name: Docker build push
-        run: make docker/images/pqs/build BAKE_ACTION='--push'
+        run: make docker/images/pqs/build BAKE_ACTION='--push' GAR_REPOSITORY='da-images/public-unstable'
       - name: Docker build-debug push
-        run: make docker/images/pqs/build-debug BAKE_ACTION='--push'
+        run: make docker/images/pqs/build-debug BAKE_ACTION='--push' GAR_REPOSITORY='da-images/public-unstable'
 
   ship-component-unstable:
     runs-on: digital-asset-participant-query-store
     needs: build
-    env:
-      GAR_REPOSITORY: ${{ github.event_name == 'push' && 'da-images/public-unstable' || 'da-images/playground' }}
     steps:
       - uses: actions/checkout@v5
       - uses: ./.github/actions/nix
@@ -171,22 +114,12 @@ jobs:
       - name: Populate dpm component
         run: make populate-component-yaml
       - run: ls -alhR .dist/
-      - name: Push dpm component
-        run: make publish-component ASSISTANT_ARGS="oci://europe-docker.pkg.dev/${{ env.GAR_REPOSITORY }}/components"
-
-
-  helm-unittest:
-    runs-on: digital-asset-participant-query-store
-    steps:
-      - uses: actions/checkout@v5
-      - uses: ./.github/actions/nix
-      - run: helm unittest charts/*/ -t JUnit
+      - name: Push dpm component to da-images/public-unstable
+        run: make publish-component ASSISTANT_ARGS="oci://europe-docker.pkg.dev/da-images/public-unstable/components"
 
   ship-helm-unstable:
     runs-on: digital-asset-participant-query-store
-    needs: helm-unittest
-    env:
-      GAR_REPOSITORY: ${{ github.event_name == 'push' && 'da-images/public-unstable' || 'da-images/playground' }}
+    needs: ship-docker-unstable
     steps:
       - uses: actions/checkout@v5
       - uses: ./.github/actions/nix
@@ -202,17 +135,7 @@ jobs:
         uses: ./.github/actions/helm-build-push
         with:
           chart: charts/participant-query-store
-          registry: europe-docker.pkg.dev/${{ env.GAR_REPOSITORY }}/charts
+          registry: europe-docker.pkg.dev/da-images/public-unstable/charts
           version: ${{ steps.gen-version.outputs.version }}
           username: _json_key
           password: ${{ secrets.DA_IMAGES }}
-
-  validate-matrix-test:
-    runs-on: digital-asset-participant-query-store
-    steps:
-      - uses: actions/checkout@v5
-      - uses: ./.github/actions/nix
-      - name: Validate matrix workflow
-        run: make -s validate-matrix-workflow
-      - name: Matrix tests dryrun
-        run: make -s matrix-test MATRIX_TEST_ARGS="dryrun all"

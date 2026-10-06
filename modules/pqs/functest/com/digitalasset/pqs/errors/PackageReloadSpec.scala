@@ -112,7 +112,7 @@ object PackageReloadSpec extends SharedLedgerAndPostgresTest:
       val ping       = createPing(interfaces)
       val pong       = createPong
       Given:
-        (DamlSdk.dar(ping) >+> DamlSdk.deploy) ++ DamlSdk.parties(alice) ++ Postgres.database
+        DamlSdk.deploy(ping) ++ DamlSdk.parties(alice) ++ Postgres.database
       And:
         DamlSdk.runScript("Ping:transact", alice.id)
       And:
@@ -128,14 +128,14 @@ object PackageReloadSpec extends SharedLedgerAndPostgresTest:
       And:
         responseStatus("/readyz") `is` Some(Status.Ok) retryUntilTimeout
 
-      lazy val pongDar = Capture[DeployedDar]
+      lazy val pongDar = Capture[DarFile]
       When:
-        DamlSdk.dar(pong) >+> DamlSdk.deploy >+> DamlSdk.runScript("Pong:transact", alice.id)
+        DamlSdk.deploy(pong) >+> DamlSdk.runScript("Pong:transact", alice.id)
       And:
         pongDar.captureFromService
       Then:
         Pqs.stdoutContainsPackageReload(
-          s"${pongDar.get.dar.packageId}:Pong:Pong"
+          s"${pongDar.get.packageId}:Pong:Pong"
         )
       And:
         Pqs `hasProcessedAtLeastTransactions` 2
@@ -154,11 +154,11 @@ object PackageReloadSpec extends SharedLedgerAndPostgresTest:
       val ping       = createPing(interfaces)
       val pong       = createPong
 
-      val pingDar = Capture[DeployedDar]
-      val pongDar = Capture[DeployedDar]
+      val pingDar = Capture[DarFile]
+      val pongDar = Capture[DarFile]
 
       Given:
-        (DamlSdk.dar(ping) >+> DamlSdk.deploy) ++ DamlSdk.parties(alice) ++ Postgres.database
+        DamlSdk.deploy(ping) ++ DamlSdk.parties(alice) ++ Postgres.database
       And:
         pingDar.captureFromService
       And:
@@ -173,12 +173,12 @@ object PackageReloadSpec extends SharedLedgerAndPostgresTest:
         Pqs `hasProcessedAtLeastTransactions` 1
 
       When:
-        DamlSdk.dar(pong) >+> DamlSdk.deploy >+> DamlSdk.runScript("Pong:transact", alice.id)
+        DamlSdk.deploy(pong) >+> DamlSdk.runScript("Pong:transact", alice.id)
       And:
         pongDar.captureFromService
       Then:
         Pqs.stdoutContainsPackageReload(
-          s"${pongDar.get.dar.packageId}:Pong:Pong"
+          s"${pongDar.get.packageId}:Pong:Pong"
         )
       And:
         Pqs.hasProcessedAtLeastTransactions(2)
@@ -196,12 +196,12 @@ object PackageReloadSpec extends SharedLedgerAndPostgresTest:
       val pong        = createPong
       val pongUpgrade = createPongUpgrade(pong)
 
-      val pongDar        = Capture[DeployedDar]
-      val pingDar        = Capture[DeployedDar]
-      val pongUpgradeDar = Capture[DeployedDar]
+      val pongDar        = Capture[DarFile]
+      val pingDar        = Capture[DarFile]
+      val pongUpgradeDar = Capture[DarFile]
 
       Given:
-        (DamlSdk.dar(pong) >+> DamlSdk.deploy) ++ DamlSdk.parties(alice) ++ Postgres.database
+        DamlSdk.deploy(pong) ++ DamlSdk.parties(alice) ++ Postgres.database
       And:
         pongDar.captureFromService
       And:
@@ -216,23 +216,23 @@ object PackageReloadSpec extends SharedLedgerAndPostgresTest:
         Pqs.hasProcessedAtLeastTransactions(1)
 
       When:
-        DamlSdk.dar(ping) >+> DamlSdk.deploy >+> DamlSdk.runScript("Ping:transact", alice.id)
+        DamlSdk.deploy(ping) >+> DamlSdk.runScript("Ping:transact", alice.id)
       And:
         pingDar.captureFromService
       Then:
         Pqs.stdoutContainsPackageReload(
-          s"${pingDar.get.dar.packageId}:Ping:Ping"
+          s"${pingDar.get.packageId}:Ping:Ping"
         )
       And:
         Pqs.hasProcessedAtLeastTransactions(2)
 
       When:
-        DamlSdk.dar(pongUpgrade) >+> DamlSdk.deploy >+> DamlSdk.runScript("Pong:transact", alice.id)
+        DamlSdk.deploy(pongUpgrade) >+> DamlSdk.runScript("Pong:transact", alice.id)
       And:
         pongUpgradeDar.captureFromService
       Then:
         Pqs.stdoutContainsPackageReload(
-          s"${pongUpgradeDar.get.dar.packageId}:Pong:Pong"
+          s"${pongUpgradeDar.get.packageId}:Pong:Pong"
         )
       And:
         Pqs.hasProcessedAtLeastTransactions(3)

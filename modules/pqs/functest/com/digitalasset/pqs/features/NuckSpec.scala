@@ -57,8 +57,8 @@ object NuckSpec extends SharedLedgerAndPostgresTest:
   ).dependsOn(iKeyed)
 
   private def context(alice: Party) =
-    DamlSdk.dar(withKey) ++ DamlSdk.parties(alice) ++ Postgres.database
-      >+> DamlSdk.deploy >+> DamlSdk.runScript("WithKey:setup", alice.id)
+    DamlSdk.parties(alice) ++ Postgres.database
+      >+> DamlSdk.deploy(withKey) >+> DamlSdk.runScript("WithKey:setup", alice.id)
 
   private val templateFqn  = s"${withKey.name}:WithKey:WithKey"
   private val interfaceFqn = s"${iKeyed.name}:IKeyed:IKeyed"
