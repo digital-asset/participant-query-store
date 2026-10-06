@@ -30,7 +30,6 @@ object SingleWriterSpec extends SharedLedgerAndPostgresTest:
   def spec = suite("single writer")(
     funcTest("concurrent PQS instances keep a single writer and a consistent database") {
       val alice            = Party("Alice")
-      val traffic          = Capture[Traffic]
       val ledger           = Capture[LedgerState]
       val a                = Capture[Instance]
       val b                = Capture[Instance]
@@ -43,8 +42,8 @@ object SingleWriterSpec extends SharedLedgerAndPostgresTest:
 
       Given:
         DamlSdk.deploy(pingPong) ++ DamlSdk.parties(alice) ++ Postgres.database
-      Then:
-        startLedgerTraffic(alice).is(traffic.capture)
+      When:
+        startLedgerTraffic(alice)
       And:
         startPqs("a", genesis).is(a.capture)
       When:
@@ -72,7 +71,7 @@ object SingleWriterSpec extends SharedLedgerAndPostgresTest:
       And:
         startPqs("e", resume).is(e.capture)
       Then:
-        appsWaitingOnLock.is(hasSubset(Set("pqs-d", "pqs-e"))).retryUntilTimeout(asyncProcessingTimeout)
+        appsWaitingOnWatermark.is(hasSubset(Set("pqs-d", "pqs-e"))).retryUntilTimeout(asyncProcessingTimeout)
       When:
         unblockWatermark.get
       Then:
@@ -82,7 +81,7 @@ object SingleWriterSpec extends SharedLedgerAndPostgresTest:
       Then:
         waitForExit(loser.get).is(replacedByNewerWriter)
       And:
-        stopLedgerTraffic(traffic.get).is(ledger.capture)
+        stopLedgerTraffic.is(ledger.capture)
       Then:
         lastProcessedOffset.is(Some(ledger.get.lastOffset)).retryUntilTimeout(asyncProcessingTimeout)
       And:
@@ -125,12 +124,18 @@ object SingleWriterSpec extends SharedLedgerAndPostgresTest:
   private final case class LedgerState(lastOffset: Long, unarchived: Set[String])
 
   // 4 workers create contracts and archive all but their 3 newest, so deactivations are pending at every takeover
-  private def startLedgerTraffic(alice: Party): ZIO[LedgerEnv & Scope, Nothing, Traffic] =
-    for
-      live    <- Ref.make(Set.empty[String])
-      stop    <- Promise.make[Nothing, Unit]
-      workers <- ZIO.collectAllParDiscard(List.fill(4)(trafficWorker(alice, live, stop, Vector.empty))).forkScoped
-    yield Traffic(alice, live, stop, workers)
+  private def startLedgerTraffic(alice: Party): URLayer[LedgerEnv, Traffic] =
+    ZLayer.scoped(
+      for
+        live    <- Ref.make(Set.empty[String])
+        stop    <- Promise.make[Nothing, Unit]
+        workers <- ZIO.collectAllParDiscard(List.fill(4)(trafficWorker(alice, live, stop, Vector.empty))).forkScoped
+      yield Traffic(alice, live, stop, workers)
+    )
+
+  // Takeovers only show up with new transactions, so a wait on one fails with the traffic error once the workers die
+  private def whileTrafficRuns[R, A](io: ZIO[R, Throwable, A]): ZIO[R & Traffic, Throwable, A] =
+    ZIO.serviceWithZIO[Traffic](traffic => io.raceFirst(traffic.workers.join *> ZIO.never))
 
   private def trafficWorker(
       alice: Party,
@@ -155,8 +160,9 @@ object SingleWriterSpec extends SharedLedgerAndPostgresTest:
     Ledger.archive("PingPong:Ping", cid, alice).map(_.getTransaction.offset) <* live.update(_ - cid)
 
   // The last offset is that of one more archive once the workers have stopped
-  private def stopLedgerTraffic(traffic: Traffic): ZIO[LedgerEnv, Throwable, LedgerState] =
+  private val stopLedgerTraffic: ZIO[LedgerEnv & Traffic, Throwable, LedgerState] =
     for
+      traffic    <- ZIO.service[Traffic]
       _          <- traffic.stop.succeed(()) *> traffic.workers.join
       cid        <- traffic.live.get.map(_.headOption).someOrFail(Throwable("No live contract to archive"))
       lastOffset <- archive(traffic.alice, traffic.live)(cid)
@@ -182,10 +188,8 @@ object SingleWriterSpec extends SharedLedgerAndPostgresTest:
       .blockUntilStdOut(_.contains("Continuing from offset"))
       .timeoutFail(RuntimeException(s"${pqs.app} did not start"))(asyncProcessingTimeout)
 
-  private def firstToExit(x: Instance, y: Instance): Task[Instance] =
-    x.svc.exitCode
-      .as(x)
-      .raceFirst(y.svc.exitCode.as(y))
+  private def firstToExit(x: Instance, y: Instance): RIO[Traffic, Instance] =
+    whileTrafficRuns(x.svc.exitCode.as(x).raceFirst(y.svc.exitCode.as(y)))
       .timeoutFail(RuntimeException(s"neither ${x.app} nor ${y.app} exited"))(asyncProcessingTimeout + 5.seconds)
 
   private val blockWatermarkUpdates = holdLock(sql"select 1 from __watermark for update".query[Int].selectAll)
@@ -225,9 +229,10 @@ object SingleWriterSpec extends SharedLedgerAndPostgresTest:
 
   private final case class Exited(code: ExitCode, stderr: String)
 
-  private def waitForExit(pqs: Instance): Task[Exited] =
+  private def waitForExit(pqs: Instance): RIO[Traffic, Exited] =
     for
-      code   <- pqs.svc.exitCode.timeoutFail(RuntimeException(s"${pqs.app} is still running"))(asyncProcessingTimeout)
+      code <- whileTrafficRuns(pqs.svc.exitCode)
+        .timeoutFail(RuntimeException(s"${pqs.app} is still running"))(asyncProcessingTimeout)
       stderr <- Pqs.stderr.provideEnvironment(ZEnvironment(pqs.svc))
     yield Exited(code, stderr)
 
@@ -235,12 +240,14 @@ object SingleWriterSpec extends SharedLedgerAndPostgresTest:
   private def statusAfter(pqs: Instance, hold: Duration): Task[Option[ExitCode]] =
     pqs.svc.exitCode.timeout(hold)
 
+  // Waiters for a locked row queue on its tuple lock: the first holds it while waiting, the rest wait for it.
   // pg_stat_activity is server-wide, so queries on it filter by database
-  private val appsWaitingOnLock: ZIO[Database, Throwable, Set[String]] =
+  private val appsWaitingOnWatermark: ZIO[Database, Throwable, Set[String]] =
     Postgres
       .query(
-        sql"""select distinct application_name from pg_stat_activity
-              where datname = current_database() and wait_event_type = 'Lock'""".query[String].selectAll
+        sql"""select distinct a.application_name from pg_stat_activity a join pg_locks l on l.pid = a.pid
+              where a.datname = current_database() and a.wait_event_type = 'Lock'
+                and l.locktype = 'tuple' and l.relation = '__watermark'::regclass""".query[String].selectAll
       )
       .map(_.toSet)
 
@@ -252,8 +259,8 @@ object SingleWriterSpec extends SharedLedgerAndPostgresTest:
   private val writersInOrder: ZIO[Database, Throwable, Chunk[String]] =
     advances.map(_.map(_._1).dedupe)
 
-  private val latestWriter: ZIO[Database, Throwable, Option[String]] =
-    writersInOrder.map(_.lastOption)
+  private val latestWriter: ZIO[Database & Traffic, Throwable, Option[String]] =
+    whileTrafficRuns(writersInOrder.map(_.lastOption))
 
   private val watermarkPositions: ZIO[Database, Throwable, Chunk[Long]] =
     advances.map(_.map(_._2))
@@ -276,9 +283,26 @@ object SingleWriterSpec extends SharedLedgerAndPostgresTest:
             union all select '__exercise_tpe', choice_fqn from __exercise_tpe
             union all select '__packages', row(name, version, id)::text from __packages
               where pk in (select package_pk from __contracts)
-            union all select '__tmp_deactivated_contracts', count(*)::text from __tmp_deactivated_contracts
-            union all select '__exercises', count(*)::text from __exercises
-            union all select '__reassignments', count(*)::text from __reassignments
+            union all select '__tmp_deactivated_contracts', row(c.template_fqn, d.contract_id, a.event_id,
+                d.archived_at_ix, u.event_id, d.unassigned_at_ix, d.synchronizer_id)::text
+              from __tmp_deactivated_contracts d
+              join __contract_tpe c on c.pk = d.tpe_pk
+              left join __events a on a.pk = d.archive_event_pk
+              left join __events u on u.pk = d.unassign_event_pk
+            union all select '__exercises', row(t.choice_fqn, c.template_fqn, ev.event_id, x.exercised_at_ix,
+                x.contract_id, x.argument, x.result, x.redaction_id, p.id, x.controllers, x.last_descendant_node_id,
+                x.witnesses)::text
+              from __exercises x
+              join __exercise_tpe t on t.pk = x.tpe_pk
+              join __contract_tpe c on c.pk = x.contract_tpe_pk
+              left join __events ev on ev.pk = x.exercise_event_pk
+              left join __packages p on p.pk = x.package_pk
+            union all select '__reassignments', row(c.template_fqn, ev.event_id, r.reassigned_at_ix, r.type,
+                r.contract_id, r.reassignment_id, r.source_synchronizer_id, r.target_synchronizer_id, r.submitter,
+                r.reassignment_counter, r.witnesses, r.assignment_exclusivity)::text
+              from __reassignments r
+              join __contract_tpe c on c.pk = r.contract_tpe_pk
+              join __events ev on ev.pk = r.reassign_event_pk
             union all select '__watermark', row(ix, "offset")::text from __watermark"""
         .query[(String, String)]
         .selectAll
