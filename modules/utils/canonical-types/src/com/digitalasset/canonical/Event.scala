@@ -21,6 +21,7 @@ object Event:
   final case class Created(
       eventId: EventId,
       synchronizerId: SynchronizerId,
+      reassignmentCounter: Long,
       contract: Contract
   ) extends TransactionEvent
       with TreeEvent

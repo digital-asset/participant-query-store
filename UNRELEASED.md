@@ -32,6 +32,7 @@ This release includes the following SQL migrations:
 - An `Assigned` event creates a new row in the `__contracts` table. Instead of setting `created_at_ix` and `create_event_pk`, it sets `assigned_at_ix` and `assign_event_pk`.
 - An `Unassigned` event deactivates its corresponding row from the `__contracts` table. Instead of setting `archived_at_ix` and `archive_event_pk`, it sets `unassigned_at_ix` and `unassign_event_pk`.
 - `Created` and `Assigned` events from the ledger now set `reassignment_counter` and `synchronizer_id`. These columns are left empty in legacy rows (PQS 3.6 or older).
+- Contracts ingested from the active contract set (when PQS starts from a non-genesis offset) keep the `reassignment_counter` reported by the ledger for their synchronizer, instead of `0`.
 
 
 #### SQL API

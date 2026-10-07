@@ -1189,27 +1189,22 @@ select c.*
 from __contracts(qname) c
 where c.life_ix @> (select __nearest_ix_floor("offset"))
     and not c.divulged_only -- exclude contracts that were merely divulged
-    -- Deduplicate reassigned contracts by keeping the highest reassignment_counter (nulls rank lowest).
-    -- Expressed as an anti-join rather than DISTINCT ON so that caller predicates (e.g. payload ->> 'x' = ?)
+    -- This is essentially an anti-join: discard all entries of c for which there exist non-divulged entries in __contracts
+    -- that have a higher re-assignment counter.
+    -- The literal `reassignment_counter > 0 and not divulged_only` matches
+    -- the partial index __contracts_reassigned_contract_id_idx.
+    --
+    -- Note: This query avoids DISTINCT ON so that caller predicates (e.g. payload ->> 'x' = ?)
     -- and their indexes can be pushed down to the contract partition scan instead of running after a full sort.
     and not exists (
         select 1
-        from __contracts other
-        where other.tpe_pk = c.tpe_pk
-          and other.contract_id = c.contract_id
-          and other.life_ix @> (select __nearest_ix_floor("offset"))
-          and not other.divulged_only
-          and (
-                (
-                    other.reassignment_counter is not null
-                    and (c.reassignment_counter is null or other.reassignment_counter > c.reassignment_counter)
-                )
-                -- tie on reassignment_counter: break deterministically to keep exactly one row
-                or (
-                    other.reassignment_counter is not distinct from c.reassignment_counter
-                    and coalesce(other.create_event_pk, other.assign_event_pk) > coalesce(c.create_event_pk, c.assign_event_pk)
-                )
-              )
+        from __contracts newer
+        where newer.tpe_pk = c.tpe_pk
+          and newer.contract_id = c.contract_id
+          and newer.reassignment_counter > 0
+          and not newer.divulged_only
+          and newer.reassignment_counter > coalesce(c.reassignment_counter, 0)
+          and newer.life_ix @> (select __nearest_ix_floor("offset"))
     )
 $$ language sql stable
                 parallel safe;

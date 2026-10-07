@@ -907,11 +907,27 @@ $$;
 CREATE FUNCTION public.active(qname text DEFAULT NULL::text, "offset" bigint DEFAULT public.latest_offset()) RETURNS SETOF public.contract
     LANGUAGE sql STABLE PARALLEL SAFE
     AS $$
-select distinct on (c.tpe_pk, c.contract_id) c.*
+select c.*
 from __contracts(qname) c
 where c.life_ix @> (select __nearest_ix_floor("offset"))
     and not c.divulged_only -- exclude contracts that were merely divulged
-order by c.tpe_pk, c.contract_id, c.reassignment_counter desc nulls last
+    -- This is essentially an anti-join: discard all entries of c for which there exist non-divulged entries in __contracts
+    -- that have a higher re-assignment counter.
+    -- The literal `reassignment_counter > 0 and not divulged_only` matches
+    -- the partial index __contracts_reassigned_contract_id_idx.
+    --
+    -- Note: This query avoids DISTINCT ON so that caller predicates (e.g. payload ->> 'x' = ?)
+    -- and their indexes can be pushed down to the contract partition scan instead of running after a full sort.
+    and not exists (
+        select 1
+        from __contracts newer
+        where newer.tpe_pk = c.tpe_pk
+          and newer.contract_id = c.contract_id
+          and newer.reassignment_counter > 0
+          and not newer.divulged_only
+          and newer.reassignment_counter > coalesce(c.reassignment_counter, 0)
+          and newer.life_ix @> (select __nearest_ix_floor("offset"))
+    )
 $$;
 
 
@@ -2284,6 +2300,20 @@ CREATE INDEX __contracts_1_contract_id_idx ON public.__contracts_1 USING hash (c
 
 
 --
+-- Name: __contracts_reassigned_contract_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX __contracts_reassigned_contract_id_idx ON ONLY public.__contracts USING btree (contract_id) WHERE ((reassignment_counter > 0) AND (NOT divulged_only));
+
+
+--
+-- Name: __contracts_1_contract_id_idx1; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX __contracts_1_contract_id_idx1 ON public.__contracts_1 USING btree (contract_id) WHERE ((reassignment_counter > 0) AND (NOT divulged_only));
+
+
+--
 -- Name: __contracts_create_event_pk_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -2498,6 +2528,13 @@ ALTER INDEX public.__contracts_archived_at_ix_idx ATTACH PARTITION public.__cont
 --
 
 ALTER INDEX public.__contracts_contract_id_idx ATTACH PARTITION public.__contracts_1_contract_id_idx;
+
+
+--
+-- Name: __contracts_1_contract_id_idx1; Type: INDEX ATTACH; Schema: public; Owner: -
+--
+
+ALTER INDEX public.__contracts_reassigned_contract_id_idx ATTACH PARTITION public.__contracts_1_contract_id_idx1;
 
 
 --

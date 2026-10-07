@@ -22,7 +22,8 @@ object eventConverters:
       synchronizerId: SynchronizerId
   )(using ProtobufCodecs, DamlSchema): Task[TransactionEvent] = event.event match
     case com.daml.ledger.api.v2.event.Event.Event.Created(evt) =>
-      convertCreatedEvent(evt, synchronizerId)
+      // A create by definition has reassignmentCounter 0
+      convertCreatedEvent(evt, synchronizerId, reassignmentCounter = 0L)
     case com.daml.ledger.api.v2.event.Event.Event.Archived(evt) =>
       convertArchivedEvent(evt, synchronizerId)
     case com.daml.ledger.api.v2.event.Event.Event.Exercised(evt) =>
@@ -43,9 +44,10 @@ object eventConverters:
 
   def convertCreatedEvent(
       evt: com.daml.ledger.api.v2.event.CreatedEvent,
-      synchronizerId: SynchronizerId
+      synchronizerId: SynchronizerId,
+      reassignmentCounter: Long
   )(using codecs: ProtobufCodecs)(using DamlSchema): Task[Event.Created] =
-    toContract(evt).map(Event.Created(EventId(evt.offset, evt.nodeId), synchronizerId, _))
+    toContract(evt).map(Event.Created(EventId(evt.offset, evt.nodeId), synchronizerId, reassignmentCounter, _))
 
   private def convertInterfaceView(
       contractId: String,

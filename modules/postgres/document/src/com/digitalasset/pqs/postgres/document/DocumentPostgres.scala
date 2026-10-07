@@ -334,7 +334,7 @@ final case class DocumentPostgres(
           txIx,
           c.contract,
           c.synchronizerId,
-          reassignmentCounter = 0,
+          reassignmentCounter = c.reassignmentCounter,
           isCreate = true
         )
         contracts :+ evt
