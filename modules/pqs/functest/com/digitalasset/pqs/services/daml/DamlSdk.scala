@@ -91,6 +91,7 @@ object DamlSdk:
             |version: ${pkg.version}
             |build-options:
             |  - "--target=$damlLfTarget"
+            |  - "-Wno-unused-dependency"
             |  $buildOptions
             |dependencies:
             |  - daml-prim

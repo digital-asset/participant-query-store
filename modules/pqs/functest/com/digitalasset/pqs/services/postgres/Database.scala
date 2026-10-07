@@ -90,4 +90,6 @@ object Database:
 
   private def selectContracts(table: SqlFragment, extraColumns: Seq[String]) =
     val select = SqlFragment.select((Seq("package_id", "template_fqn", "payload_type", "contract_id") ++ extraColumns)*)
-    Postgres.query(sql"$select from $table order by created_at_ix, template_fqn, payload_type desc")
+    Postgres.query(
+      sql"$select from $table order by coalesce(created_at_ix, assigned_at_ix), template_fqn, payload_type desc"
+    )
