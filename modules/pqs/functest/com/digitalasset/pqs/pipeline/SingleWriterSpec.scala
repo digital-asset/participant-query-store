@@ -101,35 +101,73 @@ object SingleWriterSpec extends SharedLedgerAndPostgresTest:
       And:
         watermarkPositions.is(strictlyIncreasing)
     },
+    // What happens today, from the logs of a run (messages shortened):
+    //   09:26:45 pqs-a  Last checkpoint is absent. Seeding from ACS ... with starting offset: '167'
+    //   09:26:49 pqs-b  Last checkpoint is absent. Seeding from ACS ... with starting offset: '167'
+    //   09:26:50 pqs-b  Recoverable JDBC exception. Attempt 1, unstable for 0 seconds.
+    //                   PSQLException: ERROR: duplicate key value violates unique constraint "__transactions_pkey"
+    //   09:26:51 pqs-b  Last checkpoint is absent. Seeding from ACS ... with starting offset: '167'
+    //   09:26:51 pqs-b  Recoverable JDBC exception. Attempt 2, unstable for 1 second.
+    //                   PSQLException: ERROR: duplicate key value violates unique constraint "__transactions_pkey"
+    //   09:26:52 pqs-a  PSQLException: ERROR: PQS writer instance has changed (old = ..., new = ...). Aborting...
+    //   ... pqs-b repeats its last two lines every ~2 s (the retry backoff cap) until the test gives up
     funcTest("scaling out during initial ACS seeding does not wedge the database") {
       val alice         = Party("Alice")
       val acs           = Capture[Set[String]]
       val unblockEvents = Capture[UIO[Unit]]
+      val a             = Capture[Instance]
       val b             = Capture[Instance]
 
       Given:
         DamlSdk.deploy(pingPong) ++ DamlSdk.parties(alice) ++ Postgres.database
       When:
         createSchemaWithoutData
+      When:
+        startRecordingWriters
       Then:
         createContracts(alice, 20).is(acs.capture)
       And:
         blockEventWrites.is(unblockEvents.capture)
-      When:
-        startPqs("a", seedFromAcs)
-      Then:
+      And:
+        // A finds no watermark and seeds from the ACS: it commits the snapshot transaction (ix 0) on its own,
+        // then blocks on its first batch of events. The watermark is only written once the whole seed is done.
+        startPqs("a", seedFromAcs).is(a.capture)
+      And:
         transactionIndexes.is(Chunk(acsSnapshotIx)).retryUntilTimeout(asyncProcessingTimeout)
       And:
+        lastProcessedOffset.is(None)
+      And:
+        // B claims the writer slot. Its startup cleanup deletes only transactions after the watermark, which is
+        // missing, so the cutoff is 0 and A's ix 0 survives. B still sees no watermark and starts its own seed.
         startPqs("b", seedFromAcs).is(b.capture)
       When:
         b.get.svc.blockUntilStdOut(_.contains("Seeding from ACS"))
       When:
+        // A writes its events, but its final watermark update is rejected because B now owns the writer slot
         unblockEvents.get
+      Then:
+        exitOf(a.get).is(replacedByNewerWriter)
       When:
+        // Today B's seed inserts ix 0 again, fails on __transactions_pkey, restarts and repeats this forever
         waitUntilStarted(b.get)
       Then:
         activeContracts.is(acs.get)
+      And:
+        writersInOrder.is(Chunk("pqs-b"))
+      And:
+        statusAfter(b.get, 2.seconds).is(stillRunning)
     } @@ failsUntilInterruptedSeedIsCleanedUp,
+    // What happens today, from the logs of a run (messages shortened):
+    //   09:25:31 pqs-a  Last checkpoint is absent. Seeding from ACS ... with starting offset: '90'
+    //   09:25:31 pqs-a  Recoverable JDBC exception. Attempt 1, unstable for 0 seconds.
+    //                   PSQLException: Database connection failed when starting copy
+    //   09:25:32 pqs-a  Recoverable JDBC exception. Attempt 2, unstable for 1 second.
+    //                   PSQLException: This connection has been closed.
+    //   ... attempts 3 to 5 fail the same way until the dropped pool connections are replaced
+    //   09:25:41 pqs-a  Last checkpoint is absent. Seeding from ACS ... with starting offset: '90'
+    //   09:25:41 pqs-a  Recoverable JDBC exception. Attempt 6, unstable for 9 seconds.
+    //                   PSQLException: ERROR: duplicate key value violates unique constraint "__transactions_pkey"
+    //   ... pqs-a repeats its last two lines every ~2 s (the retry backoff cap) until the test gives up
     funcTest("a restart during initial ACS seeding does not wedge the database") {
       val alice         = Party("Alice")
       val acs           = Capture[Set[String]]
@@ -140,24 +178,37 @@ object SingleWriterSpec extends SharedLedgerAndPostgresTest:
         DamlSdk.deploy(pingPong) ++ DamlSdk.parties(alice) ++ Postgres.database
       When:
         createSchemaWithoutData
+      When:
+        startRecordingWriters
       Then:
         createContracts(alice, 20).is(acs.capture)
       And:
         blockEventWrites.is(unblockEvents.capture)
       And:
+        // A finds no watermark and seeds from the ACS: it commits the snapshot transaction (ix 0) on its own,
+        // then blocks on its first batch of events. The watermark is only written once the whole seed is done.
         startPqs("a", seedFromAcs).is(a.capture)
       And:
         transactionIndexes.is(Chunk(acsSnapshotIx)).retryUntilTimeout(asyncProcessingTimeout)
+      And:
+        lastProcessedOffset.is(None)
       When:
+        // The blocked event write fails on its dropped connection, a recoverable error, so A restarts its pipeline
         dropConnections(a.get)
       When:
         a.get.svc.blockUntilStdOut(_.contains("Recoverable JDBC exception"))
       When:
         unblockEvents.get
       When:
+        // Today the restarted A keeps its own ix 0 (no watermark, so the cleanup cutoff is 0), seeds again,
+        // fails on __transactions_pkey, restarts and repeats this forever
         waitUntilStarted(a.get)
       Then:
         activeContracts.is(acs.get)
+      And:
+        writersInOrder.is(Chunk("pqs-a"))
+      And:
+        statusAfter(a.get, 2.seconds).is(stillRunning)
     } @@ failsUntilInterruptedSeedIsCleanedUp
   )
 
@@ -308,10 +359,11 @@ object SingleWriterSpec extends SharedLedgerAndPostgresTest:
 
   private final case class Exited(code: ExitCode, stderr: String)
 
-  private def waitForExit(pqs: Instance): RIO[Traffic, Exited] =
+  private def waitForExit(pqs: Instance): RIO[Traffic, Exited] = whileTrafficRuns(exitOf(pqs))
+
+  private def exitOf(pqs: Instance): Task[Exited] =
     for
-      code <- whileTrafficRuns(pqs.svc.exitCode)
-        .timeoutFail(RuntimeException(s"${pqs.app} is still running"))(asyncProcessingTimeout)
+      code   <- pqs.svc.exitCode.timeoutFail(RuntimeException(s"${pqs.app} is still running"))(asyncProcessingTimeout)
       stderr <- Pqs.stderr.provideEnvironment(ZEnvironment(pqs.svc))
     yield Exited(code, stderr)
 
