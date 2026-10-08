@@ -103,7 +103,7 @@ object PipelineUpdateSpec extends SharedLedgerAndPostgresTest:
       And:
         Pqs.stderr.is(stringContaining("PQS writer instance has changed") && stringContaining("another-instance"))
       And:
-        Pqs.stdout.is(!stringContaining("Advanced watermark"))
+        Pqs.stdout.is(!stringContaining("inserting watermark"))
       Expect:
         Postgres.query(sql"""select count(*) from active($templateRef)""").returns(table(1))
     },
