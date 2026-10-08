@@ -166,12 +166,13 @@ object `package` extends RootModule { root =>
         "class com.fasterxml.** extends java.lang.Enum { *; } ",
         "class io.netty.util.concurrent.ConcurrentSkipListIntObjMultimap { *; }",
         "class tools.jackson.databind.** extends java.lang.Enum { *; }",
-        // Loaded reflectively by AzurePostgresqlAuthenticationPlugin
+        // Loaded reflectively by AzurePostgresqlAuthenticationPlugin        
         "class com.azure.identity.extensions.jdbc.postgresql.AzurePostgresqlAuthenticationPlugin { *; }",
         "class com.azure.identity.extensions.implementation.credential.provider.DefaultTokenCredentialProvider { *; }",
         "class com.fasterxml.jackson.core.StreamReadConstraints** { *; }",
         "class com.fasterxml.jackson.core.JsonFactory { *; }",
-        "class com.azure.core.http.netty.NettyAsyncHttpClientProvider { *; }", 
+        "class com.azure.core.http.netty.NettyAsyncHttpClientProvider { *; }",
+        "class com.azure.core.implementation.** { *; }",
       )
     }
 
@@ -367,11 +368,12 @@ object `package` extends RootModule { root =>
         L.zio.jdbc,
         L.jdbc.postgres,
         // Provides the optional AzurePostgresqlAuthenticationPlugin
+        L.azureIdentity,
         L.azureIdentityExtensions,
         // bump transitive deps to address vulnerabilities
-        L.reactorNetty,
+        L.reactorNetty.core,
+        L.reactorNetty.http,
         L.jackson2.core
-
       )
 
       override def moduleDeps = Seq(

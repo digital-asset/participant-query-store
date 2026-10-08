@@ -31,13 +31,17 @@ package object millbuild {
     // Force specific version to address vulnerabilities
     val jackson3 = "3.2.2"
 
-    // Pulled transitively by azure-identity-extensions
+    // Pulled transitively by azure-identity
     // Force specific version to address vulnerabilities
     val jackson2 = "2.21.7"
 
-    // Pulled transitively by ZIO HTTP and azure-identity-extensions
+    // Pulled transitively by ZIO HTTP and azure-identity
     // Force specific version to address vulnerabilities
     val nettyVersion = "4.2.18.Final"
+
+    // Pulled transitively by azure-identity
+    // Force specific version to address vulnerabilities
+    val reactorNetty = "1.3.7"
 
     val openTelemetryAgent = "2.28.1"
     val scalaPB = "0.11.19"
@@ -73,7 +77,10 @@ package object millbuild {
     ).map(name => ivy"io.netty:$name:${V.nettyVersion}")
 
     // transitive dependency of azure-identity-extensions
-    val reactorNetty = ivy"io.projectreactor.netty:reactor-netty-core:1.3.7".excludeOrg("io.netty")
+    object reactorNetty {
+      val core = ivy"io.projectreactor.netty:reactor-netty-core:${V.reactorNetty}".excludeOrg("io.netty")
+      val http = ivy"io.projectreactor.netty:reactor-netty-http:${V.reactorNetty}".excludeOrg("io.netty")
+    }
 
     object canton {
       val ledgerApiProto = ivy"com.daml:ledger-api-proto:${V.canton}"
@@ -195,6 +202,9 @@ package object millbuild {
       val micrometerCore = ivy"io.micrometer:micrometer-core:1.17.1"
     }
 
-    val azureIdentityExtensions = ivy"com.azure:azure-identity-extensions:1.2.2".excludeOrg("io.netty")
+    val azureIdentity = ivy"com.azure:azure-identity:1.18.7"
+    val azureIdentityExtensions = ivy"com.azure:azure-identity-extensions:1.2.9"
+      .excludeOrg("io.netty")
+      .excludeOrg("io.projectreactor.netty")
   }
 }
