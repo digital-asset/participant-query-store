@@ -20,6 +20,7 @@ package object millbuild {
     // Latest stable: https://console.cloud.google.com/artifacts/docker/da-images/europe/public/components%2Fcanton-open-source
     val canton = "3.5.10"
 
+    val bouncyCastle = "1.86"
     val dockerClient = "3.4.0"
     val flyway = "13.4.0"
 
@@ -174,8 +175,8 @@ package object millbuild {
     }
 
     object bouncyCastle {
-      val prov = ivy"org.bouncycastle:bcprov-jdk18on:1.85.2"
-      val pkix = ivy"org.bouncycastle:bcpkix-jdk18on:1.85"
+      val prov = ivy"org.bouncycastle:bcprov-jdk18on:${V.bouncyCastle}"
+      val pkix = ivy"org.bouncycastle:bcpkix-jdk18on:${V.bouncyCastle}"
     }
 
     val wartRemover = ivy"org.wartremover::wartremover:3.2.0"
