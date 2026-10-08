@@ -120,27 +120,27 @@ local sync_sel = 'synchronizer_id=~"$synchronizer"';
     contracts: {
       churn: {
         base(type, mult=1):
-          q.simple('label_replace(sum by(template) (rate(pipeline_events_total{job="$jvm", type="%s", %s}[$__rate_interval])) * %d, "short_template", "$1", "template", ".*?:(.*)")' % [type, sync_sel, mult], '{{short_template}}'),
+          q.simple('label_replace(sum by(template) (rate(pipeline_contract_events_total{job="$jvm", type="%s", %s}[$__rate_interval])) * %d, "short_template", "$1", "template", ".*?:(.*)")' % [type, sync_sel, mult], '{{short_template}}'),
         creates: self.base('create'),
         archives: self.base('archive', -1),
         all: [self.creates, self.archives],
       },
       active:
-        local total(types) = 'sum without(type, synchronizer_id, source_synchronizer_id, target_synchronizer_id) (pipeline_events_total{job="$jvm", type=~"%s", %s})' % [types, sync_sel];
+        local total(types) = 'sum without(type, synchronizer_id, source_synchronizer_id, target_synchronizer_id) (pipeline_contract_events_total{job="$jvm", type=~"%s", %s})' % [types, sync_sel];
         q.simple('label_replace(%s - (%s or %s * 0), "short_template", "$1", "template", ".*?:(.*)")' % [total('create|assign'), total('archive|unassign'), total('create|assign')], '{{short_template}}'),
     },
 
     reassignments: {
-      local rates(types) = 'rate(pipeline_events_total{job="$jvm", type=~"%s", %s}[$__rate_interval])' % [types, sync_sel],
+      local rates(types) = 'rate(pipeline_contract_events_total{job="$jvm", type=~"%s", %s}[$__rate_interval])' % [types, sync_sel],
       // Counts each reassignment once, whether this participant sees its unassign, its assign or both.
       local once(by, expr) = 'max by(%s) (sum by(%s, type) (%s))' % [by, by, expr],
-      throughput: [$.pqs.pipeline.throughput.assigns, $.pqs.pipeline.throughput.unassigns],
+      throughput: [q.simple('sum(%s)' % rates('assign'), 'assigns'), q.simple('sum(%s)' % rates('unassign'), 'unassigns')],
       by_template:
         q.simple('sum by(template, short_template) (%s)' % once('template, short_template, source_synchronizer_id, target_synchronizer_id', 'label_replace(%s, "short_template", "$1", "template", ".*?:(.*)")' % rates('assign|unassign')), '{{short_template}}'),
       flows:
         q.simple('sum by(source, target) (%s)' % once('template, source, target', 'label_replace(label_replace(%s, "source", "$1", "source_synchronizer_id", "^(.*?)(::.*)?$"), "target", "$1", "target_synchronizer_id", "^(.*?)(::.*)?$")' % rates('assign|unassign')), '{{source}} → {{target}}'),
       count:
-        q.simple('sum(pipeline_events_total{job="$jvm", type=~"assign|unassign", %s})' % sync_sel, 'reassignments'),
+        q.simple('sum(pipeline_contract_events_total{job="$jvm", type=~"assign|unassign", %s})' % sync_sel, 'reassignments'),
     },
 
     synchronizers: {

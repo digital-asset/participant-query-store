@@ -69,7 +69,7 @@ synchronizer_id text;
 
 - The `pipeline_events_total` metric counts `assign` and `unassign` events the way it counts `create` and `archive`: once for the template and once for each of its interfaces. It has a `synchronizer_id` label on every type except `watermark`.
 - The new `pipeline_contract_events_total` metric counts each `create`, `archive`, `assign` and `unassign` event once, whatever interfaces the template implements. Its labels are `type`, `template` and `synchronizer_id`, plus `source_synchronizer_id` and `target_synchronizer_id` on `assign` and `unassign`.
-- The PQS Grafana dashboard has a `synchronizer` variable and new `Reassignments` and `Synchronizers` rows. The `Active *` panel includes assigned and unassigned contracts.
+- The PQS Grafana dashboard has a `synchronizer` variable and new `Reassignments` and `Synchronizers` rows. The `Churn`, `Active *` and `Reassignments` panels read `pipeline_contract_events_total`, so they count each contract once whatever interfaces its template implements. The `Active *` panel includes assigned and unassigned contracts.
 
 ### Bug fixes
 
