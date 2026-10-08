@@ -416,6 +416,8 @@ final case class DocumentPostgres(
       reassignmentCounter: Long,
       isCreate: Boolean
   ): Chunk[Contract] =
+    // The template's payload, or the first interface view's when only interfaces are subscribed.
+    val representative = contract.payloads.headOption.map(_._1)
     contract.payloads.map((entityId, value) =>
       Contract(
         qualifiedName = contract.templateId.qualifiedName,
@@ -438,7 +440,8 @@ final case class DocumentPostgres(
         metadata = contract.metadata,
         acsDelta = contract.acsDelta,
         packagePk = packageMap(contract.representativePackageId),
-        creationPackageId = contract.creationPackageId
+        creationPackageId = contract.creationPackageId,
+        representsEvent = representative.contains(entityId)
       )
     )
 
@@ -450,9 +453,7 @@ final case class DocumentPostgres(
       synchronizerId: SynchronizerId,
       isArchive: Boolean
   ) =
-    val templateType = entityPkMap(templateId)
-    val interfaces   = implementsPkMap.getOrElse(templateId, Chunk.empty)
-    (interfaces :+ templateType).map { entityType =>
+    def row(entityType: EntityTypePk, representsEvent: Boolean) =
       DeactivatedContract(
         templateId.qualifiedName,
         entityType,
@@ -461,9 +462,11 @@ final case class DocumentPostgres(
         archivedAtIx = Option.when(isArchive)(txIx),
         unassignEventPk = Option.when(!isArchive)(eventPk),
         unassignedAtIx = Option.when(!isArchive)(txIx),
-        synchronizerId
+        synchronizerId,
+        representsEvent
       )
-    }
+    implementsPkMap.getOrElse(templateId, Chunk.empty).map(row(_, representsEvent = false))
+      :+ row(entityPkMap(templateId), representsEvent = true)
 
   private def mkReassignment(
       eventPk: IdPlaceholder,
