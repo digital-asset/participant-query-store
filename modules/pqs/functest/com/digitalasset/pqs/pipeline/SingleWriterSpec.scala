@@ -7,6 +7,7 @@ import com.daml.ledger.api.v2.value.{Record, RecordField, Value}
 import com.digitalasset.pqs.SharedLedgerAndPostgresTest
 import com.digitalasset.pqs.docker.{Docker, Service}
 import com.digitalasset.pqs.functest.matchers.*
+import com.digitalasset.pqs.functest.table.*
 import com.digitalasset.pqs.services.daml.*
 import com.digitalasset.pqs.services.postgres.{Database, Postgres}
 import com.digitalasset.pqs.services.pqs.{Pipeline, Pqs}
@@ -89,7 +90,9 @@ object SingleWriterSpec extends SharedLedgerAndPostgresTest:
       When:
         fillReferenceDatabase(ledger.get.lastOffset)
       Then:
-        rowsOnlyInOneDatabase.is(isEmpty)
+        sameAsReference(createdContracts)
+      And:
+        sameAsReference(archivedContracts)
       And:
         activeContracts.is(ledger.get.unarchived)
       And:
@@ -272,32 +275,18 @@ object SingleWriterSpec extends SharedLedgerAndPostgresTest:
   private val activeContracts: ZIO[Database, Throwable, Set[String]] =
     Postgres.query(sql"select contract_id from active($pingFqn)".query[String].selectAll).map(_.toSet)
 
-  // Every compared row, tagged with its table; surrogate keys left out. Pending deactivations are only counted, as both
-  // databases apply them all; the flat transaction stream on one synchronizer leaves exercises and reassignments empty
-  private val snapshot: ZIO[Database, Throwable, Chunk[(String, String)]] =
-    Postgres.query(
-      sql"""select '__transactions', row(ix, "offset", transaction_id, synchronizer_id, effective_at, workflow_id)::text
-              from __transactions
-            union all select '__events', row(tx_ix, event_id, type)::text from __events
-            union all select '__contracts()', row(template_fqn, contract_id, created_at_ix, archived_at_ix,
-                create_event_id, archive_event_id, payload, signatories, observers, witnesses)::text from __contracts()
-            union all select '__contract_tpe', template_fqn from __contract_tpe
-            union all select '__exercise_tpe', choice_fqn from __exercise_tpe
-            union all select '__packages', row(name, version, id)::text from __packages
-              where pk in (select package_pk from __contracts)
-            union all select '__tmp_deactivated_contracts', count(*)::text from __tmp_deactivated_contracts
-            union all select '__watermark', row(ix, "offset")::text from __watermark"""
-        .query[(String, String)]
-        .selectAll
-    )
+  // Compared through the read API, so changes to PQS tables need no changes here
+  private val createdContracts: ZIO[Database, Throwable, Table] =
+    Database.creates(extraColumns = Seq("created_at_offset"))
 
-  // Rows missing on either side, not a whole-table diff
-  private val rowsOnlyInOneDatabase: ZIO[Database & Reference, Throwable, Chunk[(String, String, String)]] =
+  private val archivedContracts: ZIO[Database, Throwable, Table] =
+    Database.archives(extraColumns = Seq("archived_at_offset"))
+
+  private def sameAsReference(query: RIO[Database, Table]): RIO[Database & Reference, TestResult] =
     for
-      stressed  <- snapshot
-      reference <- ZIO.serviceWithZIO[Reference](ref => snapshot.provideEnvironment(ZEnvironment(ref.db)))
-    yield stressed.diff(reference).map(("only in the stressed database", _, _)) ++
-      reference.diff(stressed).map(("only in the reference", _, _))
+      expected <- ZIO.serviceWithZIO[Reference](ref => query.provideEnvironment(ZEnvironment(ref.db)))
+      result   <- query.is(expected)
+    yield result
 
   // Expected results
 
