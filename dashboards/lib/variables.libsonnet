@@ -11,7 +11,7 @@ local q = var.query;
   synchronizer:
     q.new('synchronizer')
     + q.generalOptions.withLabel('Synchronizer')
-    + q.generalOptions.withDescription('Synchronizer the ledger activity happened on')
+    + q.generalOptions.withDescription('Synchronizer processing the transactions')
     + q.withDatasourceFromVariable(v.datasource)
     + q.refresh.onTime()
     + q.queryTypes.withLabelValues(
