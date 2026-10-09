@@ -88,7 +88,9 @@ object Model {
     def count(metric: Metric.Counter[Long], labels: Iterable[Set[MetricLabel]]) =
       ZIO.foreachDiscard(labels.filter(_.nonEmpty).groupMapReduce(identity)(_ => 1)(_ + _))(metric.tagged(_).update(_))
     // A Reassignment's assign or unassign is counted by its contract rows.
-    val rows = all.view.collect { case r: Reassignment => r.labels }
+    val rows = all.view.collect {
+      case m: (Watermark | Transaction | Event | Contract | Exercise | DeactivatedContract) => m.labels
+    }
     // One entry per event, keyed by the pk all its rows share; an assign or unassign counts by its Reassignment.
     val contractEvents = all.view.collect {
       case c: Contract if c.createEventPk.isDefined             => c.createEventPk             -> c.labels
