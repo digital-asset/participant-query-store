@@ -302,6 +302,7 @@ object SchemaSpec extends SharedLedgerAndPostgresTest:
           "__contracts" | "__contracts_contract_id_idx"
           "__contracts" | "__contracts_create_event_pk_idx"
           "__contracts" | "__contracts_created_at_ix_idx"
+          "__contracts" | "__contracts_divulged_created_at_ix_idx"
           "__contracts" | "__contracts_life_ix_idx"
           "__contracts" | "__contracts_package_pk_idx"
         }
