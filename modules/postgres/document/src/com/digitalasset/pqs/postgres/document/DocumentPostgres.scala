@@ -359,7 +359,8 @@ final case class DocumentPostgres(
           controllers = e.controllers,
           witnesses = e.witnesses,
           lastDescendant = e.lastDescendant,
-          packagePk = packageMap(e.templateId.packageId)
+          packagePk = packageMap(e.templateId.packageId),
+          synchronizerId = e.synchronizerId
         )
         val archives =
           if e.consuming then
@@ -479,6 +480,7 @@ final case class DocumentPostgres(
       assignmentExclusivity: Option[Instant]
   ) =
     Reassignment(
+      qualifiedName = templateId.qualifiedName,
       entityType = entityPkMap(templateId),
       reassignmentEventPk = eventPk,
       reassignedAtIx = txIx,

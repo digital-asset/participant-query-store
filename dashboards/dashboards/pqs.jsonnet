@@ -11,6 +11,7 @@ local v = import '../lib-shared/variables.libsonnet';
 local annotations = import '../lib/annotations.libsonnet';
 local panels = import '../lib/panels.libsonnet';
 local queries = import '../lib/queries.libsonnet';
+local variables = import '../lib/variables.libsonnet';
 
 local db = g.dashboard;
 local row = g.panel.row;
@@ -35,6 +36,7 @@ db.new('Participant Query Store (PQS)')
   v.container('jvm_memory_used_bytes'),
   v.jvm,
   v.jvm_mempool,
+  variables.synchronizer,
 ])
 
 + db.withAnnotations([
@@ -56,6 +58,26 @@ db.new('Participant Query Store (PQS)')
     panels.pqs.timeSeries.contractsChurn('Churn', qs.contracts.churn.all),
     panels.pqs.timeSeries.activeContracts('Active *', qs.contracts.active),
   ], panelWidth=24)),
+
+  row.new('Reassignments')
+  + row.withCollapsed(true)
+  + row.withPanels(grid.wrapPanels([
+    pts.throughput('Assigns and unassigns', qs.reassignments.throughput),
+    pts.throughputStacked('Reassignments by template', qs.reassignments.by_template),
+    pts.throughput('Reassignment flows', qs.reassignments.flows)
+    + ptsOpts.withDescription('Each reassignment counts once, whether this participant sees its unassign, its assign or both'),
+    p.stat('Reassignments ingested *', qs.reassignments.count)
+    + ptsOpts.withDescription('\\* as observed since last restart'),
+  ], panelWidth=12)),
+
+  row.new('Synchronizers')
+  + row.withCollapsed(true)
+  + row.withPanels(grid.wrapPanels([
+    pts.throughput('Transactions by synchronizer', qs.synchronizers.transactions),
+    pts.throughputStacked('Events by synchronizer', qs.synchronizers.events),
+    p.stat('Synchronizers seen *', qs.synchronizers.count)
+    + ptsOpts.withDescription('\\* as observed since last restart'),
+  ], panelWidth=12)),
 
   row.new('Throughput')
   + row.withCollapsed(true)

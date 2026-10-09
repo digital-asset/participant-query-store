@@ -118,6 +118,8 @@ object GrafanaSetupSpec extends SharedLedgerAndPostgresTest:
       And:
         // 2 events: 1 contract + 1 watermark
         Grafana.getMetrics("pipeline_wp_acs_statements_total") `is` exists(equalTo(2)) retryUntilTimeout
+      And:
+        Grafana.getMetrics("pipeline_contract_events_total") `is` exists(equalTo(1)) retryUntilTimeout
     }
 
   def pipelineSpec(source: TxSource, service: String, batchedConsume: Boolean = true) =
