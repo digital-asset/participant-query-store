@@ -302,6 +302,7 @@ object SchemaSpec extends SharedLedgerAndPostgresTest:
           "__contracts" | "__contracts_contract_id_idx"
           "__contracts" | "__contracts_create_event_pk_idx"
           "__contracts" | "__contracts_created_at_ix_idx"
+          "__contracts" | "__contracts_divulged_created_at_ix_idx"
           "__contracts" | "__contracts_life_ix_idx"
           "__contracts" | "__contracts_package_pk_idx"
         }
@@ -317,12 +318,13 @@ object SchemaSpec extends SharedLedgerAndPostgresTest:
                            join pg_am am on i.relam = am.oid
                   where c.relname like '__contracts_%'
                   order by c.relname, i.relname
-                  limit 7;"""
+                  limit 8;"""
         } `returns` table {
           "__contracts_1" | "__contracts_1_archive_event_pk_idx"      | "btree"
           "__contracts_1" | "__contracts_1_archived_at_ix_tpe_pk_idx" | "btree"
           "__contracts_1" | "__contracts_1_contract_id_idx"           | "hash"
           "__contracts_1" | "__contracts_1_create_event_pk_idx"       | "btree"
+          "__contracts_1" | "__contracts_1_created_at_ix_idx"         | "btree"
           "__contracts_1" | "__contracts_1_created_at_ix_tpe_pk_idx"  | "btree"
           "__contracts_1" | "__contracts_1_life_ix_tpe_pk_idx"        | "gist"
           "__contracts_1" | "__contracts_1_package_pk_idx"            | "btree"
