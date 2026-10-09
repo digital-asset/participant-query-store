@@ -136,7 +136,7 @@ local sync_sel = 'synchronizer_id=~"$synchronizer"';
       ],
       // The max by counts each reassignment once, whether this participant sees its unassign, its assign or both.
       by_template:
-        q.simple('sum by(template, short_template) (max by(template, short_template, source_synchronizer_id, target_synchronizer_id) (sum by(template, short_template, source_synchronizer_id, target_synchronizer_id, type) (label_replace(rate(pipeline_contract_events_total{job="$jvm", type=~"assign|unassign", %s}[$__rate_interval]), "short_template", "$1", "template", ".*?:(.*)"))))' % sync_sel, '{{short_template}}'),
+        q.simple('label_replace(sum by(template) (max by(template, source_synchronizer_id, target_synchronizer_id) (sum by(template, source_synchronizer_id, target_synchronizer_id, type) (rate(pipeline_contract_events_total{job="$jvm", type=~"assign|unassign", %s}[$__rate_interval])))), "short_template", "$1", "template", ".*?:(.*)")' % sync_sel, '{{short_template}}'),
       flows:
         q.simple('sum by(source, target) (max by(template, source, target) (sum by(template, source, target, type) (label_replace(label_replace(rate(pipeline_contract_events_total{job="$jvm", type=~"assign|unassign", %s}[$__rate_interval]), "source", "$1", "source_synchronizer_id", "^(.*?)(::.*)?$"), "target", "$1", "target_synchronizer_id", "^(.*?)(::.*)?$"))))' % sync_sel, '{{source}} → {{target}}'),
       count:
