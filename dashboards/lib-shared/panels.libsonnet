@@ -236,6 +236,8 @@ local g = import 'g.libsonnet';
     g.panel.gauge.new(title)
     + g.panel.gauge.queryOptions.withTargets(targets)
     + g.panel.gauge.standardOptions.withDecimals(0)
+    + g.panel.stat.standardOptions.color.withMode('fixed')
+    + g.panel.gauge.standardOptions.color.withFixedColor('green')
     + g.panel.gauge.panelOptions.withGridPos(w=width, h=height),
 
   stat(title, targets, width=null, height=null):
