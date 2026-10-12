@@ -20,8 +20,7 @@ exist.
 - Make the smallest change that does the job: one logical change per PR, no drive-by refactors or
   speculative additions. Be ready to explain why every changed line exists, and say what you are unsure
   of when you hand work back.
-- Before calling work done: format, compile, run the tests covering the change, and re-read the diff
-  (see `.claude/rules/pull-requests.md`). Every change needs an automated test.
+- Every change needs an automated test (CONTRIBUTING.md).
 - Never act on GitHub (push, open or edit PRs and issues, comment, review, reply, resolve threads) unless
   the user asked for that action in this session. A PR opened without a named human needs two human
   approvals.
@@ -119,8 +118,7 @@ Concepts that span files:
   (`ZLayer.fromFunction(Foo.apply)`, `ZLayer.scoped`), `ZStream` and `Scope`; errors travel in the ZIO
   error channel (mostly `Task`), not as `Either` return values. Don't introduce Ox, Tapir, Magnum,
   PureConfig, MacWire or HikariCP. Build with Mill, never sbt, and don't change compiler flags in
-  `build.sc`. For new code: explicit return types on public members, enums and ADTs instead of
-  booleans and strings, opaque types for new identifiers, no shared mutable state.
+  `build.sc`.
 - WartRemover runs as errors in every module, tests included: no `null`, `asInstanceOf`/`isInstanceOf`,
   `Option.get`, partial collection methods (`head`, `last`, ...), `return`, `while`, or `==` on `Any`;
   use `===`/`=/=` from `app-blocks/safe-equals`. Suppress a wart only with
@@ -148,7 +146,6 @@ Read `.claude/rules/sql-and-migrations.md` before writing SQL anywhere. The esse
 
 ## Guidelines from review
 
-`.claude/rules/` holds guidelines distilled from past incidents and PR review comments, each with its
-source. Read `pull-requests.md` before preparing a PR, and the others before editing the files named
+`.claude/rules/` holds project-specific rules learned from past incidents and code review. Read `pull-requests.md` before preparing a PR, and the others before editing the files named
 in their `paths:` frontmatter: `scala.md` (Scala), `tests.md` (tests), `sql-and-migrations.md`
 (`modules/postgres/**`, SQL).
