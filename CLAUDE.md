@@ -8,8 +8,6 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 - `.claude/rules/*.md` load automatically: `pull-requests.md` in every session, the others when you open
   a file matching their `paths:`. Don't re-read them unless asked.
-- When a PR gets human review comments worth keeping, run `/learn-from-review <PR>` to fold them into
-  the rules.
 - **Metals MCP** (`.mcp.json`, server `metals`). Prefer it to grepping or guessing: `compile-file` and
   `compile-module` for fast feedback, `glob-search`, `inspect`, `get-docs`, `get-usages` and
   `get-source` for symbols in the code and its dependencies, `find-dep` for library versions. Module
