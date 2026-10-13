@@ -70,6 +70,10 @@ object ReassignmentSeedingSpec extends SharedMultiSyncLedgerSpec:
             "--pipeline-ledger-start=Latest",
             "--pipeline-ledger-stop=Latest"
           )
+      Then:
+        Database
+          .active()
+          .returns(table(dar.get.packageId | s"${pingPong.name}:PingPong:Ping" | "template" | contractId))
       When:
         Ledger.archive("PingPong:Ping", contractId.get, alice, sync2)
       When:
