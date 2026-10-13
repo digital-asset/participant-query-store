@@ -40,7 +40,6 @@ case class StateService(
             streamContinuationToken = None
           )
         )
-        // Incomplete reassignments are ignored: every active contract is also reported as an ActiveContract
         .map(_.contractEntry.activeContract)
         .collectSome
         .mapZIO(contract =>
