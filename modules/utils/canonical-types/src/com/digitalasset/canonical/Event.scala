@@ -21,6 +21,8 @@ object Event:
   final case class Created(
       eventId: EventId,
       synchronizerId: SynchronizerId,
+      // Non-zero only for an ACS entry of a contract reassigned onto synchronizerId
+      reassignmentCounter: Long,
       contract: Contract
   ) extends TransactionEvent
       with TreeEvent

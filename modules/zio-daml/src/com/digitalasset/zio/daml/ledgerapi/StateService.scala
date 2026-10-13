@@ -40,13 +40,14 @@ case class StateService(
             streamContinuationToken = None
           )
         )
+        // Incomplete reassignments are ignored: every active contract is also reported as an ActiveContract
         .map(_.contractEntry.activeContract)
         .collectSome
         .mapZIO(contract =>
           val evt    = contract.getCreatedEvent
           val syncId = SynchronizerId(contract.synchronizerId)
           logDebug(s"Converting active contract") *>
-            convertCreatedEvent(evt, syncId)(using codecs)(using damlSchema)
+            convertCreatedEvent(evt, syncId, contract.reassignmentCounter)(using codecs)(using damlSchema)
               .tap { conv =>
                 logTrace(s"Ledger event: ${pprint(evt, height = Int.MaxValue)}") *>
                   logTrace(s"Canonical event: ${pprint(conv, height = Int.MaxValue)}")
