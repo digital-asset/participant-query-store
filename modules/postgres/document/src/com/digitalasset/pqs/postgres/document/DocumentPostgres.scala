@@ -328,14 +328,15 @@ final case class DocumentPostgres(
 
     event match
       case c: canonical.Event.Created =>
-        val evt = Event(pk, txIx, c.eventId, EventType.Create)
+        val isCreate = c.reassignmentCounter == 0
+        val evt      = Event(pk, txIx, c.eventId, if isCreate then EventType.Create else EventType.Assign)
         val contracts = mkContracts(
           eventPk = pk,
           txIx,
           c.contract,
           c.synchronizerId,
-          reassignmentCounter = 0,
-          isCreate = true
+          c.reassignmentCounter,
+          isCreate
         )
         contracts :+ evt
 
