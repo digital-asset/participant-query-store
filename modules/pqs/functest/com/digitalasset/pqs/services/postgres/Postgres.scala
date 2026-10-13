@@ -357,12 +357,20 @@ object Postgres:
     val cells = mutable.Buffer.empty[Cell]
     for ix <- 1 to rs.getMetaData.getColumnCount do {
       val value = rs.getMetaData.getColumnType(ix) match
-        case java.sql.Types.BOOLEAN => rs.getBoolean(ix)
-        case java.sql.Types.BIT     => rs.getBoolean(ix)
+        case java.sql.Types.BOOLEAN =>
+          val value = rs.getBoolean(ix)
+          if rs.wasNull() then null else value
+        case java.sql.Types.BIT =>
+          val value = rs.getBoolean(ix)
+          if rs.wasNull() then null else value
         case java.sql.Types.VARCHAR => rs.getString(ix)
-        case java.sql.Types.INTEGER => rs.getInt(ix)
-        case java.sql.Types.BIGINT  => rs.getLong(ix)
-        case other                  => rs.getString(ix)
+        case java.sql.Types.INTEGER =>
+          val value = rs.getInt(ix)
+          if rs.wasNull() then null else value
+        case java.sql.Types.BIGINT =>
+          val value = rs.getLong(ix)
+          if rs.wasNull() then null else value
+        case other => rs.getString(ix)
       cells.append(Cell(value))
     }
     (rs.getMetaData.getColumnCount, Row(cells.toSeq))

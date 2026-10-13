@@ -1,25 +1,24 @@
-# Release of PQS PQS\_VERSION
+# Release of PQS PQS_VERSION
 
-PQS PQS\_VERSION has been released on RELEASE\_DATE
+PQS PQS_VERSION has been released on RELEASE_DATE
 
 ## Summary
 
-*Write summary of release*
+_Write summary of release_
 
 ## SQL Migration
 
 This release includes the following SQL migrations:
-
-- *V043\_\_Add\_reassignment\_event\_types.sql*: adds the `assign` and `unassign` labels to the `__event_type` enum. Metadata-only, no table is scanned or rewritten. **\[Impact: Instantaneous\]**
-- *V044\_\_Rename\_domain\_id\_to\_synchronizer\_id.sql*: renames the `domain_id` column of `__transactions` to `synchronizer_id`. Metadata-only, no table is scanned or rewritten. **\[Impact: Instantaneous\]**
-- *V045\_\_Add\_multisync\_contract\_columns.sql* **\[Impact: \~2 min/10M contracts\]**:
+- _V043__Add_reassignment_event_types.sql_: adds the `assign` and `unassign` labels to the `__event_type` enum. Metadata-only, no table is scanned or rewritten. **[Impact: Instantaneous]**
+- _V044__Rename_domain_id_to_synchronizer_id.sql_: renames the `domain_id` column of `__transactions` to `synchronizer_id`. Metadata-only, no table is scanned or rewritten. **[Impact: Instantaneous]**
+- _V045__Add_multisync_contract_columns.sql_ **[Impact: ~2 min/10M contracts]**:
   - Add the multi-sync columns (`assigned_at_ix`, `unassigned_at_ix`, `reassignment_counter`, `synchronizer_id`) to the `__contracts` table and `contract` type.
-  - **Full \_\_contracts rewrite:** Redefine the `life_ix` column to take `assigned_at_ix` and `unassigned_at_ix` into account.
-  - **Rebuild GiST index on \_\_contracts.**
+  - **Full __contracts rewrite:** Redefine the `life_ix` column to take `assigned_at_ix` and `unassigned_at_ix` into account.
+  - **Rebuild GiST index on __contracts.**
   - Drop the internal `__archives` view.
   - Drop the `__tmp_archived_contracts` and replace with `__tmp_deactivated_contracts` for internal use by the PQS pipeline.
-- *V046\_\_Create\_reassignments\_table.sql*: creates the `__reassignment_type` enum and the list-partitioned `__reassignments` table, then creates one partition per row already present in `__contract_tpe`. **\[Impact: Instantaneous /&lt; 1 min\]**
-- *V047\_\_Prunning\_reassignments.sql*: drops `prune_archived_to_offset` and `prune_archived_to_offset_dry_run` so that they can be re-created with the new `deleted_reassignments` result column. **\[Impact: Instantaneous\]**
+- _V046__Create_reassignments_table.sql_: creates the `__reassignment_type` enum and the list-partitioned `__reassignments` table, then creates one partition per row already present in `__contract_tpe`. **[Impact: Instantaneous /< 1 min]**
+- _V047__Prunning_reassignments.sql_: drops `prune_archived_to_offset` and `prune_archived_to_offset_dry_run` so that they can be re-created with the new `deleted_reassignments` result column. **[Impact: Instantaneous]**
 
 ## What's New
 
@@ -35,10 +34,10 @@ This release includes the following SQL migrations:
 - `Created` and `Assigned` events from the ledger now set `reassignment_counter` and `synchronizer_id`. These columns are left empty in legacy rows (PQS 3.6 or older).
 - ACS import records contract that was reassigned onto its current synchronizer with an `assign` event.
 
+
 #### SQL API
 
 - The SQL `contract` type, describing the output of the `active`, `creates` and `archives` SQL functions, is modified with new columns:
-
 ```sql
 assign_event_pk bigint,
 assign_event_id event_id,
@@ -51,12 +50,12 @@ unassigned_at_offset bigint,
 reassignment_counter bigint,
 synchronizer_id text;
 ```
-
 - `active` and `lookup_contract` now return a single row per `(contract_id, template_fqn)`, keeping the row with the highest `reassignment_counter`.
 - `summary_active` counts each `contract_id` only once per `template_fqn`.
 - *BREAKING*: The `__transactions` column `domain_id` is renamed to `synchronizer_id`, to match Canton's current vocabulary. It is now populated for every update — every transaction and every reassignment. Rows written before this release keep `NULL` and are not getting backfilled.
 - The `synchronizer_id text` column is added to the `transactions` SQL view.
 - The `synchronizer_id text` column is added to the output of the `exercises` and `lookup_exercise` SQL functions.
+
 
 #### Pruning, Reset to offset and Redaction
 
@@ -76,4 +75,3 @@ synchronizer_id text;
 ### Helm Chart
 
 - Allow for managing JVM `JDK_JAVA_OPTIONS` env var via values file.  Default to assigning max of 75% of available container memory to the JVM process.  Allow for the entire `JDK_JAVA_OPTIONS` to be configured via `values.yaml` - `options` to override or `extraOptions` to append an additional value.
-
