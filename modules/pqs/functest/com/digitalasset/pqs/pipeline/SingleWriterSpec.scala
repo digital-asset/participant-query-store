@@ -98,7 +98,14 @@ object SingleWriterSpec extends SharedLedgerAndPostgresTest:
       And:
         activeContracts.is(ledger.get.activeContractIds)
       And:
-        // we know the order of first 3 writers and we know the last writer (survivor), but don't know if the loser committed anything
+        // We know the order of the first 3 writers and the last writer (the survivor),
+        // but we do not know whether the loser committed anything.
+        // This can happen when:
+        // 1. d inserts a transaction and updates the watermark.
+        // 2. e fails because of a unique constraint on that transaction.
+        // 3. e restarts and registers itself as the writer.
+        // 4. d fails because it is no longer the main writer.
+        // 5. e updates the watermark.
         writersInOrder.is(startsWith(Chunk("pqs-a", "pqs-b", "pqs-c")) && hasLast(equalTo(survivor.app)))
       And:
         // we're checking here that the last two writers we started concurrently did not compete
