@@ -163,7 +163,7 @@ trait Scribe {
       pg                <- ZIO.service[Postgres]
       oauthInstance     <- Docker.inspectMaybe[OAuth.Instance]
       collectorInstance <- Docker.inspectMaybe[Collector.Instance]
-      dbName            <- ZIO.service[Database]
+      database          <- ZIO.service[Database]
       parties           <- ZIO.service[Parties]
       dar               <- ZIO.service[DeployedDar]
       partyNames        <- ZIO.foreach(parties.get)(_.id)
@@ -179,7 +179,7 @@ trait Scribe {
         "SCRIBE_SOURCE_LEDGER_PORT"         -> Ledger.participantPort,
         "SCRIBE_TARGET_POSTGRES_HOST"       -> pg.container.hostName,
         "SCRIBE_TARGET_POSTGRES_PORT"       -> Postgres.port,
-        "SCRIBE_TARGET_POSTGRES_DATABASE"   -> dbName.name,
+        "SCRIBE_TARGET_POSTGRES_DATABASE"   -> database.name,
         "SCRIBE_SOURCE_LEDGER_TLS_KEY"      -> "/tls/client.pem",
         "SCRIBE_SOURCE_LEDGER_TLS_CERT"     -> "/tls/client.crt",
         "SCRIBE_TARGET_POSTGRES_TLS_MODE"   -> "VerifyFull",

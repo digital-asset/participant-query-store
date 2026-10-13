@@ -4,7 +4,7 @@
 package com.digitalasset.scribe.services.azure
 
 import com.digitalasset.scribe.docker.{Docker, Service}
-import zio.ZLayer
+import zio.{Ref, ZLayer}
 
 sealed trait EntraAuthorityMock
 
@@ -15,18 +15,19 @@ sealed trait EntraAuthorityMock
   */
 object EntraAuthorityMock:
   val port: Int        = 443
-  val host: String     = "login.microsoftonline.com"
   val tenantId: String = "00000000-0000-0000-0000-000000000001"
   val clientId: String = "00000000-0000-0000-0000-000000000002"
 
-  val instance: ZLayer[Docker, Throwable, Service[EntraAuthorityMock]] = ZLayer.fromZIO {
+  def instance(token: String): ZLayer[Docker, Throwable, Service[EntraAuthorityMock]] = ZLayer.fromZIO {
     for
+      cnt <- Docker.share("entra_authority_mock_cnt")(Ref.Synchronized.make(0)).flatMap(_.updateAndGet(_ + 1))
+      host = s"entra-authority-mock-$cnt"
       ca   <- Docker.certificateAuthority
       cert <- ca.generate(host, Seq(host))
     yield
       // Client-credentials token response (OAuth2). Far-future expiry so the token is treated as valid.
       val tokenResponse =
-        s"""{"token_type":"Bearer","expires_in":3600,"ext_expires_in":3600,"access_token":"mock-entra-access-token"}"""
+        s"""{"token_type":"Bearer","expires_in":3600,"ext_expires_in":3600,"access_token":"$token"}"""
       val instanceDiscovery =
         s"""|{
             |  "tenant_discovery_endpoint":"https://$host/$tenantId/v2.0/.well-known/openid-configuration",

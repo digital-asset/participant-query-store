@@ -12,17 +12,17 @@ sealed trait EntraMock
 object EntraMock:
   val port: Int = 80
 
-  // Far-future expiry (year 2100) so the returned token is treated as valid.
-  private val tokenResponse =
-    """|{
-       |  "access_token":"mock-entra-access-token","expires_on":"4102444800",
-       |  "resource":"https://ossrdbms-aad.database.windows.net",
-       |  "token_type":"Bearer"
-       |}""".stripMargin
-
-  val instance: ZLayer[Docker, Throwable, Service[EntraMock]] = ZLayer.fromZIO {
+  def instance(token: String): ZLayer[Docker, Throwable, Service[EntraMock]] = ZLayer.fromZIO {
     for cnt <- Docker.share("entra_mock_cnt")(Ref.Synchronized.make(0)).flatMap(_.updateAndGet(_ + 1))
     yield
+      // Far-future expiry (year 2100) so the returned token is treated as valid.
+      val tokenResponse =
+        s"""|{
+            |  "access_token":"$token",
+            |  "expires_on":"4102444800",
+            |  "resource":"https://ossrdbms-aad.database.windows.net",
+            |  "token_type":"Bearer"
+            |}""".stripMargin
       val configFile =
         s"""server {
            |  listen $port;
