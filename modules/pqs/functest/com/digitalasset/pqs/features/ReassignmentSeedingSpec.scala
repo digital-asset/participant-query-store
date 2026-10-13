@@ -14,8 +14,13 @@ import zio.jdbc.*
 import scala.language.implicitConversions
 
 object ReassignmentSeedingSpec extends SharedMultiSyncLedgerSpec:
-  private val multiSyncColumns =
-    Seq("created_at_ix is null", "assigned_at_ix is null", "synchronizer_id", "reassignment_counter")
+  private val multiSyncColumns = Seq(
+    "created_at_ix::text",
+    "assigned_at_ix::text",
+    "archived_at_ix::text",
+    "synchronizer_id",
+    "reassignment_counter"
+  )
 
   def spec = suite("Multi-Sync ACS seeding")(
     funcTest("Reassigned contract is seeded from the ACS as an assign") {
@@ -42,7 +47,7 @@ object ReassignmentSeedingSpec extends SharedMultiSyncLedgerSpec:
           .active(extraColumns = multiSyncColumns)
           .returns(
             table {
-              dar.get.packageId | s"${pingPong.name}:PingPong:Ping" | "template" | contractId | true | false | sync2.id | 1
+              dar.get.packageId | s"${pingPong.name}:PingPong:Ping" | "template" | contractId | null | "0" | null | sync2.id | 1
             }
           )
       Expect:
@@ -83,10 +88,10 @@ object ReassignmentSeedingSpec extends SharedMultiSyncLedgerSpec:
         Database.active().returns(Table.empty)
       Expect:
         Database
-          .archives(extraColumns = multiSyncColumns :+ "archived_at_ix")
+          .archives(extraColumns = multiSyncColumns)
           .returns(
             table {
-              dar.get.packageId | s"${pingPong.name}:PingPong:Ping" | "template" | contractId | true | false | sync2.id | 1 | 1
+              dar.get.packageId | s"${pingPong.name}:PingPong:Ping" | "template" | contractId | null | "0" | "1" | sync2.id | 1
             }
           )
     }

@@ -328,15 +328,8 @@ final case class DocumentPostgres(
 
     event match
       case c: canonical.Event.Created if c.reassignmentCounter == 0 =>
-        val evt = Event(pk, txIx, c.eventId, EventType.Create)
-        val contracts = mkContracts(
-          eventPk = pk,
-          txIx,
-          c.contract,
-          c.synchronizerId,
-          reassignmentCounter = 0,
-          isCreate = true
-        )
+        val evt       = Event(pk, txIx, c.eventId, EventType.Create)
+        val contracts = mkContracts(pk, txIx, c.contract, c.synchronizerId, reassignmentCounter = 0, isCreate = true)
         contracts :+ evt
 
       // A non-zero reassignmentCounter means the contract was reassigned onto this synchronizer after its creation
