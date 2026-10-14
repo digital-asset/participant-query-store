@@ -73,6 +73,7 @@ synchronizer_id text;
 
 - At startup, the PQS pipeline runs `ANALYZE` on `__contracts` and `__tmp_deactivated_contracts` to populate planner statistics and speed up ingestion.
 - Optimize `prune_archived_to_offset` and its dry-run to run significantly faster on large datasets. Performance gains range from 20% to 80%, depending on the pruning window and dataset size.
+- Added support for `AzurePostgresqlAuthenticationPlugin` by bundling `com.azure:azure-identity-extensions:1.2.2` into assembly JAR and Docker image.
 
 ### Helm Chart
 
