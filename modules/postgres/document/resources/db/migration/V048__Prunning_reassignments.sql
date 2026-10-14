@@ -7,4 +7,3 @@ drop function if exists prune_archived_to_offset_dry_run(bigint);
 
 create index __reassignments_reassigned_at_ix_idx
 	on __reassignments using btree (reassigned_at_ix);
-
