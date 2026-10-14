@@ -585,7 +585,7 @@ begin
     deleted_events as (
         delete from __events e
         using (
-            select create_event_pk from deleted_contracts where create_event_pk is not null
+            select create_event_pk as pk from deleted_contracts where create_event_pk is not null
             union all
             select archive_event_pk from deleted_contracts where archive_event_pk is not null
             union all
@@ -600,13 +600,13 @@ begin
     ),
     -- prune the reassignment log of the pruned contracts, in step with their events
     deleted_reassignments as (
-        delete from __reassignments
-        where reassigned_at_ix < cutoff_ix
-        and reassign_event_pk in (
-            select assign_event_pk from deleted_contracts where assign_event_pk is not null
+        delete from __reassignments r
+        using (
+            select assign_event_pk as pk from deleted_contracts where assign_event_pk is not null
             union all
             select unassign_event_pk from deleted_contracts where unassign_event_pk is not null
-        )
+        ) d
+        where r.reassign_event_pk = d.pk and r.reassigned_at_ix < cutoff_ix
         returning 1
     )
     select
@@ -620,7 +620,7 @@ begin
     with deleted_transactions as (
         delete from __transactions
         where ix < cutoff_ix and not exists (
-            select 1 from __contracts
+            select 1 from __contracts c
             where __activated_at_ix(c) < cutoff_ix and __activated_at_ix(c) = __transactions.ix
         )
         returning 1
