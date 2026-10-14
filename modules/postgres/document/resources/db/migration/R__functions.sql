@@ -180,6 +180,41 @@ where qname is null
 $$ language sql stable
                 parallel safe;
 
+create or replace function __activated_at_ix(c __contracts) returns bigint
+as
+$$
+select coalesce(c.created_at_ix, c.assigned_at_ix)
+$$ language sql immutable
+                parallel safe;
+comment on function __activated_at_ix(__contracts) is
+    'Index at which a contract became active on its current synchronizer (creation or assignment).';
+
+create or replace function __activated_at_ix(c contract) returns bigint
+as
+$$
+select coalesce(c.created_at_ix, c.assigned_at_ix)
+$$ language sql immutable
+                parallel safe;
+comment on function __activated_at_ix(contract) is
+    'Index at which a contract became active on its current synchronizer (creation or assignment).';
+
+create or replace function __deactivated_at_ix(c __contracts) returns bigint
+as
+$$
+select coalesce(c.archived_at_ix, c.unassigned_at_ix)
+$$ language sql immutable
+                parallel safe;
+comment on function __deactivated_at_ix(__contracts) is
+    'Index at which a contract became inactive on its current synchronizer (archival or unassignment).';
+
+create or replace function __deactivated_at_ix(c contract) returns bigint
+as
+$$
+select coalesce(c.archived_at_ix, c.unassigned_at_ix)
+$$ language sql immutable
+                parallel safe;
+comment on function __deactivated_at_ix(contract) is
+    'Index at which a contract became inactive on its current synchronizer (archival or unassignment).';
 
 create or replace procedure __initialize_contract_implements(template_fqn text, interface_fqn text) as
 $$
@@ -1403,6 +1438,15 @@ select coalesce(c.archived_at_ix, c.unassigned_at_ix)
 $$ language sql immutable
                 parallel safe;
 comment on function __deactivated_at_ix(__contracts) is
+    'Index at which a contract became inactive on its current synchronizer (archival or unassignment).';
+
+create or replace function __deactivated_at_ix(c contract) returns bigint
+as
+$$
+select coalesce(c.archived_at_ix, c.unassigned_at_ix)
+$$ language sql immutable
+                parallel safe;
+comment on function __deactivated_at_ix(contract) is
     'Index at which a contract became inactive on its current synchronizer (archival or unassignment).';
 
 create or replace function stakeholders(c contract) returns text[]
