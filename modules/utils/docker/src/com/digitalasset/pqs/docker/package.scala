@@ -7,10 +7,10 @@ import zio.{ExitCode, Promise}
 import zio.logging.LogAnnotation
 
 package object docker:
-  sealed trait StdIO:
+  enum StdIO:
+    case Out(line: String)
+    case Err(line: String)
     def line: String
-  final case class StdOut(line: String) extends StdIO
-  final case class StdErr(line: String) extends StdIO
 
   /** Outcome of a command executed inside an already running container (the equivalent of `docker exec`). */
   final case class ExecResult(exitCode: ExitCode, stdOut: String, stdErr: String)

@@ -41,7 +41,7 @@ object CliRun:
       exitCode <- svc.get.exitCode
       _ <- ZIO.when(exitCode =/= ExitCode.success)(
         svc.get.io
-          .collect { case StdErr(line) => line }
+          .collect { case StdIO.Err(line) => line }
           .takeRight(20)
           .runCollect
           .map(_.mkString("\n"))
@@ -168,7 +168,7 @@ trait Pqs {
       pg                <- ZIO.service[Postgres]
       oauthInstance     <- Docker.inspectMaybe[OAuth.Instance]
       collectorInstance <- Docker.inspectMaybe[Collector.Instance]
-      dbName            <- ZIO.service[Database]
+      database          <- ZIO.service[Database]
       parties           <- ZIO.service[Parties]
       dar               <- ZIO.service[DeployedDar]
       partyIds = parties.get.map(_.id)
@@ -183,7 +183,7 @@ trait Pqs {
         "SOURCE_LEDGER_PORT"         -> CantonConf.participantPort,
         "TARGET_POSTGRES_HOST"       -> pg.container.hostName,
         "TARGET_POSTGRES_PORT"       -> Postgres.port,
-        "TARGET_POSTGRES_DATABASE"   -> dbName.name,
+        "TARGET_POSTGRES_DATABASE"   -> database.name,
         "TARGET_POSTGRES_USERNAME"   -> "postgres",
         "TARGET_POSTGRES_PASSWORD"   -> "postgres",
         "SOURCE_LEDGER_TLS_KEY"      -> "/tls/client.pem",
@@ -258,10 +258,11 @@ trait Pqs {
       case s: CliRun            => s.io
       case p: Service[Pipeline] => p.io
     }
+  val stdio: ZIO[CliRun, Throwable, String] = io.flatMap(_.map(_.line).mkString("", "\n", ""))
   val stdout: ZIO[CliRun | Service[Pipeline], Throwable, String] =
-    io.flatMap(_.collect { case StdOut(line) => line }.mkString("", "\n", ""))
+    io.flatMap(_.collect { case StdIO.Out(line) => line }.mkString("", "\n", ""))
   val stderr: ZIO[CliRun | Service[Pipeline], Throwable, String] =
-    io.flatMap(_.collect { case StdErr(line) => line }.mkString("", "\n", ""))
+    io.flatMap(_.collect { case StdIO.Err(line) => line }.mkString("", "\n", ""))
 
   /** Assertion over stdout streams from a service that may still be running.
     *
@@ -280,7 +281,7 @@ trait Pqs {
 
     io.flatMap(
       _.collect {
-        case StdOut(line) if line.contains(substring) => ()
+        case StdIO.Out(line) if line.contains(substring) => ()
       }.runHead
         .map(_.toRight(streamEndedMessage))
         // We give it some time for the stream processor to observe the line and emit it,

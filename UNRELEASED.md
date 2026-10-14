@@ -17,3 +17,4 @@ This release includes the following SQL migrations:
 ### Minor Improvements
 
 - Optimize `prune_archived_to_offset` and its dry-run to run significantly faster on large datasets. Performance gains range from 20% to 80%, depending on the pruning window and dataset size.
+- Added support for `AzurePostgresqlAuthenticationPlugin` by bundling `com.azure:azure-identity-extensions:1.2.2` into assembly JAR and Docker image.
