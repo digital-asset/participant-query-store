@@ -526,8 +526,8 @@ object Docker:
           .withFollowStream(true)
           .withTailAll()
           .stream
-        stdErr = ioStream.via(process({ case f if f.getStreamType === STDERR => f.getPayload }, StdErr.apply))
-        stdOut = ioStream.via(process({ case f if f.getStreamType === STDOUT => f.getPayload }, StdOut.apply))
+        stdErr = ioStream.via(process({ case f if f.getStreamType === STDERR => f.getPayload }, StdIO.Err.apply))
+        stdOut = ioStream.via(process({ case f if f.getStreamType === STDOUT => f.getPayload }, StdIO.Out.apply))
         io     = stdErr merge stdOut
 
         _ <- ZIO.when(!suppressOutput)(io.foreach(logStdIO).forkScoped)
@@ -561,8 +561,8 @@ object Docker:
     client.listContainersCmd().withShowAll(showAll).run.map(Option(_).map(_.asScala.toSeq).getOrElse(Seq.empty))
 
   private def logStdIO(output: StdIO) = output match
-    case StdOut(line) => logInfo(line)
-    case StdErr(line) => logError(line)
+    case StdIO.Out(line) => logInfo(line)
+    case StdIO.Err(line) => logError(line)
 
   private def sharedStorage =
     ZLayer.fromZIO(Ref.Synchronized.make(Map.empty[Serializable, Promise[?, ?]]))

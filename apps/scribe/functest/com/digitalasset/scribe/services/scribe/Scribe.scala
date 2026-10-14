@@ -40,7 +40,7 @@ object CliRun:
       exitCode <- svc.get.exitCode
       _ <- ZIO.when(exitCode =/= ExitCode.success)(
         svc.get.io
-          .collect { case StdErr(line) => line }
+          .collect { case StdIO.Err(line) => line }
           .takeRight(20)
           .runCollect
           .map(_.mkString("\n"))
@@ -163,7 +163,7 @@ trait Scribe {
       pg                <- ZIO.service[Postgres]
       oauthInstance     <- Docker.inspectMaybe[OAuth.Instance]
       collectorInstance <- Docker.inspectMaybe[Collector.Instance]
-      dbName            <- ZIO.service[Database]
+      database          <- ZIO.service[Database]
       parties           <- ZIO.service[Parties]
       dar               <- ZIO.service[DeployedDar]
       partyNames        <- ZIO.foreach(parties.get)(_.id)
@@ -179,7 +179,7 @@ trait Scribe {
         "SCRIBE_SOURCE_LEDGER_PORT"         -> Ledger.participantPort,
         "SCRIBE_TARGET_POSTGRES_HOST"       -> pg.container.hostName,
         "SCRIBE_TARGET_POSTGRES_PORT"       -> Postgres.port,
-        "SCRIBE_TARGET_POSTGRES_DATABASE"   -> dbName.name,
+        "SCRIBE_TARGET_POSTGRES_DATABASE"   -> database.name,
         "SCRIBE_SOURCE_LEDGER_TLS_KEY"      -> "/tls/client.pem",
         "SCRIBE_SOURCE_LEDGER_TLS_CERT"     -> "/tls/client.crt",
         "SCRIBE_TARGET_POSTGRES_TLS_MODE"   -> "VerifyFull",
@@ -249,10 +249,11 @@ trait Scribe {
       case s: CliRun            => s.io
       case p: Service[Pipeline] => p.io
     }
+  val stdio: ZIO[CliRun, Throwable, String] = io.flatMap(_.map(_.line).mkString("", "\n", ""))
   val stdout: ZIO[CliRun | Service[Pipeline], Throwable, String] =
-    io.flatMap(_.collect { case StdOut(line) => line }.mkString("", "\n", ""))
+    io.flatMap(_.collect { case StdIO.Out(line) => line }.mkString("", "\n", ""))
   val stderr: ZIO[CliRun | Service[Pipeline], Throwable, String] =
-    io.flatMap(_.collect { case StdErr(line) => line }.mkString("", "\n", ""))
+    io.flatMap(_.collect { case StdIO.Err(line) => line }.mkString("", "\n", ""))
 
   /** Assertion over stdout streams from a service that may still be running.
     *
@@ -271,7 +272,7 @@ trait Scribe {
 
     io.flatMap(
       _.collect {
-        case StdOut(line) if line.contains(substring) => ()
+        case StdIO.Out(line) if line.contains(substring) => ()
       }.runHead
         .map(_.toRight(streamEndedMessage))
         // We give it some time for the stream processor to observe the line and emit it,

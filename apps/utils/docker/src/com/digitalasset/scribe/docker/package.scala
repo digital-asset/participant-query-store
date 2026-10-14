@@ -7,9 +7,10 @@ import zio.Promise
 import zio.logging.LogAnnotation
 
 package object docker:
-  sealed trait StdIO
-  final case class StdOut(line: String) extends StdIO
-  final case class StdErr(line: String) extends StdIO
+  enum StdIO:
+    case Out(line: String)
+    case Err(line: String)
+    def line: String
 
   val SuiteName      = LogAnnotation[Option[Int]]("suite", (_, b) => b, _.fold("")(x => s"#$x"))
   val ContainerImage = LogAnnotation[String]("image", (_, b) => b, "[" + _.split('/').last + "]")

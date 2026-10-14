@@ -83,7 +83,7 @@ trait ProguardModule extends JavaModule {
   private def internalProguardOptions: T[Seq[String]] = Task {
     Seq(
       Option.unless(proguardOptimize())("-dontoptimize"),
-      Option.unless(proguarObfuscate())("-dontobfuscate"),
+      Option.unless(proguardObfuscate())("-dontobfuscate"),
       Option.unless(proguardShrink())("-dontshrink"),
       Option.unless(proguardPreverify())("-dontpreverify"),
       Option.unless(proguardLogNotes())("-dontnote"),
@@ -94,7 +94,7 @@ trait ProguardModule extends JavaModule {
   }
   def proguardVersion: T[String]      = Task { "7.7.0" }
   def proguardOptimize: T[Boolean]    = true
-  def proguarObfuscate: T[Boolean]    = false
+  def proguardObfuscate: T[Boolean]    = false
   def proguardShrink: T[Boolean]      = true
   def proguardPreverify: T[Boolean]   = true
   def proguardLogNotes: T[Boolean]    = false
