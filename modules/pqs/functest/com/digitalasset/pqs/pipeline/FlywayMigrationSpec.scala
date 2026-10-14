@@ -98,13 +98,11 @@ object FlywayMigrationSpec extends FuncTestStandalone:
           "--pipeline-ledger-stop=Latest"
         )
       Expect:
-        Database
-          .active(Some(s"${pingPong.name}:PingPong:Ping"))
-          .returns(
-            table {
-              anything | s"${pingPong.name}:PingPong:Ping" | "template" | anything
-            }
-          )
+        legacyActive(s"${pingPong.name}:PingPong:Ping")("payload_type", "contract_id").returns(
+          table {
+            "template" | anything
+          }
+        )
       Expect:
         // There was a bug in PQS 3.4 where the instance_id was only inserted on the second run.
         Postgres
@@ -167,25 +165,21 @@ object FlywayMigrationSpec extends FuncTestStandalone:
           "--retry-counter-attempts=0"
         )
       Expect:
-        Database
-          .active(Some(interfaceFqn), extraColumns = Seq("contract_key", "contract_key_hash"))
-          .returns(
-            table {
-              anything | interfaceFqn | "interface" | anything | isNull | not(isNull)
-              anything | interfaceFqn | "interface" | anything | isNull | not(isNull)
-              anything | interfaceFqn | "interface" | anything | isNull | not(isNull)
-            }
-          )
+        legacyActive(interfaceFqn)("payload_type", "contract_key", "contract_key_hash").returns(
+          table {
+            "interface" | isNull | (not(isNull) && keyHash42.capture)
+            "interface" | isNull | (not(isNull) && keyHash43.capture)
+            "interface" | isNull | (not(isNull) && keyHash42.capture)
+          }
+        )
       Expect:
-        Database
-          .active(Some(templateFqn), extraColumns = Seq("contract_key_hash"))
-          .returns(
-            table {
-              anything | templateFqn | "template" | anything | (not(isNull) && keyHash42.capture)
-              anything | templateFqn | "template" | anything | (not(isNull) && keyHash43.capture)
-              anything | templateFqn | "template" | anything | (not(isNull) && keyHash42.capture)
-            }
-          )
+        legacyActive(templateFqn)("payload_type", "contract_key_hash").returns(
+          table {
+            "template" | keyHash42
+            "template" | keyHash43
+            "template" | keyHash42
+          }
+        )
       And:
         // Starting main applies V042.
         Pqs.runPipeline(
@@ -209,9 +203,9 @@ object FlywayMigrationSpec extends FuncTestStandalone:
           .active(Some(templateFqn), extraColumns = Seq("contract_key_hash"))
           .returns(
             table {
-              anything | templateFqn | "template" | anything | keyHash42.capture
-              anything | templateFqn | "template" | anything | keyHash43.capture
-              anything | templateFqn | "template" | anything | keyHash42.capture
+              anything | templateFqn | "template" | anything | keyHash42
+              anything | templateFqn | "template" | anything | keyHash43
+              anything | templateFqn | "template" | anything | keyHash42
             }
           )
     } @@ DamlSdk.onlyDamlLfVersion("=2.3"),
@@ -243,14 +237,12 @@ object FlywayMigrationSpec extends FuncTestStandalone:
 
       Expect:
         // PQS 36 does not ingest reassignment events
-        Database
-          .active(Some(s"${pingPong.name}:PingPong:Ping"))
-          .returns(
-            table {
-              anything | s"${pingPong.name}:PingPong:Ping" | "template" | contractId1
-              anything | s"${pingPong.name}:PingPong:Ping" | "template" | contractId2
-            }
-          )
+        legacyActive(s"${pingPong.name}:PingPong:Ping")("contract_id", "life_ix").returns(
+          table {
+            contractId1 | "[1,)"
+            contractId2 | "[2,)"
+          }
+        )
 
       When:
         Ledger.reassign(contractId1.get, alice, sync2, sync1)
@@ -267,9 +259,9 @@ object FlywayMigrationSpec extends FuncTestStandalone:
           .__contracts(extraColumns = Seq("unassigned_at_ix", "reassignment_counter", "synchronizer_id"))
           .returns(
             table {
-              anything | anything | contractId1 | anything | not(equalTo(0)) | 0 | null
-              anything | anything | contractId2 | anything | 0               | 0 | null
-              anything | anything | contractId1 | anything | 0               | 2 | sync1.id
+              anything | anything | contractId1 | "[1,3)" | 3 | 0 | null
+              anything | anything | contractId2 | "[2,)"  | 0 | 0 | null
+              anything | anything | contractId1 | "[4,)"  | 0 | 2 | sync1.id
             }
           )
       Expect:
@@ -297,6 +289,10 @@ object FlywayMigrationSpec extends FuncTestStandalone:
           )
     }
   )
+
+  private def legacyActive(fqn: String)(columns: String*) =
+    val select = SqlFragment.select(columns*)
+    Postgres.query(sql"$select from active($fqn) order by created_at_ix")
 
   private def createContract(party: Party, sync: Synchronizer) =
     val args = Record.defaultInstance.addFields(RecordField("owner", Some(Value(Value.Sum.Party(party.id)))))
