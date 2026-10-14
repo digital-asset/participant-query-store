@@ -3,7 +3,7 @@
 
 package com.digitalasset.pqs.backend
 
-import com.digitalasset.canonical.{Event, Offset, ReassignmentEvent, Transaction, TreeEvent}
+import com.digitalasset.canonical.{AcsContract, Event, Offset, ReassignmentEvent, Transaction, TreeEvent}
 import com.digitalasset.pqs.backend.Datastore.ProcessingSink
 import zio.Task
 import zio.stream.ZSink
@@ -38,7 +38,7 @@ trait Datastore:
   /** Process contract payloads from the ACS. The first item is Genesis, the last item is the absolute offset, which is
     * expected to be returned in the subsequent call to `getLastCheckpoint`
     */
-  def processAcs: ProcessingSink[Event.Created | Offset]
+  def processAcs: ProcessingSink[AcsContract | Offset]
 
   /** Process the remaining transactions */
   def processTransactions(

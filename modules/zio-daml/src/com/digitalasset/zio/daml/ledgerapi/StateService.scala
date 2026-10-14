@@ -6,7 +6,6 @@ package com.digitalasset.zio.daml.ledgerapi
 import com.daml.ledger.api.v2.state_service.*
 import com.daml.ledger.api.v2.state_service.ZioStateService.StateServiceClient
 import com.digitalasset.canonical.*
-import com.digitalasset.canonical.Event
 import com.digitalasset.pqs.grpc.ZManagedChannel
 import com.digitalasset.transcode.schema.Dictionary
 import com.digitalasset.zio.daml.*
@@ -29,7 +28,7 @@ case class StateService(
   def getActiveContracts(
       rights: UserRight,
       activeAtOffset: Offset.Absolute
-  ): Stream[Throwable, Event.Created] =
+  ): Stream[Throwable, AcsContract] =
     ZStream.unwrap(
       for _ <- logFilterContents(damlSchema)
       yield stateServiceClient
@@ -46,7 +45,7 @@ case class StateService(
           val evt    = contract.getCreatedEvent
           val syncId = SynchronizerId(contract.synchronizerId)
           logDebug(s"Converting active contract") *>
-            convertCreatedEvent(evt, syncId)(using codecs)(using damlSchema)
+            convertAcsContract(evt, syncId, contract.reassignmentCounter)(using codecs)(using damlSchema)
               .tap { conv =>
                 logTrace(s"Ledger event: ${pprint(evt, height = Int.MaxValue)}") *>
                   logTrace(s"Canonical event: ${pprint(conv, height = Int.MaxValue)}")

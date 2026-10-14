@@ -56,3 +56,10 @@ case class Transaction[+E](
     span: DetachedSpan,
     remoteSpan: Option[(String, String)] = None
 )
+
+case class AcsContract(
+    eventId: EventId,
+    synchronizerId: SynchronizerId,
+    reassignmentCounter: Long,
+    contract: Contract
+)
