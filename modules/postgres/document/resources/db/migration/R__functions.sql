@@ -561,15 +561,15 @@ begin
     ),
     -- prune create, archive and exercise events
     deleted_events as (
-        delete from __events
-        where tx_ix < cutoff_ix
-        and pk in (
-            select create_event_pk from deleted_contracts
+        delete from __events e
+        using (
+            select create_event_pk as pk from deleted_contracts
             union all
             select archive_event_pk from deleted_contracts where archive_event_pk is not null
             union all
             select exercise_event_pk from deleted_exercises
-        )
+        ) d
+        where e.pk = d.pk and e.tx_ix < cutoff_ix
         returning 1
     )
     select
@@ -582,7 +582,8 @@ begin
     with deleted_transactions as (
         delete from __transactions
         where ix < cutoff_ix and not exists (
-            select 1 from __contracts where __contracts.created_at_ix = __transactions.ix
+            select 1 from __contracts c
+            where c.created_at_ix < cutoff_ix and c.created_at_ix = __transactions.ix
         )
         returning 1
     )
@@ -596,7 +597,9 @@ begin
 
     return query select pruning_boundary_offset, deleted_contracts, deleted_exercises, deleted_events, deleted_transactions;
 end;
-$$ language plpgsql strict;
+$$ language plpgsql strict
+   -- disable jit to avoid compile overhead on these IO-bound bulk deletes
+   set jit = 'off';
 comment on function prune_archived_to_offset(checkpoint."offset"%type) is
 $$Prunes archived ledger data up to the specified offset while maintaining referential integrity.
 - Removes archived contracts and their associated create/archive events.
@@ -648,32 +651,34 @@ begin
     ),
     -- prune create, archive and exercise events
     deleted_events as (
-        select 1 from __events
-        where tx_ix < cutoff_ix
-        and pk in (
-            select create_event_pk from deleted_contracts
+        select e.pk from __events e
+        join (
+            select create_event_pk as pk from deleted_contracts
             union all
             select archive_event_pk from deleted_contracts where archive_event_pk is not null
             union all
             select exercise_event_pk from deleted_exercises
-        )
+        ) d on d.pk = e.pk
+        where e.tx_ix < cutoff_ix
     )
     select
         (select count(*) from deleted_contracts),
         (select count(*) from deleted_exercises),
-        (select count(*) from deleted_events)
+        -- use distinct to avoid counting consuming exercises twice
+        (select count(distinct pk) from deleted_events)
     into deleted_contracts, deleted_exercises, deleted_events;
 
     -- prune orphaned transactions
     select count(*) into deleted_transactions
     from __transactions
     where ix < cutoff_ix and not exists (
-        select 1 from __contracts
-        where __contracts.created_at_ix = __transactions.ix
-        -- the contract is not divulged
-        and not __contracts.divulged_only
-        -- the contract is not archived or it is archived after the cutoff
-        and (__contracts.archived_at_ix is null or __contracts.archived_at_ix >= cutoff_ix)
+        select 1 from __contracts c
+        where c.created_at_ix < cutoff_ix 
+            and c.created_at_ix = __transactions.ix
+            -- the contract is not divulged
+            and not c.divulged_only
+            -- the contract is not archived or it is archived after the cutoff
+            and (c.archived_at_ix is null or c.archived_at_ix >= cutoff_ix)
     );
 
     raise notice 'DRY-RUN: pruning % contracts, % exercises, % events and % transactions',
@@ -681,7 +686,7 @@ begin
 
     return query select pruning_boundary_offset, deleted_contracts, deleted_exercises, deleted_events, deleted_transactions;
 end;
-$$ language plpgsql strict;
+$$ language plpgsql strict set jit = 'off';
 comment on function prune_archived_to_offset_dry_run(checkpoint."offset"%type) is
 $$Dry-run of prune_archived_to_offset.$$;
 
