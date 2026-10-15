@@ -3,7 +3,7 @@
 
 package com.digitalasset.pqs
 
-import com.digitalasset.pqs.docker.{Docker, Service}
+import com.digitalasset.pqs.docker.Docker
 import com.digitalasset.pqs.services.daml.CantonConf
 import com.digitalasset.pqs.services.daml.Ledger
 import com.digitalasset.pqs.services.oauth.OAuth
@@ -45,7 +45,7 @@ package object errors:
       for
         ca                <- Docker.certificateAuthority
         clientCertificate <- ca.generate("pqs")
-        ledger            <- Docker.inspect[Ledger]
+        ledger            <- ZIO.service[Ledger]
         oauthInstance     <- Docker.inspectMaybe[OAuth.Instance]
         _prefix = if prefix.isEmpty then prefix else s"${prefix}_".toUpperCase
         base = Map(
@@ -101,7 +101,7 @@ package object errors:
     val failfast = ZIO.succeed((Map("PQS_RETRY_COUNTER_ATTEMPTS" -> "0"), Seq.empty))
 
     val pipeline = ZLayer.fromZIO(
-      buildConf[Docker & Postgres & Database & Service[Ledger]](
+      buildConf[Docker & Postgres & Database & Ledger](
         ledger("source"),
         pg("target"),
         failfast
@@ -109,7 +109,7 @@ package object errors:
     )
 
     val datastore = ZLayer.fromZIO(
-      buildConf[Docker & Postgres & Database & Service[Ledger]](
+      buildConf[Docker & Postgres & Database & Ledger](
         ledger(),
         pg()
       )

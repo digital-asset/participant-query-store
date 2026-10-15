@@ -4,13 +4,11 @@
 package com.digitalasset.pqs.services.daml
 
 import com.digitalasset.transcode.schema.{PackageId, PackageName, PackageVersion}
-import com.digitalasset.pqs.docker.{Docker, Service}
+import com.digitalasset.pqs.docker.Docker
 import com.digitalasset.pqs.functest.{Dpm, FTConfig, FTEnv}
 import com.digitalasset.pqs.services.daml
 import com.digitalasset.pqs.services.oauth.OAuth
-import com.digitalasset.pqs.utils.safeequals.*
 import org.semver4j.Semver
-import os.Path
 import zio.ZIO.{attemptBlocking, logInfo, suspend}
 import zio.test.{Spec, TestAspectAtLeastR}
 import zio.*
@@ -114,66 +112,11 @@ object DamlSdk:
       def some[R >: Nothing <: FTEnv, E >: Nothing <: Any](spec: Spec[R, E])(implicit trace: Trace): Spec[R, E] =
         spec.whenZIO(ZIO.service[FTEnv].map(env => f(env.config)).map(matcher))
 
-  val ledger: RLayer[FTEnv & Docker, Service[Ledger]] = ZLayer.scoped(
-    for
-      conf     <- CantonConf()
-      hostname <- cantonHostname
-      files    <- conf.oneParticipant(hostname)
-      svc      <- canton(hostname, conf.cantonDockerImage, files)
-    yield svc
-  )
-
-  def multiSyncLedger(sync1: Synchronizer, sync2: Synchronizer): RLayer[FTEnv & Docker, Service[Ledger]] =
-    ZLayer.scoped(
-      for
-        conf     <- CantonConf()
-        hostname <- cantonHostname
-        files    <- conf.twoSynchronizers(hostname, sync1, sync2)
-        svc      <- canton(hostname, conf.cantonDockerImage, files)
-      yield svc
-    ) >+>
-      ZLayer.fromZIO(
-        // Register the synchronizer IDs right after the ledger started
-        for
-          allSynchronizers <- Ledger.getAllSynchronizers
-          _ <- ZIO.foreach(Seq(sync1, sync2)) { sync =>
-            allSynchronizers.find(s => s.synchronizerAlias === sync.name) match
-              case Some(connectedSync) => ZIO.attempt(sync.set(connectedSync.synchronizerId))
-              case None                => ZIO.fail(RuntimeException(s"Synchronizer ${sync.name} is not connected"))
-          }
-        yield ()
-      )
-
-  private val cantonHostname =
-    Docker.share(s"canton_cnt")(Ref.Synchronized.make(0)).flatMap(_.updateAndGet(_ + 1)).map(cnt => s"canton-$cnt")
-
-  private def canton(
-      hostname: String,
-      dockerImage: String,
-      cantonFiles: Seq[(Path, String | Array[Byte])]
-  ): ZIO[FTEnv & (Docker & Scope), Throwable, Service[Ledger]] =
-    for
-      showCantonLogs <- FTEnv.showCantonLogs
-      env <- Docker
-        .service[Ledger](
-          image = dockerImage,
-          exposePorts = Set(CantonConf.participantPort),
-          prepopulateFiles = cantonFiles,
-          hostname = Some(hostname),
-          env = CantonConf.cantonEnvVarMap,
-          user = Some(CantonConf.user),
-          suppressOutput = !showCantonLogs
-        )(CantonConf.cantonAdditionalCmds*)
-        .build
-      svc = env.get[Service[Ledger]]
-      _ <- svc.blockUntilStdOut(_.contains(CantonConf.bootstrapCompleteMessage))
-    yield svc
-
-  def deploy(source: DamlSource): RLayer[Dpm & FTEnv & Docker & Service[Ledger], DarFile] = uploadAndVetDar(source)()
+  def deploy(source: DamlSource): RLayer[Dpm & FTEnv & Docker & Ledger, DarFile] = uploadAndVetDar(source)()
 
   def uploadAndVetDar(
       source: DamlSource
-  )(synchronizers: Synchronizer*): RLayer[Dpm & FTEnv & Docker & Service[Ledger], DarFile] =
+  )(synchronizers: Synchronizer*): RLayer[Dpm & FTEnv & Docker & Ledger, DarFile] =
     ZLayer.fromZIO(
       for
         dar   <- buildDar(source)
@@ -186,16 +129,16 @@ object DamlSdk:
       yield dar
     )
 
-  def parties(parties: Party*): RLayer[Docker & Service[Ledger], Parties] =
+  def parties(parties: Party*): RLayer[Docker & Ledger, Parties] =
     allocateMany(parties.map(_ -> Seq("")))
 
-  def allocateParties(partySynchronizers: => (Party, Seq[Synchronizer])*): RLayer[Docker & Service[Ledger], Parties] =
+  def allocateParties(partySynchronizers: => (Party, Seq[Synchronizer])*): RLayer[Docker & Ledger, Parties] =
     allocateMany(partySynchronizers.map((p, ss) => (p, ss.map(_.id))))
 
   /** Allocate parties on ledger and wrap them in a layer */
   private def allocateMany(
       partySynchronizers: => Seq[(Party, Seq[String])]
-  ): RLayer[Docker & Service[Ledger], Parties] =
+  ): RLayer[Docker & Ledger, Parties] =
     ZLayer.fromZIO(
       for
         partyCounter  <- Docker.share("party_cnt")(Ref.Synchronized.make(0)).flatMap(_.updateAndGet(_ + 1))
@@ -219,7 +162,7 @@ object DamlSdk:
     )
 
   /** Discover already-allocated parties on the participant by prefix match. */
-  def allocatedParties(parties: Party*): RLayer[Docker & Service[Ledger], Parties] =
+  def allocatedParties(parties: Party*): RLayer[Docker & Ledger, Parties] =
     ZLayer.fromZIO(
       for
         knownParties <- Ledger.listKnownParties
@@ -234,10 +177,10 @@ object DamlSdk:
       yield Parties(ps)
     )
 
-  def users(users: daml.User*): RLayer[Docker & Service[Ledger], Users] =
+  def users(users: daml.User*): RLayer[Docker & Ledger, Users] =
     ZLayer.fromZIO(ZIO.foreach(users)(createUser).map(Users.apply))
 
-  private def createUser(user: daml.User): ZIO[Docker & Service[Ledger], Throwable, User] =
+  private def createUser(user: daml.User): ZIO[Docker & Ledger, Throwable, User] =
     Ledger
       .createUser(
         user.id,
@@ -252,7 +195,7 @@ object DamlSdk:
   def runScript[IN: upickle.default.Writer](
       name: String,
       args: => IN
-  ): ZLayer[Docker & Service[Ledger] & DarFile & FTEnv & Dpm, Throwable, Unit] =
+  ): ZLayer[Docker & Ledger & DarFile & FTEnv & Dpm, Throwable, Unit] =
     ZLayer.fromZIO(for
       scriptDir         <- FTEnv.createUniqueDirectory(s"runscript-$name")
       ca                <- Docker.certificateAuthority
@@ -260,7 +203,7 @@ object DamlSdk:
       rootCaCrt         <- writeFile(scriptDir / "tls" / "root-ca.crt", ca.certificate.crt)
       participantPem    <- writeFile(scriptDir / "tls" / "participant.pem", cert.certificate.pem)
       participantCrt    <- writeFile(scriptDir / "tls" / "participant.crt", cert.certificate.crt)
-      ledger            <- ZIO.service[Service[Ledger]]
+      ledger            <- ZIO.service[Ledger]
       adminTokenService <- inspectMaybe[TokenService]
       dar               <- ZIO.service[DarFile]
       version           <- FTEnv.damlSdkVersion

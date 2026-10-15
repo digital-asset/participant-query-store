@@ -85,7 +85,7 @@ object FlywayMigrationSpec extends FuncTestStandalone:
       val alice      = Party("Alice")
       val instanceId = Capture[String]
       Given:
-        DamlSdk.ledger ++ Postgres.instance
+        Ledger.instance ++ Postgres.instance
           >+> DamlSdk.parties(alice) ++ Postgres.database
           >+> DamlSdk.deploy(pingPong)
 
@@ -151,7 +151,7 @@ object FlywayMigrationSpec extends FuncTestStandalone:
       val keyHash42 = Capture[String]
       val keyHash43 = Capture[String]
       Given:
-        DamlSdk.ledger ++ Postgres.instance
+        Ledger.instance ++ Postgres.instance
           >+> DamlSdk.parties(alice) ++ Postgres.database
           >+> DamlSdk.deploy(pingPongWithKey)
       And:
@@ -215,7 +215,7 @@ object FlywayMigrationSpec extends FuncTestStandalone:
       val sync2 = Synchronizer("sync2")
 
       Given:
-        DamlSdk.multiSyncLedger(sync1, sync2) ++ Postgres.instance
+        Ledger.multiSync(sync1, sync2) ++ Postgres.instance
           >+> DamlSdk
             .allocateParties(alice -> Seq(sync1, sync2)) ++ DamlSdk
             .uploadAndVetDar(pingPong)(sync1, sync2) ++ Postgres.database
