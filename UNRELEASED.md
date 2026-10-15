@@ -70,8 +70,8 @@ synchronizer_id text;
 #### Observability
 
 - *BREAKING*: The `pipeline_events_total` metric counts each ledger event once, whatever interfaces its template implements. It used to count `create` and `archive` once for the template and once for each of its interfaces. With `TransactionTreeStream`, a consuming exercise still counts as both an `exercise` and an `archive`. It has a `synchronizer_id` label on every type except `watermark`, plus `source_synchronizer_id` and `target_synchronizer_id` on `assign` and `unassign`, except on an `assign` recorded by the ACS import.
-- The new `pipeline_contracts_per_template_total` metric counts each `create`, `archive`, `assign` and `unassign` once for the template and once for each of its interfaces, all under the template's name. Its labels are `type`, `template` and `synchronizer_id`.
-- The PQS Grafana dashboard has a `synchronizer` variable and new `Reassignments` and `Synchronizers` rows. The `Churn` and `Active *` panels read `pipeline_contracts_per_template_total`, so a template with k interfaces counts k+1 times; `Active *` adds assigned contracts and subtracts unassigned ones. The `Reassignments` panels count each reassignment once, whether PQS sees its unassign, its assign or both.
+- The new `pipeline_contracts_per_template_total` metric counts each `create`, `archive`, `assign` and `unassign` once for the template and once for each of its interfaces, all under the template's name. Its labels are `type`, `template` and `synchronizer_id`, plus `source_synchronizer_id` and `target_synchronizer_id` as on `pipeline_events_total`.
+- The PQS Grafana dashboard has a `synchronizer` variable and new `Reassignments` and `Synchronizers` rows. The `Churn`, `Active *` and `Reassignments by template` panels read `pipeline_contracts_per_template_total`, so a template with k interfaces counts k+1 times; `Active *` adds assigned contracts and subtracts unassigned ones. The `Reassignments` panels count a reassignment the same whether PQS sees its unassign, its assign or both.
 
 ### Bug fixes
 

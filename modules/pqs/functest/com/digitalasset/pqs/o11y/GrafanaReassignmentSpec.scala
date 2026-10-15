@@ -83,12 +83,16 @@ object GrafanaReassignmentSpec extends SharedMultiSyncLedgerSpec:
       Then:
         // A row for Asset and one for IAsset
         Grafana
-          .getMetrics(s"sum(pipeline_contracts_per_template_total{type='unassign', synchronizer_id='${sync1.id}'})")
+          .getMetrics(
+            s"sum(pipeline_contracts_per_template_total{type='unassign', synchronizer_id='${sync1.id}', $reassigned})"
+          )
           .is(exists(equalTo(2)))
           .retryUntilTimeout
       And:
         Grafana
-          .getMetrics(s"sum(pipeline_contracts_per_template_total{type='assign', synchronizer_id='${sync2.id}'})")
+          .getMetrics(
+            s"sum(pipeline_contracts_per_template_total{type='assign', synchronizer_id='${sync2.id}', $reassigned})"
+          )
           .is(exists(equalTo(2)))
           .retryUntilTimeout
       And:
