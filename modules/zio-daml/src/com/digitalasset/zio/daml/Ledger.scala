@@ -4,7 +4,15 @@
 package com.digitalasset.zio.daml
 
 import com.digitalasset.auth.Auth
-import com.digitalasset.canonical.{Event, Offset, ReassignmentEvent, Transaction, TransactionEvent, UserRight}
+import com.digitalasset.canonical.{
+  AcsContract,
+  Event,
+  Offset,
+  ReassignmentEvent,
+  Transaction,
+  TransactionEvent,
+  UserRight
+}
 import com.digitalasset.pqs.configuration.filter.PartyFilterParser.PartyFilter
 import com.digitalasset.pqs.grpc.ZManagedChannel
 import com.digitalasset.transcode.schema.Dictionary
@@ -36,7 +44,7 @@ case class Ledger(
   def getActiveContracts(
       rights: UserRight,
       activeAtOffset: Offset.Absolute
-  ): stream.Stream[Throwable, Event.Created | Offset.Absolute] =
+  ): stream.Stream[Throwable, AcsContract | Offset.Absolute] =
     stateService.getActiveContracts(rights, activeAtOffset)
 
   def getTransactions(

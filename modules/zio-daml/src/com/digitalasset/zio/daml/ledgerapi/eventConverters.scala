@@ -158,6 +158,13 @@ object eventConverters:
       lastDescendant = evt.lastDescendantNodeId
     )
 
+  def convertAcsContract(
+      evt: com.daml.ledger.api.v2.event.CreatedEvent,
+      synchronizerId: SynchronizerId,
+      reassignmentCounter: Long
+  )(using codecs: ProtobufCodecs)(using DamlSchema): Task[AcsContract] =
+    toContract(evt).map(AcsContract(EventId(evt.offset, evt.nodeId), synchronizerId, reassignmentCounter, _))
+
   private def toContract(
       evt: com.daml.ledger.api.v2.event.CreatedEvent
   )(using codecs: ProtobufCodecs)(using DamlSchema) =

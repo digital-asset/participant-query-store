@@ -4,7 +4,7 @@
 package com.digitalasset.pqs.postgres.document
 
 import com.digitalasset.canonical
-import com.digitalasset.canonical.{ContractId, Offset, Party, SynchronizerId}
+import com.digitalasset.canonical.{AcsContract, ContractId, Offset, Party, SynchronizerId}
 import com.digitalasset.pqs.backend.Datastore
 import com.digitalasset.pqs.o11y.metrics.latency
 import com.digitalasset.pqs.o11y.traces
@@ -102,7 +102,7 @@ final case class DocumentPostgres(
   /** Process ACS events */
   private def convertAcsEventsToStatements =
     val trackConvert = latency("pipeline_convert_acs_event", "Latency of converting ACS events")
-    ZPipeline[canonical.Event.Created | Offset]
+    ZPipeline[canonical.AcsContract | Offset]
       .mapChunksZIO(chunk =>
         ZIO.whenCase(chunk.headOption) {
           case Some(Offset.Genesis) =>
@@ -110,8 +110,8 @@ final case class DocumentPostgres(
               .as(Chunk.empty)
         } *> ZIO.attempt {
           chunk.collect {
-            case evt: canonical.Event.Created => insertEvent(Genesis._2, evt)
-            case offset: Offset.Absolute      => Chunk(Watermark(Genesis._2, offset, Seq.empty))
+            case evt: canonical.AcsContract => insertAcsContract(Genesis._2, evt)
+            case offset: Offset.Absolute    => Chunk(Watermark(Genesis._2, offset, Seq.empty))
           }
         } @@ trackConvert
       )
@@ -319,6 +319,34 @@ final case class DocumentPostgres(
     val insertEvents    = tx.events.flatMap(evt => insertEvent(txIx, evt))
     val insertWatermark = Watermark(txIx, tx.offset, Seq(tx.seenAt))
     insertTx +: insertEvents :+ insertWatermark
+
+  private def insertAcsContract(txIx: Long, acsContract: AcsContract): Chunk[Model] = {
+    val pk = placeholders.mk
+
+    // A non-zero reassignmentCounter means the contract was reassigned onto this synchronizer after its creation
+    if acsContract.reassignmentCounter == 0 then
+      val evt = Event(pk, txIx, acsContract.eventId, EventType.Create)
+      val contracts = mkContracts(
+        pk,
+        txIx,
+        acsContract.contract,
+        acsContract.synchronizerId,
+        reassignmentCounter = 0,
+        isCreate = true
+      )
+      contracts :+ evt
+    else
+      val evt = Event(pk, txIx, acsContract.eventId, EventType.Assign)
+      val contracts = mkContracts(
+        pk,
+        txIx,
+        acsContract.contract,
+        acsContract.synchronizerId,
+        acsContract.reassignmentCounter,
+        isCreate = false
+      )
+      contracts :+ evt
+  }
 
   private def insertEvent(
       txIx: Long,

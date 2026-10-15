@@ -180,6 +180,41 @@ where qname is null
 $$ language sql stable
                 parallel safe;
 
+create or replace function __activated_at_ix(c __contracts) returns bigint
+as
+$$
+select coalesce(c.created_at_ix, c.assigned_at_ix)
+$$ language sql immutable
+                parallel safe;
+comment on function __activated_at_ix(__contracts) is
+    'Index at which a contract became active on its current synchronizer (creation or assignment).';
+
+create or replace function __activated_at_ix(c contract) returns bigint
+as
+$$
+select coalesce(c.created_at_ix, c.assigned_at_ix)
+$$ language sql immutable
+                parallel safe;
+comment on function __activated_at_ix(contract) is
+    'Index at which a contract became active on its current synchronizer (creation or assignment).';
+
+create or replace function __deactivated_at_ix(c __contracts) returns bigint
+as
+$$
+select coalesce(c.archived_at_ix, c.unassigned_at_ix)
+$$ language sql immutable
+                parallel safe;
+comment on function __deactivated_at_ix(__contracts) is
+    'Index at which a contract became inactive on its current synchronizer (archival or unassignment).';
+
+create or replace function __deactivated_at_ix(c contract) returns bigint
+as
+$$
+select coalesce(c.archived_at_ix, c.unassigned_at_ix)
+$$ language sql immutable
+                parallel safe;
+comment on function __deactivated_at_ix(contract) is
+    'Index at which a contract became inactive on its current synchronizer (archival or unassignment).';
 
 create or replace procedure __initialize_contract_implements(template_fqn text, interface_fqn text) as
 $$
@@ -583,10 +618,9 @@ begin
     ),
     -- prune create, archive and exercise events
     deleted_events as (
-        delete from __events
-        where tx_ix < cutoff_ix
-        and pk in (
-            select create_event_pk from deleted_contracts where create_event_pk is not null
+        delete from __events e
+        using (
+            select create_event_pk as pk from deleted_contracts where create_event_pk is not null
             union all
             select archive_event_pk from deleted_contracts where archive_event_pk is not null
             union all
@@ -595,18 +629,19 @@ begin
             select unassign_event_pk from deleted_contracts where unassign_event_pk is not null
             union all
             select exercise_event_pk from deleted_exercises
-        )
+        ) d
+        where e.pk = d.pk and e.tx_ix < cutoff_ix
         returning 1
     ),
     -- prune the reassignment log of the pruned contracts, in step with their events
     deleted_reassignments as (
-        delete from __reassignments
-        where reassigned_at_ix < cutoff_ix
-        and reassign_event_pk in (
-            select assign_event_pk from deleted_contracts where assign_event_pk is not null
+        delete from __reassignments r
+        using (
+            select assign_event_pk as pk from deleted_contracts where assign_event_pk is not null
             union all
             select unassign_event_pk from deleted_contracts where unassign_event_pk is not null
-        )
+        ) d
+        where r.reassign_event_pk = d.pk and r.reassigned_at_ix < cutoff_ix
         returning 1
     )
     select
@@ -620,7 +655,8 @@ begin
     with deleted_transactions as (
         delete from __transactions
         where ix < cutoff_ix and not exists (
-            select 1 from __contracts c where __activated_at_ix(c) = __transactions.ix
+            select 1 from __contracts c
+            where __activated_at_ix(c) < cutoff_ix and __activated_at_ix(c) = __transactions.ix
         )
         returning 1
     )
@@ -635,7 +671,9 @@ begin
     return query select pruning_boundary_offset, deleted_contracts, deleted_exercises, deleted_events,
         deleted_transactions, deleted_reassignments;
 end;
-$$ language plpgsql strict;
+$$ language plpgsql strict
+   -- disable jit to avoid compile overhead on these IO-bound bulk deletes
+   set jit = 'off';
 comment on function prune_archived_to_offset(checkpoint."offset"%type) is
 $$Prunes deactivated ledger data up to the specified offset while maintaining referential integrity.
 - Removes contracts archived or unassigned prior to the offset, and their create, archive, assign and unassign events.
@@ -689,10 +727,9 @@ begin
     ),
     -- prune create, archive and exercise events
     deleted_events as (
-        select 1 from __events
-        where tx_ix < cutoff_ix
-        and pk in (
-            select create_event_pk from deleted_contracts where create_event_pk is not null
+        select e.pk from __events e
+        join (
+            select create_event_pk as pk from deleted_contracts where create_event_pk is not null
             union all
             select archive_event_pk from deleted_contracts where archive_event_pk is not null
             union all
@@ -701,22 +738,24 @@ begin
             select unassign_event_pk from deleted_contracts where unassign_event_pk is not null
             union all
             select exercise_event_pk from deleted_exercises
-        )
+        ) d on d.pk = e.pk
+        where e.tx_ix < cutoff_ix
     ),
     -- prune the reassignment log of the pruned contracts
     deleted_reassignments as (
-        select 1 from __reassignments
-        where reassigned_at_ix < cutoff_ix
-        and reassign_event_pk in (
-            select assign_event_pk from deleted_contracts where assign_event_pk is not null
+        select 1 from __reassignments r
+        join (
+            select assign_event_pk as pk from deleted_contracts where assign_event_pk is not null
             union all
             select unassign_event_pk from deleted_contracts where unassign_event_pk is not null
-        )
+        ) d on d.pk = r.reassign_event_pk
+        where r.reassigned_at_ix < cutoff_ix
     )
     select
         (select count(*) from deleted_contracts),
         (select count(*) from deleted_exercises),
-        (select count(*) from deleted_events),
+        -- use distinct to avoid counting consuming exercises twice
+        (select count(distinct pk) from deleted_events),
         (select count(*) from deleted_reassignments)
     into deleted_contracts, deleted_exercises, deleted_events, deleted_reassignments;
 
@@ -725,11 +764,12 @@ begin
     from __transactions
     where ix < cutoff_ix and not exists (
         select 1 from __contracts c
-        where __activated_at_ix(c) = __transactions.ix
-        -- the contract is not divulged
-        and not c.divulged_only
-        -- the contract is still active, or it is deactivated at or after the cutoff
-        and (__deactivated_at_ix(c) is null or __deactivated_at_ix(c) >= cutoff_ix)
+        where __activated_at_ix(c) < cutoff_ix 
+            and __activated_at_ix(c) = __transactions.ix
+            -- the contract is not divulged
+            and not c.divulged_only
+            -- the contract is still active, or it is deactivated at or after the cutoff
+            and (__deactivated_at_ix(c) is null or __deactivated_at_ix(c) >= cutoff_ix)
     );
 
     raise notice 'DRY-RUN: pruning % contracts, % exercises, % reassignments, % events and % transactions',
@@ -738,7 +778,7 @@ begin
     return query select pruning_boundary_offset, deleted_contracts, deleted_exercises, deleted_events,
         deleted_transactions, deleted_reassignments;
 end;
-$$ language plpgsql strict;
+$$ language plpgsql strict set jit = 'off';
 comment on function prune_archived_to_offset_dry_run(checkpoint."offset"%type) is
 $$Dry-run of prune_archived_to_offset.$$;
 
@@ -1209,11 +1249,30 @@ create or replace function active(
 ) returns setof contract
 as
 $$
-select distinct on (c.tpe_pk, c.contract_id) c.*
+select c.*
 from __contracts(qname) c
 where c.life_ix @> (select __nearest_ix_floor("offset"))
     and not c.divulged_only -- exclude contracts that were merely divulged
-order by c.tpe_pk, c.contract_id, c.reassignment_counter desc nulls last
+    -- Deduplicate reassigned contracts by keeping the highest reassignment_counter (nulls rank lowest).
+    -- Expressed as an anti-join rather than DISTINCT ON so that caller predicates (e.g. WHERE payload ->> 'x' = ?)
+    -- can be pushed down to the contract index scan instead of running after a full sort.
+    and not exists (
+        select 1
+        from __contracts newer
+        where newer.tpe_pk = c.tpe_pk
+          and newer.contract_id = c.contract_id
+          and newer.life_ix @> (select __nearest_ix_floor("offset"))
+          and not newer.divulged_only
+          and (
+                coalesce(newer.reassignment_counter, 0) > coalesce(c.reassignment_counter, 0)
+                -- tie on reassignment_counter:
+                -- the PN does not guarantee that reassignment_counter is unique per contract
+                or (
+                    coalesce(newer.reassignment_counter, 0) = coalesce(c.reassignment_counter, 0)
+                    and __activated_at_ix(newer) > __activated_at_ix(c)
+                )
+              )
+    )
 $$ language sql stable
                 parallel safe;
 comment on function active is $$Returns payload and metadata for active contracts of the given Daml qualified name.
@@ -1222,7 +1281,10 @@ Qualified name can be:
 - partially qualified, e.g. '<module-path>:<template-name>' or '<template-name>'
 Qualified name cannot be ambiguous.
 Only contracts that are active at particular offset are considered.
-Contracts that were only divulged are excluded from the result set.$$;
+Contracts that were only divulged are excluded from the result set.
+When a contract temporarily appears active on several synchronizers,
+only the row with the highest reassignment counter is returned.
+$$;
 
 create or replace function summary_active(
     "offset" __transactions."offset"%type default latest_offset()
@@ -1380,24 +1442,6 @@ $$ language sql stable parallel safe;
 comment on function summary_updates(__transactions."offset"%type, __transactions."offset"%type)
     is 'Returns the summary of creates and archives per Daml fully qualified name in the [from_offset, to_offset] range.';
 
-create or replace function __activated_at_ix(c __contracts) returns bigint
-as
-$$
-select coalesce(c.created_at_ix, c.assigned_at_ix)
-$$ language sql immutable
-                parallel safe;
-comment on function __activated_at_ix(__contracts) is
-    'Index at which a contract became active on its current synchronizer (creation or assignment).';
-
-create or replace function __deactivated_at_ix(c __contracts) returns bigint
-as
-$$
-select coalesce(c.archived_at_ix, c.unassigned_at_ix)
-$$ language sql immutable
-                parallel safe;
-comment on function __deactivated_at_ix(__contracts) is
-    'Index at which a contract became inactive on its current synchronizer (archival or unassignment).';
-
 create or replace function stakeholders(c contract) returns text[]
 as
 $$
@@ -1428,7 +1472,8 @@ from __contracts(qname) c
 where c.contract_id = lookup_contract.contract_id
 order by c.tpe_pk, reassignment_counter desc nulls last
 $$ language sql stable;
-comment on function lookup_contract is 'Lookup contract and its interface views data by contract ID.';
+comment on function lookup_contract is $$Look up a contract and its interface views data by contract ID.
+If the contract has been reassigned, only the row with the highest reassignment counter is returned.$$;
 
 create or replace function lookup_exercises(
     contract_id __exercises.contract_id%type,

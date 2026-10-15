@@ -9,16 +9,17 @@ _Write summary of release_
 ## SQL Migration
 
 This release includes the following SQL migrations:
-- _V043__Add_reassignment_event_types.sql_: adds the `assign` and `unassign` labels to the `__event_type` enum. Metadata-only, no table is scanned or rewritten. **[Impact: Instantaneous]**
-- _V044__Rename_domain_id_to_synchronizer_id.sql_: renames the `domain_id` column of `__transactions` to `synchronizer_id`. Metadata-only, no table is scanned or rewritten. **[Impact: Instantaneous]**
-- _V045__Add_multisync_contract_columns.sql_ **[Impact: ~2 min/10M contracts]**:
+- _V043__Add_divulged_created_at_ix_index.sql_: adds a partial index on `__contracts` so `prune_archived_to_offset` can prune divulged-only contracts via an index scan. **[Impact: ~ 1 min]**
+- _V044__Add_reassignment_event_types.sql_: adds the `assign` and `unassign` labels to the `__event_type` enum. Metadata-only, no table is scanned or rewritten. **[Impact: Instantaneous]**
+- _V045__Rename_domain_id_to_synchronizer_id.sql_: renames the `domain_id` column of `__transactions` to `synchronizer_id`. Metadata-only, no table is scanned or rewritten. **[Impact: Instantaneous]**
+- _V046__Add_multisync_contract_columns.sql_ **[Impact: ~2 min/10M contracts]**:
   - Add the multi-sync columns (`assigned_at_ix`, `unassigned_at_ix`, `reassignment_counter`, `synchronizer_id`) to the `__contracts` table and `contract` type.
   - **Full __contracts rewrite:** Redefine the `life_ix` column to take `assigned_at_ix` and `unassigned_at_ix` into account.
   - **Rebuild GiST index on __contracts.**
   - Drop the internal `__archives` view.
   - Drop the `__tmp_archived_contracts` and replace with `__tmp_deactivated_contracts` for internal use by the PQS pipeline.
-- _V046__Create_reassignments_table.sql_: creates the `__reassignment_type` enum and the list-partitioned `__reassignments` table, then creates one partition per row already present in `__contract_tpe`. **[Impact: Instantaneous /< 1 min]**
-- _V047__Prunning_reassignments.sql_: drops `prune_archived_to_offset` and `prune_archived_to_offset_dry_run` so that they can be re-created with the new `deleted_reassignments` result column. **[Impact: Instantaneous]**
+- _V047__Create_reassignments_table.sql_: creates the `__reassignment_type` enum and the list-partitioned `__reassignments` table, then creates one partition per row already present in `__contract_tpe`. **[Impact: Instantaneous /< 1 min]**
+- _V048__Prunning_reassignments.sql_: drops `prune_archived_to_offset` and `prune_archived_to_offset_dry_run` so that they can be re-created with the new `deleted_reassignments` result column. **[Impact: Instantaneous]**
 
 ## What's New
 
@@ -32,6 +33,7 @@ This release includes the following SQL migrations:
 - An `Assigned` event creates a new row in the `__contracts` table. Instead of setting `created_at_ix` and `create_event_pk`, it sets `assigned_at_ix` and `assign_event_pk`.
 - An `Unassigned` event deactivates its corresponding row from the `__contracts` table. Instead of setting `archived_at_ix` and `archive_event_pk`, it sets `unassigned_at_ix` and `unassign_event_pk`.
 - `Created` and `Assigned` events from the ledger now set `reassignment_counter` and `synchronizer_id`. These columns are left empty in legacy rows (PQS 3.6 or older).
+- ACS import records contract that was reassigned onto its current synchronizer with an `assign` event.
 
 
 #### SQL API
@@ -78,6 +80,7 @@ synchronizer_id text;
 ### Minor improvements
 
 - At startup, the PQS pipeline runs `ANALYZE` on `__contracts` and `__tmp_deactivated_contracts` to populate planner statistics and speed up ingestion.
+- Optimize `prune_archived_to_offset` and its dry-run to run significantly faster on large datasets. Performance gains range from 20% to 80%, depending on the pruning window and dataset size.
 
 ### Helm Chart
 
