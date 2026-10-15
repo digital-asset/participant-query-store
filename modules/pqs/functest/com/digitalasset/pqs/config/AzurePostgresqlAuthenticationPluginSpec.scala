@@ -131,6 +131,8 @@ object AzurePostgresqlAuthenticationPluginSpec extends SharedLedgerAndPostgresTe
         "PQS_SOURCE_LEDGER_TLS_CAFILE"                                 -> "/tls/root-ca.crt",
         "PQS_TARGET_POSTGRES_HOST"                                     -> pg.container.hostName,
         "PQS_TARGET_POSTGRES_PORT"                                     -> Postgres.port,
+        "PQS_TARGET_POSTGRES_USERNAME"                                 -> "postgres",
+        "PQS_TARGET_POSTGRES_PASSWORD"                                 -> "",
         "PQS_TARGET_POSTGRES_DATABASE"                                 -> database.name,
         "PQS_TARGET_POSTGRES_TLS_MODE"                                 -> "Require",
         "PQS_TARGET_POSTGRES_TLS_KEY"                                  -> "/tls/client.der",
