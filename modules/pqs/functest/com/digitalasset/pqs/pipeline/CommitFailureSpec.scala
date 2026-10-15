@@ -36,7 +36,7 @@ object CommitFailureSpec extends FuncTestStandalone:
     funcTest("a create whose commit is lost together with its connection is permanently missing from PQS"):
       val alice = Party("Alice")
       Given:
-        DamlSdk.ledger ++ Postgres.instance
+        Ledger.instance ++ Postgres.instance
       And:
         DamlSdk.deploy(foo) ++ DamlSdk.parties(alice) ++ Postgres.database
       And:

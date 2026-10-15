@@ -93,13 +93,13 @@ trait Pqs:
 
   /** Pqs Pipeline Service wrapped into Layer */
   def pipeline(extraArgs: String*): ZLayer[
-    Docker & Parties & Postgres & Database & Service[Ledger] & DarFile,
+    Docker & Parties & Postgres & Database & Ledger & DarFile,
     Throwable,
     Service[Pipeline]
   ] = attemptPipeline(extraArgs*).tap(_.get.blockUntilStdOut(_.contains("Continuing from offset")))
 
   def attemptPipeline(extraArgs: String*): ZLayer[
-    Docker & Parties & Postgres & Database & Service[Ledger] & DarFile,
+    Docker & Parties & Postgres & Database & Ledger & DarFile,
     Throwable,
     Service[Pipeline]
   ] = conf.flatMap(conf =>
@@ -119,7 +119,7 @@ trait Pqs:
   )
 
   def prune(extraArgs: String*): ZLayer[
-    Docker & Parties & Postgres & Database & Service[Ledger] & DarFile,
+    Docker & Parties & Postgres & Database & Ledger & DarFile,
     Throwable,
     Service[Prune]
   ] =
@@ -167,7 +167,7 @@ trait Pqs:
     for
       ca                <- Docker.certificateAuthority
       clientCertificate <- ca.generate("pqs")
-      ledger            <- Docker.inspect[Ledger]
+      ledger            <- ZIO.service[Ledger]
       pg                <- ZIO.service[Postgres]
       oauthInstance     <- Docker.inspectMaybe[OAuth.Instance]
       collectorInstance <- Docker.inspectMaybe[Collector.Instance]
@@ -238,13 +238,13 @@ trait Pqs:
 
   /** Run pipeline and wrap the result into Layer. Fails the layer if the pipeline exits with a non-zero exit code. */
   def runPipeline(extraArgs: String*): ZLayer[
-    Docker & Parties & Postgres & Database & Service[Ledger] & DarFile,
+    Docker & Parties & Postgres & Database & Ledger & DarFile,
     Throwable,
     CliRun
   ] = attemptPipeline(extraArgs*).flatMap(CliRun.fromSvcExpectSuccess)
 
   def runPrune(extraArgs: String*): ZLayer[
-    Docker & Parties & Postgres & Database & Service[Ledger] & DarFile,
+    Docker & Parties & Postgres & Database & Ledger & DarFile,
     Throwable,
     CliRun
   ] = prune(extraArgs*).flatMap(CliRun.fromSvc)

@@ -38,7 +38,7 @@ object PartyFilteringSpec extends FuncTestStandalone:
   )
 
   private def context(parties: Party*) =
-    DamlSdk.ledger ++ Postgres.instance
+    Ledger.instance ++ Postgres.instance
       >+> DamlSdk.deploy(pingPong) ++ DamlSdk.parties(parties*) ++ Postgres.database
 
   def spec = suite("filtering")(

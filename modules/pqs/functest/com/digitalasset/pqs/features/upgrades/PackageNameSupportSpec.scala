@@ -102,7 +102,7 @@ object PackageNameSupportSpec extends FuncTestStandalone:
         val alice = Party("Alice")
         val dar   = Capture[DarFile]
         Given:
-          DamlSdk.ledger ++ Postgres.instance
+          Ledger.instance ++ Postgres.instance
         And:
           DamlSdk.deploy(ping.withVersion("0.0.0")) ++ DamlSdk.parties(alice) ++ Postgres.database
         And:
@@ -228,7 +228,7 @@ object PackageNameSupportSpec extends FuncTestStandalone:
         val alice = Party("Alice")
         val dar   = Capture[DarFile]
         Given:
-          DamlSdk.ledger ++ Postgres.instance
+          Ledger.instance ++ Postgres.instance
         And:
           DamlSdk.deploy(ping.withVersion("0.0.0")) ++ DamlSdk.parties(alice) ++ Postgres.database
         And:
