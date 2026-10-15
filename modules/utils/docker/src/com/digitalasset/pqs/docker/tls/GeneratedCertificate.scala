@@ -36,6 +36,22 @@ final case class GeneratedCertificate(privateKey: PrivateKey, certificate: X509C
     }.get
   }
 
+  /** A PKCS12 truststore holding this certificate as a trust anchor (no private key).
+    *
+    * PKCS12 encrypts trusted-certificate entries with a password. The same password must be supplied when loading (e.g.
+    * via `-Djavax.net.ssl.trustStorePassword`).
+    */
+  @SuppressWarnings(Array("org.wartremover.warts.Null", "org.wartremover.warts.TryPartial"))
+  def truststore(password: String): Array[Byte] = {
+    val ks = KeyStore.getInstance("PKCS12")
+    ks.load(null, null)
+    ks.setCertificateEntry("ca", certificate)
+    Using(new ByteArrayOutputStream()) { baos =>
+      ks.store(baos, password.toCharArray)
+      baos.toByteArray
+    }.get
+  }
+
   @SuppressWarnings(Array("org.wartremover.warts.AsInstanceOf"))
   def toJWK: String =
     RSAKey

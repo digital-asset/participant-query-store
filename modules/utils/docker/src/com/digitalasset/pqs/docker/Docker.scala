@@ -576,8 +576,8 @@ object Docker:
           .withTailAll()
           // The payload must be copied inside the callback, see `stream`.
           .streamMap(frame => (frame.getStreamType, frame.getPayload.clone()))
-        stdErr = ioStream.via(process(STDERR, StdErr.apply))
-        stdOut = ioStream.via(process(STDOUT, StdOut.apply))
+        stdErr = ioStream.via(process(STDERR, StdIO.Err.apply))
+        stdOut = ioStream.via(process(STDOUT, StdIO.Out.apply))
         io     = stdErr merge stdOut
 
         _ <- ZIO.when(!suppressOutput)(io.foreach(logStdIO).forkScoped)
@@ -611,8 +611,8 @@ object Docker:
     client.listContainersCmd().withShowAll(showAll).run.map(Option(_).map(_.asScala.toSeq).getOrElse(Seq.empty))
 
   private def logStdIO(output: StdIO) = output match
-    case StdOut(line) => logInfo(line)
-    case StdErr(line) => logError(line)
+    case StdIO.Out(line) => logInfo(line)
+    case StdIO.Err(line) => logError(line)
 
   private def sharedStorage =
     ZLayer.fromZIO(Ref.Synchronized.make(Map.empty[Serializable, Promise[?, ?]]))
