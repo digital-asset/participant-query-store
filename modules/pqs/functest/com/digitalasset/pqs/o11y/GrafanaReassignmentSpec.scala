@@ -6,6 +6,8 @@ package com.digitalasset.pqs.o11y
 import com.daml.ledger.api.v2.value.{Record, RecordField, Value}
 import com.digitalasset.pqs.SharedMultiSyncLedgerSpec
 import com.digitalasset.pqs.functest.matchers.*
+import com.digitalasset.pqs.pipeline.pipeline.Config.TransactionApi
+import com.digitalasset.pqs.pipeline.pipeline.Config.TransactionApi.{TransactionStream, TransactionTreeStream}
 import com.digitalasset.pqs.services.daml.*
 import com.digitalasset.pqs.services.o11y.*
 import com.digitalasset.pqs.services.postgres.Postgres
@@ -43,7 +45,12 @@ object GrafanaReassignmentSpec extends SharedMultiSyncLedgerSpec:
   ).dependsOn(assetInterface)
 
   def spec = suite("observability signals can be queried with Grafana")(
-    funcTest("[metrics] contract rows and contract events of a reassigned contract") {
+    reassignedContractSpec(TransactionStream),
+    reassignedContractSpec(TransactionTreeStream)
+  )
+
+  private def reassignedContractSpec(source: TransactionApi) =
+    funcTest(s"[metrics] contract rows and contract events of a reassigned contract ($source)") {
       val alice      = Party("Alice")
       val contractId = Capture[String]
       def owner      = Record.defaultInstance.addFields(RecordField("owner", Some(Value(Value.Sum.Party(alice.id)))))
@@ -65,6 +72,7 @@ object GrafanaReassignmentSpec extends SharedMultiSyncLedgerSpec:
       When:
         Pqs.runPipeline(
           s"--pipeline-filter-contracts=${Pipeline.allContractsWithoutAdminWorkflows}",
+          s"--pipeline-datasource=$source",
           "--pipeline-ledger-start=Genesis",
           "--pipeline-ledger-stop=Latest"
         )
@@ -82,25 +90,25 @@ object GrafanaReassignmentSpec extends SharedMultiSyncLedgerSpec:
           .retryUntilTimeout
       And:
         Grafana
-          .getMetrics("sum(pipeline_contract_events_total{type='create'})")
+          .getMetrics("sum(pipeline_contracts_total{type='create'})")
           .is(exists(equalTo(1)))
           .retryUntilTimeout
       And:
         Grafana
           .getMetrics(
-            s"sum(pipeline_contract_events_total{type='unassign', synchronizer_id='${sync1.id}', $reassigned})"
+            s"sum(pipeline_contracts_total{type='unassign', synchronizer_id='${sync1.id}', $reassigned})"
           )
           .is(exists(equalTo(1)))
           .retryUntilTimeout
       And:
         Grafana
-          .getMetrics(s"sum(pipeline_contract_events_total{type='assign', synchronizer_id='${sync2.id}', $reassigned})")
+          .getMetrics(s"sum(pipeline_contracts_total{type='assign', synchronizer_id='${sync2.id}', $reassigned})")
           .is(exists(equalTo(1)))
           .retryUntilTimeout
       And:
+        // An archive event, or with TransactionTreeStream the consuming Archive exercise
         Grafana
-          .getMetrics("sum(pipeline_contract_events_total{type='archive'})")
+          .getMetrics("sum(pipeline_contracts_total{type='archive'})")
           .is(exists(equalTo(1)))
           .retryUntilTimeout
     }
-  )
