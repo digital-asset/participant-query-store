@@ -583,10 +583,9 @@ begin
     ),
     -- prune create, archive and exercise events
     deleted_events as (
-        delete from __events
-        where tx_ix < cutoff_ix
-        and pk in (
-            select create_event_pk from deleted_contracts where create_event_pk is not null
+        delete from __events e
+        using (
+            select create_event_pk as pk from deleted_contracts where create_event_pk is not null
             union all
             select archive_event_pk from deleted_contracts where archive_event_pk is not null
             union all
@@ -595,18 +594,19 @@ begin
             select unassign_event_pk from deleted_contracts where unassign_event_pk is not null
             union all
             select exercise_event_pk from deleted_exercises
-        )
+        ) d
+        where e.pk = d.pk and e.tx_ix < cutoff_ix
         returning 1
     ),
     -- prune the reassignment log of the pruned contracts, in step with their events
     deleted_reassignments as (
-        delete from __reassignments
-        where reassigned_at_ix < cutoff_ix
-        and reassign_event_pk in (
-            select assign_event_pk from deleted_contracts where assign_event_pk is not null
+        delete from __reassignments r
+        using (
+            select assign_event_pk as pk from deleted_contracts where assign_event_pk is not null
             union all
             select unassign_event_pk from deleted_contracts where unassign_event_pk is not null
-        )
+        ) d
+        where r.reassign_event_pk = d.pk and r.reassigned_at_ix < cutoff_ix
         returning 1
     )
     select
@@ -620,7 +620,8 @@ begin
     with deleted_transactions as (
         delete from __transactions
         where ix < cutoff_ix and not exists (
-            select 1 from __contracts c where __activated_at_ix(c) = __transactions.ix
+            select 1 from __contracts c
+            where __activated_at_ix(c) < cutoff_ix and __activated_at_ix(c) = __transactions.ix
         )
         returning 1
     )
@@ -635,7 +636,9 @@ begin
     return query select pruning_boundary_offset, deleted_contracts, deleted_exercises, deleted_events,
         deleted_transactions, deleted_reassignments;
 end;
-$$ language plpgsql strict;
+$$ language plpgsql strict
+   -- disable jit to avoid compile overhead on these IO-bound bulk deletes
+   set jit = 'off';
 comment on function prune_archived_to_offset(checkpoint."offset"%type) is
 $$Prunes deactivated ledger data up to the specified offset while maintaining referential integrity.
 - Removes contracts archived or unassigned prior to the offset, and their create, archive, assign and unassign events.
@@ -689,10 +692,9 @@ begin
     ),
     -- prune create, archive and exercise events
     deleted_events as (
-        select 1 from __events
-        where tx_ix < cutoff_ix
-        and pk in (
-            select create_event_pk from deleted_contracts where create_event_pk is not null
+        select e.pk from __events e
+        join (
+            select create_event_pk as pk from deleted_contracts where create_event_pk is not null
             union all
             select archive_event_pk from deleted_contracts where archive_event_pk is not null
             union all
@@ -701,22 +703,24 @@ begin
             select unassign_event_pk from deleted_contracts where unassign_event_pk is not null
             union all
             select exercise_event_pk from deleted_exercises
-        )
+        ) d on d.pk = e.pk
+        where e.tx_ix < cutoff_ix
     ),
     -- prune the reassignment log of the pruned contracts
     deleted_reassignments as (
-        select 1 from __reassignments
-        where reassigned_at_ix < cutoff_ix
-        and reassign_event_pk in (
-            select assign_event_pk from deleted_contracts where assign_event_pk is not null
+        select 1 from __reassignments r
+        join (
+            select assign_event_pk as pk from deleted_contracts where assign_event_pk is not null
             union all
             select unassign_event_pk from deleted_contracts where unassign_event_pk is not null
-        )
+        ) d on d.pk = r.reassign_event_pk
+        where r.reassigned_at_ix < cutoff_ix
     )
     select
         (select count(*) from deleted_contracts),
         (select count(*) from deleted_exercises),
-        (select count(*) from deleted_events),
+        -- use distinct to avoid counting consuming exercises twice
+        (select count(distinct pk) from deleted_events),
         (select count(*) from deleted_reassignments)
     into deleted_contracts, deleted_exercises, deleted_events, deleted_reassignments;
 
@@ -725,11 +729,12 @@ begin
     from __transactions
     where ix < cutoff_ix and not exists (
         select 1 from __contracts c
-        where __activated_at_ix(c) = __transactions.ix
-        -- the contract is not divulged
-        and not c.divulged_only
-        -- the contract is still active, or it is deactivated at or after the cutoff
-        and (__deactivated_at_ix(c) is null or __deactivated_at_ix(c) >= cutoff_ix)
+        where __activated_at_ix(c) < cutoff_ix 
+            and __activated_at_ix(c) = __transactions.ix
+            -- the contract is not divulged
+            and not c.divulged_only
+            -- the contract is still active, or it is deactivated at or after the cutoff
+            and (__deactivated_at_ix(c) is null or __deactivated_at_ix(c) >= cutoff_ix)
     );
 
     raise notice 'DRY-RUN: pruning % contracts, % exercises, % reassignments, % events and % transactions',
@@ -738,7 +743,7 @@ begin
     return query select pruning_boundary_offset, deleted_contracts, deleted_exercises, deleted_events,
         deleted_transactions, deleted_reassignments;
 end;
-$$ language plpgsql strict;
+$$ language plpgsql strict set jit = 'off';
 comment on function prune_archived_to_offset_dry_run(checkpoint."offset"%type) is
 $$Dry-run of prune_archived_to_offset.$$;
 
