@@ -117,7 +117,7 @@ object AzurePostgresqlAuthenticationPluginSpec extends SharedLedgerAndPostgresTe
   private def pqsConf =
     for
       pg                <- ZIO.service[Postgres]
-      ledger            <- ZIO.service[Service[Ledger]]
+      ledger            <- ZIO.service[Ledger]
       database          <- ZIO.service[Database]
       ca                <- Docker.certificateAuthority
       clientCertificate <- ca.generate("pqs")

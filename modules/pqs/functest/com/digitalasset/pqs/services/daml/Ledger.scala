@@ -39,11 +39,42 @@ import io.grpc.Metadata
 import zio.stream.ZStream
 import zio.*
 
-sealed trait Ledger
+final class Ledger(svc: Service[Ledger]):
+  export svc.*
 
 object Ledger:
-  private val channel: RLayer[Docker & Service[Ledger], ZManagedChannel] =
+  private val channel: RLayer[Docker & Ledger, ZManagedChannel] =
     ZLayer.scoped(createChannel)
+
+  val instance: RLayer[FTEnv & Docker, Ledger] = ZLayer.scoped(
+    for
+      conf     <- CantonConf()
+      hostname <- cantonHostname
+      files    <- conf.oneParticipant(hostname)
+      svc      <- canton(hostname, conf.cantonDockerImage, files)
+    yield svc
+  )
+
+  def multiSync(sync1: Synchronizer, sync2: Synchronizer): RLayer[FTEnv & Docker, Ledger] =
+    ZLayer.scoped(
+      for
+        conf     <- CantonConf()
+        hostname <- cantonHostname
+        files    <- conf.twoSynchronizers(hostname, sync1, sync2)
+        svc      <- canton(hostname, conf.cantonDockerImage, files)
+      yield svc
+    ) >+>
+      ZLayer.fromZIO(
+        // Register the synchronizer IDs right after the ledger started
+        for
+          allSynchronizers <- getAllSynchronizers
+          _ <- ZIO.foreach(Seq(sync1, sync2)) { sync =>
+            allSynchronizers.find(s => s.synchronizerAlias === sync.name) match
+              case Some(connectedSync) => ZIO.attempt(sync.set(connectedSync.synchronizerId))
+              case None                => ZIO.fail(RuntimeException(s"Synchronizer ${sync.name} is not connected"))
+          }
+        yield ()
+      )
 
   val packageService = ZLayer.fromZIO(FTEnv.fileCache) ++ channel >>> PackageService.usingFileCacheFromEnv
   val updateService  = channel >>> UpdateService.live
@@ -52,7 +83,7 @@ object Ledger:
   def damlSchema(
       contractFilter: ContractFilter = ContractFilter(IdentifierFilter.AcceptAll),
       metadataFilter: MetadataFilter = MetadataFilter(IdentifierFilter.AcceptAll)
-  ): ZLayer[FTEnv & Docker & Service[Ledger], Throwable, DamlSchema] =
+  ): ZLayer[FTEnv & Docker & Ledger, Throwable, DamlSchema] =
     packageService ++ ZLayer.succeed(contractFilter) ++ ZLayer.succeed(metadataFilter)
       >>> DamlSchema.layer
 
@@ -101,7 +132,7 @@ object Ledger:
   }
 
   // only the main package: dependencies such as daml-stdlib are shared with every other spec
-  def unvetDar(dar: DarFile): ZIO[Docker & Service[Ledger], Throwable, UpdateVettedPackagesResponse] =
+  def unvetDar(dar: DarFile): ZIO[Docker & Ledger, Throwable, UpdateVettedPackagesResponse] =
     getSingleConnectedSynchronizerId.flatMap(unvetDar(dar, _))
 
   def isPackageVetted(packageId: String) = svc(
@@ -167,7 +198,7 @@ object Ledger:
       args: com.daml.ledger.api.v2.value.Record,
       actAs: Party,
       sync: Synchronizer
-  ): ZIO[Docker & Service[Ledger] & DarFile, Throwable, SubmitAndWaitForTransactionResponse] =
+  ): ZIO[Docker & Ledger & DarFile, Throwable, SubmitAndWaitForTransactionResponse] =
     createCommand(templateQname, args).flatMap(submitAndWaitForTransaction(actAs, Some(sync), _))
 
   /** Canton picks the synchronizer, which on a single-synchronizer ledger is the connected one */
@@ -175,7 +206,7 @@ object Ledger:
       templateQname: String,
       args: com.daml.ledger.api.v2.value.Record,
       actAs: Party
-  ): ZIO[Docker & Service[Ledger] & DarFile, Throwable, SubmitAndWaitForTransactionResponse] =
+  ): ZIO[Docker & Ledger & DarFile, Throwable, SubmitAndWaitForTransactionResponse] =
     createCommand(templateQname, args).flatMap(submitAndWaitForTransaction(actAs, None, _))
 
   def archive(
@@ -183,7 +214,7 @@ object Ledger:
       contractId: String,
       actAs: Party,
       sync: Synchronizer
-  ): ZIO[Docker & Service[Ledger] & DarFile, Throwable, SubmitAndWaitForTransactionResponse] =
+  ): ZIO[Docker & Ledger & DarFile, Throwable, SubmitAndWaitForTransactionResponse] =
     archiveCommand(templateQname, contractId).flatMap(submitAndWaitForTransaction(actAs, Some(sync), _))
 
   /** Canton picks the synchronizer, which on a single-synchronizer ledger is the connected one */
@@ -191,7 +222,7 @@ object Ledger:
       templateQname: String,
       contractId: String,
       actAs: Party
-  ): ZIO[Docker & Service[Ledger] & DarFile, Throwable, SubmitAndWaitForTransactionResponse] =
+  ): ZIO[Docker & Ledger & DarFile, Throwable, SubmitAndWaitForTransactionResponse] =
     archiveCommand(templateQname, contractId).flatMap(submitAndWaitForTransaction(actAs, None, _))
 
   private def createCommand(templateQname: String, args: com.daml.ledger.api.v2.value.Record) =
@@ -226,7 +257,7 @@ object Ledger:
   }
 
   def recordTransactionStream: ZIO[
-    Docker & Service[Ledger] & Parties & UpdateService & StateService,
+    Docker & Ledger & Parties & UpdateService & StateService,
     Throwable,
     Chunk[Transaction[Event]]
   ] = svc {
@@ -243,7 +274,7 @@ object Ledger:
   def getSingleCreatedEvent(
       parties: Seq[Party],
       transactionId: String
-  ): ZIO[Docker & Service[Ledger], Throwable, CreatedEvent] = svc {
+  ): ZIO[Docker & Ledger, Throwable, CreatedEvent] = svc {
     updatesFromGenesis(parties, wildcardFilter(true))
       .dropWhile(_.getTransaction.updateId =/= transactionId)
       .runHead
@@ -288,7 +319,7 @@ object Ledger:
   private def createChannel =
     val authHeader = Metadata.Key.of("Authorization", Metadata.ASCII_STRING_MARSHALLER)
     for
-      svc               <- ZIO.service[Service[Ledger]]
+      svc               <- ZIO.service[Ledger]
       adminTokenService <- inspectMaybe[TokenService]
       ca                <- Docker.certificateAuthority
       cert              <- ca.generate("participant")
@@ -369,7 +400,7 @@ object Ledger:
   private def unvetDar(
       dar: DarFile,
       synchronizerId: Synchronizer
-  ): ZIO[Docker & Service[Ledger], Throwable, UpdateVettedPackagesResponse] = svc {
+  ): ZIO[Docker & Ledger, Throwable, UpdateVettedPackagesResponse] = svc {
     val packageRefs = dar.packageInfo.collect {
       case (name, version, id) if id === dar.packageId => VettedPackagesRef(id, name, version)
     }
@@ -381,7 +412,32 @@ object Ledger:
     PackageManagementServiceClient.updateVettedPackages(request)
   }
 
-  private def getSingleConnectedSynchronizerId: ZIO[Docker & Service[Ledger], Throwable, Synchronizer] =
+  private val cantonHostname =
+    Docker.share(s"canton_cnt")(zio.Ref.Synchronized.make(0)).flatMap(_.updateAndGet(_ + 1)).map(cnt => s"canton-$cnt")
+
+  private def canton(
+      hostname: String,
+      dockerImage: String,
+      cantonFiles: Seq[(os.Path, String | Array[Byte])]
+  ): ZIO[FTEnv & (Docker & Scope), Throwable, Ledger] =
+    for
+      showCantonLogs <- FTEnv.showCantonLogs
+      env <- Docker
+        .service[Ledger](
+          image = dockerImage,
+          exposePorts = Set(CantonConf.participantPort),
+          prepopulateFiles = cantonFiles,
+          hostname = Some(hostname),
+          env = CantonConf.cantonEnvVarMap,
+          user = Some(CantonConf.user),
+          suppressOutput = !showCantonLogs
+        )(CantonConf.cantonAdditionalCmds*)
+        .build
+      svc = env.get[Service[Ledger]]
+      _ <- svc.blockUntilStdOut(_.contains(CantonConf.bootstrapCompleteMessage))
+    yield Ledger(svc)
+
+  private def getSingleConnectedSynchronizerId: ZIO[Docker & Ledger, Throwable, Synchronizer] =
     getAllSynchronizers.flatMap {
       case Seq(single) => ZIO.attempt(Synchronizer(single.synchronizerAlias).set(single.synchronizerId))
       case other       => ZIO.fail(Throwable(s"expected exactly one connected synchronizer, found ${other.size}"))

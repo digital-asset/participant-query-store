@@ -117,7 +117,7 @@ object SingleWriterSpec extends SharedLedgerAndPostgresTest:
     }
   )
 
-  private type LedgerEnv = Docker & Service[Ledger] & DarFile
+  private type LedgerEnv = Docker & Ledger & DarFile
   private type PqsEnv    = LedgerEnv & Parties & Postgres & Database & Scope
 
   private val pingFqn = s"${pingPong.name}:PingPong:Ping"

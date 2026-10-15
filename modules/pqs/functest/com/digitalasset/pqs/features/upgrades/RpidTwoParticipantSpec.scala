@@ -155,7 +155,7 @@ object RpidTwoParticipantSpec extends FuncTestStandalone:
       alice: Party,
       v1Dar: DarFile,
       v2Dar: DarFile
-  ): RLayer[FTEnv & Docker & Postgres, Service[Ledger] & DarFile & Parties] =
+  ) =
     ZLayer
       .fromZIO(
         for
@@ -195,7 +195,7 @@ object RpidTwoParticipantSpec extends FuncTestStandalone:
             os.root / "dars" / "v1.dar"      -> v1Dar.darBytes,
             os.root / "dars" / "v2.dar"      -> v2Dar.darBytes
           )
-          svc = Docker
+          svc <- Docker
             .service[Ledger](
               image = cantonConf.cantonDockerImage,
               exposePorts = Set(CantonConf.participantPort),
@@ -206,9 +206,9 @@ object RpidTwoParticipantSpec extends FuncTestStandalone:
               suppressOutput = !showCantonLogs
             )("daemon")
             .tap(_.get.blockUntilStdOut(_.contains(CantonConf.bootstrapCompleteMessage)))
-        yield svc
-      )
-      .flatten >+> (DamlSdk.allocatedParties(alice) ++ ZLayer.succeed(v2Dar))
+            .build
+        yield Ledger(svc.get[Service[Ledger]])
+      ) >+> (DamlSdk.allocatedParties(alice) ++ ZLayer.succeed(v2Dar))
 
   private def storageContracts() = Postgres `query`
     sql"""SELECT
