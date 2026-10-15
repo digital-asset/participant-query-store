@@ -219,6 +219,17 @@ $$;
 
 
 --
+-- Name: __activated_at_ix(public.contract); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.__activated_at_ix(c public.contract) RETURNS bigint
+    LANGUAGE sql IMMUTABLE PARALLEL SAFE
+    AS $$
+select coalesce(c.created_at_ix, c.assigned_at_ix)
+$$;
+
+
+--
 -- Name: __cleanup_transactions_after_watermark(); Type: PROCEDURE; Schema: public; Owner: -
 --
 
@@ -351,6 +362,17 @@ CREATE FUNCTION public.__current_writer() RETURNS text
 --
 
 CREATE FUNCTION public.__deactivated_at_ix(c public.__contracts) RETURNS bigint
+    LANGUAGE sql IMMUTABLE PARALLEL SAFE
+    AS $$
+select coalesce(c.archived_at_ix, c.unassigned_at_ix)
+$$;
+
+
+--
+-- Name: __deactivated_at_ix(public.contract); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.__deactivated_at_ix(c public.contract) RETURNS bigint
     LANGUAGE sql IMMUTABLE PARALLEL SAFE
     AS $$
 select coalesce(c.archived_at_ix, c.unassigned_at_ix)
@@ -907,11 +929,30 @@ $$;
 CREATE FUNCTION public.active(qname text DEFAULT NULL::text, "offset" bigint DEFAULT public.latest_offset()) RETURNS SETOF public.contract
     LANGUAGE sql STABLE PARALLEL SAFE
     AS $$
-select distinct on (c.tpe_pk, c.contract_id) c.*
+select c.*
 from __contracts(qname) c
 where c.life_ix @> (select __nearest_ix_floor("offset"))
     and not c.divulged_only -- exclude contracts that were merely divulged
-order by c.tpe_pk, c.contract_id, c.reassignment_counter desc nulls last
+    -- Deduplicate reassigned contracts by keeping the highest reassignment_counter (nulls rank lowest).
+    -- Expressed as an anti-join rather than DISTINCT ON so that caller predicates (e.g. WHERE payload ->> 'x' = ?)
+    -- can be pushed down to the contract index scan instead of running after a full sort.
+    and not exists (
+        select 1
+        from __contracts newer
+        where newer.tpe_pk = c.tpe_pk
+          and newer.contract_id = c.contract_id
+          and newer.life_ix @> (select __nearest_ix_floor("offset"))
+          and not newer.divulged_only
+          and (
+                coalesce(newer.reassignment_counter, 0) > coalesce(c.reassignment_counter, 0)
+                -- tie on reassignment_counter:
+                -- the PN does not guarantee that reassignment_counter is unique per contract
+                or (
+                    coalesce(newer.reassignment_counter, 0) = coalesce(c.reassignment_counter, 0)
+                    and __activated_at_ix(newer) > __activated_at_ix(c)
+                )
+              )
+    )
 $$;
 
 

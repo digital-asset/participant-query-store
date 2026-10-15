@@ -180,6 +180,41 @@ where qname is null
 $$ language sql stable
                 parallel safe;
 
+create or replace function __activated_at_ix(c __contracts) returns bigint
+as
+$$
+select coalesce(c.created_at_ix, c.assigned_at_ix)
+$$ language sql immutable
+                parallel safe;
+comment on function __activated_at_ix(__contracts) is
+    'Index at which a contract became active on its current synchronizer (creation or assignment).';
+
+create or replace function __activated_at_ix(c contract) returns bigint
+as
+$$
+select coalesce(c.created_at_ix, c.assigned_at_ix)
+$$ language sql immutable
+                parallel safe;
+comment on function __activated_at_ix(contract) is
+    'Index at which a contract became active on its current synchronizer (creation or assignment).';
+
+create or replace function __deactivated_at_ix(c __contracts) returns bigint
+as
+$$
+select coalesce(c.archived_at_ix, c.unassigned_at_ix)
+$$ language sql immutable
+                parallel safe;
+comment on function __deactivated_at_ix(__contracts) is
+    'Index at which a contract became inactive on its current synchronizer (archival or unassignment).';
+
+create or replace function __deactivated_at_ix(c contract) returns bigint
+as
+$$
+select coalesce(c.archived_at_ix, c.unassigned_at_ix)
+$$ language sql immutable
+                parallel safe;
+comment on function __deactivated_at_ix(contract) is
+    'Index at which a contract became inactive on its current synchronizer (archival or unassignment).';
 
 create or replace procedure __initialize_contract_implements(template_fqn text, interface_fqn text) as
 $$
@@ -1190,11 +1225,30 @@ create or replace function active(
 ) returns setof contract
 as
 $$
-select distinct on (c.tpe_pk, c.contract_id) c.*
+select c.*
 from __contracts(qname) c
 where c.life_ix @> (select __nearest_ix_floor("offset"))
     and not c.divulged_only -- exclude contracts that were merely divulged
-order by c.tpe_pk, c.contract_id, c.reassignment_counter desc nulls last
+    -- Deduplicate reassigned contracts by keeping the highest reassignment_counter (nulls rank lowest).
+    -- Expressed as an anti-join rather than DISTINCT ON so that caller predicates (e.g. WHERE payload ->> 'x' = ?)
+    -- can be pushed down to the contract index scan instead of running after a full sort.
+    and not exists (
+        select 1
+        from __contracts newer
+        where newer.tpe_pk = c.tpe_pk
+          and newer.contract_id = c.contract_id
+          and newer.life_ix @> (select __nearest_ix_floor("offset"))
+          and not newer.divulged_only
+          and (
+                coalesce(newer.reassignment_counter, 0) > coalesce(c.reassignment_counter, 0)
+                -- tie on reassignment_counter:
+                -- the PN does not guarantee that reassignment_counter is unique per contract
+                or (
+                    coalesce(newer.reassignment_counter, 0) = coalesce(c.reassignment_counter, 0)
+                    and __activated_at_ix(newer) > __activated_at_ix(c)
+                )
+              )
+    )
 $$ language sql stable
                 parallel safe;
 comment on function active is $$Returns payload and metadata for active contracts of the given Daml qualified name.
@@ -1203,7 +1257,10 @@ Qualified name can be:
 - partially qualified, e.g. '<module-path>:<template-name>' or '<template-name>'
 Qualified name cannot be ambiguous.
 Only contracts that are active at particular offset are considered.
-Contracts that were only divulged are excluded from the result set.$$;
+Contracts that were only divulged are excluded from the result set.
+When a contract temporarily appears active on several synchronizers,
+only the row with the highest reassignment counter is returned.
+$$;
 
 create or replace function summary_active(
     "offset" __transactions."offset"%type default latest_offset()
@@ -1361,24 +1418,6 @@ $$ language sql stable parallel safe;
 comment on function summary_updates(__transactions."offset"%type, __transactions."offset"%type)
     is 'Returns the summary of creates and archives per Daml fully qualified name in the [from_offset, to_offset] range.';
 
-create or replace function __activated_at_ix(c __contracts) returns bigint
-as
-$$
-select coalesce(c.created_at_ix, c.assigned_at_ix)
-$$ language sql immutable
-                parallel safe;
-comment on function __activated_at_ix(__contracts) is
-    'Index at which a contract became active on its current synchronizer (creation or assignment).';
-
-create or replace function __deactivated_at_ix(c __contracts) returns bigint
-as
-$$
-select coalesce(c.archived_at_ix, c.unassigned_at_ix)
-$$ language sql immutable
-                parallel safe;
-comment on function __deactivated_at_ix(__contracts) is
-    'Index at which a contract became inactive on its current synchronizer (archival or unassignment).';
-
 create or replace function stakeholders(c contract) returns text[]
 as
 $$
@@ -1409,7 +1448,8 @@ from __contracts(qname) c
 where c.contract_id = lookup_contract.contract_id
 order by c.tpe_pk, reassignment_counter desc nulls last
 $$ language sql stable;
-comment on function lookup_contract is 'Lookup contract and its interface views data by contract ID.';
+comment on function lookup_contract is $$Look up a contract and its interface views data by contract ID.
+If the contract has been reassigned, only the row with the highest reassignment counter is returned.$$;
 
 create or replace function lookup_exercises(
     contract_id __exercises.contract_id%type,
