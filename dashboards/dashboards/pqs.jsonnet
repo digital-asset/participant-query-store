@@ -62,7 +62,6 @@ db.new('Participant Query Store (PQS)')
   row.new('Reassignments')
   + row.withCollapsed(true)
   + row.withPanels(grid.wrapPanels([
-    pts.throughput('Assigns and unassigns', qs.reassignments.throughput),
     pts.throughputStacked('Reassignments by template', qs.reassignments.by_template),
     pts.throughput('Reassignment flows', qs.reassignments.flows)
     + ptsOpts.withDescription('Each reassignment counts once, whether this participant sees its unassign, its assign or both'),

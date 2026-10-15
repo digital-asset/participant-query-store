@@ -53,11 +53,12 @@ given watermarkOrdering: Ordering[Watermark] = Ordering.by(_.ix)
 private def l(kv: (String, Any)*)            = kv.map((k, v) => MetricLabel(k, v.toString)).toSet
 
 object Model {
-  private val eventCounter = Metric.counter("pipeline_events", "Processed ledger events")
+  private val eventCounter =
+    Metric.counter("pipeline_events", "Processed ledger events, each counted once regardless of interface views")
   private val contractCounter =
     Metric.counter(
-      "pipeline_contracts",
-      "Processed contract events, each counted once regardless of interface views"
+      "pipeline_contracts_per_template",
+      "Processed contract activations and deactivations, counted once per template and interface view"
     )
 
   def prepareStatement(all: Iterable[Model]): ZIO[ZConnection, Throwable, Chunk[Watermark]] = {
@@ -89,10 +90,12 @@ object Model {
 
     def count(metric: Metric.Counter[Long], labels: Iterable[Set[MetricLabel]]) =
       ZIO.foreachDiscard(labels.filter(_.nonEmpty).groupMapReduce(identity)(_ => 1)(_ + _))(metric.tagged(_).update(_))
-    // pipeline_contracts counts each ledger event once, whatever interface views it has.
-    val contractEvents = all.toSeq.filter(_.contractLabels.nonEmpty).distinctBy(_.eventPk)
+    // A contract event has a row per interface view, plus a Reassignment adding its source and target
+    // synchronizers when it is one. pipeline_events counts it once, with the labels of all its rows.
+    val (eventRows, otherRows) = all.toSeq.filter(_.eventLabels.nonEmpty).partition(_.eventPk.isDefined)
+    val events = otherRows.map(_.eventLabels) ++ eventRows.groupMapReduce(_.eventPk)(_.eventLabels)(_ ++ _).values
     val metricsIO =
-      count(eventCounter, all.view.map(_.eventLabels)) *> count(contractCounter, contractEvents.map(_.contractLabels))
+      count(eventCounter, events) *> count(contractCounter, all.view.map(_.contractLabels))
 
     traces.span("execute SQL") {
       copyIO @@ traces.attributes(
@@ -225,12 +228,11 @@ final class Contract(
     witnesses,
     !acsDelta
   )
-  override val eventLabels: Set[MetricLabel] =
+  override val contractLabels: Set[MetricLabel] =
     val tpe = if createdAtIx.isDefined then "create" else "assign"
     l("type" -> tpe, "template" -> qualifiedName, "synchronizer_id" -> synchronizerId)
-  // An assign is counted by its Reassignment.
-  override val contractLabels: Set[MetricLabel] = if createdAtIx.isDefined then eventLabels else Set.empty
-  override val eventPk: Option[IdPlaceholder]   = createEventPk.orElse(assignEventPk)
+  override val eventLabels: Set[MetricLabel]  = contractLabels
+  override val eventPk: Option[IdPlaceholder] = createEventPk.orElse(assignEventPk)
 
 object Contract
     extends Table(
@@ -331,12 +333,11 @@ final class DeactivatedContract(
     unassignedAtIx,
     synchronizerId
   )
-  override val eventLabels: Set[MetricLabel] =
+  override val contractLabels: Set[MetricLabel] =
     val tpe = if archiveEventPk.isDefined then "archive" else "unassign"
     l("type" -> tpe, "template" -> qualifiedName, "synchronizer_id" -> synchronizerId)
-  // An unassign is counted by its Reassignment.
-  override val contractLabels: Set[MetricLabel] = if archiveEventPk.isDefined then eventLabels else Set.empty
-  override val eventPk: Option[IdPlaceholder]   = archiveEventPk.orElse(unassignEventPk)
+  override val eventLabels: Set[MetricLabel]  = contractLabels
+  override val eventPk: Option[IdPlaceholder] = archiveEventPk.orElse(unassignEventPk)
 
 // As opposed to the other tables, __tmp_deactivated_contracts is a staging table
 // the underlying __contracts is updated sequentially by __update_watermark_fn SQL function
@@ -356,7 +357,6 @@ object DeactivatedContract
     )
 
 final class Reassignment(
-    qualifiedName: String,
     entityType: EntityTypePk,
     reassignmentEventPk: IdPlaceholder,
     reassignedAtIx: Long,
@@ -385,16 +385,7 @@ final class Reassignment(
     witnesses,
     assignmentExclusivity
   )
-  override val contractLabels: Set[MetricLabel] = l(
-    "type"     -> reassignmentType.toString.toLowerCase(),
-    "template" -> qualifiedName,
-    "synchronizer_id" -> (reassignmentType match
-      case ReassignmentType.Unassign => source
-      case ReassignmentType.Assign   => target
-    ),
-    "source_synchronizer_id" -> source,
-    "target_synchronizer_id" -> target
-  )
+  override val eventLabels: Set[MetricLabel] = l("source_synchronizer_id" -> source, "target_synchronizer_id" -> target)
   override val eventPk: Option[IdPlaceholder] = Some(reassignmentEventPk)
 
 object Reassignment

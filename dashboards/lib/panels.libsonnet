@@ -12,14 +12,14 @@ local p = import '../lib-shared/panels.libsonnet';
 
       contractsChurn(title, targets, width=null):
         p.timeSeries.throughput(title, targets, width)
-        + ts.panelOptions.withDescription('Per-template activity (creates/archives) on the ledger')
+        + ts.panelOptions.withDescription('Per-template activity (creates/archives) on the ledger<br><br>A contract counts once for its template and once per interface view, all under the template name')
         + ts.standardOptions.withMin(null)
         + options.legend.withDisplayMode('table')
         + options.legend.withPlacement('right'),
 
       activeContracts(title, targets, width=null):
         p.timeSeries.short(title, targets, width)
-        + ts.panelOptions.withDescription('Per-template active contracts count<br><br>* as observed since last restart')
+        + ts.panelOptions.withDescription('Per-template active contracts count<br><br>A contract counts once for its template and once per interface view, all under the template name<br><br>* as observed since last restart')
         + ts.standardOptions.withDecimals(null)
         + options.legend.withCalcs(['lastNotNull', 'max'])
         + options.legend.withDisplayMode('table')

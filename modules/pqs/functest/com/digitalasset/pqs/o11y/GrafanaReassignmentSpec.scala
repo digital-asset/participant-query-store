@@ -46,14 +46,17 @@ object GrafanaReassignmentSpec extends SharedMultiSyncLedgerSpec:
 
   def spec = suite("observability signals can be queried with Grafana")(
     reassignedContractSpec(TransactionStream),
-    reassignedContractSpec(TransactionTreeStream)
+    reassignedContractSpec(TransactionTreeStream),
+    seededAssignSpec
   )
+
+  private def owner(party: Party) =
+    Record.defaultInstance.addFields(RecordField("owner", Some(Value(Value.Sum.Party(party.id)))))
 
   private def reassignedContractSpec(source: TransactionApi) =
     funcTest(s"[metrics] contract rows and contract events of a reassigned contract ($source)") {
       val alice      = Party("Alice")
       val contractId = Capture[String]
-      def owner      = Record.defaultInstance.addFields(RecordField("owner", Some(Value(Value.Sum.Party(alice.id)))))
       def reassigned = s"source_synchronizer_id='${sync1.id}', target_synchronizer_id='${sync2.id}'"
 
       Given:
@@ -63,7 +66,7 @@ object GrafanaReassignmentSpec extends SharedMultiSyncLedgerSpec:
           ++ DamlSdk.uploadAndVetDar(asset)(sync1, sync2)
       Then:
         Ledger
-          .create("Asset:Asset", owner, alice, sync1)
+          .create("Asset:Asset", owner(alice), alice, sync1)
           .map(_.getTransaction.events(0).getCreated.contractId)
           .is(contractId.capture)
       When:
@@ -80,35 +83,74 @@ object GrafanaReassignmentSpec extends SharedMultiSyncLedgerSpec:
       Then:
         // A row for Asset and one for IAsset
         Grafana
-          .getMetrics(s"sum(pipeline_events_total{type='unassign', synchronizer_id='${sync1.id}'})")
+          .getMetrics(s"sum(pipeline_contracts_per_template_total{type='unassign', synchronizer_id='${sync1.id}'})")
           .is(exists(equalTo(2)))
           .retryUntilTimeout
       And:
         Grafana
-          .getMetrics(s"sum(pipeline_events_total{type='assign', synchronizer_id='${sync2.id}'})")
+          .getMetrics(s"sum(pipeline_contracts_per_template_total{type='assign', synchronizer_id='${sync2.id}'})")
           .is(exists(equalTo(2)))
           .retryUntilTimeout
       And:
+        // Each event counts once, whatever interface views Asset has
         Grafana
-          .getMetrics("sum(pipeline_contracts_total{type='create'})")
+          .getMetrics("sum(pipeline_events_total{type='create'})")
           .is(exists(equalTo(1)))
           .retryUntilTimeout
       And:
         Grafana
-          .getMetrics(
-            s"sum(pipeline_contracts_total{type='unassign', synchronizer_id='${sync1.id}', $reassigned})"
-          )
+          .getMetrics(s"sum(pipeline_events_total{type='unassign', synchronizer_id='${sync1.id}', $reassigned})")
           .is(exists(equalTo(1)))
           .retryUntilTimeout
       And:
         Grafana
-          .getMetrics(s"sum(pipeline_contracts_total{type='assign', synchronizer_id='${sync2.id}', $reassigned})")
+          .getMetrics(s"sum(pipeline_events_total{type='assign', synchronizer_id='${sync2.id}', $reassigned})")
           .is(exists(equalTo(1)))
           .retryUntilTimeout
       And:
         // An archive event, or with TransactionTreeStream the consuming Archive exercise
         Grafana
-          .getMetrics("sum(pipeline_contracts_total{type='archive'})")
+          .getMetrics("sum(pipeline_events_total{type='archive'})")
           .is(exists(equalTo(1)))
+          .retryUntilTimeout
+    }
+
+  private def seededAssignSpec =
+    funcTest("[metrics] contract seeded from the ACS as an assign") {
+      val alice      = Party("Alice")
+      val contractId = Capture[String]
+
+      Given:
+        Loki.instance ++ Prometheus.instance ++ Tempo.instance >>> (Collector.instance ++ Grafana.instance)
+      And:
+        Postgres.database ++ DamlSdk.allocateParties(alice -> Seq(sync1, sync2))
+          ++ DamlSdk.uploadAndVetDar(asset)(sync1, sync2)
+      Then:
+        Ledger
+          .create("Asset:Asset", owner(alice), alice, sync1)
+          .map(_.getTransaction.events(0).getCreated.contractId)
+          .is(contractId.capture)
+      When:
+        Ledger.reassign(contractId.get, alice, sync1, sync2)
+      When:
+        Pqs.runPipeline(
+          s"--pipeline-filter-contracts=${Pipeline.allContractsWithoutAdminWorkflows}",
+          "--pipeline-ledger-start=Latest",
+          "--pipeline-ledger-stop=Latest"
+        )
+
+      Then:
+        // Without a source synchronizer, the Reassignments panels leave it out
+        Grafana
+          .getMetrics(
+            s"sum(pipeline_events_total{type='assign', synchronizer_id='${sync2.id}', source_synchronizer_id=''})"
+          )
+          .is(exists(equalTo(1)))
+          .retryUntilTimeout
+      And:
+        // A row for Asset and one for IAsset
+        Grafana
+          .getMetrics(s"sum(pipeline_contracts_per_template_total{type='assign', synchronizer_id='${sync2.id}'})")
+          .is(exists(equalTo(2)))
           .retryUntilTimeout
     }

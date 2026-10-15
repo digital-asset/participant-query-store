@@ -5,6 +5,8 @@ local g = import '../lib-shared/g.libsonnet';
 local q = import '../lib-shared/queries.libsonnet';
 
 local sync_sel = 'synchronizer_id=~"$synchronizer"';
+// A contract seeded from the ACS as an assign has no source synchronizer and is not a reassignment.
+local reassigned = 'type=~"assign|unassign", source_synchronizer_id!="", %s' % sync_sel;
 
 {
   pqs: {
@@ -120,27 +122,23 @@ local sync_sel = 'synchronizer_id=~"$synchronizer"';
     contracts: {
       churn: {
         base(type, mult=1):
-          q.simple('label_replace(sum by(template) (rate(pipeline_contracts_total{job="$jvm", type="%s", %s}[$__rate_interval])) * %d, "short_template", "$1", "template", ".*?:(.*)")' % [type, sync_sel, mult], '{{short_template}}'),
+          q.simple('label_replace(sum by(template) (rate(pipeline_contracts_per_template_total{job="$jvm", type="%s", %s}[$__rate_interval])) * %d, "short_template", "$1", "template", ".*?:(.*)")' % [type, sync_sel, mult], '{{short_template}}'),
         creates: self.base('create'),
         archives: self.base('archive', -1),
         all: [self.creates, self.archives],
       },
       active:
-        q.simple('label_replace(sum by(template) (pipeline_contracts_total{job="$jvm", type=~"create|assign", %s}) - (sum by(template) (pipeline_contracts_total{job="$jvm", type=~"archive|unassign", %s}) or sum by(template) (pipeline_contracts_total{job="$jvm", type=~"create|assign", %s}) * 0), "short_template", "$1", "template", ".*?:(.*)")' % [sync_sel, sync_sel, sync_sel], '{{short_template}}'),
+        q.simple('label_replace(sum by(template) (pipeline_contracts_per_template_total{job="$jvm", type=~"create|assign", %s}) - (sum by(template) (pipeline_contracts_per_template_total{job="$jvm", type=~"archive|unassign", %s}) or sum by(template) (pipeline_contracts_per_template_total{job="$jvm", type=~"create|assign", %s}) * 0), "short_template", "$1", "template", ".*?:(.*)")' % [sync_sel, sync_sel, sync_sel], '{{short_template}}'),
     },
 
+    // Each max by counts a reassignment once, whether this participant sees its unassign, its assign or both.
     reassignments: {
-      throughput: [
-        q.simple('sum(rate(pipeline_contracts_total{job="$jvm", type="assign", %s}[$__rate_interval]))' % sync_sel, 'assigns'),
-        q.simple('sum(rate(pipeline_contracts_total{job="$jvm", type="unassign", %s}[$__rate_interval]))' % sync_sel, 'unassigns'),
-      ],
-      // The max by counts each reassignment once, whether this participant sees its unassign, its assign or both.
       by_template:
-        q.simple('label_replace(sum by(template) (max by(template, source_synchronizer_id, target_synchronizer_id) (sum by(template, source_synchronizer_id, target_synchronizer_id, type) (rate(pipeline_contracts_total{job="$jvm", type=~"assign|unassign", %s}[$__rate_interval])))), "short_template", "$1", "template", ".*?:(.*)")' % sync_sel, '{{short_template}}'),
+        q.simple('label_replace(sum by(template) (max by(template, source_synchronizer_id, target_synchronizer_id) (sum by(template, source_synchronizer_id, target_synchronizer_id, type) (rate(pipeline_events_total{job="$jvm", %s}[$__rate_interval])))), "short_template", "$1", "template", ".*?:(.*)")' % reassigned, '{{short_template}}'),
       flows:
-        q.simple('sum by(source, target) (max by(template, source, target) (sum by(template, source, target, type) (label_replace(label_replace(rate(pipeline_contracts_total{job="$jvm", type=~"assign|unassign", %s}[$__rate_interval]), "source", "$1", "source_synchronizer_id", "^(.*?)(::.*)?$"), "target", "$1", "target_synchronizer_id", "^(.*?)(::.*)?$"))))' % sync_sel, '{{source}} → {{target}}'),
+        q.simple('sum by(source, target) (max by(template, source, target) (sum by(template, source, target, type) (label_replace(label_replace(rate(pipeline_events_total{job="$jvm", %s}[$__rate_interval]), "source", "$1", "source_synchronizer_id", "^(.*?)(::.*)?$"), "target", "$1", "target_synchronizer_id", "^(.*?)(::.*)?$"))))' % reassigned, '{{source}} → {{target}}'),
       count:
-        q.simple('sum(pipeline_contracts_total{job="$jvm", type=~"assign|unassign", %s})' % sync_sel, 'reassignments'),
+        q.simple('sum(max by(template, source_synchronizer_id, target_synchronizer_id) (sum by(template, source_synchronizer_id, target_synchronizer_id, type) (pipeline_events_total{job="$jvm", %s})))' % reassigned, 'reassignments'),
     },
 
     synchronizers: {
