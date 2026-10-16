@@ -34,7 +34,6 @@ enum ReassignmentType:
 sealed trait Model:
   def eventLabels: Set[MetricLabel]    = Set.empty
   def contractLabels: Set[MetricLabel] = Set.empty
-  def eventPk: Option[IdPlaceholder]   = None
 
 sealed trait Copy extends Model:
   def table: Table
@@ -51,10 +50,20 @@ final case class Watermark(
 
 given watermarkOrdering: Ordering[Watermark] = Ordering.by(_.ix)
 private def l(kv: (String, Any)*)            = kv.map((k, v) => MetricLabel(k, v.toString)).toSet
-private def reassignmentLabels(sourceAndTarget: Option[(SynchronizerId, SynchronizerId)]) =
-  sourceAndTarget.fold(Set.empty)((source, target) =>
-    l("source_synchronizer_id" -> source, "target_synchronizer_id" -> target)
-  )
+
+// What the metrics of a ledger event's rows need to know about it, beyond the rows' columns
+final case class MetricsContext(
+    qualifiedName: String,
+    synchronizerId: SynchronizerId,
+    sourceAndTarget: Option[(SynchronizerId, SynchronizerId)] = None,
+    fromAcs: Boolean = false,
+    consuming: Boolean = false
+):
+  def labels(tpe: String): Set[MetricLabel] =
+    l("type" -> tpe, "template" -> qualifiedName, "synchronizer_id" -> synchronizerId) ++
+      sourceAndTarget.fold(Set.empty)((source, target) =>
+        l("source_synchronizer_id" -> source, "target_synchronizer_id" -> target)
+      )
 
 object Model {
   private val eventCounter =
@@ -94,11 +103,8 @@ object Model {
 
     def count(metric: Metric.Counter[Long], labels: Iterable[Set[MetricLabel]]) =
       ZIO.foreachDiscard(labels.filter(_.nonEmpty).groupMapReduce(identity)(_ => 1)(_ + _))(metric.tagged(_).update(_))
-    // A contract event has a row per template and interface view, all with the same labels
-    val (eventRows, otherRows) = all.toSeq.partition(_.eventPk.isDefined)
-    val events                 = otherRows ++ eventRows.distinctBy(_.eventPk)
     val metricsIO =
-      count(eventCounter, events.map(_.eventLabels)) *> count(contractCounter, all.view.map(_.contractLabels))
+      count(eventCounter, all.view.map(_.eventLabels)) *> count(contractCounter, all.view.map(_.contractLabels))
 
     traces.span("execute SQL") {
       copyIO @@ traces.attributes(
@@ -177,10 +183,23 @@ final class Event(
     pk: IdPlaceholder,
     txIx: Long,
     eventId: EventId,
-    eventType: EventType
+    eventType: EventType,
+    metrics: MetricsContext
 ) extends Copy:
   def table = Event
   val row   = buildRow(pk, txIx, eventId, eventType)
+
+  override val eventLabels: Set[MetricLabel] = eventType match
+    // Exercise and Reassignment rows count the other event types, with the choice and the synchronizers.
+    case EventType.Create  => metrics.labels("create")
+    case EventType.Archive => metrics.labels("archive")
+    // A consuming exercise also archives its contract: TransactionTreeStream reports archives only this way.
+    case EventType.Exercise if metrics.consuming => metrics.labels("archive")
+    // The ACS gives a contract's reassignment counter but not the reassignment that brought it here, so the
+    // ACS import writes no Reassignment row for an assigned contract. Its Event counts the assign, with no
+    // source or target.
+    case EventType.Assign if metrics.fromAcs => metrics.labels("assign")
+    case _                                   => Set.empty
 
 object Event
     extends Table(
@@ -190,7 +209,6 @@ object Event
     )
 
 final class Contract(
-    qualifiedName: String,
     entityType: EntityTypePk,
     createEventPk: Option[IdPlaceholder],
     createdAtIx: Option[Long],
@@ -198,7 +216,6 @@ final class Contract(
     assignedAtIx: Option[Long],
     contractId: ContractId,
     synchronizerId: SynchronizerId,
-    sourceAndTarget: Option[(SynchronizerId, SynchronizerId)],
     reassignmentCounter: Long,
     signatories: Seq[Party],
     observers: Seq[Party],
@@ -209,7 +226,8 @@ final class Contract(
     metadata: Option[Array[Byte]],
     acsDelta: Boolean,
     packagePk: PackagePk,
-    creationPackageId: Option[String]
+    creationPackageId: Option[String],
+    metrics: MetricsContext
 ) extends Copy:
   def table = Contract
   val row = buildRow(
@@ -232,12 +250,7 @@ final class Contract(
     witnesses,
     !acsDelta
   )
-  override val contractLabels: Set[MetricLabel] =
-    val tpe = if createdAtIx.isDefined then "create" else "assign"
-    l("type" -> tpe, "template" -> qualifiedName, "synchronizer_id" -> synchronizerId) ++
-      reassignmentLabels(sourceAndTarget)
-  override val eventLabels: Set[MetricLabel]  = contractLabels
-  override val eventPk: Option[IdPlaceholder] = createEventPk.orElse(assignEventPk)
+  override val contractLabels: Set[MetricLabel] = metrics.labels(if createdAtIx.isDefined then "create" else "assign")
 
 object Contract
     extends Table(
@@ -266,7 +279,6 @@ object Contract
     )
 
 final class Exercise(
-    qualifiedName: String,
     entityType: EntityTypePk,
     contractEntityType: EntityTypePk,
     exerciseEventPk: IdPlaceholder,
@@ -279,7 +291,7 @@ final class Exercise(
     witnesses: Seq[Party],
     lastDescendant: NodeId,
     packagePk: PackagePk,
-    synchronizerId: SynchronizerId
+    metrics: MetricsContext
 ) extends Copy:
   def table = Exercise
   val row = buildRow(
@@ -295,8 +307,7 @@ final class Exercise(
     lastDescendant,
     packagePk
   )
-  override val eventLabels: Set[MetricLabel] =
-    l("type" -> "exercise", "template" -> qualifiedName, "choice" -> choiceName, "synchronizer_id" -> synchronizerId)
+  override val eventLabels: Set[MetricLabel] = metrics.labels("exercise") ++ l("choice" -> choiceName)
 
 object Exercise
     extends Table(
@@ -319,7 +330,6 @@ object Exercise
 
 // Represents a contract deactivation: either an archive or an unassign.
 final class DeactivatedContract(
-    qualifiedName: String,
     entityType: EntityTypePk,
     contractId: ContractId,
     archiveEventPk: Option[IdPlaceholder],
@@ -327,7 +337,7 @@ final class DeactivatedContract(
     unassignEventPk: Option[IdPlaceholder],
     unassignedAtIx: Option[Long],
     synchronizerId: SynchronizerId,
-    sourceAndTarget: Option[(SynchronizerId, SynchronizerId)]
+    metrics: MetricsContext
 ) extends Copy:
   def table = DeactivatedContract
   val row = buildRow(
@@ -340,11 +350,7 @@ final class DeactivatedContract(
     synchronizerId
   )
   override val contractLabels: Set[MetricLabel] =
-    val tpe = if archiveEventPk.isDefined then "archive" else "unassign"
-    l("type" -> tpe, "template" -> qualifiedName, "synchronizer_id" -> synchronizerId) ++
-      reassignmentLabels(sourceAndTarget)
-  override val eventLabels: Set[MetricLabel]  = contractLabels
-  override val eventPk: Option[IdPlaceholder] = archiveEventPk.orElse(unassignEventPk)
+    metrics.labels(if archiveEventPk.isDefined then "archive" else "unassign")
 
 // As opposed to the other tables, __tmp_deactivated_contracts is a staging table
 // the underlying __contracts is updated sequentially by __update_watermark_fn SQL function
@@ -375,7 +381,8 @@ final class Reassignment(
     submitter: Option[Party],
     reassignmentCounter: Long,
     witnesses: Seq[Party],
-    assignmentExclusivity: Option[Instant]
+    assignmentExclusivity: Option[Instant],
+    metrics: MetricsContext
 ) extends Copy:
   def table = Reassignment
   val row = buildRow(
@@ -392,6 +399,9 @@ final class Reassignment(
     witnesses,
     assignmentExclusivity
   )
+  override val eventLabels: Set[MetricLabel] = reassignmentType match
+    case ReassignmentType.Assign   => metrics.labels("assign")
+    case ReassignmentType.Unassign => metrics.labels("unassign")
 
 object Reassignment
     extends Table(

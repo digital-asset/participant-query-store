@@ -117,6 +117,11 @@ object GrafanaReassignmentSpec extends SharedMultiSyncLedgerSpec:
           .getMetrics("sum(pipeline_events_total{type='archive'})")
           .is(exists(equalTo(1)))
           .retryUntilTimeout
+      And:
+        Grafana
+          .getMetrics("sum(pipeline_contracts_per_template_total{type='archive'})")
+          .is(exists(equalTo(2)))
+          .retryUntilTimeout
     }
 
   private def seededAssignSpec =
@@ -144,7 +149,7 @@ object GrafanaReassignmentSpec extends SharedMultiSyncLedgerSpec:
         )
 
       Then:
-        // Without a source synchronizer, the Reassignments panels leave it out
+        // Counted by its Event row without a source synchronizer, as the ACS import writes no Reassignment row
         Grafana
           .getMetrics(
             s"sum(pipeline_events_total{type='assign', synchronizer_id='${sync2.id}', source_synchronizer_id=''})"
@@ -154,7 +159,9 @@ object GrafanaReassignmentSpec extends SharedMultiSyncLedgerSpec:
       And:
         // A row for Asset and one for IAsset
         Grafana
-          .getMetrics(s"sum(pipeline_contracts_per_template_total{type='assign', synchronizer_id='${sync2.id}'})")
+          .getMetrics(
+            s"sum(pipeline_contracts_per_template_total{type='assign', synchronizer_id='${sync2.id}', source_synchronizer_id=''})"
+          )
           .is(exists(equalTo(2)))
           .retryUntilTimeout
     }
