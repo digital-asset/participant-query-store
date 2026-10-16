@@ -193,8 +193,6 @@ final class Event(
     // Exercise and Reassignment rows count the other event types, with the choice and the synchronizers.
     case EventType.Create  => metrics.labels("create")
     case EventType.Archive => metrics.labels("archive")
-    // A consuming exercise also archives its contract: TransactionTreeStream reports archives only this way.
-    case EventType.Exercise if metrics.consuming => metrics.labels("archive")
     // The ACS gives a contract's reassignment counter but not the reassignment that brought it here, so the
     // ACS import writes no Reassignment row for an assigned contract. Its Event counts the assign, with no
     // source or target.
@@ -307,7 +305,9 @@ final class Exercise(
     lastDescendant,
     packagePk
   )
-  override val eventLabels: Set[MetricLabel] = metrics.labels("exercise") ++ l("choice" -> choiceName)
+  // A consuming exercise counts once, as the archive it is: TransactionTreeStream reports archives only this way
+  override val eventLabels: Set[MetricLabel] =
+    metrics.labels(if metrics.consuming then "archive" else "exercise") ++ l("choice" -> choiceName)
 
 object Exercise
     extends Table(

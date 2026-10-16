@@ -118,6 +118,12 @@ object GrafanaReassignmentSpec extends SharedMultiSyncLedgerSpec:
           .is(exists(equalTo(1)))
           .retryUntilTimeout
       And:
+        // One count per Ledger API event: the consuming Archive exercise is not also an exercise
+        Grafana
+          .getMetrics("sum(pipeline_events_total{type=~'create|archive|exercise|assign|unassign'})")
+          .is(exists(equalTo(4)))
+          .retryUntilTimeout
+      And:
         Grafana
           .getMetrics("sum(pipeline_contracts_per_template_total{type='archive'})")
           .is(exists(equalTo(2)))
