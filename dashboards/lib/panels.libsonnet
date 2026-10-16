@@ -12,7 +12,7 @@ local p = import '../lib-shared/panels.libsonnet';
 
       contractsChurn(title, targets, width=null):
         p.timeSeries.throughput(title, targets, width)
-        + ts.panelOptions.withDescription('Per-template activity (creates/archives) on the ledger<br><br>A contract counts once for its template and once per interface view, all under the template name')
+        + ts.panelOptions.withDescription('Per-template activity on the ledger: creates and assigns up, archives and unassigns down<br><br>A reassignment counts down on its source synchronizer and up on its target<br><br>A contract counts once for its template and once per interface view, all under the template name')
         + ts.standardOptions.withMin(null)
         + options.legend.withDisplayMode('table')
         + options.legend.withPlacement('right'),

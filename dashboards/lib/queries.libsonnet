@@ -122,10 +122,10 @@ local reassigned = 'type=~"assign|unassign", source_synchronizer_id!="", %s' % s
     contracts: {
       churn: {
         base(type, mult=1):
-          q.simple('label_replace(sum by(template) (rate(pipeline_contracts_per_template_total{job="$jvm", type="%s", %s}[$__rate_interval])) * %d, "short_template", "$1", "template", ".*?:(.*)")' % [type, sync_sel, mult], '{{short_template}}'),
-        creates: self.base('create'),
-        archives: self.base('archive', -1),
-        all: [self.creates, self.archives],
+          q.simple('label_replace(sum by(template) (rate(pipeline_contracts_per_template_total{job="$jvm", type=~"%s", %s}[$__rate_interval])) * %d, "short_template", "$1", "template", ".*?:(.*)")' % [type, sync_sel, mult], '{{short_template}}'),
+        activations: self.base('create|assign'),
+        deactivations: self.base('archive|unassign', -1),
+        all: [self.activations, self.deactivations],
       },
       active:
         q.simple('label_replace(sum by(template) (pipeline_contracts_per_template_total{job="$jvm", type=~"create|assign", %s}) - (sum by(template) (pipeline_contracts_per_template_total{job="$jvm", type=~"archive|unassign", %s}) or sum by(template) (pipeline_contracts_per_template_total{job="$jvm", type=~"create|assign", %s}) * 0), "short_template", "$1", "template", ".*?:(.*)")' % [sync_sel, sync_sel, sync_sel], '{{short_template}}'),
