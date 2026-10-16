@@ -121,6 +121,23 @@ object ReassignmentSpec extends SharedMultiSyncLedgerSpec:
         Postgres
           .query(sql"""select assignment_exclusivity from __reassignments where "type" = 'assign'""")
           .returns(table(isNull))
+      Expect:
+        Postgres
+          .query(sql"select * from summary_reassignments() order by type")
+          .returns(
+            table {
+              s"${pingPong.name}:PingPong:Ping" | "assign"   | sync1.id | sync2.id | 1
+              s"${pingPong.name}:PingPong:Ping" | "unassign" | sync1.id | sync2.id | 1
+            }
+          )
+      Expect:
+        Postgres
+          .query(sql"select * from summary_reassignments(${unassignedAtOffset.get}, ${unassignedAtOffset.get})")
+          .returns(
+            table {
+              s"${pingPong.name}:PingPong:Ping" | "unassign" | sync1.id | sync2.id | 1
+            }
+          )
 
       Expect:
         // A cutoff that falls between the unassign and the assign: later than the create's
