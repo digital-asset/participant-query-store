@@ -44,7 +44,7 @@ final case class CantonConf(version: String, protocolVersion: Int):
   def cantonDockerImage: String = s"europe-docker.pkg.dev/da-images/public-all/docker/canton-base:$version"
   def oneParticipant(hostname: String, usingPostgres: Option[(String, Int)] = None) =
     def storage(name: String) = if usingPostgres.isDefined then Storage.Postgres(name) else Storage.Memory
-    for (oauthInstance, collectorInstance, certFiles) <- commonSetup(hostname, usingPostgres = usingPostgres.isDefined)
+    for (oauth, collectorInstance, certFiles) <- commonSetup(hostname, usingPostgres = usingPostgres.isDefined)
     yield
       val config =
         s"""|${usingPostgres.fold("")((host, port) => postgresConfig(host, port))}
@@ -68,7 +68,7 @@ final case class CantonConf(version: String, protocolVersion: Int):
             |  monitoring.logging.delay-logging-threshold = 40.seconds
             |
             |  participants {
-            |    ${participant("participant1", protocolVersion, storage = storage("participant"))}
+            |    ${participant("participant1", protocolVersion, storage = storage("participant"), oauth = oauth)}
             |  }
             |
             |  sequencers {
@@ -157,7 +157,7 @@ final case class CantonConf(version: String, protocolVersion: Int):
       sync1: Synchronizer,
       sync2: Synchronizer
   ): ZIO[Docker, Throwable, Seq[(Path, String | Array[Byte])]] =
-    for (oauthInstance, collectorInstance, certFiles) <- commonSetup(hostname, usingPostgres = false)
+    for (oauth, collectorInstance, certFiles) <- commonSetup(hostname, usingPostgres = false)
     yield
       val config =
         s"""|canton {
@@ -175,7 +175,7 @@ final case class CantonConf(version: String, protocolVersion: Int):
             |  monitoring.logging.delay-logging-threshold = 40.seconds
             |
             |  participants {
-            |    ${participant("participant1", protocolVersion)}
+            |    ${participant("participant1", protocolVersion, oauth = oauth)}
             |  }
             |
             |  sequencers {
@@ -317,7 +317,8 @@ final case class CantonConf(version: String, protocolVersion: Int):
       protocolVersion: Int,
       adminApiPort: Int = 1012,
       ledgerApiPort: Int = participantPort,
-      storage: Storage = Storage.Memory
+      storage: Storage = Storage.Memory,
+      oauth: Option[Service[OAuth.Instance]] = None
   ): String =
     s"""|$name {
         |  $storage
@@ -332,6 +333,7 @@ final case class CantonConf(version: String, protocolVersion: Int):
         |  ledger-api {
         |    address = "0.0.0.0"
         |    port = $ledgerApiPort
+        |   ${oauthCantonConfig(oauth)}
         |    tls {
         |      cert-chain-file = "/tls/participant.crt"
         |      private-key-file = "/tls/participant.pem"
