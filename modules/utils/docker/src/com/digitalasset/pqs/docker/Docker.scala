@@ -9,7 +9,7 @@ import com.digitalasset.pqs.utils.safeequals.===
 import com.github.dockerjava.api.DockerClient
 import com.github.dockerjava.api.command.{InspectContainerResponse, InspectExecResponse}
 import com.github.dockerjava.api.model.StreamType.{STDERR, STDOUT}
-import com.github.dockerjava.api.model.{ExposedPort, HostConfig, Mount, MountType, PortBinding, StreamType}
+import com.github.dockerjava.api.model.{Service => _, Task => _, Container => _, *}
 import org.apache.commons.compress.archivers.tar.{TarArchiveEntry, TarArchiveInputStream, TarArchiveOutputStream}
 import org.apache.commons.io.output.ByteArrayOutputStream
 import os.Shellable
@@ -41,10 +41,6 @@ trait Docker:
       prepopulateFiles: Seq[(os.Path, String | Array[Byte])] = Seq.empty,
       user: Option[Int]
   )(cmd: Shellable*): ZIO[Scope, Throwable, Service[T]]
-
-  def inspect[T: Tag]: URIO[Service[T], Service[T]]
-
-  def inspectMaybe[T: Tag]: UIO[Option[Service[T]]]
 
   def certificateAuthority: CertificateAuthority
 
@@ -126,12 +122,6 @@ object Docker:
       user: Option[Int] = None
   )(cmd: Shellable*): ZIO[Docker & Scope, Throwable, Service[T]] =
     serviceWithZIO[Docker](_.run(image, env, prepopulateFiles, user)(cmd))
-
-  def inspect[T: Tag]: URIO[Docker & Service[T], Service[T]] =
-    serviceWithZIO[Docker](_.inspect[T])
-
-  def inspectMaybe[T: Tag]: URIO[Docker, Option[Service[T]]] =
-    serviceWithZIO[Docker](_.inspectMaybe[T])
 
   def certificateAuthority: URIO[Docker, CertificateAuthority] =
     serviceWith[Docker](_.certificateAuthority)
@@ -241,13 +231,6 @@ object Docker:
       exitCode <- svc.get.exitCode
       _ <- ZIO.fail(RuntimeException(s"Process failed with code $exitCode")).unless(exitCode === ExitCode.success)
     yield svc.get
-
-    def inspect[T: Tag]: URIO[Service[T], Service[T]] =
-      ZIO.service[Service[T]]
-
-    @SuppressWarnings(Array("org.wartremover.warts.AsInstanceOf"))
-    def inspectMaybe[T: Tag]: UIO[Option[Service[T]]] =
-      ZIO.environment[Any].mapAttempt(_.asInstanceOf[ZEnvironment[Service[T]]].get[Service[T]]).option
 
     override def mainNetworkId: String = session.dockerNetworkId
 

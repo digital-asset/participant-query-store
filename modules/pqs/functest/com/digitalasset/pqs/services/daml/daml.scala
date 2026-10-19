@@ -5,7 +5,6 @@ package com.digitalasset.pqs.services.daml
 
 import com.digitalasset.transcode.schema.*
 import org.semver4j.Semver
-import zio.*
 
 case class DamlSource(
     name: PackageName,
@@ -37,7 +36,3 @@ case class DarFile(
 ):
   val packageId: PackageId     = packageInfo.map((name, version, id) => name -> id).toMap.apply(source.name)
   def packageName: PackageName = source.name
-
-@SuppressWarnings(Array("org.wartremover.warts.AsInstanceOf"))
-def inspectMaybe[T: Tag]: UIO[Option[T]] =
-  ZIO.environment[Any].mapAttempt(_.asInstanceOf[ZEnvironment[T]].get[T]).option

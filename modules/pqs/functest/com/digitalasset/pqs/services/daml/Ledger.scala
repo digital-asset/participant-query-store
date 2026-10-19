@@ -29,6 +29,7 @@ import com.digitalasset.canonical.{ContractFilter, Event, MetadataFilter, Offset
 import com.digitalasset.pqs.docker.{Docker, Service}
 import com.digitalasset.pqs.functest.FTEnv
 import com.digitalasset.pqs.grpc.{ZClientInterceptor, ZManagedChannel}
+import com.digitalasset.pqs.services.inspectMaybe
 import com.digitalasset.pqs.utils.safeequals.*
 import com.digitalasset.transcode.schema.IdentifierFilter
 import com.digitalasset.zio.daml.DamlSchema
@@ -48,7 +49,7 @@ object Ledger:
 
   val instance: RLayer[FTEnv & Docker, Ledger] = ZLayer.scoped(
     for
-      conf     <- CantonConf()
+      conf     <- CantonConf.load()
       hostname <- cantonHostname
       files    <- conf.oneParticipant(hostname)
       svc      <- canton(hostname, conf.cantonDockerImage, files)
@@ -58,7 +59,7 @@ object Ledger:
   def multiSync(sync1: Synchronizer, sync2: Synchronizer): RLayer[FTEnv & Docker, Ledger] =
     ZLayer.scoped(
       for
-        conf     <- CantonConf()
+        conf     <- CantonConf.load()
         hostname <- cantonHostname
         files    <- conf.twoSynchronizers(hostname, sync1, sync2)
         svc      <- canton(hostname, conf.cantonDockerImage, files)

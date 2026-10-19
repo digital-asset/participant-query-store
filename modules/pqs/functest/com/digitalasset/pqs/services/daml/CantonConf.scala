@@ -5,12 +5,12 @@ package com.digitalasset.pqs.services.daml
 
 import com.digitalasset.pqs.docker.{Docker, Service}
 import com.digitalasset.pqs.functest.FTEnv
+import com.digitalasset.pqs.services.inspectMaybe
 import com.digitalasset.pqs.services.o11y.Collector
 import com.digitalasset.pqs.services.oauth.OAuth
 import org.semver4j.Semver
 import os.{Path, Shellable}
-import zio.{ZIO, ZLayer}
-import zio.ZIO.{logInfo, whenCase}
+import zio.ZIO
 
 object CantonConf:
   val maxRequestSize: Int                  = 30 * 1024 * 1024
@@ -28,15 +28,12 @@ object CantonConf:
     )
   val user = 1001
 
-  val layer: ZLayer[FTEnv, Throwable, CantonConf] =
-    ZLayer.fromZIO(CantonConf())
-
-  def apply(): ZIO[FTEnv, Throwable, CantonConf] =
+  def load(): ZIO[FTEnv, Throwable, CantonConf] =
     for {
       cantonVersion   <- FTEnv.cantonVersion
       protocolVersion <- FTEnv.protocolVersion
       ver             <- ZIO.attempt(Semver.parse(cantonVersion))
-      _               <- logInfo(s"Using canton version $ver, major.minor ${ver.getMajor}.${ver.getMinor}")
+      _               <- ZIO.logInfo(s"Using canton version $ver, major.minor ${ver.getMajor}.${ver.getMinor}")
     } yield CantonConf(cantonVersion, protocolVersion)
 
 /** A set of values and auxiliary functions that differ between canton versions. Used to start canton container for
@@ -381,9 +378,9 @@ final case class CantonConf(version: String, protocolVersion: Int):
     participantCert   <- ca.generate("participant", Seq(hostname, "localhost", "127.0.0.1", "0.0.0.0"))
     adminCert         <- ca.generate("participant", Seq(hostname, "127.0.0.1"))
     domainCert        <- ca.generate("participant", Seq(hostname, "127.0.0.1"))
-    collectorInstance <- Docker.inspectMaybe[Collector.Instance]
-    oauthInstance     <- Docker.inspectMaybe[OAuth.Instance]
-    maybeOAuthCert <- whenCase(oauthInstance) {
+    collectorInstance <- inspectMaybe[Service[Collector.Instance]]
+    oauthInstance     <- inspectMaybe[Service[OAuth.Instance]]
+    oAuthCertOpt <- ZIO.whenCase(oauthInstance) {
       case Some(oauth) => oauth.getFileContents(os.root / "data" / "oauth-certificate.crt")
     }
   yield (
@@ -397,7 +394,7 @@ final case class CantonConf(version: String, protocolVersion: Int):
       os.root / "tls" / "admin-client.crt" -> adminCert.certificate.crt,
       os.root / "tls" / "domain.pem"       -> domainCert.certificate.pem,
       os.root / "tls" / "domain.crt"       -> domainCert.certificate.crt
-    ) ++ maybeOAuthCert.fold(Seq.empty) { cert => Seq(os.root / "data" / "oauth-certificate.crt" -> cert) }
+    ) ++ oAuthCertOpt.fold(Seq.empty) { cert => Seq(os.root / "data" / "oauth-certificate.crt" -> cert) }
   )
 
   private def oauthCantonConfig(oauthInstance: Option[Service[OAuth.Instance]]): String =

@@ -3,7 +3,8 @@
 
 package com.digitalasset.pqs
 
-import com.digitalasset.pqs.docker.Docker
+import com.digitalasset.pqs.docker.{Service, Docker}
+import com.digitalasset.pqs.services.inspectMaybe
 import com.digitalasset.pqs.services.daml.CantonConf
 import com.digitalasset.pqs.services.daml.Ledger
 import com.digitalasset.pqs.services.oauth.OAuth
@@ -46,7 +47,7 @@ package object errors:
         ca                <- Docker.certificateAuthority
         clientCertificate <- ca.generate("pqs")
         ledger            <- ZIO.service[Ledger]
-        oauthInstance     <- Docker.inspectMaybe[OAuth.Instance]
+        oauthInstance     <- inspectMaybe[Service[OAuth.Instance]]
         _prefix = if prefix.isEmpty then prefix else s"${prefix}_".toUpperCase
         base = Map(
           s"PQS_${_prefix}LEDGER_HOST"       -> ledger.container.hostName,
