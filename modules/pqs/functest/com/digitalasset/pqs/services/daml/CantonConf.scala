@@ -13,9 +13,9 @@ import os.{Path, Shellable}
 import zio.ZIO
 
 object CantonConf:
+  val databaseNames: Seq[String]           = Seq("driver", "mediator", "sequencer", "participant")
   val maxRequestSize: Int                  = 30 * 1024 * 1024
   val participantPort: Int                 = 6865
-  val adminApiPort: Int                    = 6866
   val participantAdmin                     = "participant_admin"
   val bootstrapCompleteMessage             = "=== Bootstrapping complete ==="
   val cantonAdditionalCmds: Seq[Shellable] = Seq("daemon")
@@ -42,11 +42,14 @@ object CantonConf:
 final case class CantonConf(version: String, protocolVersion: Int):
   import CantonConf.*
   def cantonDockerImage: String = s"europe-docker.pkg.dev/da-images/public-all/docker/canton-base:$version"
-  def oneParticipant(hostname: String) =
-    for (oauthInstance, collectorInstance, certFiles) <- commonSetup(hostname)
+  def oneParticipant(hostname: String, usingPostgres: Option[(String, Int)] = None) =
+    def storage(name: String) = if usingPostgres.isDefined then Storage.Postgres(name) else Storage.Memory
+    for (oauthInstance, collectorInstance, certFiles) <- commonSetup(hostname, usingPostgres = usingPostgres.isDefined)
     yield
       val config =
-        s"""|canton {
+        s"""|${usingPostgres.fold("")((host, port) => postgresConfig(host, port))}
+            |
+            |canton {
             |  features {
             |    enable-preview-commands = yes
             |    enable-testing-commands = yes
@@ -65,101 +68,15 @@ final case class CantonConf(version: String, protocolVersion: Int):
             |  monitoring.logging.delay-logging-threshold = 40.seconds
             |
             |  participants {
-            |    participant1 {
-            |      monitoring.grpc-health-server {
-            |        address = "0.0.0.0"
-            |        port = 5061
-            |      }
-            |
-            |      storage {
-            |        type = memory
-            |      }
-            |
-            |      admin-api {
-            |        address = "0.0.0.0"
-            |        port = 10012
-            |      }
-            |
-            |      init {
-            |        ledger-api.max-deduplication-duration = 0s
-            |      }
-            |
-            |      sequencer-client {
-            |        override-max-request-size = $maxRequestSize
-            |      }
-            |
-            |      http-ledger-api.enabled = false
-            |
-            |      ledger-api {
-            |        max-inbound-message-size = $maxRequestSize
-            |        address = "0.0.0.0"
-            |        port = $participantPort
-            |        ${oauthCantonConfig(oauthInstance)}
-            |        tls {
-            |          cert-chain-file = "/tls/participant.crt"
-            |          private-key-file = "/tls/participant.pem"
-            |          trust-collection-file = "/tls/root-ca.crt"
-            |          client-auth {
-            |            type = require
-            |            admin-client {
-            |              cert-chain-file = "/tls/admin-client.crt"
-            |              private-key-file = "/tls/admin-client.pem"
-            |            }
-            |          }
-            |        }
-            |        # We need to bump this because we run one stream per user +
-            |        # polling for domain connections which can add up quite a bit
-            |        # once you're around ~100 users.
-            |        rate-limit.max-api-services-queue-size = 80000
-            |        interactive-submission-service {
-            |          enable-verbose-hashing = true
-            |        }
-            |      }
-            |
-            |      parameters {
-            |        initial-protocol-version = $protocolVersion
-            |        minimum-protocol-version = $protocolVersion
-            |        # tune the synchronisation protocols contract store cache
-            |        caching {
-            |          contract-store {
-            |            maximum-size = 1000 # default 1e6
-            |            expire-after-access = 120s # default 10 minutes
-            |          }
-            |        }
-            |        # Bump ACS pruning interval to make sure ACS snapshots are available for longer
-            |        journal-garbage-collection-delay = 24h
-            |      }
-            |
-            |      # from https://docs.daml.com/2.8.0/canton/usermanual/performance.html#configuration
-            |      # tune caching configs of the ledger api server
-            |      ledger-api {
-            |        index-service {
-            |          max-contract-state-cache-size = 1000 # default 1e4
-            |          max-contract-key-state-cache-size = 1000 # default 1e4
-            |
-            |          # The in-memory fan-out will serve the transaction streams from memory as they are finalized, rather than
-            |          # using the database. Therefore, you should choose this buffer to be large enough such that the likeliness of
-            |          # applications having to stream transactions from the database is low. Generally, having a 10s buffer is
-            |          # sensible. Therefore, if you expect e.g. a throughput of 20 tx/s, then setting this number to 200 is sensible.
-            |          # The default setting assumes 100 tx/s.
-            |          max-transactions-in-memory-fan-out-buffer-size = 200 # default 1000
-            |        }
-            |        # Restrict the command submission rate (mainly for SV participants, since they are granted unlimited traffic)
-            |        command-service {
-            |          max-commands-in-flight = 30 # default = 256
-            |        }
-            |      }
-            |
-            |      topology.broadcast-batch-size = 1
-            |    }
+            |    ${participant("participant1", protocolVersion, storage = storage("participant"))}
             |  }
             |
             |  sequencers {
-            |    ${sequencer("sequencer1")}
+            |    ${sequencer("sequencer1", driverStorage = storage("driver"), sequencerStorage = storage("sequencer"))}
             |  }
             |
             |  mediators {
-            |    ${mediator("mediator1")}
+            |    ${mediator("mediator1", storage = storage("mediator"))}
             |  }
             |${collectorInstance.fold("")(monitoring)}
             |}
@@ -185,20 +102,7 @@ final case class CantonConf(version: String, protocolVersion: Int):
             |
             |  val initialReconciliationInterval = config.PositiveDurationSeconds.ofSeconds(1)
             |  sequencer1.topology.synchronizer_parameters
-            |    .propose_update(synchronizerId.logical, _.update(
-            |      reconciliationInterval = initialReconciliationInterval,
-            |      // The TrafficControlParameters used here have no default values,
-            |      // so using the ones from com.digitalasset.canton.sequencing.TrafficControlParameters
-            |      trafficControl = Some(TrafficControlParameters(
-            |        maxBaseTrafficAmount = NonNegativeLong.tryCreate(204800L),
-            |        readVsWriteScalingFactor = PositiveInt.tryCreate(200),
-            |        maxBaseTrafficAccumulationDuration = config.PositiveFiniteDuration.ofMinutes(10L),
-            |        setBalanceRequestSubmissionWindowSize = config.PositiveFiniteDuration.ofMinutes(2L),
-            |        enforceRateLimiting = true,
-            |        baseEventCost = NonNegativeLong.tryCreate(0L),
-            |        freeConfirmationResponses = false
-            |      ))
-            |    ))
+            |    .propose_update(synchronizerId.logical, _.update(reconciliationInterval = initialReconciliationInterval))
             |
             |  logger.info("=== connecting to synchronizer ===")
             |  participant1.synchronizers.connect_local(sequencer1, alias = "synchronizer1")
@@ -206,11 +110,6 @@ final case class CantonConf(version: String, protocolVersion: Int):
             |      participant1.synchronizers.active("synchronizer1")
             |  }
             |  logger.info("=== finished connecting to synchronizer ===")
-            |
-            |  // Set a high enough traffic balance for the participant to avoid hitting traffic limits during tests.
-            |  sequencer1.traffic_control.set_traffic_balance(
-            |    participant1.id, PositiveInt.one, NonNegativeLong.tryCreate(100000000L)
-            |  )
             |
             |  // verify that the connection works
             |  participant1.health.ping(participant1)
@@ -221,64 +120,44 @@ final case class CantonConf(version: String, protocolVersion: Int):
       certFiles ++ Seq(os.root / "app" / "app.conf" -> config, os.root / "app" / "bootstrap.sc" -> bootstrap)
 
   def twoParticipantsConfigOnly(pgHost: String, pgPort: Int, dbP1: String, dbP2: String): String =
-    def pgStorage(db: String) =
-      s"""|storage = $${_storage}
-          |      storage.config.properties.databaseName = "$db"""".stripMargin
-    s"""_storage {
-       |  type = postgres
-       |  config {
-       |    dataSourceClass = "org.postgresql.ds.PGSimpleDataSource"
-       |    properties {
-       |      serverName = "$pgHost"
-       |      portNumber = $pgPort
-       |      user = postgres
-       |      password = postgres
-       |      ssl = true
-       |      sslmode = "verify-ca"
-       |      sslrootcert = "/tls/root-ca.crt"
-       |      sslcert = "/tls/pg-client.crt"
-       |      sslkey = "/tls/pg-client.der"
-       |    }
-       |  }
-       |  parameters.migrate-and-start = yes
-       |}
-       |
-       |canton {
-       |  features {
-       |    enable-preview-commands = yes
-       |    enable-testing-commands = yes
-       |  }
-       |  parameters {
-       |    manual-start = no
-       |    non-standard-config = yes
-       |    timeouts.processing.verify-active = 40.seconds
-       |    timeouts.processing.slow-future-warn = 20.seconds
-       |  }
-       |
-       |  monitoring.logging.delay-logging-threshold = 40.seconds
-       |
-       |  participants {
-       |    ${participant("participant1", 10012, 7865, protocolVersion, pgStorage(dbP1))}
-       |    
-       |    ${participant("participant2", 10014, participantPort, protocolVersion, pgStorage(dbP2))}
-       |  }
-       |
-       |  sequencers {
-       |    ${sequencer("sequencer1")}
-       |  }
-       |
-       |  mediators {
-       |    ${mediator("mediator1")}
-       |  }
-       |}
-       |""".stripMargin
+    s"""|${postgresConfig(pgHost, pgPort)}
+        |
+        |canton {
+        |  features {
+        |    enable-preview-commands = yes
+        |    enable-testing-commands = yes
+        |  }
+        |  parameters {
+        |    manual-start = no
+        |    non-standard-config = yes
+        |    timeouts.processing.verify-active = 40.seconds
+        |    timeouts.processing.slow-future-warn = 20.seconds
+        |  }
+        |
+        |  monitoring.logging.delay-logging-threshold = 40.seconds
+        |
+        |  participants {
+        |    ${participant("participant1", protocolVersion, 10014, 7865, Storage.Postgres(dbP1))}
+        |    
+        |    ${participant("participant2", protocolVersion, storage = Storage.Postgres(dbP2))}
+        |  }
+        |
+        |  sequencers {
+        |    ${sequencer("sequencer1")}
+        |  }
+        |
+        |  mediators {
+        |    ${mediator("mediator1")}
+        |  }
+        |}
+        |""".stripMargin
 
   def twoSynchronizers(
       hostname: String,
       sync1: Synchronizer,
       sync2: Synchronizer
   ): ZIO[Docker, Throwable, Seq[(Path, String | Array[Byte])]] =
-    for (oauthInstance, collectorInstance, certFiles) <- commonSetup(hostname)
+    for (oauthInstance, collectorInstance, certFiles) <- commonSetup(hostname, usingPostgres = false)
     yield
       val config =
         s"""|canton {
@@ -296,7 +175,7 @@ final case class CantonConf(version: String, protocolVersion: Int):
             |  monitoring.logging.delay-logging-threshold = 40.seconds
             |
             |  participants {
-            |    ${participant("participant1", 10012, participantPort, protocolVersion, "storage.type = memory")}
+            |    ${participant("participant1", protocolVersion)}
             |  }
             |
             |  sequencers {
@@ -365,10 +244,31 @@ final case class CantonConf(version: String, protocolVersion: Int):
         os.root / "app" / "bootstrap.sc" -> bootstrap
       )
 
+  private def postgresConfig(host: String, port: Int) =
+    s"""|_storage {
+        |  type = postgres
+        |  config {
+        |    dataSourceClass = "org.postgresql.ds.PGSimpleDataSource"
+        |    properties {
+        |      serverName = "$host"
+        |      portNumber = $port
+        |      user = postgres
+        |      password = postgres
+        |      ssl = true
+        |      sslmode = "verify-ca"
+        |      sslrootcert = "/tls/root-ca.crt"
+        |      sslcert = "/tls/pg-client.crt"
+        |      sslkey = "/tls/pg-client.der"
+        |    }
+        |  }
+        |  parameters.migrate-and-start = yes
+        |}""".stripMargin
+
   /** Generate all the certificates needed to set up env, oauth instance and otel collector instance if configured.
     */
   private def commonSetup(
-      hostname: String
+      hostname: String,
+      usingPostgres: Boolean
   ): ZIO[
     Docker,
     Throwable,
@@ -383,6 +283,7 @@ final case class CantonConf(version: String, protocolVersion: Int):
     oAuthCertOpt <- ZIO.whenCase(oauthInstance) {
       case Some(oauth) => oauth.getFileContents(os.root / "data" / "oauth-certificate.crt")
     }
+    postgresCertOpt <- ZIO.when(usingPostgres)(ca.generate("postgresclient"))
   yield (
     oauthInstance,
     collectorInstance,
@@ -395,6 +296,12 @@ final case class CantonConf(version: String, protocolVersion: Int):
       os.root / "tls" / "domain.pem"       -> domainCert.certificate.pem,
       os.root / "tls" / "domain.crt"       -> domainCert.certificate.crt
     ) ++ oAuthCertOpt.fold(Seq.empty) { cert => Seq(os.root / "data" / "oauth-certificate.crt" -> cert) }
+      ++ postgresCertOpt.fold(Seq.empty) { cert =>
+        Seq(
+          os.root / "tls" / "pg-client.crt" -> cert.certificate.crt,
+          os.root / "tls" / "pg-client.der" -> cert.certificate.der
+        )
+      }
   )
 
   private def oauthCantonConfig(oauthInstance: Option[Service[OAuth.Instance]]): String =
@@ -407,85 +314,108 @@ final case class CantonConf(version: String, protocolVersion: Int):
 
   private def participant(
       name: String,
-      adminApiPort: Int,
-      ledgerApiPort: Int,
       protocolVersion: Int,
-      storage: String
+      adminApiPort: Int = 1012,
+      ledgerApiPort: Int = participantPort,
+      storage: Storage = Storage.Memory
   ): String =
     s"""|$name {
-        |      $storage
-        |      admin-api {
-        |        address = "0.0.0.0"
-        |        port = $adminApiPort
-        |      }
-        |      init {
-        |        ledger-api.max-deduplication-duration = 0s
-        |      }
-        |      http-ledger-api.enabled = false
-        |      ledger-api {
-        |        address = "0.0.0.0"
-        |        port = $ledgerApiPort
-        |        tls {
-        |          cert-chain-file = "/tls/participant.crt"
-        |          private-key-file = "/tls/participant.pem"
-        |          trust-collection-file = "/tls/root-ca.crt"
-        |          client-auth {
-        |            type = require
-        |            admin-client {
-        |              cert-chain-file = "/tls/admin-client.crt"
-        |              private-key-file = "/tls/admin-client.pem"
-        |            }
-        |          }
-        |        }
-        |      }
-        |      parameters {
-        |        initial-protocol-version = $protocolVersion
-        |        minimum-protocol-version = $protocolVersion
-        |      }
-        |      topology.broadcast-batch-size = 1
-        |    }
-        |""".stripMargin
-
-  private def sequencer(name: String, publicApiPort: Int = 5008, adminApiPort: Int = 5009): String =
-    s"""|$name {
-        |      storage.type = memory
-        |      public-api {
-        |        address = "0.0.0.0"
-        |        port = $publicApiPort
-        |      }
-        |      admin-api {
-        |        address = "0.0.0.0"
-        |        port = $adminApiPort
-        |      }
-        |    }
-        |""".stripMargin
-
-  private def mediator(name: String, adminApiPort: Int = 5007): String =
-    s"""|$name {
-        |      storage.type = memory
-        |      admin-api {
-        |        address = "0.0.0.0"
-        |        port = $adminApiPort
-        |      }
-        |    }
-        |""".stripMargin
-
-  private def monitoring(collector: Service[Collector.Instance]): String =
-    s"""|  monitoring {
-        |    tracing {
-        |      propagation = enabled
-        |      tracer {
-        |        exporter {
-        |          type = otlp
-        |          address = ${collector.container.hostName}
-        |          port = ${Collector.Instance.otlp}
-        |        }
-        |        sampler {
-        |          type = always-on
-        |          parent-based = true
+        |  $storage
+        |  admin-api {
+        |    address = "0.0.0.0"
+        |    port = $adminApiPort
+        |  }
+        |  init {
+        |    ledger-api.max-deduplication-duration = 0s
+        |  }
+        |  http-ledger-api.enabled = false
+        |  ledger-api {
+        |    address = "0.0.0.0"
+        |    port = $ledgerApiPort
+        |    tls {
+        |      cert-chain-file = "/tls/participant.crt"
+        |      private-key-file = "/tls/participant.pem"
+        |      trust-collection-file = "/tls/root-ca.crt"
+        |      client-auth {
+        |        type = require
+        |        admin-client {
+        |          cert-chain-file = "/tls/admin-client.crt"
+        |          private-key-file = "/tls/admin-client.pem"
         |        }
         |      }
         |    }
         |  }
+        |  parameters {
+        |    initial-protocol-version = $protocolVersion
+        |    minimum-protocol-version = $protocolVersion
+        |  }
+        |  topology.broadcast-batch-size = 1
+        |}
         |""".stripMargin
+
+  private def sequencer(
+      name: String,
+      publicApiPort: Int = 5008,
+      adminApiPort: Int = 5009,
+      driverStorage: Storage = Storage.Memory,
+      sequencerStorage: Storage = Storage.Memory
+  ): String =
+    s"""|$name {
+        |  $driverStorage
+        |  sequencer {
+        |    config {
+        |      $sequencerStorage
+        |    }
+        |    type = "reference"
+        |  }
+        |  public-api {
+        |    address = "0.0.0.0"
+        |    port = $publicApiPort
+        |  }
+        |  admin-api {
+        |    address = "0.0.0.0"
+        |    port = $adminApiPort
+        |  }
+        |}
+        |""".stripMargin
+
+  private def mediator(name: String, adminApiPort: Int = 5007, storage: Storage = Storage.Memory): String =
+    s"""|$name {
+        |  $storage
+        |  admin-api {
+        |    address = "0.0.0.0"
+        |    port = $adminApiPort
+        |  }
+        |}
+        |""".stripMargin
+
+  private def monitoring(collector: Service[Collector.Instance]): String =
+    s"""|monitoring {
+        |  tracing {
+        |    propagation = enabled
+        |    tracer {
+        |      exporter {
+        |        type = otlp
+        |        address = ${collector.container.hostName}
+        |        port = ${Collector.Instance.otlp}
+        |      }
+        |      sampler {
+        |        type = always-on
+        |        parent-based = true
+        |      }
+        |    }
+        |  }
+        |}
+        |""".stripMargin
+
+  private enum Storage:
+    case Memory
+    case Postgres(db: String)
+
+    override def toString: String = this match
+      case Memory => "storage.type = memory"
+      case Postgres(db) =>
+        s"""|storage = $${_storage}
+            |storage.config.properties.databaseName = "$db"""".stripMargin
+
 end CantonConf

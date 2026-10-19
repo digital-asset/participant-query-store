@@ -67,7 +67,7 @@ object AzurePostgresqlAuthenticationPluginSpec extends SharedLedgerAndPostgresTe
           (env, tlsFiles) <- pqsConf
           entra           <- ZIO.service[Service[EntraMock]]
         yield Docker.service[Unit](
-          image = localPqsDockerImage,
+          image = Pqs.image,
           env = env ++ Map(
             // Restrict the credential chain to managed identity and point it at the mock token endpoint.
             "AZURE_TOKEN_CREDENTIALS" -> "ManagedIdentityCredential",
@@ -99,7 +99,7 @@ object AzurePostgresqlAuthenticationPluginSpec extends SharedLedgerAndPostgresTe
           )
 
           Docker.service[Unit](
-            image = localPqsDockerImage,
+            image = Pqs.image,
             env = env ++ Map(
               "AZURE_TOKEN_CREDENTIALS" -> "EnvironmentCredential",
               "AZURE_CLIENT_ID"         -> EntraAuthorityMock.clientId,
