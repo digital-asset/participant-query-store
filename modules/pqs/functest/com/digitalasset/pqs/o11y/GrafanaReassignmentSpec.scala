@@ -39,6 +39,10 @@ object GrafanaReassignmentSpec extends SharedMultiSyncLedgerSpec:
                  |  where
                  |    signatory owner
                  |
+                 |    nonconsuming choice Touch : ()
+                 |      controller owner
+                 |      do pure ()
+                 |
                  |    interface instance IAsset for Asset where
                  |      view = VAsset with owner = owner
                  |""".stripMargin
@@ -58,6 +62,9 @@ object GrafanaReassignmentSpec extends SharedMultiSyncLedgerSpec:
       val alice      = Party("Alice")
       val contractId = Capture[String]
       def reassigned = s"source_synchronizer_id='${sync1.id}', target_synchronizer_id='${sync2.id}'"
+      val trees = source match
+        case TransactionTreeStream => true
+        case TransactionStream     => false
 
       Given:
         Loki.instance ++ Prometheus.instance ++ Tempo.instance >>> (Collector.instance ++ Grafana.instance)
@@ -71,6 +78,7 @@ object GrafanaReassignmentSpec extends SharedMultiSyncLedgerSpec:
           .is(contractId.capture)
       When:
         Ledger.reassign(contractId.get, alice, sync1, sync2)
+          *> Ledger.exercise("Asset:Asset", contractId.get, "Touch", alice, sync2)
           *> Ledger.archive("Asset:Asset", contractId.get, alice, sync2)
       When:
         Pqs.runPipeline(
@@ -127,16 +135,33 @@ object GrafanaReassignmentSpec extends SharedMultiSyncLedgerSpec:
           .is(exists(equalTo(1)))
           .retryUntilTimeout
       And:
-        // An archive event, or with TransactionTreeStream the consuming Archive exercise
+        // An archive event, or with TransactionTreeStream the consuming Archive exercise with its choice
         Grafana
-          .getMetrics("sum(pipeline_events_total{type='archive'})")
+          .getMetrics(
+            if trees then "sum(pipeline_events_total{type='archive', choice='Archive'})"
+            else "sum(pipeline_events_total{type='archive'})"
+          )
           .is(exists(equalTo(1)))
+          .retryUntilTimeout
+      And:
+        // A non-consuming exercise is an exercise on its synchronizer, only seen with TransactionTreeStream
+        Grafana
+          .getMetrics(
+            s"sum(pipeline_events_total{type='exercise', choice='Touch', synchronizer_id='${sync2.id}'}) or vector(0)"
+          )
+          .is(if trees then exists(equalTo(1)) else forall(equalTo(0)))
+          .retryUntilTimeout
+      And:
+        // The transaction carries its synchronizer: the create and the unassign
+        Grafana
+          .getMetrics(s"sum(pipeline_events_total{type='transaction', synchronizer_id='${sync1.id}'})")
+          .is(exists(equalTo(2)))
           .retryUntilTimeout
       And:
         // One count per Ledger API event: the consuming Archive exercise is not also an exercise
         Grafana
           .getMetrics("sum(pipeline_events_total{type=~'create|archive|exercise|assign|unassign'})")
-          .is(exists(equalTo(4)))
+          .is(exists(equalTo(if trees then 5 else 4)))
           .retryUntilTimeout
       And:
         Grafana
