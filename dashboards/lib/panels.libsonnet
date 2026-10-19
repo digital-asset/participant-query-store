@@ -19,7 +19,7 @@ local p = import '../lib-shared/panels.libsonnet';
 
       activeContracts(title, targets, width=null):
         p.timeSeries.short(title, targets, width)
-        + ts.panelOptions.withDescription('Per-template active contracts count<br><br>A contract counts once for its template and once per interface view<br><br>* as observed since last restart')
+        + ts.panelOptions.withDescription('Per-template active contracts count<br><br>A contract counts once for its template and once per interface view<br><br>Undercounts a template whose interface is not in the contract filter<br><br>* as observed since last restart')
         + ts.standardOptions.withDecimals(null)
         + options.legend.withCalcs(['lastNotNull', 'max'])
         + options.legend.withDisplayMode('table')
