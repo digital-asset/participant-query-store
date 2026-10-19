@@ -18,6 +18,7 @@ import zio.ZIO.*
 import zio.stream.ZPipeline
 
 import java.nio.charset.StandardCharsets.UTF_8
+import java.time.Instant
 import java.util.concurrent.TimeoutException
 import scala.jdk.CollectionConverters.*
 import scala.util.Try
@@ -30,6 +31,7 @@ trait Docker:
       exposePorts: Set[Int] = Set.empty,
       env: Map[String, Any] = Map.empty,
       prepopulateFiles: Seq[(os.Path, String | Array[Byte])] = Seq.empty,
+      volumes: Seq[(os.Path, os.Path)] = Seq.empty,
       hostname: Option[String] = None,
       user: Option[Int] = None,
       suppressOutput: Boolean = false
@@ -107,13 +109,14 @@ object Docker:
       exposePorts: Set[Int] = Set.empty,
       env: Map[String, Any] = Map.empty,
       prepopulateFiles: Seq[(os.Path, String | Array[Byte])] = Seq.empty,
+      volumes: Seq[(os.Path, os.Path)] = Seq.empty,
       hostname: Option[String] = None,
       user: Option[Int] = None,
       suppressOutput: Boolean = false
   )(cmd: Shellable*): ZLayer[Docker, Throwable, Service[T]] =
     ZLayer
       .service[Docker]
-      .flatMap(_.get.service(image, exposePorts, env, prepopulateFiles, hostname, user, suppressOutput)(cmd))
+      .flatMap(_.get.service(image, exposePorts, env, prepopulateFiles, volumes, hostname, user, suppressOutput)(cmd))
 
   def run[T: Tag](
       image: String,
@@ -207,6 +210,7 @@ object Docker:
         exposePorts: Set[Int],
         env: Map[String, Any],
         prepopulateFiles: Seq[(os.Path, String | Array[Byte])],
+        volumes: Seq[(os.Path, os.Path)],
         hostname: Option[String],
         user: Option[Int],
         suppressOutput: Boolean
@@ -214,7 +218,7 @@ object Docker:
         cmd: Shellable*
     ): ZLayer[Any, Throwable, Service[T]] =
       ZLayer.scoped(ContainerImage(image)(for
-        container <- mkContainer(image, env, prepopulateFiles, exposePorts, hostname, user)(cmd)
+        container <- mkContainer(image, env, prepopulateFiles, volumes, exposePorts, hostname, user)(cmd)
         svc       <- startContainer[T](container, suppressOutput)
       yield svc))
 
@@ -318,6 +322,25 @@ object Docker:
         }
       )
 
+    /** Create the shared `/ft` directory and make it writable by all users, so containers running as any non-root uid
+      * can write to it.
+      */
+    private def makeSharedStorageWritable(containerId: String)(implicit trace: Trace): Task[Unit] =
+      acquireReleaseWith(attemptBlocking { // acquire
+        val bos   = new ByteArrayOutputStream()
+        val tos   = new TarArchiveOutputStream(bos)
+        val entry = new TarArchiveEntry("ft/")
+        entry.setMode(0x1ff) // 0777 permissions
+        tos.putArchiveEntry(entry)
+        tos.closeArchiveEntry()
+        tos.finish()
+        bos.toInputStream
+      })(stream => // release
+        attemptBlocking(stream.close()).ignoreLogged
+      )(stream => // use
+        client.copyArchiveToContainerCmd(containerId).withRemotePath("/").withTarInputStream(stream).run
+      ).unit
+
     private def copyToContainer(
         containerId: String,
         files: Seq[(os.Path, String | Array[Byte])],
@@ -368,6 +391,7 @@ object Docker:
         image: String,
         env: Map[String, Any],
         prepopulateFiles: Seq[(os.Path, String | Array[Byte])],
+        volumes: Seq[(os.Path, os.Path)],
         exposePorts: Set[Int],
         hostname: Option[String],
         user: Option[Int]
@@ -402,7 +426,9 @@ object Docker:
             .newHostConfig()
             .withPortBindings(exposePorts.toSeq.map(p => PortBinding.parse(s"127.0.0.1:$p"))*)
             .withMounts(Seq(Mount().withSource(session.volumeName).withTarget("/ft").withType(MountType.VOLUME)).asJava)
+            .withBinds(volumes.map((source, target) => new Bind(source.toString, Volume(target.toString)))*)
         )
+      _ = user.foreach(uid => createCmd.withUser(s"$uid:$uid"))
 
       // create container
       containerId <- acquireRelease( // acquire
@@ -431,6 +457,9 @@ object Docker:
           .run
           .ignoreLogged
       )
+
+      // create shared `/ft` directory. and make it writable by all users
+      _ <- makeSharedStorageWritable(containerId)
 
       // prepopulate files
       _ <- copyToContainer(containerId, prepopulateFiles, user)
@@ -492,20 +521,8 @@ object Docker:
         _ <- client.startContainerCmd(container.containerId).run
 
         // Start tracking container exit early so we can race it against port-waiting.
-        exitCode <- zio.Promise.make[Throwable, ExitCode]
-        _ <- client
-          .waitContainerCmd(container.containerId)
-          .streamMap(_.getStatusCode.toInt)
-          .runHead
-          .someOrElse(1)
-          .flatMap { waitCode =>
-            // Verify exit code via inspectContainerCmd and check for OOM-kill.
-            // Also fail the global oomSignal so tests abort instantly on OOM.
-            verifyExitAndCheckOom(container, waitCode)
-              .tapError(oomErr => oomSignal.promise.fail(oomErr).ignore)
-          }
-          .intoPromise(exitCode)
-          .forkScoped
+        exit <- zio.Promise.make[Throwable, ExitState]
+        _    <- waitAndInspect(container).intoPromise(exit).forkScoped
 
         portMap = (r: InspectContainerResponse) =>
           Try(
@@ -524,14 +541,14 @@ object Docker:
         waitForPorts = client.inspectContainerCmd(container.containerId).run.repeat(untilPortsAreExposed <* backoff)
         // If the container dies (e.g. OOM) while waiting for ports, fail immediately
         // instead of spinning in a retry loop forever.
-        failOnDeath = exitCode.await.flatMap { code =>
+        failOnExit = exit.await.flatMap { state =>
           ZIO.fail(
             RuntimeException(
-              s"Container ${container.hostName} (${container.image}) exited with code ${code.code} while waiting for ports to become available."
+              s"Container ${container.hostName} (${container.image}) exited with code ${state.code} while waiting for ports to become available."
             )
           )
         }
-        info <- waitForPorts.raceFirst(failOnDeath)
+        info <- waitForPorts.raceFirst(failOnExit)
         exposedAddress =
           if mode === Mode.Local
           then "localhost"
@@ -569,7 +586,7 @@ object Docker:
         exposedAddress,
         exposedPorts,
         io,
-        exitCode.await,
+        exit.await,
         getFileContents(container.containerId, _),
         exec(container.containerId, _)
       )
@@ -588,7 +605,54 @@ object Docker:
         }
         .foreach(_.fold(logInfo(_), logDebug(_)))
     )
+
+    private def waitAndInspect(container: Container) =
+      for
+        waitCode <- client
+          .waitContainerCmd(container.containerId)
+          .streamMap(_.getStatusCode.toInt)
+          .runHead
+          .someOrElse(1)
+        info <- client.inspectContainerCmd(container.containerId).run
+        state: InspectContainerResponse#ContainerState = info.getState
+        _ <-
+          ZIO
+            .fail(
+              RuntimeException(
+                s"Container ${container.hostName} (${container.image}) was killed by the OOM killer. " +
+                  s"Docker does not have enough memory for this level of test parallelism."
+              )
+            )
+            .tapError(oomErr =>
+              // Also fail the global oomSignal so tests abort instantly on OOM.
+              oomSignal.promise.fail(oomErr).ignore
+            )
+            .when(Option(state.getOOMKilled).exists(_.booleanValue))
+        // The exit code from `waitContainerCmd` is passed as `waitCode` for fallback, but we prefer the value from
+        // `inspectContainerCmd` because `waitContainerCmd`'s streaming callback can occasionally report incorrect exit
+        // codes for fast-exiting containers (observed as a flake on CI).
+        inspectCode = Option(state.getExitCodeLong).fold(waitCode)(_.intValue)
+        duration <- getDuration(container, state)
+        _        <- logInfo(s"Container ${container.hostName} (${container.image}) ran for ${duration.toMillis}ms")
+      yield ExitState(ExitCode(inspectCode), duration)
   end Impl
+
+  private def getDuration(container: Container, state: InspectContainerResponse#ContainerState)(implicit
+      trace: Trace
+  ): Task[Duration] =
+    def parse(label: String, raw: String): Task[Instant] =
+      ZIO
+        .fromOption(Option(raw).filter(_.nonEmpty))
+        .orElseFail(
+          RuntimeException(
+            s"Container ${container.hostName} (${container.image}) has no $label timestamp; cannot compute duration."
+          )
+        )
+        .flatMap(value => ZIO.attempt(Instant.parse(value)))
+    for
+      startedAt  <- parse("StartedAt", state.getStartedAt)
+      finishedAt <- parse("FinishedAt", state.getFinishedAt)
+    yield Duration.fromInterval(startedAt, finishedAt)
 
   private def listContainers(client: DockerClient, showAll: Boolean = false) =
     client.listContainersCmd().withShowAll(showAll).run.map(Option(_).map(_.asScala.toSeq).getOrElse(Seq.empty))

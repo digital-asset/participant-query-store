@@ -30,6 +30,7 @@ import com.digitalasset.pqs.docker.{Docker, Service}
 import com.digitalasset.pqs.functest.FTEnv
 import com.digitalasset.pqs.grpc.{ZClientInterceptor, ZManagedChannel}
 import com.digitalasset.pqs.services.inspectMaybe
+import com.digitalasset.pqs.services.postgres.Postgres
 import com.digitalasset.pqs.utils.safeequals.*
 import com.digitalasset.transcode.schema.IdentifierFilter
 import com.digitalasset.zio.daml.DamlSchema
@@ -50,8 +51,18 @@ object Ledger:
   val instance: RLayer[FTEnv & Docker, Ledger] = ZLayer.scoped(
     for
       conf     <- CantonConf.load()
-      hostname <- cantonHostname
+      hostname <- newCantonHostName
       files    <- conf.oneParticipant(hostname)
+      svc      <- canton(hostname, conf.cantonDockerImage, files)
+    yield svc
+  )
+
+  val instanceWithPgStorage: RLayer[FTEnv & Docker & Postgres, Ledger] = ZLayer.scoped(
+    for
+      conf     <- CantonConf.load()
+      pg       <- ZIO.service[Postgres]
+      hostname <- newCantonHostName
+      files    <- conf.oneParticipant(hostname, usingPostgres = Some(pg.container.hostName, Postgres.port))
       svc      <- canton(hostname, conf.cantonDockerImage, files)
     yield svc
   )
@@ -60,7 +71,7 @@ object Ledger:
     ZLayer.scoped(
       for
         conf     <- CantonConf.load()
-        hostname <- cantonHostname
+        hostname <- newCantonHostName
         files    <- conf.twoSynchronizers(hostname, sync1, sync2)
         svc      <- canton(hostname, conf.cantonDockerImage, files)
       yield svc
@@ -413,14 +424,14 @@ object Ledger:
     PackageManagementServiceClient.updateVettedPackages(request)
   }
 
-  private val cantonHostname =
+  private val newCantonHostName =
     Docker.share(s"canton_cnt")(zio.Ref.Synchronized.make(0)).flatMap(_.updateAndGet(_ + 1)).map(cnt => s"canton-$cnt")
 
   private def canton(
       hostname: String,
       dockerImage: String,
       cantonFiles: Seq[(os.Path, String | Array[Byte])]
-  ): ZIO[FTEnv & (Docker & Scope), Throwable, Ledger] =
+  ): ZIO[FTEnv & Docker & Scope, Throwable, Ledger] =
     for
       showCantonLogs <- FTEnv.showCantonLogs
       env <- Docker

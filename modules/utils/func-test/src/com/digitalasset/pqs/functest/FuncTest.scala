@@ -5,9 +5,7 @@ package com.digitalasset.pqs.functest
 
 import com.digitalasset.pqs
 import com.digitalasset.pqs.docker.{ContainerExitedException, Docker, SuiteName}
-import com.digitalasset.pqs.functest.FuncTest.*
 import zio.*
-import zio.ZIO.{logDebug, logInfo}
 import zio.internal.stacktracer.SourceLocation
 import zio.test.*
 
@@ -17,16 +15,16 @@ import scala.compiletime.uninitialized
 
 object FuncTest:
   private[functest] val defaultLayerTimeout = 5.minutes
-  private val instructionTimeout            = 30.seconds
+  private val defaultInstructionTimeout     = 30.seconds
 
   def retryUntilTimeout[R, E](
       io: ZIO[R, E, TestResult],
-      timeout: Duration = instructionTimeout
+      timeout: Duration = defaultInstructionTimeout
   ): ZIO[R, E, TestResult] =
     val retryFailures = Schedule.identity[TestResult].whileInput(_.isFailure)
     val log = Schedule.identity[TestResult].tapOutput { tr =>
       lazy val assertions = FailureCase.getPath(tr.result).map((a, b) => s"$a → $b").mkString("; ")
-      logDebug(s"Retrying [$assertions]").when(tr.isFailure)
+      ZIO.logDebug(s"Retrying [$assertions]").when(tr.isFailure)
     }
     val backoff  = Schedule.exponential(10.millis, 2) || Schedule.spaced(1.second)
     val upto     = Schedule.upTo(timeout)
@@ -41,7 +39,8 @@ abstract class FuncTest[FR: EnvironmentTag] extends ZIOSpec[FTEnv & Dpm & Docker
   def shared: ZLayer[FTEnv & Dpm & Docker, Throwable, FR]
   val sharedTag = summon[EnvironmentTag[FR]]
 
-  protected def layerTimeout: Duration = FuncTest.defaultLayerTimeout
+  protected def layerTimeout: Duration       = FuncTest.defaultLayerTimeout
+  protected def instructionTimeout: Duration = FuncTest.defaultInstructionTimeout
 
   def specName: String = getClass.getSimpleName.replaceAll("\\$", "")
 
@@ -64,10 +63,10 @@ abstract class FuncTest[FR: EnvironmentTag] extends ZIOSpec[FTEnv & Dpm & Docker
       case Nil => assertCompletesZIO
 
     execute(
-      logInfo(label)
+      ZIO.logInfo(label)
         *> ZIO.runtime.flatMap(runtime => ZIO.attempt(ctx.runtime = runtime.asInstanceOf[Runtime[RProv]]))
         *> loop(ctx.instructions.toList)
-        <* logInfo(s"End of $label")
+        <* ZIO.logInfo(s"End of $label")
     )
 
   private def execute(spec: Instruction[Any]) = live(
@@ -117,7 +116,7 @@ abstract class FuncTest[FR: EnvironmentTag] extends ZIOSpec[FTEnv & Dpm & Docker
     assert(io.as(zio.test.assertCompletes))
   private def assert[R](io: => ZIO[R, Throwable, TestResult])(implicit ctx: Ctx[?, ? <: R], trace: Trace) =
     ctx.instructions.append(
-      ZIO.suspend(io.timeoutFail(TestTimeoutException("Test instruction timed out"))(instructionTimeout * 2))
+      ZIO.suspend(io.timeoutFail(TestTimeoutException("Test instruction timed out"))(instructionTimeout))
     )
   def When[R](io: => ZIO[R, Throwable, Any])(implicit ctx: Ctx[?, ? <: R], trace: Trace) = interactWithoutAssertion(io)
   def Expect[R](io: => ZIO[R, Throwable, TestResult])(implicit ctx: Ctx[?, ? <: R], trace: Trace) = assert(io)

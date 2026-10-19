@@ -217,6 +217,16 @@ generate-schema-dump:
 	REGENERATE_SCHEMA_DUMP=true mill pqs.functest.testOnly com.digitalasset.pqs.schema.postgres.document.SchemaDumpSpec
 
 ###############################################################################
+## Performance Test Dump ######################################################
+###############################################################################
+
+# Regenerates the performance-test Postgres dump by running a load scenario
+# through a Canton instance and dumping the resulting database.
+.PHONY: generate-perf-dump
+generate-perf-dump:
+	REGENERATE_PERF_DUMP=true mill pqs.perftest.testOnly com.digitalasset.pqs.perftest.GenerateCantonDumpSpec
+
+###############################################################################
 ## Matrix Compatibility Tests #################################################
 ###############################################################################
 

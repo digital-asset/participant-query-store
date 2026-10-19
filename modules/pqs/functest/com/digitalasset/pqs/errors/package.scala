@@ -9,7 +9,7 @@ import com.digitalasset.pqs.services.daml.CantonConf
 import com.digitalasset.pqs.services.daml.Ledger
 import com.digitalasset.pqs.services.oauth.OAuth
 import com.digitalasset.pqs.services.postgres.*
-import com.digitalasset.pqs.services.pqs.{CliRun, localPqsDockerImage}
+import com.digitalasset.pqs.services.pqs.{CliRun, Pqs}
 import zio.{ZIO, ZLayer}
 
 package object errors:
@@ -19,7 +19,7 @@ package object errors:
       .project { conf =>
         Docker
           .service[Unit](
-            image = localPqsDockerImage,
+            image = Pqs.image,
             env = conf._1,
             prepopulateFiles = conf._2
           )(args)
