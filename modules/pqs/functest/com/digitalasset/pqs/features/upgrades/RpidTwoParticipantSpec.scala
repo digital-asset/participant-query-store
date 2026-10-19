@@ -155,60 +155,60 @@ object RpidTwoParticipantSpec extends FuncTestStandalone:
       alice: Party,
       v1Dar: DarFile,
       v2Dar: DarFile
-  ) =
-    ZLayer
-      .fromZIO(
-        for
-          showCantonLogs <- FTEnv.showCantonLogs
-          pg             <- ZIO.service[Postgres]
-          pgHostname = pg.container.hostName
-          cnt <- Docker.share("rpid_canton_cnt")(Ref.Synchronized.make(0)).flatMap(_.updateAndGet(_ + 1))
-          hostname = s"rpid-canton-$cnt"
-          dbP1     = s"canton_p1_$cnt"
-          dbP2     = s"canton_p2_$cnt"
-          _ <- pg.adminDatabase.autoCommit(
-            sql"""CREATE DATABASE "${Syntax(dbP1)}"""".execute *>
-              sql"""CREATE DATABASE "${Syntax(dbP2)}"""".execute
-          )
-          ca              <- Docker.certificateAuthority
-          participantCert <- ca.generate("participant", Seq(hostname, "localhost", "127.0.0.1", "0.0.0.0"))
-          adminCert       <- ca.generate("participant", Seq(hostname, "127.0.0.1"))
-          domainCert      <- ca.generate("participant", Seq(hostname, "127.0.0.1"))
-          pgClientCert    <- ca.generate("postgresclient")
-          certFiles = Seq(
-            os.root / "tls" / "root-ca.crt"      -> ca.certificate.crt,
-            os.root / "tls" / "participant.pem"  -> participantCert.certificate.pem,
-            os.root / "tls" / "participant.crt"  -> participantCert.certificate.crt,
-            os.root / "tls" / "admin-client.pem" -> adminCert.certificate.pem,
-            os.root / "tls" / "admin-client.crt" -> adminCert.certificate.crt,
-            os.root / "tls" / "domain.pem"       -> domainCert.certificate.pem,
-            os.root / "tls" / "domain.crt"       -> domainCert.certificate.crt,
-            os.root / "tls" / "pg-client.crt"    -> pgClientCert.certificate.crt,
-            os.root / "tls" / "pg-client.der"    -> pgClientCert.certificate.der
-          )
-          cantonConf <- CantonConf()
-          appConf     = cantonConf.twoParticipantsConfigOnly(pgHostname, Postgres.port, dbP1, dbP2)
-          bootstrapSc = bootstrapScript("rpiddomain")
-          prepopulateFiles = certFiles ++ Seq(
-            os.root / "app" / "app.conf"     -> appConf,
-            os.root / "app" / "bootstrap.sc" -> bootstrapSc,
-            os.root / "dars" / "v1.dar"      -> v1Dar.darBytes,
-            os.root / "dars" / "v2.dar"      -> v2Dar.darBytes
-          )
-          svc <- Docker
-            .service[Ledger](
-              image = cantonConf.cantonDockerImage,
-              exposePorts = Set(CantonConf.participantPort),
-              prepopulateFiles = prepopulateFiles,
-              hostname = Some(hostname),
-              env = CantonConf.cantonEnvVarMap,
-              user = Some(1001),
-              suppressOutput = !showCantonLogs
-            )("daemon")
-            .tap(_.get.blockUntilStdOut(_.contains(CantonConf.bootstrapCompleteMessage)))
-            .build
-        yield Ledger(svc.get[Service[Ledger]])
-      ) >+> (DamlSdk.allocatedParties(alice) ++ ZLayer.succeed(v2Dar))
+  ): ZLayer[FTEnv & Postgres & Docker, Throwable, Ledger & Parties & DarFile] =
+    val cantonLayer = ZLayer.scoped(
+      for
+        showCantonLogs <- FTEnv.showCantonLogs
+        pg             <- ZIO.service[Postgres]
+        pgHostname = pg.container.hostName
+        cnt <- Docker.share("rpid_canton_cnt")(Ref.Synchronized.make(0)).flatMap(_.updateAndGet(_ + 1))
+        hostname = s"rpid-canton-$cnt"
+        dbP1     = s"canton_p1_$cnt"
+        dbP2     = s"canton_p2_$cnt"
+        _ <- pg.adminDatabase.autoCommit(
+          sql"""CREATE DATABASE "${Syntax(dbP1)}"""".execute *>
+            sql"""CREATE DATABASE "${Syntax(dbP2)}"""".execute
+        )
+        ca              <- Docker.certificateAuthority
+        participantCert <- ca.generate("participant", Seq(hostname, "localhost", "127.0.0.1", "0.0.0.0"))
+        adminCert       <- ca.generate("participant", Seq(hostname, "127.0.0.1"))
+        domainCert      <- ca.generate("participant", Seq(hostname, "127.0.0.1"))
+        pgClientCert    <- ca.generate("postgresclient")
+        certFiles = Seq(
+          os.root / "tls" / "root-ca.crt"      -> ca.certificate.crt,
+          os.root / "tls" / "participant.pem"  -> participantCert.certificate.pem,
+          os.root / "tls" / "participant.crt"  -> participantCert.certificate.crt,
+          os.root / "tls" / "admin-client.pem" -> adminCert.certificate.pem,
+          os.root / "tls" / "admin-client.crt" -> adminCert.certificate.crt,
+          os.root / "tls" / "domain.pem"       -> domainCert.certificate.pem,
+          os.root / "tls" / "domain.crt"       -> domainCert.certificate.crt,
+          os.root / "tls" / "pg-client.crt"    -> pgClientCert.certificate.crt,
+          os.root / "tls" / "pg-client.der"    -> pgClientCert.certificate.der
+        )
+        cantonConf <- CantonConf()
+        appConf     = cantonConf.twoParticipantsConfigOnly(pgHostname, Postgres.port, dbP1, dbP2)
+        bootstrapSc = bootstrapScript("rpiddomain")
+        prepopulateFiles = certFiles ++ Seq(
+          os.root / "app" / "app.conf"     -> appConf,
+          os.root / "app" / "bootstrap.sc" -> bootstrapSc,
+          os.root / "dars" / "v1.dar"      -> v1Dar.darBytes,
+          os.root / "dars" / "v2.dar"      -> v2Dar.darBytes
+        )
+        svc <- Docker
+          .service[Ledger](
+            image = cantonConf.cantonDockerImage,
+            exposePorts = Set(CantonConf.participantPort),
+            prepopulateFiles = prepopulateFiles,
+            hostname = Some(hostname),
+            env = CantonConf.cantonEnvVarMap,
+            user = Some(1001),
+            suppressOutput = !showCantonLogs
+          )("daemon")
+          .tap(_.get.blockUntilStdOut(_.contains(CantonConf.bootstrapCompleteMessage)))
+          .build
+      yield Ledger(svc.get[Service[Ledger]])
+    )
+    cantonLayer >+> DamlSdk.allocatedParties(alice) ++ ZLayer.succeed(v2Dar)
 
   private def storageContracts() = Postgres `query`
     sql"""SELECT
