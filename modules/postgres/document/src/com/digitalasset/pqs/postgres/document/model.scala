@@ -58,8 +58,9 @@ final case class MetricsContext(
     fromAcs: Boolean = false,
     consuming: Boolean = false
 ):
-  def labels(tpe: String): Set[MetricLabel] =
-    l("type" -> tpe, "template" -> qualifiedName, "synchronizer_id" -> synchronizerId)
+  private lazy val base: Set[MetricLabel] = l("template" -> qualifiedName, "synchronizer_id" -> synchronizerId)
+
+  def labels(tpe: String): Set[MetricLabel] = base + MetricLabel("type", tpe)
 
 object Model {
   private val eventCounter =
