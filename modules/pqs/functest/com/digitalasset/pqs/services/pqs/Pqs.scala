@@ -7,6 +7,7 @@ import com.digitalasset.pqs.docker
 import com.digitalasset.pqs.docker.*
 import com.digitalasset.pqs.functest.FuncTest
 import com.digitalasset.pqs.postgres.document.Prune
+import com.digitalasset.pqs.services.inspectMaybe
 import com.digitalasset.pqs.services.daml.*
 import com.digitalasset.pqs.services.o11y.Collector
 import com.digitalasset.pqs.services.oauth.OAuth
@@ -169,8 +170,8 @@ trait Pqs:
       clientCertificate <- ca.generate("pqs")
       ledger            <- ZIO.service[Ledger]
       pg                <- ZIO.service[Postgres]
-      oauthInstance     <- Docker.inspectMaybe[OAuth.Instance]
-      collectorInstance <- Docker.inspectMaybe[Collector.Instance]
+      oauthInstance     <- inspectMaybe[Service[OAuth.Instance]]
+      collectorInstance <- inspectMaybe[Service[Collector.Instance]]
       database          <- ZIO.service[Database]
       parties           <- ZIO.service[Parties]
       dar               <- ZIO.service[DarFile]

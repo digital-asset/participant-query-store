@@ -185,7 +185,7 @@ object RpidTwoParticipantSpec extends FuncTestStandalone:
           os.root / "tls" / "pg-client.crt"    -> pgClientCert.certificate.crt,
           os.root / "tls" / "pg-client.der"    -> pgClientCert.certificate.der
         )
-        cantonConf <- CantonConf()
+        cantonConf <- CantonConf.load()
         appConf     = cantonConf.twoParticipantsConfigOnly(pgHostname, Postgres.port, dbP1, dbP2)
         bootstrapSc = bootstrapScript("rpiddomain")
         prepopulateFiles = certFiles ++ Seq(
