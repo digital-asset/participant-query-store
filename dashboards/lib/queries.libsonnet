@@ -135,7 +135,7 @@ local reassigned = 'type=~"assign|unassign", source_synchronizer_id!="", %s' % s
     // These `max by` metrics are only accurate if the participant topology is homogeneous.
     reassignments: {
       by_template:
-        q.simple('label_replace(sum by(template) (max by(template, source_synchronizer_id, target_synchronizer_id) (sum by(template, source_synchronizer_id, target_synchronizer_id, type) (rate(pipeline_contracts_per_template_total{job="$jvm", %s}[$__rate_interval])))), "short_template", "$1", "template", ".*?:(.*)")' % reassigned, '{{short_template}}'),
+        q.simple('label_replace(sum by(template) (max by(template) (sum by(template, type) (rate(pipeline_contracts_per_template_total{job="$jvm", type=~"assign|unassign"}[$__rate_interval])))), "short_template", "$1", "template", ".*?:(.*)")', '{{short_template}}'),
       flows:
         q.simple('sum by(source, target) (max by(template, source, target) (sum by(template, source, target, type) (label_replace(label_replace(rate(pipeline_events_total{job="$jvm", %s}[$__rate_interval]), "source", "$1", "source_synchronizer_id", "^(.*?)(::.*)?$"), "target", "$1", "target_synchronizer_id", "^(.*?)(::.*)?$"))))' % reassigned, '{{source}} → {{target}}'),
       count:

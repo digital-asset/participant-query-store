@@ -96,6 +96,15 @@ object GrafanaReassignmentSpec extends SharedMultiSyncLedgerSpec:
           .is(exists(equalTo(2)))
           .retryUntilTimeout
       And:
+        // Reassignments by template: a reassignment seen from both sides counts once, as the max of its assign and
+        // unassign rows
+        Grafana
+          .getMetrics(
+            "max by(template) (sum by(template, type) (pipeline_contracts_per_template_total{type=~'assign|unassign'}))"
+          )
+          .is(exists(equalTo(2)))
+          .retryUntilTimeout
+      And:
         // The contract metric has no source or target synchronizer
         Grafana
           .getMetrics("count(pipeline_contracts_per_template_total{source_synchronizer_id!=''}) or vector(0)")
