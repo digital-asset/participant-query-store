@@ -50,7 +50,7 @@ object PrunedDataAccessSpec extends FuncTestStandalone:
       val alice     = Party("Alice")
       val pruneUpTo = Capture[OffsetType]
       Given:
-        (DamlSdk.ledger ++ Postgres.instance)
+        (Ledger.instance ++ Postgres.instance)
           >+> (DamlSdk.deploy(pingPong) ++ DamlSdk.parties(alice) ++ Postgres.database)
           >+> DamlSdk.runScript("PingPong:transact1", alice.id)
       And:
