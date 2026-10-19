@@ -101,8 +101,25 @@ final case class CantonConf(version: String, protocolVersion: Int):
             |  )
             |
             |  val initialReconciliationInterval = config.PositiveDurationSeconds.ofSeconds(1)
-            |  sequencer1.topology.synchronizer_parameters
-            |    .propose_update(synchronizerId.logical, _.update(reconciliationInterval = initialReconciliationInterval))
+            |  sequencer1.topology.synchronizer_parameters.propose_update(
+            |    synchronizerId.logical,
+            |    params => params.update(
+            |      reconciliationInterval = initialReconciliationInterval,
+            |      trafficControl = Some(
+            |        params.trafficControl.getOrElse(
+            |          TrafficControlParameters(
+            |            maxBaseTrafficAmount = NonNegativeLong.tryCreate(204800L),
+            |            readVsWriteScalingFactor = PositiveInt.tryCreate(200),
+            |            maxBaseTrafficAccumulationDuration = config.PositiveFiniteDuration.ofMinutes(10L),
+            |            setBalanceRequestSubmissionWindowSize = config.PositiveFiniteDuration.ofMinutes(2L),
+            |            enforceRateLimiting = true,
+            |            baseEventCost = NonNegativeLong.tryCreate(0L),
+            |            freeConfirmationResponses = false
+            |          )
+            |        )
+            |      )
+            |    )
+            |  )
             |
             |  logger.info("=== connecting to synchronizer ===")
             |  participant1.synchronizers.connect_local(sequencer1, alias = "synchronizer1")
