@@ -169,11 +169,9 @@ object GrafanaReassignmentSpec extends SharedMultiSyncLedgerSpec:
           .is(exists(equalTo(1)))
           .retryUntilTimeout
       And:
-        // A row for Asset and one for IAsset
+        // A row for Asset and one for IAsset; the contract metric counts an ACS-seeded contract like any assign
         Grafana
-          .getMetrics(
-            s"sum(pipeline_contracts_per_template_total{type='assign', synchronizer_id='${sync2.id}', source_synchronizer_id=''})"
-          )
+          .getMetrics(s"sum(pipeline_contracts_per_template_total{type='assign', synchronizer_id='${sync2.id}'})")
           .is(exists(equalTo(2)))
           .retryUntilTimeout
     }
