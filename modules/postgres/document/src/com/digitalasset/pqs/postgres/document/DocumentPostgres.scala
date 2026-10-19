@@ -405,7 +405,7 @@ final case class DocumentPostgres(
         archives :+ exercise :+ event
 
       case u: canonical.Event.Unassigned =>
-        val metrics = MetricsContext(u.templateId.qualifiedName, u.synchronizerId, Some(u.source -> u.target))
+        val metrics = MetricsContext(u.templateId.qualifiedName, u.synchronizerId)
         val event   = Event(pk, txIx, u.eventId, EventType.Unassign, metrics)
         val unassignedContracts =
           mkDeactivatedContracts(pk, txIx, u.contractId, u.templateId, u.synchronizerId, isArchive = false, metrics)
@@ -427,7 +427,7 @@ final case class DocumentPostgres(
         unassignedContracts :+ reassignment :+ event
 
       case e: canonical.Event.Assigned =>
-        val metrics = MetricsContext(e.contract.templateId.qualifiedName, e.synchronizerId, Some(e.source -> e.target))
+        val metrics = MetricsContext(e.contract.templateId.qualifiedName, e.synchronizerId)
         val event   = Event(pk, txIx, e.eventId, EventType.Assign, metrics)
         val contracts =
           mkContracts(pk, txIx, e.contract, e.synchronizerId, e.reassignmentCounter, isCreate = false, metrics)

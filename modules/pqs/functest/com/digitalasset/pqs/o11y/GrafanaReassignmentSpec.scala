@@ -12,7 +12,7 @@ import com.digitalasset.pqs.services.daml.*
 import com.digitalasset.pqs.services.o11y.*
 import com.digitalasset.pqs.services.postgres.Postgres
 import com.digitalasset.pqs.services.pqs.{Pipeline, Pqs}
-import zio.test.Assertion.{equalTo, exists}
+import zio.test.Assertion.{equalTo, exists, forall}
 
 object GrafanaReassignmentSpec extends SharedMultiSyncLedgerSpec:
   private val assetInterface = DamlSource(
@@ -84,16 +84,22 @@ object GrafanaReassignmentSpec extends SharedMultiSyncLedgerSpec:
         // A row for Asset and one for IAsset
         Grafana
           .getMetrics(
-            s"sum(pipeline_contracts_per_template_total{type='unassign', synchronizer_id='${sync1.id}', $reassigned})"
+            s"sum(pipeline_contracts_per_template_total{type='unassign', synchronizer_id='${sync1.id}'})"
           )
           .is(exists(equalTo(2)))
           .retryUntilTimeout
       And:
         Grafana
           .getMetrics(
-            s"sum(pipeline_contracts_per_template_total{type='assign', synchronizer_id='${sync2.id}', $reassigned})"
+            s"sum(pipeline_contracts_per_template_total{type='assign', synchronizer_id='${sync2.id}'})"
           )
           .is(exists(equalTo(2)))
+          .retryUntilTimeout
+      And:
+        // The contract metric has no source or target synchronizer
+        Grafana
+          .getMetrics("count(pipeline_contracts_per_template_total{source_synchronizer_id!=''}) or vector(0)")
+          .is(forall(equalTo(0)))
           .retryUntilTimeout
       And:
         // Each event counts once, whatever interface views Asset has

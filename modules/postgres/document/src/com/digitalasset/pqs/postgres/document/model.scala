@@ -55,15 +55,11 @@ private def l(kv: (String, Any)*)            = kv.map((k, v) => MetricLabel(k, v
 final case class MetricsContext(
     qualifiedName: String,
     synchronizerId: SynchronizerId,
-    sourceAndTarget: Option[(SynchronizerId, SynchronizerId)] = None,
     fromAcs: Boolean = false,
     consuming: Boolean = false
 ):
   def labels(tpe: String): Set[MetricLabel] =
-    l("type" -> tpe, "template" -> qualifiedName, "synchronizer_id" -> synchronizerId) ++
-      sourceAndTarget.fold(Set.empty)((source, target) =>
-        l("source_synchronizer_id" -> source, "target_synchronizer_id" -> target)
-      )
+    l("type" -> tpe, "template" -> qualifiedName, "synchronizer_id" -> synchronizerId)
 
 object Model {
   private val eventCounter =
@@ -399,9 +395,11 @@ final class Reassignment(
     witnesses,
     assignmentExclusivity
   )
-  override val eventLabels: Set[MetricLabel] = reassignmentType match
-    case ReassignmentType.Assign   => metrics.labels("assign")
-    case ReassignmentType.Unassign => metrics.labels("unassign")
+  override val eventLabels: Set[MetricLabel] =
+    val sourceAndTarget = l("source_synchronizer_id" -> source, "target_synchronizer_id" -> target)
+    reassignmentType match
+      case ReassignmentType.Assign   => metrics.labels("assign") ++ sourceAndTarget
+      case ReassignmentType.Unassign => metrics.labels("unassign") ++ sourceAndTarget
 
 object Reassignment
     extends Table(
