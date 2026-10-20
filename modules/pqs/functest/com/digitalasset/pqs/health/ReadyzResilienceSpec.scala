@@ -5,7 +5,6 @@ package com.digitalasset.pqs.health
 
 import com.digitalasset.pqs.docker.Client
 import com.digitalasset.pqs.docker.Client.run
-import com.digitalasset.pqs.docker.Docker
 import com.digitalasset.pqs.functest.FuncTestStandalone
 import com.digitalasset.pqs.functest.matchers.is
 import com.digitalasset.pqs.health.HealthEndpoint.readyzStatusAndField
@@ -48,7 +47,7 @@ object ReadyzResilienceSpec extends FuncTestStandalone:
     funcTest("Postgres failure and recovery"):
       val alice = Party("Alice")
       Given:
-        DamlSdk.ledger ++ Postgres.instance
+        Ledger.instance ++ Postgres.instance
       And:
         DamlSdk.deploy(ping) ++ DamlSdk.parties(alice) ++ Postgres.database
       And:
@@ -81,7 +80,7 @@ object ReadyzResilienceSpec extends FuncTestStandalone:
     funcTest("Canton failure and recovery"):
       val alice = Party("Alice")
       Given:
-        DamlSdk.ledger ++ Postgres.instance
+        Ledger.instance ++ Postgres.instance
       And:
         DamlSdk.deploy(ping) ++ DamlSdk.parties(alice) ++ Postgres.database
       And:
@@ -102,13 +101,13 @@ object ReadyzResilienceSpec extends FuncTestStandalone:
       When:
         // We pause/unpause the Canton container because stop would lose the uploaded DARs, requiring
         // a full redeploy. Pause works here because gRPC keepalive has its own timeout.
-        Docker.inspect[Ledger].flatMap(l => pauseContainer(l.container.containerId))
+        ZIO.service[Ledger].flatMap(l => pauseContainer(l.container.containerId))
       Then:
         readyzStatusAndField("grpc_up") `is`
           Some((Status.ServiceUnavailable, Some(Json.Bool(false)))) retryUntilTimeout
 
       When:
-        Docker.inspect[Ledger].flatMap(l => unpauseContainer(l.container.containerId))
+        ZIO.service[Ledger].flatMap(l => unpauseContainer(l.container.containerId))
       Then:
         readyzStatusAndField("grpc_up") `is` Some((Status.Ok, Some(Json.Bool(true)))) retryUntilTimeout
   )
