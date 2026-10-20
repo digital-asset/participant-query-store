@@ -37,6 +37,7 @@ db.new('PQS full-stack lens')
   v.container('jvm_memory_used_bytes'),
   v.jvm,
   v.jvm_mempool,
+  variables.synchronizer,
   variables.pg_relname,
   variables.k6_persona,
   variables.k6_group,

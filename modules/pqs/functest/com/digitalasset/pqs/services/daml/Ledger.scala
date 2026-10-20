@@ -215,7 +215,7 @@ object Ledger:
       actAs: Party,
       sync: Synchronizer
   ): ZIO[Docker & Ledger & DarFile, Throwable, SubmitAndWaitForTransactionResponse] =
-    archiveCommand(templateQname, contractId).flatMap(submitAndWaitForTransaction(actAs, Some(sync), _))
+    exerciseCommand(templateQname, contractId, "Archive").flatMap(submitAndWaitForTransaction(actAs, Some(sync), _))
 
   /** Canton picks the synchronizer, which on a single-synchronizer ledger is the connected one */
   def archive(
@@ -223,7 +223,17 @@ object Ledger:
       contractId: String,
       actAs: Party
   ): ZIO[Docker & Ledger & DarFile, Throwable, SubmitAndWaitForTransactionResponse] =
-    archiveCommand(templateQname, contractId).flatMap(submitAndWaitForTransaction(actAs, None, _))
+    exerciseCommand(templateQname, contractId, "Archive").flatMap(submitAndWaitForTransaction(actAs, None, _))
+
+  /** Exercises a choice that takes no arguments */
+  def exercise(
+      templateQname: String,
+      contractId: String,
+      choice: String,
+      actAs: Party,
+      sync: Synchronizer
+  ): ZIO[Docker & Ledger & DarFile, Throwable, SubmitAndWaitForTransactionResponse] =
+    exerciseCommand(templateQname, contractId, choice).flatMap(submitAndWaitForTransaction(actAs, Some(sync), _))
 
   private def createCommand(templateQname: String, args: com.daml.ledger.api.v2.value.Record) =
     toIdentifier(templateQname).map { templateId =>
@@ -232,12 +242,12 @@ object Ledger:
       )
     }
 
-  private def archiveCommand(templateQname: String, contractId: String) =
+  private def exerciseCommand(templateQname: String, contractId: String, choice: String) =
     toIdentifier(templateQname).map { templateId =>
       val command = ExerciseCommand.defaultInstance
         .withTemplateId(templateId)
         .withContractId(contractId)
-        .withChoice("Archive")
+        .withChoice(choice)
         .withChoiceArgument(Value(Value.Sum.Record(com.daml.ledger.api.v2.value.Record())))
       Command(Command.Command.Exercise(command))
     }

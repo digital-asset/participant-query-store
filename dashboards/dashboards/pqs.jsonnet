@@ -11,6 +11,7 @@ local v = import '../lib-shared/variables.libsonnet';
 local annotations = import '../lib/annotations.libsonnet';
 local panels = import '../lib/panels.libsonnet';
 local queries = import '../lib/queries.libsonnet';
+local variables = import '../lib/variables.libsonnet';
 
 local db = g.dashboard;
 local row = g.panel.row;
@@ -35,6 +36,7 @@ db.new('Participant Query Store (PQS)')
   v.container('jvm_memory_used_bytes'),
   v.jvm,
   v.jvm_mempool,
+  variables.synchronizer,
 ])
 
 + db.withAnnotations([
@@ -56,6 +58,26 @@ db.new('Participant Query Store (PQS)')
     panels.pqs.timeSeries.contractsChurn('Churn', qs.contracts.churn.all),
     panels.pqs.timeSeries.activeContracts('Active *', qs.contracts.active),
   ], panelWidth=24)),
+
+  row.new('Reassignments')
+  + row.withCollapsed(true)
+  + row.withPanels(grid.wrapPanels([
+    pts.throughputStacked('Reassignments by template', qs.reassignments.by_template)
+    + ptsOpts.withDescription('A reassignment counts the same whether this participant sees its unassign, its assign or both<br><br>A reassignment counts once for its template and once per interface view<br><br>A contract seeded from the ACS counts as an assign if it was reassigned after its creation<br><br>With one synchronizer selected, counts the larger of the reassignments into and out of it, so it undercounts a synchronizer that is both a source and a target: S1→S2 then S2→S3 counts 1 on S2, not 2<br><br>Only accurate if the participant topology is homogeneous'),
+    pts.throughput('Reassignment flows', qs.reassignments.flows)
+    + ptsOpts.withDescription('Each reassignment counts once, whether this participant sees its unassign, its assign or both<br><br>Only accurate if the participant topology is homogeneous'),
+    p.stat('Reassignments ingested *', qs.reassignments.count)
+    + ptsOpts.withDescription('Each reassignment counts once, whether this participant sees its unassign, its assign or both<br><br>Only accurate if the participant topology is homogeneous<br><br>\\* as observed since last restart'),
+  ], panelWidth=12)),
+
+  row.new('Synchronizers')
+  + row.withCollapsed(true)
+  + row.withPanels(grid.wrapPanels([
+    pts.throughput('Transactions by synchronizer', qs.synchronizers.transactions),
+    pts.throughputStacked('Events by synchronizer', qs.synchronizers.events),
+    p.stat('Synchronizers seen *', qs.synchronizers.count)
+    + ptsOpts.withDescription('\\* as observed since last restart'),
+  ], panelWidth=12)),
 
   row.new('Throughput')
   + row.withCollapsed(true)
