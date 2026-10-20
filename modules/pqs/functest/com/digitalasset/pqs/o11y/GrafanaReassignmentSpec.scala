@@ -135,12 +135,9 @@ object GrafanaReassignmentSpec extends SharedMultiSyncLedgerSpec:
           .is(exists(equalTo(1)))
           .retryUntilTimeout
       And:
-        // An archive event, or with TransactionTreeStream the consuming Archive exercise with its choice
+        // An archive event, or with TransactionTreeStream the consuming Archive exercise
         Grafana
-          .getMetrics(
-            if trees then "sum(pipeline_events_total{type='archive', choice='Archive'})"
-            else "sum(pipeline_events_total{type='archive'})"
-          )
+          .getMetrics("sum(pipeline_events_total{type='archive'})")
           .is(exists(equalTo(1)))
           .retryUntilTimeout
       And:
