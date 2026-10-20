@@ -350,7 +350,7 @@ final case class CantonConf(version: String, protocolVersion: Int):
         |  ledger-api {
         |    address = "0.0.0.0"
         |    port = $ledgerApiPort
-        |   ${oauthCantonConfig(oauth)}
+        |    ${oauthCantonConfig(oauth)}
         |    tls {
         |      cert-chain-file = "/tls/participant.crt"
         |      private-key-file = "/tls/participant.pem"
@@ -363,10 +363,30 @@ final case class CantonConf(version: String, protocolVersion: Int):
         |        }
         |      }
         |    }
+        |    max-inbound-message-size = $maxRequestSize
+        |    # We need to bump this because we run one stream per user +
+        |    # polling for domain connections which can add up quite a bit
+        |    # once you're around ~100 users.
+        |    rate-limit.max-api-services-queue-size = 80000
+        |    index-service {
+        |      max-contract-state-cache-size = 1000 # default 1e4
+        |      max-contract-key-state-cache-size = 1000 # default 1e4
+        |      max-transactions-in-memory-fan-out-buffer-size = 200 # default 1000
+        |    }
+        |    command-service {
+        |      max-commands-in-flight = 30 # default = 256
+        |    }
         |  }
         |  parameters {
         |    initial-protocol-version = $protocolVersion
         |    minimum-protocol-version = $protocolVersion
+        |    # tune the synchronisation protocols contract store cache
+        |    caching {
+        |      contract-store {
+        |        maximum-size = 1000 # default 1e6
+        |        expire-after-access = 120s # default 10 minutes
+        |      }
+        |    }
         |  }
         |  topology.broadcast-batch-size = 1
         |}
