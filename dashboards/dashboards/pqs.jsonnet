@@ -63,7 +63,7 @@ db.new('Participant Query Store (PQS)')
   + row.withCollapsed(true)
   + row.withPanels(grid.wrapPanels([
     pts.throughputStacked('Reassignments by template', qs.reassignments.by_template)
-    + ptsOpts.withDescription('A reassignment counts the same whether this participant sees its unassign, its assign or both<br><br>A reassignment counts once for its template and once per interface view<br><br>A contract seeded from the ACS counts as an assign<br><br>Only accurate if the participant topology is homogeneous'),
+    + ptsOpts.withDescription('A reassignment counts the same whether this participant sees its unassign, its assign or both<br><br>A reassignment counts once for its template and once per interface view<br><br>A contract seeded from the ACS counts as an assign if it was reassigned after its creation<br><br>Only accurate if the participant topology is homogeneous'),
     pts.throughput('Reassignment flows', qs.reassignments.flows)
     + ptsOpts.withDescription('Each reassignment counts once, whether this participant sees its unassign, its assign or both<br><br>Only accurate if the participant topology is homogeneous'),
     p.stat('Reassignments ingested *', qs.reassignments.count)

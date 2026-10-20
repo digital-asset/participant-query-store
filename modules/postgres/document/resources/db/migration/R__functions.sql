@@ -1241,7 +1241,7 @@ $$
          join __contract_tpe tpe on tpe.pk = stats.contract_tpe_pk
 $$ language sql stable parallel safe;
 comment on function summary_reassignments(__transactions."offset"%type, __transactions."offset"%type)
-    is 'Returns the number of assign and unassign events per Daml fully qualified name and per source and target synchronizer in the [from_offset, to_offset] range.';
+    is 'Returns the number of assign and unassign events per Daml fully qualified name and per source and target synchronizer in the [from_offset, to_offset] range. Leaves out the assigns recorded by the ACS import.';
 
 create or replace function active(
     qname text default null,

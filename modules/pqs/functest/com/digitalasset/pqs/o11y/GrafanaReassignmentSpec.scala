@@ -104,8 +104,8 @@ object GrafanaReassignmentSpec extends SharedMultiSyncLedgerSpec:
           .is(exists(equalTo(2)))
           .retryUntilTimeout
       And:
-        // Reassignments by template: a reassignment seen from both sides counts once, as the max of its assign and
-        // unassign rows
+        // Reassignments by template takes the max of the assign and unassign rows, so a reassignment seen from both
+        // sides counts 2 (Asset and IAsset), not 4
         Grafana
           .getMetrics(
             "max by(template) (sum by(template, type) (pipeline_contracts_per_template_total{type=~'assign|unassign'}))"
