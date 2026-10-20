@@ -428,7 +428,7 @@ object Docker:
             .withMounts(Seq(Mount().withSource(session.volumeName).withTarget("/ft").withType(MountType.VOLUME)).asJava)
             .withBinds(volumes.map((source, target) => new Bind(source.toString, Volume(target.toString)))*)
         )
-      _ = user.foreach(uid => createCmd.withUser(s"$uid:$uid"))
+      // _ = user.foreach(uid => createCmd.withUser(s"$uid:$uid"))
 
       // create container
       containerId <- acquireRelease( // acquire
