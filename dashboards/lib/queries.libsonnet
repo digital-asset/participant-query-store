@@ -137,14 +137,14 @@ local reassigned = 'type=~"assign|unassign", source_synchronizer_id!="", %s' % s
       by_template:
         q.simple('label_replace(sum by(template) (max by(template) (sum by(template, type) (rate(pipeline_contracts_per_template_total{job="$jvm", type=~"assign|unassign"}[$__rate_interval])))), "short_template", "$1", "template", ".*?:(.*)")', '{{short_template}}'),
       flows:
-        q.simple('label_replace(label_replace(sum by(source_synchronizer_id, target_synchronizer_id) (max by(template, source_synchronizer_id, target_synchronizer_id) (sum by(template, source_synchronizer_id, target_synchronizer_id, type) (rate(pipeline_events_total{job="$jvm", %s}[$__rate_interval])))), "source", "$1", "source_synchronizer_id", "^(.*?)(::.*)?$"), "target", "$1", "target_synchronizer_id", "^(.*?)(::.*)?$")' % reassigned, '{{source}} → {{target}}'),
+        q.simple('sum by(source, target) (max by(template, source, target) (sum by(template, source, target, type) (label_replace(label_replace(rate(pipeline_events_total{job="$jvm", %s}[$__rate_interval]), "source", "$1", "source_synchronizer_id", "^(.*?)(::.*)?$"), "target", "$1", "target_synchronizer_id", "^(.*?)(::.*)?$"))))' % reassigned, '{{source}} → {{target}}'),
       count:
         q.simple('sum(max by(template, source_synchronizer_id, target_synchronizer_id) (sum by(template, source_synchronizer_id, target_synchronizer_id, type) (pipeline_events_total{job="$jvm", %s})))' % reassigned, 'reassignments'),
     },
 
     synchronizers: {
       base(types):
-        q.simple('label_replace(sum by(synchronizer_id) (rate(pipeline_events_total{job="$jvm", type=~"%s", %s}[$__rate_interval])), "sync", "$1", "synchronizer_id", "^(.*?)(::.*)?$")' % [types, sync_sel], '{{sync}}'),
+        q.simple('sum by(sync) (label_replace(rate(pipeline_events_total{job="$jvm", type=~"%s", %s}[$__rate_interval]), "sync", "$1", "synchronizer_id", "^(.*?)(::.*)?$"))' % [types, sync_sel], '{{sync}}'),
       transactions: self.base('transaction'),
       events: self.base('(create|archive|exercise|assign|unassign)'),
       count:
