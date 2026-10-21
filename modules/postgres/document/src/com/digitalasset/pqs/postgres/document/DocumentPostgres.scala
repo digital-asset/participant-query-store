@@ -309,6 +309,7 @@ final case class DocumentPostgres(
       tx.offset,
       Some(tx.transactionId),
       tx.effectiveAt,
+      Some(tx.recordTime),
       Some(tx.synchronizerId),
       Some(tx.workflowId),
       tx.remoteSpan,

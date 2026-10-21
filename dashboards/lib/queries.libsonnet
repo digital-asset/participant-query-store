@@ -14,7 +14,7 @@ local reassigned = 'type=~"assign|unassign", source_synchronizer_id!="", %s' % s
       q.simple('target_info{job="$jvm"}', '')
       + { format: 'table', instant: true, range: false, hide: false, editorMode: 'code', exemplar: false },
 
-    tx_lag: q.simple('tx_lag_from_ledger_wallclock{job="$jvm"}', 'command->pqs'),
+    tx_lag: q.simple('tx_lag_from_ledger_wallclock{job="$jvm"}', 'record->pqs'),
 
     down: {
       grpc: q.simple('(grpc_up{job="$jvm"} < 1) + 1', 'Ledger down'),

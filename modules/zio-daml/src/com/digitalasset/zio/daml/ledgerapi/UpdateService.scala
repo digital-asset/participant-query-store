@@ -23,9 +23,8 @@ import zio.metrics.Metric
 import zio.stream.ZStream
 import zio.{Chunk, Task, UIO, ZIO, ZLayer, stream}
 
-import java.time.{Duration, Instant}
+import java.time.Duration
 import scala.language.implicitConversions
-import scala.reflect.Selectable.reflectiveSelectable
 
 object UpdateService:
   val live: ZLayer[ZManagedChannel & ProtobufCodecs & DamlSchema, Throwable, UpdateService] =
@@ -43,23 +42,12 @@ case class UpdateService(
   private val txLagGauge = Metric
     .gauge(
       "tx_lag_from_ledger_wallclock",
-      "Lag from ledger (wall-clock delta (in ms) from command completion to receipt by pipeline)"
+      "Lag from ledger (wall-clock delta (in seconds) from update record time to receipt by pipeline)"
     )
     .contramap[Duration](_.toMillis.toDouble / 1_000)
 
-  // TODO #74: lag is measured from the ledger effective time, which only a transaction
-  // has, so a reassignment never contributes to it. `record_time` is present on every update and
-  // would let this gauge cover them too — revisit once it is ingested.
-  inline private def lag(chunk: Iterable[{ def effectiveAt: Option[Instant] }]): UIO[Option[Duration]] =
-    zio.Clock.instant.map(now =>
-      // The first update that has an effective time, not simply the first update: a chunk headed by
-      // a reassignment can still hold transactions, and their lag is worth reporting. A chunk with
-      // no times at all yields None, and nothing is published.
-      chunk.iterator
-        .flatMap(_.effectiveAt)
-        .nextOption()
-        .map(ts => Duration.between(ts, now))
-    )
+  inline private def lag(chunk: Iterable[DataAdapter[?]]): UIO[Option[Duration]] =
+    zio.Clock.instant.map(now => chunk.headOption.map(update => Duration.between(update.recordTime, now)))
 
   def getTransactions(
       rights: UserRight,
@@ -166,14 +154,11 @@ case class UpdateService(
           "daml.command_id"      -> tx.commandId,
           "daml.events_count"    -> tx.eventsSize.toLong,
           "daml.offset"          -> tx.offset,
+          "daml.record_time"     -> tx.recordTime.toString,
           "daml.synchronizer_id" -> tx.synchronizerId,
           "daml.transaction_id"  -> tx.transactionId,
           "daml.workflow_id"     -> tx.workflowId
         )
-        // TODO #74: a reassignment has no ledger effective time, so its span carries no
-        // time at all. Both update kinds do carry `record_time` and `synchronizer_id` on the wire;
-        // add them here as `daml.record_time` and `daml.synchronizer_id` once those are ingested,
-        // so every update kind is traceable against the database.
         _ <- ZIO.foreach(tx.effectiveAt) { ts =>
           txSpan.addAttributes("daml.effective_at" -> ts.toString)
         }
@@ -191,6 +176,7 @@ case class UpdateService(
             commandId = CommandId(tx.commandId),
             workflowId = WorkflowId(tx.workflowId),
             effectiveAt = tx.effectiveAt,
+            recordTime = tx.recordTime,
             offset = tx.offset.toOffset,
             events = convertedEvents,
             synchronizerId = tx.synchronizerId,
