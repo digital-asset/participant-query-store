@@ -295,16 +295,25 @@ object QueryingSpec extends SharedLedgerAndPostgresTest:
       funcTest("resolves offset based on effective time for rows without record time"):
         Given:
           upAndRunning
+
+        val offsetAt3 = Capture[OffsetType]
+        val offsetAt6 = Capture[OffsetType]
+        And:
+          Postgres query {
+            sql"""select (select "offset" from __transactions where ix = 3),
+                         (select "offset" from __transactions where ix = 6);"""
+          } `returns` table { offsetAt3.capture | offsetAt6.capture }
         And:
           Postgres `query` sql"update __transactions set record_time = null where ix <= 5".update `returns` anything
         Then:
           Postgres query {
-            sql"""select
-                        (select nearest_offset((select effective_at from __transactions where ix = 3)))
-                          = (select "offset" from __transactions where ix = 3),
-                        (select nearest_offset((select (record_time - interval '00:00:00.000001') from __transactions where ix = 7)))
-                          = (select "offset" from __transactions where ix = 6);"""
-          } `returns` table { true <|> true }
+            sql"""select nearest_offset((select effective_at from __transactions where ix = 3));"""
+          } `returns` table { offsetAt3.get }
+        And:
+          Postgres query {
+            sql"""select nearest_offset(
+                           (select (record_time - interval '00:00:00.000001') from __transactions where ix = 7));"""
+          } `returns` table { offsetAt6.get }
     ),
     suite("read API")(
       funcTest("transactions queries"):
