@@ -23,10 +23,16 @@ object DamlSdk:
   // Layers //
   ////////////
 
-  /** Compile DAML sources and wrap them into DarFile layer */
-  def buildDar(source: DamlSource): ZIO[Dpm & FTEnv, Throwable, DarFile] =
+  /** Compile DAML sources into a DarFile. Compilation is memoized for the whole test run, keyed by the source contents,
+    * so the same package is built once no matter how many tests deploy it.
+    */
+  def buildDar(source: DamlSource): ZIO[Dpm & FTEnv & Docker, Throwable, DarFile] =
+    FTEnv.damlLfTarget.flatMap(lfTarget => Docker.share(("build_dar", source, lfTarget))(compileDar(source)))
+
+  private def compileDar(source: DamlSource): ZIO[Dpm & FTEnv, Throwable, DarFile] =
     val packages = (source :: source.deps).distinct.toList
     for
+      _               <- logInfo(s"Building DAR ${source.name}-${source.version}")
       multiPackageDir <- FTEnv.createUniqueDirectory(s"build-dar-${source.name}")
       mainPackageDir = multiPackageDir / source.name
       _ <- writeMultiPackage(multiPackageDir, packages)
