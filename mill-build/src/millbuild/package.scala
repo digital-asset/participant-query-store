@@ -18,7 +18,7 @@ package object millbuild {
 
     // Latest snapshot: https://console.cloud.google.com/artifacts/docker/da-images/europe/public-unstable/docker%2Fcanton-base
     // Latest stable: https://console.cloud.google.com/artifacts/docker/da-images/europe/public/docker%2Fcanton-base
-    val canton = "3.6.1"
+    val canton = "3.6.3"
 
     val bouncyCastle = "1.86"
     val dockerClient = "3.4.0"
@@ -30,7 +30,7 @@ package object millbuild {
 
     // Pulled transitively by Flyway
     // Force specific version to address vulnerabilities
-    val jackson3 = "3.2.2"
+    val jackson3 = "3.2.3"
 
     // Pulled transitively by azure-identity
     // Force specific version to address vulnerabilities
