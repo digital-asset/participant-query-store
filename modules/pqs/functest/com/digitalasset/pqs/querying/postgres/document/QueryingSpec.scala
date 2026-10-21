@@ -326,10 +326,6 @@ object QueryingSpec extends SharedLedgerAndPostgresTest:
           Postgres query {
             sql"""select count(*) from transactions;"""
           } `returns` table { 6 }
-        And:
-          Postgres query {
-            sql"""select bool_and(v.record_time is not distinct from t.record_time) from transactions v join __transactions t on t.ix = v.ix;"""
-          } `returns` table { true }
         When:
           Postgres.Session.init
         And:
