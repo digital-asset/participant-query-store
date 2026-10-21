@@ -5,7 +5,7 @@ package com.digitalasset.pqs.features
 
 import com.daml.ledger.api.v2.value.*
 import com.digitalasset.pqs.SharedLedgerAndPostgresTest
-import com.digitalasset.pqs.docker.{Docker, Service}
+import com.digitalasset.pqs.docker.Docker
 import com.digitalasset.pqs.functest.matchers.*
 import com.digitalasset.pqs.functest.table.*
 import com.digitalasset.pqs.services.postgres.*
@@ -103,7 +103,7 @@ object AmbiguousPackageDecodingSpec extends SharedLedgerAndPostgresTest:
   private def createPing(
       alice: Party,
       extraFields: RecordField*
-  ): ZIO[Docker & Service[Ledger] & DarFile, Throwable, String] =
+  ): ZIO[Docker & Ledger & DarFile, Throwable, String] =
     val args = Record.defaultInstance.addFields(
       RecordField("sender", Some(Value(Value.Sum.Party(alice.id)))) +: extraFields*
     )
