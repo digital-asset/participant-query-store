@@ -41,13 +41,12 @@ import io.grpc.Metadata
 import zio.stream.ZStream
 import zio.*
 
-final class Ledger(svc: Service[Ledger]):
+final class Ledger(svc: Service[Ledger], val channel: ZManagedChannel):
   export svc.*
 
 object Ledger:
-  private val channel: RLayer[Docker & Ledger, ZManagedChannel] =
-    ZLayer.scoped(createChannel)
-
+  private val channel: RLayer[Ledger, ZManagedChannel] =
+    ZLayer.service[Ledger].map(env => ZEnvironment(env.get.channel))
   val instance: RLayer[FTEnv & Docker, Ledger] = ZLayer.scoped(
     for
       conf     <- CantonConf.load()
@@ -99,7 +98,7 @@ object Ledger:
     packageService ++ ZLayer.succeed(contractFilter) ++ ZLayer.succeed(metadataFilter)
       >>> DamlSchema.layer
 
-  private val svc = channel >>> (
+  private val client = channel >>> (
     PartyManagementServiceClient.live
       ++ UserManagementServiceClient.live
       ++ PackageManagementServiceClient.live
@@ -110,21 +109,21 @@ object Ledger:
       ++ StateServiceClient.live
   )
 
-  def participantId = svc(
+  def participantId = client(
     PartyManagementServiceClient.getParticipantId(GetParticipantIdRequest()).map(_.participantId)
   )
 
-  def getAllSynchronizers = svc(
+  def getAllSynchronizers = client(
     StateServiceClient
       .getConnectedSynchronizers(GetConnectedSynchronizersRequest.defaultInstance)
       .map(_.connectedSynchronizers)
   )
 
-  def listPackageIds = svc(
+  def listPackageIds = client(
     PackageManagementServiceClient.listKnownPackages(ListKnownPackagesRequest()).map(_.packageDetails.map(_.packageId))
   )
 
-  def uploadDar(dar: DarFile, withVetting: Boolean) = svc {
+  def uploadDar(dar: DarFile, withVetting: Boolean) = client {
     val request = UploadDarFileRequest.defaultInstance
       .withDarFile(ByteString.copyFrom(dar.darBytes))
       .withVettingChange(
@@ -134,7 +133,7 @@ object Ledger:
     PackageManagementServiceClient.uploadDarFile(request)
   }
 
-  def vetDar(dar: DarFile, synchronizer: Synchronizer) = svc {
+  def vetDar(dar: DarFile, synchronizer: Synchronizer) = client {
     val packageRefs = dar.packageInfo.map { case (name, version, id) => VettedPackagesRef(id, name, version) }
     val vet = VettedPackagesChange.Operation.Vet(VettedPackagesChange.Vet.defaultInstance.withPackages(packageRefs))
     val request = UpdateVettedPackagesRequest.defaultInstance
@@ -147,7 +146,7 @@ object Ledger:
   def unvetDar(dar: DarFile): ZIO[Docker & Ledger, Throwable, UpdateVettedPackagesResponse] =
     getSingleConnectedSynchronizerId.flatMap(unvetDar(dar, _))
 
-  def isPackageVetted(packageId: String) = svc(
+  def isPackageVetted(packageId: String) = client(
     PackageServiceClient
       .listVettedPackages(
         ListVettedPackagesRequest.defaultInstance.withPackageMetadataFilter(
@@ -157,7 +156,7 @@ object Ledger:
       .map(_.vettedPackages.nonEmpty)
   )
 
-  def allocateParty(synchronizerId: String, hint: String) = svc {
+  def allocateParty(synchronizerId: String, hint: String) = client {
     val request = AllocatePartyRequest.defaultInstance
       .withPartyIdHint(hint)
       .withSynchronizerId(synchronizerId)
@@ -167,7 +166,7 @@ object Ledger:
       .someOrFail(Throwable(s"No party details available after allocating party $hint"))
   }
 
-  def listKnownParties = svc(
+  def listKnownParties = client(
     PartyManagementServiceClient
       .listKnownParties(ListKnownPartiesRequest.defaultInstance)
       .map(_.partyDetails)
@@ -179,7 +178,7 @@ object Ledger:
       canActAs: Seq[String],
       canReadAs: Seq[String],
       canReadAsAnyParty: Boolean
-  ) = svc(
+  ) = client(
     UserManagementServiceClient.createUser(
       CreateUserRequest(
         user = Some(
@@ -197,7 +196,7 @@ object Ledger:
     )
   )
 
-  def grantRights(partyId: String) = svc(
+  def grantRights(partyId: String) = client(
     UserManagementServiceClient.grantUserRights(
       GrantUserRightsRequest.defaultInstance
         .withUserId(CantonConf.participantAdmin)
@@ -264,7 +263,7 @@ object Ledger:
       Command(Command.Command.Exercise(command))
     }
 
-  def reassign(contractId: String, submitter: Party, source: Synchronizer, target: Synchronizer) = svc {
+  def reassign(contractId: String, submitter: Party, source: Synchronizer, target: Synchronizer) = client {
     val unassignCommand = ReassignmentCommand.Command.UnassignCommand(
       UnassignCommand(contractId, source.id, target.id)
     )
@@ -282,7 +281,7 @@ object Ledger:
     Docker & Ledger & Parties & UpdateService & StateService,
     Throwable,
     Chunk[Transaction[Event]]
-  ] = svc {
+  ] = client {
     for
       parties       <- ZIO.service[Parties]
       updateService <- ZIO.service[UpdateService]
@@ -296,7 +295,7 @@ object Ledger:
   def getSingleCreatedEvent(
       parties: Seq[Party],
       transactionId: String
-  ): ZIO[Docker & Ledger, Throwable, CreatedEvent] = svc {
+  ): ZIO[Docker & Ledger, Throwable, CreatedEvent] = client {
     updatesFromGenesis(parties, wildcardFilter(true))
       .dropWhile(_.getTransaction.updateId =/= transactionId)
       .runHead
@@ -312,7 +311,7 @@ object Ledger:
     * @param interfaceQname
     *   fully qualified interface name, `"package-name:Module:Entity"`
     */
-  def getCreatedEventViaInterface(parties: Seq[Party], interfaceFqname: String, contractId: String) = svc {
+  def getCreatedEventViaInterface(parties: Seq[Party], interfaceFqname: String, contractId: String) = client {
     val parts = interfaceFqname.split(':')
     updatesFromGenesis(
       parties,
@@ -331,17 +330,16 @@ object Ledger:
       .map(_.getCreated)
   }
 
-  def pruneLedger(upToOffset: Offset.Absolute) = svc(
+  def pruneLedger(upToOffset: Offset.Absolute) = client(
     ParticipantPruningServiceClient
       .prune(PruneRequest.defaultInstance.withPruneUpTo(upToOffset.toLong))
       .logError
       .retry(Schedule.spaced(1.second))
   )
 
-  private def createChannel =
+  private[pqs] def createChannel(svc: Service[Ledger]) =
     val authHeader = Metadata.Key.of("Authorization", Metadata.ASCII_STRING_MARSHALLER)
     for
-      svc               <- ZIO.service[Ledger]
       adminTokenService <- inspectMaybe[TokenService]
       ca                <- Docker.certificateAuthority
       cert              <- ca.generate("participant")
@@ -365,7 +363,7 @@ object Ledger:
       channel <- ZManagedChannel(mkBuilder(), 128, interceptor).build
     yield channel.get
 
-  private def submitAndWaitForTransaction(actAs: Party, sync: Option[Synchronizer], command: Command) = svc {
+  private def submitAndWaitForTransaction(actAs: Party, sync: Option[Synchronizer], command: Command) = client {
     for
       commandId <- nextCommandId
       resp <- CommandServiceClient.submitAndWaitForTransaction(
@@ -422,7 +420,7 @@ object Ledger:
   private def unvetDar(
       dar: DarFile,
       synchronizerId: Synchronizer
-  ): ZIO[Docker & Ledger, Throwable, UpdateVettedPackagesResponse] = svc {
+  ): ZIO[Docker & Ledger, Throwable, UpdateVettedPackagesResponse] = client {
     val packageRefs = dar.packageInfo.collect {
       case (name, version, id) if id === dar.packageId => VettedPackagesRef(id, name, version)
     }
@@ -457,7 +455,8 @@ object Ledger:
         .build
       svc = env.get[Service[Ledger]]
       _ <- svc.blockUntilStdOut(_.contains(CantonConf.bootstrapCompleteMessage))
-    yield Ledger(svc)
+      channel <- createChannel(svc)
+    yield Ledger(svc, channel)
 
   private def getSingleConnectedSynchronizerId: ZIO[Docker & Ledger, Throwable, Synchronizer] =
     getAllSynchronizers.flatMap {

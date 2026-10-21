@@ -206,7 +206,9 @@ object RpidTwoParticipantSpec extends FuncTestStandalone:
           )("daemon")
           .tap(_.get.blockUntilStdOut(_.contains(CantonConf.bootstrapCompleteMessage)))
           .build
-      yield Ledger(svc.get[Service[Ledger]])
+          .map(_.get)
+        channel <- Ledger.createChannel(svc)
+      yield Ledger(svc, channel)
     )
     cantonLayer >+> DamlSdk.allocatedParties(alice) ++ ZLayer.succeed(v2Dar)
 
