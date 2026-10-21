@@ -472,7 +472,7 @@ private object RowValue:
         RowValue(sb.result())
 
   given Converter[Instant] =
-    val fmt = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSSXX")
+    val fmt = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSSSSSXX")
     value => RowValue(value.atZone(ZoneOffset.UTC).format(fmt))
 
   given [A: Converter]: Converter[Option[A]] =
