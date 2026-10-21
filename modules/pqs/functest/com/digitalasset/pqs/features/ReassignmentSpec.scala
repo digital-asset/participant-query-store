@@ -220,6 +220,12 @@ object ReassignmentSpec extends SharedMultiSyncLedgerSpec:
               dar.get.packageId | s"${pingPong.name}:PingPong:Ping" | "template" | contractId | createdAtOffset.toLong | sync1.id | 0
             }
           )
+      And:
+        Postgres
+          .query(
+            sql"select created_record_time, unassigned_record_time from creates()".query[(Instant, Instant)].selectAll
+          )
+          .is(equalTo(Chunk((createTx.recordTime, unassignTx.recordTime))))
       Expect:
         Database
           .archives(extraColumns = Seq("archived_at_offset", "synchronizer_id", "reassignment_counter"))
@@ -228,6 +234,12 @@ object ReassignmentSpec extends SharedMultiSyncLedgerSpec:
               dar.get.packageId | s"${pingPong.name}:PingPong:Ping" | "template" | contractId | archivedAtOffset.toLong | sync2.id | 1
             }
           )
+      And:
+        Postgres
+          .query(
+            sql"select assigned_record_time, archived_record_time from archives()".query[(Instant, Instant)].selectAll
+          )
+          .is(equalTo(Chunk((assignTx.recordTime, archiveTx.recordTime))))
       Expect:
         Database
           .activeAtOffset(
