@@ -1,6 +1,6 @@
 # AGENTS.md
 
-Instructions for AI coding agents working in this repository (Claude Code, GitHub Copilot, Codex, Cursor and others).
+Instructions for AI coding agents working in this repository (Claude Code, GitHub Copilot).
 
 ## Project
 
