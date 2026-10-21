@@ -19,7 +19,11 @@ object IngestionPerfSpec extends SharedHydratedLedgerTest:
       Given:
         Postgres.database
           >+> Pqs36.applySchema // apply schema and warm the cache
-          >+> Pqs36.runPipeline("--pipeline-ledger-start=Genesis", "--pipeline-ledger-stop=Latest")
+          >+> Pqs36.runPipeline(
+            "--pipeline-ledger-start=Genesis",
+            "--pipeline-ledger-stop=Latest",
+            "--logger-level=Warning"
+          )
       Expect:
         pqs36Database.captureFromService
       And:
@@ -28,7 +32,11 @@ object IngestionPerfSpec extends SharedHydratedLedgerTest:
       When:
         Postgres.database
           >+> Pqs.applySchema // apply schema and warm the cache
-          >+> Pqs.runPipeline("--pipeline-ledger-start=Genesis", "--pipeline-ledger-stop=Latest")
+          >+> Pqs.runPipeline(
+            "--pipeline-ledger-start=Genesis",
+            "--pipeline-ledger-stop=Latest",
+            "--logger-level=Warning"
+          )
       Expect:
         pqsLocalDatabase.captureFromService
       And:
