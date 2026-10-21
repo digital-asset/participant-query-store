@@ -174,6 +174,7 @@ object GrafanaSetupSpec extends SharedLedgerAndPostgresTest:
             "daml.effective_at",
             "daml.events_count",
             "daml.offset",
+            "daml.record_time",
             "daml.transaction_id",
             "daml.workflow_id"
           )

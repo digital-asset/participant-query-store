@@ -20,6 +20,7 @@ This release includes the following SQL migrations:
   - Drop the `__tmp_archived_contracts` and replace with `__tmp_deactivated_contracts` for internal use by the PQS pipeline.
 - _V047__Create_reassignments_table.sql_: creates the `__reassignment_type` enum and the list-partitioned `__reassignments` table, then creates one partition per row already present in `__contract_tpe`. **[Impact: Instantaneous /< 1 min]**
 - _V048__Prunning_reassignments.sql_: drops `prune_archived_to_offset` and `prune_archived_to_offset_dry_run` so that they can be re-created with the new `deleted_reassignments` result column. **[Impact: Instantaneous]**
+- _V049__Store_record_time.sql_: adds the `record_time` column to `__transactions`, which is metadata-only, and a BRIN index on it, which reads `__transactions` once. **[Impact: < 1 min/10M transactions]**
 
 ## What's New
 
@@ -54,6 +55,7 @@ synchronizer_id text;
 - `active` and `lookup_contract` now return a single row per `(contract_id, template_fqn)`, keeping the row with the highest `reassignment_counter`.
 - `summary_active` counts each `contract_id` only once per `template_fqn`.
 - *BREAKING*: The `__transactions` column `domain_id` is renamed to `synchronizer_id`, to match Canton's current vocabulary. It is now populated for every update — every transaction and every reassignment. Rows written before this release keep `NULL` and are not getting backfilled.
+- The new `__transactions` column `record_time` holds the time at which the update was recorded by its synchronizer. It is populated for every update. Rows written before this release keep `NULL` and are not getting backfilled.
 - The `synchronizer_id text` column is added to the `transactions` SQL view.
 - The `synchronizer_id text` column is added to the output of the `exercises` and `lookup_exercise` SQL functions.
 - The `summary_reassignments` SQL function returns the number of assign and unassign events per Daml fully qualified name and per source and target synchronizer in the `[from_offset, to_offset]` range. It leaves out the assigns recorded by the ACS import.
@@ -69,6 +71,8 @@ synchronizer_id text;
 
 #### Observability
 
+- The `tx_lag_from_ledger_wallclock` metric is measured from the record time of the first update in each batch received from the ledger, instead of the effective time, so reassignments count towards it.
+- The `export` span of every transaction and reassignment has a new `daml.record_time` attribute.
 - *BREAKING*: The `pipeline_events_total` metric counts each ledger event once, whatever interfaces its template implements. It used to count `create` and `archive` once for the template and once for each of its interfaces. With `TransactionTreeStream`, a consuming exercise counts once, as an `archive` with its `choice` label, so `exercise` counts only non-consuming exercises; it used to count as both an `exercise` and an `archive`.
 - The `pipeline_events_total` metric has a new `synchronizer_id` label on every type except `watermark`, plus `source_synchronizer_id` and `target_synchronizer_id` on `assign` and `unassign`, except on an `assign` recorded by the ACS import. When PQS seeds an empty datastore from the ACS, the `transaction` it records at ix 0 has no synchronizer, so its `synchronizer_id` is `unknown`; the dashboard's `synchronizer` variable and `Synchronizers seen` panel leave it out.
 - The new `pipeline_contracts_per_template_total` metric counts each `create`, `archive`, `assign` and `unassign` once for the template and once for each of its interfaces. Its labels are `type`, `template` and `synchronizer_id`.

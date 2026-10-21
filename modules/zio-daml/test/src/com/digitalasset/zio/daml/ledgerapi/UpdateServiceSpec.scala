@@ -29,7 +29,11 @@ object UpdateServiceSpec extends ZIOSpecDefault:
   private def offset(l: Long) = Offset.Absolute(l)
 
   private def response(offset: Long): GetUpdatesResponse =
-    GetUpdatesResponse.defaultInstance.withTransaction(Transaction.defaultInstance.withOffset(offset))
+    GetUpdatesResponse.defaultInstance.withTransaction(
+      Transaction.defaultInstance
+        .withOffset(offset)
+        .withRecordTime(recordTime)
+    )
 
   private val emptyDictionaryLayer: ULayer[ProtobufCodecs] = ZLayer.succeed(Dictionary(Seq.empty))
 
@@ -171,14 +175,14 @@ object UpdateServiceSpec extends ZIOSpecDefault:
             service <- ZIO.service[UpdateService]
             result <- service
               .getTransactions(dummyRight, offset(first), offset(second))
-              .map(_.offset)
               .runCollect
             completed <- service
               .getTransactions(dummyRight, offset(first), offset(second))
               .runDrain
               .timeout(1.second)
           yield assertTrue(
-            result == Chunk(offset(first), offset(second)),
+            result.map(_.offset) == Chunk(offset(first), offset(second)),
+            result.forall(_.recordTime == TimestampConverters.asJavaInstant(recordTime)),
             completed.isDefined
           )
         )
@@ -199,10 +203,10 @@ object UpdateServiceSpec extends ZIOSpecDefault:
             service <- ZIO.service[UpdateService]
             result <- service
               .getTransactionTrees(dummyRight, offset(first), offset(second))
-              .map(_.offset)
               .runCollect
           yield assertTrue(
-            result == Chunk(offset(first), offset(second))
+            result.map(_.offset) == Chunk(offset(first), offset(second)),
+            result.forall(_.recordTime == TimestampConverters.asJavaInstant(recordTime))
           )
         )
     ),
@@ -231,7 +235,9 @@ object UpdateServiceSpec extends ZIOSpecDefault:
             ledgerFx <- service.getTransactionTrees(dummyRight, offset(first), offset(first)).runCollect
           yield assertTrue(
             acsDelta.map(_.events) == ledgerFx.map(_.events),
-            acsDelta.map(_.effectiveAt) == ledgerFx.map(_.effectiveAt)
+            acsDelta.map(_.effectiveAt) == ledgerFx.map(_.effectiveAt),
+            acsDelta.map(_.recordTime) == Chunk(TimestampConverters.asJavaInstant(recordTime)),
+            acsDelta.map(_.recordTime) == ledgerFx.map(_.recordTime)
           )
         )
       ,
