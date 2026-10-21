@@ -101,6 +101,13 @@ final case class CantonConf(version: String, protocolVersion: Int):
              |  )
              |)""".stripMargin
         else "trafficControl = None"
+      val trafficBalance =
+        if enableTrafficControl then
+          """|// Set a high enough traffic balance for the participant to avoid hitting traffic limits during tests.
+             |  sequencer1.traffic_control.set_traffic_balance(
+             |    participant1.id, PositiveInt.one, NonNegativeLong.tryCreate(100000000L)
+             |  )""".stripMargin
+        else ""
 
       val bootstrap =
         s"""|import com.digitalasset.canton.console.LocalInstanceReference
@@ -136,6 +143,8 @@ final case class CantonConf(version: String, protocolVersion: Int):
             |      participant1.synchronizers.active("synchronizer1")
             |  }
             |  logger.info("=== finished connecting to synchronizer ===")
+            |
+            |  $trafficBalance
             |
             |  // verify that the connection works
             |  participant1.health.ping(participant1)
