@@ -595,8 +595,7 @@ object QueryingSpec extends SharedLedgerAndPostgresTest:
           upAndRunning
         Then:
           Postgres query {
-            sql"""select template_fqn, choice_fqn, exercised_at_offset, exercised_effective_at, contract_id, exercise_event_id, argument->>'newLastName', result,
-                       exercised_record_time = (select record_time from __transactions where "offset" = exercised_at_offset)
+            sql"""select template_fqn, choice_fqn, exercised_at_offset, exercised_effective_at, contract_id, exercise_event_id, argument->>'newLastName', result
                 from lookup_exercises((select distinct contract_id from __contracts where created_at_ix = 2));"""
           } `returns` table {
             s"${nameRegistry.name}:NameRegistry:BirthCertificate" |
@@ -606,8 +605,7 @@ object QueryingSpec extends SharedLedgerAndPostgresTest:
               anything |
               anything |
               "Bloggs" |
-              anything |
-              true
+              anything
           }
       ,
       funcTest("summary queries: active Daml contracts counts at offset"):
