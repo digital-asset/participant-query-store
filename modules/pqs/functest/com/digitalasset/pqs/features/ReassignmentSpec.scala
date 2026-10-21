@@ -18,6 +18,7 @@ import zio.Chunk
 import zio.jdbc.*
 import zio.test.Assertion.*
 
+import java.time.Instant
 import scala.language.implicitConversions
 
 object ReassignmentSpec extends SharedMultiSyncLedgerSpec:
@@ -49,19 +50,20 @@ object ReassignmentSpec extends SharedMultiSyncLedgerSpec:
       Expect:
         // `effective_at is null` rather than the timestamp itself: the value of a transaction's
         // effective time is not predictable from the test, but which rows have one is exactly the
-        // decision being pinned. A reassignment has no ledger effective time and must store none.
+        // decision being pinned. A reassignment has no ledger effective time and must store none,
+        // but every update has a record time.
         // Every update now carries a synchronizer_id; for a reassignment it is the synchronizer
         // that synchronized it — the source synchronizer for the unassign, the target for the assign.
         Postgres
-          .query(sql"""select "offset", synchronizer_id, effective_at is null
+          .query(sql"""select "offset", synchronizer_id, effective_at is null, record_time is null
                        from __transactions order by "offset"""")
           .returns(
             table {
               // submitAndWait guarantees the causal order of these multi-sync transactions
-              createdAtOffset.capture    | sync1.id | false
-              unassignedAtOffset.capture | sync1.id | true
-              assignedAtOffset.capture   | sync2.id | true
-              archivedAtOffset.capture   | sync2.id | false
+              createdAtOffset.capture    | sync1.id | false | false
+              unassignedAtOffset.capture | sync1.id | true  | false
+              assignedAtOffset.capture   | sync2.id | true  | false
+              archivedAtOffset.capture   | sync2.id | false | false
             }
           )
 
@@ -202,14 +204,20 @@ object ReassignmentSpec extends SharedMultiSyncLedgerSpec:
 
       Expect:
         Postgres
-          .query(sql"""select "offset", synchronizer_id from __transactions order by "offset"""")
-          .returns(
-            table {
-              assignedAtOffset.toLong   | sync2.id
-              archivedAtOffset.toLong   | sync2.id
-              createdAtOffset.toLong    | sync1.id
-              unassignedAtOffset.toLong | sync1.id
-            }
+          .query(
+            sql"""select "offset", synchronizer_id, record_time from __transactions order by "offset""""
+              .query[(Long, String, Instant)]
+              .selectAll
+          )
+          .is(
+            equalTo(
+              Chunk(
+                (assignedAtOffset.toLong, sync2.id, assignTx.recordTime),
+                (archivedAtOffset.toLong, sync2.id, archiveTx.recordTime),
+                (createdAtOffset.toLong, sync1.id, createTx.recordTime),
+                (unassignedAtOffset.toLong, sync1.id, unassignTx.recordTime)
+              )
+            )
           )
 
       Expect:
