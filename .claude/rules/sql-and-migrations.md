@@ -6,8 +6,9 @@ paths:
 
 # SQL, migrations and query performance
 
-PQS exists to make SQL over large ledgers fast, so every SQL change is a performance change: check the
-plan, measure on realistic volume, and announce the cost.
+PQS exists to make SQL over large ledgers fast, so treat changes to read functions, triggers and the
+ingestion path as performance changes: follow the rules below, tell the user which query plans could
+change, and never call a change performance-neutral without numbers.
 
 ## Flyway migrations (`modules/postgres/document/resources/db/migration/`)
 
@@ -57,9 +58,6 @@ plan, measure on realistic volume, and announce the cost.
 - Reuse helpers such as `__activated_at_ix(c)` and `__deactivated_at_ix(c)`, but they inline to
   `coalesce(...)`, which can't use an index on the underlying column: check `explain` wherever the
   predicate should be an index condition.
-- Benchmark read functions and the ingestion path against the previous release on realistic volume,
-  and put the numbers in the PR: `distinct on` cost `active` 70%, and multi-sync ingestion ran 3x slower
-  until planner statistics were refreshed.
 - No foreign keys between fact tables and no cascading deletes; prune, reset and cleanup delete
   explicitly (V020, V023). A new table holding an `ix` or event pk must be added to
   `__delete_transactions_after`/`_before`, `prune_archived_to_offset` (and `_dry_run`),

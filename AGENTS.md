@@ -141,8 +141,7 @@ Read `.claude/rules/sql-and-migrations.md` before writing SQL anywhere. The esse
   views and triggers live in the two `R__` files. `V` files run against the previous release's `R__`
   objects. After any change, run `make generate-schema-dump` and add an `UNRELEASED.md` "SQL Migration"
   line with an **[Impact: ...]** estimate.
-- Queries on the partitioned tables must let the planner prune partitions and use an index. Benchmark
-  read functions and the ingestion path against the previous release and put the numbers in the PR.
+- Queries on the partitioned tables must let the planner prune partitions and use an index.
 
 ## Guidelines from review
 

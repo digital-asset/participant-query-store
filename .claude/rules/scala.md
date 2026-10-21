@@ -19,4 +19,3 @@ paths:
   the CLI subcommands.
 - The shipped jar is ProGuard-shrunk, and functests run that jar: a new dependency or reflective access
   may need `proguardKeep`/`proguardIgnore` in `build.sc`.
-- A TODO names its tracking issue: `// TODO #74: …`.
