@@ -3,6 +3,7 @@
 
 package com.digitalasset.pqs.features.pruning
 
+import com.digitalasset.pqs.Dars
 import com.digitalasset.pqs.SharedLedgerAndPostgresTest
 import com.digitalasset.pqs.{OffsetType, biggestOffset, smallestOffset}
 import com.digitalasset.pqs.functest.FuncTest
@@ -19,44 +20,14 @@ import zio.test.Assertion.*
 import scala.language.implicitConversions
 
 object DatastorePruningSpec extends SharedLedgerAndPostgresTest:
-  lazy val pingDaml = DamlSource(
-    "Pings" -> """module Pings where
-                 |
-                 |import Daml.Script
-                 |
-                 |template Ping
-                 |  with
-                 |    owner : Party
-                 |    label : Text
-                 |  where
-                 |    signatory owner
-                 |    choice ChangeLabel : ContractId Ping
-                 |      with
-                 |        newLabel : Text
-                 |      controller owner
-                 |      do
-                 |        create Ping with label = newLabel, ..
-                 |
-                 |setup: Party -> Script ()
-                 |setup alice = do
-                 |  one <- submit alice $ createCmd (Ping with owner = alice, label = "one")
-                 |  submit alice $ exerciseCmd one ChangeLabel with newLabel = "one updated"
-                 |  two <- submit alice $ createCmd (Ping with owner = alice, label = "two")
-                 |  submit alice $ exerciseCmd two Archive
-                 |  -- ^ pruning cut-off ^ --
-                 |  three <- submit alice $ createCmd (Ping with owner = alice, label = "three")
-                 |  submit alice $ exerciseCmd three ChangeLabel with newLabel = "three updated"
-                 |  pure ()
-                 |""".stripMargin
-  )
-  private val packageName = pingDaml.name
+  private val packageName = Dars.pingsChangeLabel.name
   private val templateRef = s"$packageName:Pings:Ping"
   private val choiceRef   = s"$templateRef:ChangeLabel"
 
   def context =
     val alice = Party("Alice")
     DamlSdk.parties(alice) ++ Postgres.database
-      >+> DamlSdk.deploy(pingDaml)
+      >+> DamlSdk.deploy(Dars.pingsChangeLabel)
       >+> DamlSdk.runScript("Pings:setup", alice.id)
       >+> Pqs.runPipeline(
         "--pipeline-datasource=TransactionTreeStream",

@@ -4,6 +4,7 @@
 package com.digitalasset.pqs.pipeline
 
 import com.daml.ledger.api.v2.value.*
+import com.digitalasset.pqs.Dars
 import com.digitalasset.pqs.functest.FuncTestStandalone
 import com.digitalasset.pqs.functest.matchers.*
 import com.digitalasset.pqs.functest.table.*
@@ -18,36 +19,7 @@ import zio.test.Assertion.*
   * Canton instance.
   */
 object FlywayMigrationSpec extends FuncTestStandalone:
-
-  private val pingPong = DamlSource(
-    "PingPong" -> """module PingPong where
-                    |
-                    |import Daml.Script
-                    |import DA.Functor (void)
-                    |
-                    |template Ping
-                    |  with
-                    |    owner: Party
-                    |  where
-                    |    signatory owner
-                    |
-                    |transact : Party -> Script ()
-                    |transact party = void do
-                    |  submit party $ createCmd Ping with owner = party
-                    |""".stripMargin
-  )
-
-  private val iKeyed = DamlSource(
-    "IKeyed" -> """module IKeyed where
-                  |
-                  |interface IKeyed
-                  |  where
-                  |    viewtype VKeyed
-                  |
-                  |data VKeyed = VKeyed with label: Text
-                  |  deriving (Eq, Show)
-                  |""".stripMargin
-  )
+  private val pingPong = Dars.pingPongTransact
 
   private val pingPongWithKey = DamlSource(
     "PingPongWithKey" -> """module PingPongWithKey where
@@ -75,10 +47,10 @@ object FlywayMigrationSpec extends FuncTestStandalone:
                            |  submit alice $ createCmd PingWithKey with owner = alice, k = 43, label = "C"
                            |  submit alice $ createCmd PingWithKey with owner = alice, k = 42, label = "B"
                            |""".stripMargin
-  ).dependsOn(iKeyed)
+  ).dependsOn(Dars.iKeyed)
 
   private val templateFqn  = s"${pingPongWithKey.name}:PingPongWithKey:PingWithKey"
-  private val interfaceFqn = s"${iKeyed.name}:IKeyed:IKeyed"
+  private val interfaceFqn = s"${Dars.iKeyed.name}:IKeyed:IKeyed"
 
   def spec = suite("FlyMigrationSpec")(
     funcTest("Migrate from 3.4.6 to main") {

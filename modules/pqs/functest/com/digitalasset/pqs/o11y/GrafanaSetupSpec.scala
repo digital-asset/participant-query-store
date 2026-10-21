@@ -3,10 +3,11 @@
 
 package com.digitalasset.pqs.o11y
 
+import com.digitalasset.pqs.Dars
 import com.digitalasset.pqs.SharedLedgerAndPostgresTest
 import com.digitalasset.pqs.functest.matchers.*
 import com.digitalasset.pqs.functest.table.*
-import com.digitalasset.pqs.services.daml.{DamlSdk, DamlSource, Party}
+import com.digitalasset.pqs.services.daml.{DamlSdk, Party}
 import com.digitalasset.pqs.services.o11y.*
 import com.digitalasset.pqs.services.postgres.*
 import com.digitalasset.pqs.services.pqs.{Pipeline, Pqs}
@@ -21,31 +22,11 @@ private enum TxSource:
   case TransactionStream, TransactionTreeStream
 
 object GrafanaSetupSpec extends SharedLedgerAndPostgresTest:
-  private val pingPong = DamlSource(
-    "PingPong" ->
-      """module PingPong where
-        |
-        |import Daml.Script
-        |import DA.Functor (void)
-        |
-        |template Ping
-        |  with
-        |    sender: Party
-        |    receiver: Party
-        |  where
-        |    signatory sender
-        |    observer receiver
-        |
-        |transact1: Party -> Script ()
-        |transact1 alice = void do
-        |  submit alice $ createCmd Ping with sender = alice, receiver = alice
-        |""".stripMargin
-  )
   private def upAndRunning =
     val alice = Party("Alice")
     (Loki.instance ++ Prometheus.instance ++ Tempo.instance >>> (Collector.instance ++ Grafana.instance))
       ++ (Postgres.database ++ DamlSdk.parties(alice))
-      >+> DamlSdk.deploy(pingPong)
+      >+> DamlSdk.deploy(Dars.pingPongTransact1)
       >+> DamlSdk.runScript("PingPong:transact1", alice.id)
 
   def spec = suite("observability signals can be queried with Grafana")(

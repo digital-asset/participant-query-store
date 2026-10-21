@@ -3,6 +3,7 @@
 
 package com.digitalasset.pqs.features.filtering
 
+import com.digitalasset.pqs.Dars
 import com.digitalasset.pqs.functest.FuncTestStandalone
 import com.digitalasset.pqs.functest.matchers.*
 import com.digitalasset.pqs.functest.table.*
@@ -17,29 +18,10 @@ import scala.language.implicitConversions
 /** This test needs to be standalone because it uses a wildcard filter on parties
   */
 object PartyFilteringSpec extends FuncTestStandalone:
-  private val pingPong = DamlSource(
-    "PingPong" -> """module PingPong where
-                    |
-                    |import Daml.Script
-                    |import DA.Functor (void)
-                    |
-                    |template Ping
-                    |  with
-                    |    sender: Party
-                    |    receiver: Party
-                    |  where
-                    |    signatory sender
-                    |    observer receiver
-                    |
-                    |transact1 : Party -> Script ()
-                    |transact1 party = void do
-                    |  submit party $ createCmd Ping with sender = party, receiver = party
-                    |""".stripMargin
-  )
 
   private def context(parties: Party*) =
     Ledger.instance ++ Postgres.instance
-      >+> DamlSdk.deploy(pingPong) ++ DamlSdk.parties(parties*) ++ Postgres.database
+      >+> DamlSdk.deploy(Dars.pingPongTransact1) ++ DamlSdk.parties(parties*) ++ Postgres.database
 
   def spec = suite("filtering")(
     funcTest("with filter"):

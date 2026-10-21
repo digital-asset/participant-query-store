@@ -3,26 +3,16 @@
 
 package com.digitalasset.pqs.schema
 
+import com.digitalasset.pqs.Dars
 import com.digitalasset.pqs.functest.FuncTestDefault
-import com.digitalasset.pqs.services.daml.{DamlSdk, DamlSource, DarFile}
+import com.digitalasset.pqs.services.daml.{DamlSdk, DarFile}
 import zio.test.*
 
 object CompileToDarSpec extends FuncTestDefault:
-  private val pingPong = DamlSource(
-    "PingPong" -> """module PingPong where
-                    |template Ping
-                    |  with
-                    |    sender: Party
-                    |    receiver: Party
-                    |  where
-                    |    signatory sender
-                    |    observer receiver
-                    |""".stripMargin
-  )
 
   def spec = funcTest("compile small model to dar"):
     Expect:
-      DamlSdk.buildDar(pingPong).map { dar =>
+      DamlSdk.buildDar(Dars.pingSenderReceiver).map { dar =>
         assertTrue(
           dar.darBytes.nonEmpty,
           dar.packageId.length == 64,

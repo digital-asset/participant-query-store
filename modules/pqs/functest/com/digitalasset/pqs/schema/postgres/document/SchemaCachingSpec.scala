@@ -3,6 +3,7 @@
 
 package com.digitalasset.pqs.schema.postgres.document
 
+import com.digitalasset.pqs.Dars
 import com.digitalasset.pqs.functest.FuncTestStandalone
 import com.digitalasset.pqs.functest.matchers.*
 import com.digitalasset.pqs.services.daml.*
@@ -16,17 +17,6 @@ import scala.language.{implicitConversions, postfixOps}
 /** This must remain standalone to ensure log capture is not polluted by other concurrent tests.
   */
 object SchemaCachingSpec extends FuncTestStandalone:
-  val interfaces = DamlSource(
-    "Interfaces" -> """module Interfaces where
-                      |
-                      |interface IPingable
-                      |  where
-                      |    viewtype VPingable
-                      |
-                      |data VPingable = VPingable with sender: Party
-                      |  deriving (Eq, Ord, Show)
-                      |""".stripMargin
-  )
   val pingPong = DamlSource(
     "PingPong" -> """module PingPong where
                     |
@@ -54,7 +44,7 @@ object SchemaCachingSpec extends FuncTestStandalone:
                     |      controller owner
                     |      do return ()
                     |""".stripMargin
-  ).dependsOn(interfaces)
+  ).dependsOn(Dars.pingableInterfaces)
 
   def spec = suite("schema caching spec")(
     funcTest("schema is cached"):

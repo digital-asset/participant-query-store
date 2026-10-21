@@ -3,6 +3,7 @@
 
 package com.digitalasset.pqs.features
 
+import com.digitalasset.pqs.Dars
 import com.digitalasset.pqs.SharedLedgerAndPostgresTest
 import com.digitalasset.pqs.docker.Service
 import com.digitalasset.pqs.functest.FuncTest
@@ -19,27 +20,8 @@ import zio.{ExitCode, ZLayer}
 import scala.language.{implicitConversions, postfixOps}
 
 object LedgerSlicingSpec extends SharedLedgerAndPostgresTest:
-  private val pingPong = DamlSource(
-    "PingPong" -> """module PingPong where
-                    |
-                    |import Daml.Script
-                    |import DA.Functor (void)
-                    |
-                    |template Ping
-                    |  with
-                    |    sender: Party
-                    |    receiver: Party
-                    |  where
-                    |    signatory sender
-                    |    observer receiver
-                    |
-                    |transact1: Party -> Script ()
-                    |transact1 alice = void do
-                    |  submit alice $ createCmd Ping with sender = alice, receiver = alice
-                    |""".stripMargin
-  )
   private def context(alice: Party) =
-    DamlSdk.deploy(pingPong)
+    DamlSdk.deploy(Dars.pingPongTransact1)
       ++ DamlSdk.parties(alice) ++ Postgres.database
       >+> DamlSdk.runScript("PingPong:transact1", alice.id)
 

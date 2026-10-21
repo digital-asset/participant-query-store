@@ -3,6 +3,7 @@
 
 package com.digitalasset.pqs.features.upgrades
 
+import com.digitalasset.pqs.Dars
 import com.digitalasset.pqs.SharedLedgerAndPostgresTest
 import com.digitalasset.pqs.functest.matchers.*
 import com.digitalasset.pqs.functest.table.*
@@ -24,25 +25,6 @@ import scala.language.{implicitConversions, postfixOps}
 object InterfaceRowsUseTemplatePackageIdSpec extends SharedLedgerAndPostgresTest:
 
   // Interface defined in a standalone package — its package ID should NOT appear on any rows
-  private val pingIface = DamlSource(
-    "Interfaces" -> """module Interfaces where
-                      |
-                      |interface Labelable
-                      |  where
-                      |    viewtype LabelableView
-                      |
-                      |    setLabel : Text -> Labelable
-                      |
-                      |    choice SetLabelChoice : ContractId Labelable
-                      |      with newLabel : Text
-                      |      controller (view this).owner
-                      |      do create (setLabel this newLabel)
-                      |
-                      |data LabelableView = LabelableView with owner: Party, label: Optional Text
-                      |  deriving (Eq, Ord, Show)
-                      |
-                      |""".stripMargin
-  )
 
   // Template that implements the interface from a separate package
   private val ping = DamlSource(
@@ -70,9 +52,9 @@ object InterfaceRowsUseTemplatePackageIdSpec extends SharedLedgerAndPostgresTest
                 |  cid <- submit alice $ createCmd Ping with sender = alice, receiver = alice
                 |  submit alice $ exerciseCmd (toInterfaceContractId @Labelable cid) SetLabelChoice with newLabel = "exercised SetLabelChoice"
                 |""".stripMargin
-  ).dependsOn(pingIface)
+  ).dependsOn(Dars.labelableInterfaces)
 
-  private val interfaceQname = s"${pingIface.name}:Interfaces:Labelable"
+  private val interfaceQname = s"${Dars.labelableInterfaces.name}:Interfaces:Labelable"
   private val templateQname  = s"${ping.name}:Ping:Ping"
 
   def spec = suite("Interface rows use the underlying template package ID")(
@@ -80,7 +62,7 @@ object InterfaceRowsUseTemplatePackageIdSpec extends SharedLedgerAndPostgresTest
       val alice    = Party("Alice")
       val ifaceDar = Capture[DarFile]
       Given:
-        DamlSdk.deploy(pingIface)
+        DamlSdk.deploy(Dars.labelableInterfaces)
           ++ DamlSdk.parties(alice) ++ Postgres.database
       And:
         ifaceDar.captureFromService

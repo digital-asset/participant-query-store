@@ -4,6 +4,7 @@
 package com.digitalasset.pqs.features
 
 import com.daml.ledger.api.v2.value.*
+import com.digitalasset.pqs.Dars
 import com.digitalasset.pqs.SharedLedgerAndPostgresTest
 import com.digitalasset.pqs.docker.Docker
 import com.digitalasset.pqs.functest.matchers.*
@@ -18,17 +19,6 @@ import scala.language.implicitConversions
 
 object AmbiguousPackageDecodingSpec extends SharedLedgerAndPostgresTest:
   private val packageVersion = "1.0.0"
-
-  private val ping = DamlSource(
-    "PingPong" -> """module PingPong where
-                    |
-                    |template Ping
-                    |  with
-                    |    sender: Party
-                    |  where
-                    |    signatory sender
-                    |""".stripMargin
-  )
 
   private val pingWithNote = DamlSource(
     "PingPong" -> """module PingPong where
@@ -56,7 +46,7 @@ object AmbiguousPackageDecodingSpec extends SharedLedgerAndPostgresTest:
   private def ambiguousDecoding(label: String, acsStream: Boolean) = funcTest(label):
     val alice       = Party("Alice")
     val packageName = if acsStream then "ambiguous-package-acs" else "ambiguous-package-updates"
-    val p1          = ping.withName(packageName).withVersion(packageVersion)
+    val p1          = Dars.pingSender.withName(packageName).withVersion(packageVersion)
     val p2          = pingWithNote.withName(packageName).withVersion(packageVersion)
     val dar1        = Capture[DarFile]
     val dar2        = Capture[DarFile]
