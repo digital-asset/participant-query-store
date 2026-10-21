@@ -21,8 +21,6 @@ import scala.language.implicitConversions
   */
 object RpidTwoParticipantSpec extends FuncTestStandalone:
 
-  override protected def layerTimeout = 10.minutes
-
   private val packageV1 = DamlSource(
     "RpidTest" ->
       """module RpidTest where
@@ -78,7 +76,7 @@ object RpidTwoParticipantSpec extends FuncTestStandalone:
         DamlSdk.buildDar(packageV1).is(v1Dar.capture)
       And:
         DamlSdk.buildDar(packageV2).is(v2Dar.capture)
-      And:
+      And(timeout = 10.minutes):
         cantonParticipantWithACSImportContract(alice, v1Dar.get, v2Dar.get) ++ Postgres.database
       When:
         Pqs.pipeline(

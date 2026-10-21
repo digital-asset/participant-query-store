@@ -270,7 +270,10 @@ object Postgres:
         .unless(result.exitCode === ExitCode.success)
       // TODO(perf): this materializes the whole dump in memory. Consider streaming or using a bind-mount.
       bytes <- pg.getFileContents(tmpFile)
-      _     <- attemptBlocking(os.write.over(dump.file, bytes))
+      _ <- attemptBlocking {
+        if os.exists(dump.file) then os.write.over(dump.file, bytes)
+        else os.write(dump.file, bytes, createFolders = true)
+      }
     yield ()
 
   /////////////////

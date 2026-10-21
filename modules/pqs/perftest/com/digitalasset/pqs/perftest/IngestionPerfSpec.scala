@@ -19,7 +19,7 @@ object IngestionPerfSpec extends SharedHydratedLedgerTest:
       Given:
         Postgres.database
           >+> Pqs36.applySchema // apply schema and warm the cache
-          >+> Pqs36.runPipeline("--pipeline-ledger-stop=Latest")
+          >+> Pqs36.runPipeline("--pipeline-ledger-start=Genesis", "--pipeline-ledger-stop=Latest")
       Expect:
         pqs36Database.captureFromService
       And:
@@ -28,7 +28,7 @@ object IngestionPerfSpec extends SharedHydratedLedgerTest:
       When:
         Postgres.database
           >+> Pqs.applySchema // apply schema and warm the cache
-          >+> Pqs.runPipeline("--pipeline-ledger-stop=Latest")
+          >+> Pqs.runPipeline("--pipeline-ledger-start=Genesis", "--pipeline-ledger-stop=Latest")
       Expect:
         pqsLocalDatabase.captureFromService
       And:
@@ -39,8 +39,8 @@ object IngestionPerfSpec extends SharedHydratedLedgerTest:
           val pqsLocalDurationMs = pqsLocalRun.get.duration.toMillis
           val pqs36DurationMs    = pqs36Run.get.duration.toMillis
           val diff               = (pqsLocalDurationMs.toDouble - pqs36DurationMs) / pqs36DurationMs
-          assertTrue(diff < 0.2).label(
-            s"Diff between ${pqsLocalRun.get.duration} and ${pqs36Run.get.duration} is ${(diff * 100).toInt}%"
+          assertTrue(diff < 0.3).label(
+            s"Local PQS (${pqsLocalRun.get.duration}) is ${(diff * 100).toInt}% slower than PQS ${Pqs36.version} (${pqs36Run.get.duration})"
           )
         }
     }

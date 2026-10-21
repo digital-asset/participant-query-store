@@ -14,12 +14,12 @@ import scala.collection.mutable
 import scala.compiletime.uninitialized
 
 object FuncTest:
-  private[functest] val defaultLayerTimeout = 5.minutes
-  private val defaultInstructionTimeout     = 30.seconds
+  private val layerTimeout       = 5.minutes
+  private val instructionTimeout = 30.seconds
 
   def retryUntilTimeout[R, E](
       io: ZIO[R, E, TestResult],
-      timeout: Duration = defaultInstructionTimeout
+      timeout: Duration = instructionTimeout
   ): ZIO[R, E, TestResult] =
     val retryFailures = Schedule.identity[TestResult].whileInput(_.isFailure)
     val log = Schedule.identity[TestResult].tapOutput { tr =>
@@ -38,9 +38,6 @@ abstract class FuncTest[FR: EnvironmentTag] extends ZIOSpec[FTEnv & Dpm & Docker
 
   def shared: ZLayer[FTEnv & Dpm & Docker, Throwable, FR]
   val sharedTag = summon[EnvironmentTag[FR]]
-
-  protected def layerTimeout: Duration       = FuncTest.defaultLayerTimeout
-  protected def instructionTimeout: Duration = FuncTest.defaultInstructionTimeout
 
   def specName: String = getClass.getSimpleName.replaceAll("\\$", "")
 
@@ -78,13 +75,14 @@ abstract class FuncTest[FR: EnvironmentTag] extends ZIOSpec[FTEnv & Dpm & Docker
 
   // setup layers
   private def setupLayer[DEP, R](
-      layer: => ZLayer[DEP, Throwable, R]
+      layer: => ZLayer[DEP, Throwable, R],
+      timeout: Duration = FuncTest.layerTimeout
   )(implicit ctx: Ctx[? <: R, ? <: DEP], trace: Trace) =
     ctx.instructions.append(
       ZIO
         .suspend(layer.build)
         .provideSomeEnvironment[Scope & DEP](e => e.unionAll(ctx.requiredEnv))
-        .timeoutFail(TestTimeoutException("Layer setup timed out"))(layerTimeout)
+        .timeoutFail(TestTimeoutException("Layer setup timed out"))(timeout)
         .retry(
           Schedule.recurWhile {
             case _: TestTimeoutException     => true
@@ -106,19 +104,32 @@ abstract class FuncTest[FR: EnvironmentTag] extends ZIOSpec[FTEnv & Dpm & Docker
       layer: => ZLayer[DEP, Throwable, R1]
   )(implicit ctx: Ctx[? <: R1, ? <: DEP], trace: Trace, dummyImplicit: DummyImplicit) =
     setupLayer(layer)
+  def And[DEP, R1](timeout: Duration)(
+      layer: => ZLayer[DEP, Throwable, R1]
+  )(implicit ctx: Ctx[? <: R1, ? <: DEP], trace: Trace, dummyImplicit: DummyImplicit) =
+    setupLayer(layer, timeout)
   def And[DEP, R1](
       layer: => ZLayer[DEP, Throwable, R1]
   )(implicit ctx: Ctx[? <: R1, ? <: DEP], trace: Trace, dummyImplicit: DummyImplicit) =
     setupLayer(layer)
 
   // Interactions
-  private def interactWithoutAssertion[R](io: => ZIO[R, Throwable, Any])(implicit ctx: Ctx[?, ? <: R], trace: Trace) =
-    assert(io.as(zio.test.assertCompletes))
-  private def assert[R](io: => ZIO[R, Throwable, TestResult])(implicit ctx: Ctx[?, ? <: R], trace: Trace) =
+  private def interactWithoutAssertion[R](
+      io: => ZIO[R, Throwable, Any],
+      timeout: Duration = FuncTest.instructionTimeout
+  )(implicit ctx: Ctx[?, ? <: R], trace: Trace) =
+    assert(io.as(zio.test.assertCompletes), timeout)
+  private def assert[R](
+      io: => ZIO[R, Throwable, TestResult],
+      timeout: Duration = FuncTest.instructionTimeout
+  )(implicit ctx: Ctx[?, ? <: R], trace: Trace) =
     ctx.instructions.append(
-      ZIO.suspend(io.timeoutFail(TestTimeoutException("Test instruction timed out"))(instructionTimeout))
+      ZIO.suspend(io.timeoutFail(TestTimeoutException("Test instruction timed out"))(timeout))
     )
   def When[R](io: => ZIO[R, Throwable, Any])(implicit ctx: Ctx[?, ? <: R], trace: Trace) = interactWithoutAssertion(io)
+  def When[R](timeout: Duration)(io: => ZIO[R, Throwable, Any])(implicit ctx: Ctx[?, ? <: R], trace: Trace) =
+    interactWithoutAssertion(io, timeout)
+
   def Expect[R](io: => ZIO[R, Throwable, TestResult])(implicit ctx: Ctx[?, ? <: R], trace: Trace) = assert(io)
   def Then[R](io: => ZIO[R, Throwable, TestResult])(implicit ctx: Ctx[?, ? <: R], trace: Trace)   = assert(io)
   def And[R](io: => ZIO[R, Throwable, TestResult])(implicit ctx: Ctx[?, ? <: R], trace: Trace)    = assert(io)

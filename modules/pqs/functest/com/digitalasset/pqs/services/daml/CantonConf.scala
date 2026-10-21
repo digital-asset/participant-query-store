@@ -42,7 +42,11 @@ object CantonConf:
 final case class CantonConf(version: String, protocolVersion: Int):
   import CantonConf.*
   def cantonDockerImage: String = s"europe-docker.pkg.dev/da-images/public-all/docker/canton-base:$version"
-  def oneParticipant(hostname: String, usingPostgres: Option[(String, Int)] = None) =
+  def oneParticipant(
+      hostname: String,
+      enableTrafficControl: Boolean = true,
+      usingPostgres: Option[(String, Int)] = None
+  ) =
     def storage(name: String) = if usingPostgres.isDefined then Storage.Postgres(name) else Storage.Memory
     for (oauth, collectorInstance, certFiles) <- commonSetup(hostname, usingPostgres = usingPostgres.isDefined)
     yield
@@ -81,6 +85,23 @@ final case class CantonConf(version: String, protocolVersion: Int):
             |${collectorInstance.fold("")(monitoring)}
             |}
             |""".stripMargin
+      val trafficControl =
+        if enableTrafficControl then
+          """|trafficControl = Some(
+             |  params.trafficControl.getOrElse(
+             |    TrafficControlParameters(
+             |      maxBaseTrafficAmount = NonNegativeLong.tryCreate(204800L), // 200 kB
+             |      readVsWriteScalingFactor = PositiveInt.tryCreate(200),
+             |      maxBaseTrafficAccumulationDuration = config.PositiveFiniteDuration.ofMinutes(10L),
+             |      setBalanceRequestSubmissionWindowSize = config.PositiveFiniteDuration.ofMinutes(2L),
+             |      enforceRateLimiting = true,
+             |      baseEventCost = NonNegativeLong.tryCreate(0L),
+             |      freeConfirmationResponses = false
+             |    )
+             |  )
+             |)""".stripMargin
+        else "trafficControl = None"
+
       val bootstrap =
         s"""|import com.digitalasset.canton.console.LocalInstanceReference
             |import com.digitalasset.canton.synchronizer.config.SynchronizerParametersConfig
@@ -105,19 +126,7 @@ final case class CantonConf(version: String, protocolVersion: Int):
             |    synchronizerId.logical,
             |    params => params.update(
             |      reconciliationInterval = initialReconciliationInterval,
-            |      trafficControl = Some(
-            |        params.trafficControl.getOrElse(
-            |          TrafficControlParameters(
-            |            maxBaseTrafficAmount = NonNegativeLong.tryCreate(204800L),
-            |            readVsWriteScalingFactor = PositiveInt.tryCreate(200),
-            |            maxBaseTrafficAccumulationDuration = config.PositiveFiniteDuration.ofMinutes(10L),
-            |            setBalanceRequestSubmissionWindowSize = config.PositiveFiniteDuration.ofMinutes(2L),
-            |            enforceRateLimiting = true,
-            |            baseEventCost = NonNegativeLong.tryCreate(0L),
-            |            freeConfirmationResponses = false
-            |          )
-            |        )
-            |      )
+            |      $trafficControl
             |    )
             |  )
             |
@@ -363,6 +372,7 @@ final case class CantonConf(version: String, protocolVersion: Int):
         |        }
         |      }
         |    }
+        |    max-inbound-message-size = $maxRequestSize
         |  }
         |  parameters {
         |    initial-protocol-version = $protocolVersion

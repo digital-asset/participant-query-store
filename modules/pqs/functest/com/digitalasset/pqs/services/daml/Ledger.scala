@@ -61,8 +61,12 @@ object Ledger:
       conf     <- CantonConf.load()
       pg       <- ZIO.service[Postgres]
       hostname <- newCantonHostName
-      files    <- conf.oneParticipant(hostname, usingPostgres = Some(pg.container.hostName, Postgres.port))
-      svc      <- canton(hostname, conf.cantonDockerImage, files)
+      files <- conf.oneParticipant(
+        hostname,
+        enableTrafficControl = false, // disabled because GenerateCantonDumpSpec generates a lot of traffic
+        usingPostgres = Some(pg.container.hostName, Postgres.port)
+      )
+      svc <- canton(hostname, conf.cantonDockerImage, files)
     yield svc
   )
 
@@ -226,7 +230,9 @@ object Ledger:
       actAs: Party,
       sync: Synchronizer
   ): ZIO[Docker & Ledger & DarFile, Throwable, SubmitAndWaitForTransactionResponse] =
-    exerciseCommand(templateQname, contractId, "Archive").flatMap(submitAndWaitForTransaction(actAs, Some(sync), _))
+    exerciseCommand(templateQname, contractId, "Archive", emptyValue).flatMap(
+      submitAndWaitForTransaction(actAs, Some(sync), _)
+    )
 
   /** Canton picks the synchronizer, which on a single-synchronizer ledger is the connected one */
   def archive(
@@ -234,7 +240,18 @@ object Ledger:
       contractId: String,
       actAs: Party
   ): ZIO[Docker & Ledger & DarFile, Throwable, SubmitAndWaitForTransactionResponse] =
-    exerciseCommand(templateQname, contractId, "Archive").flatMap(submitAndWaitForTransaction(actAs, None, _))
+    exerciseCommand(templateQname, contractId, "Archive", emptyValue).flatMap(
+      submitAndWaitForTransaction(actAs, None, _)
+    )
+
+  def exercise(
+      templateQname: String,
+      contractId: String,
+      choice: String,
+      arg: com.daml.ledger.api.v2.value.Value,
+      actAs: Party
+  ): ZIO[Docker & Ledger & DarFile, Throwable, SubmitAndWaitForTransactionResponse] =
+    exerciseCommand(templateQname, contractId, choice, arg).flatMap(submitAndWaitForTransaction(actAs, None, _))
 
   /** Exercises a choice that takes no arguments */
   def exercise(
@@ -244,7 +261,9 @@ object Ledger:
       actAs: Party,
       sync: Synchronizer
   ): ZIO[Docker & Ledger & DarFile, Throwable, SubmitAndWaitForTransactionResponse] =
-    exerciseCommand(templateQname, contractId, choice).flatMap(submitAndWaitForTransaction(actAs, Some(sync), _))
+    exerciseCommand(templateQname, contractId, choice, emptyValue).flatMap(
+      submitAndWaitForTransaction(actAs, Some(sync), _)
+    )
 
   private def createCommand(templateQname: String, args: com.daml.ledger.api.v2.value.Record) =
     toIdentifier(templateQname).map { templateId =>
@@ -253,13 +272,18 @@ object Ledger:
       )
     }
 
-  private def exerciseCommand(templateQname: String, contractId: String, choice: String) =
+  private def exerciseCommand(
+      templateQname: String,
+      contractId: String,
+      choice: String,
+      arg: com.daml.ledger.api.v2.value.Value
+  ) =
     toIdentifier(templateQname).map { templateId =>
       val command = ExerciseCommand.defaultInstance
         .withTemplateId(templateId)
         .withContractId(contractId)
         .withChoice(choice)
-        .withChoiceArgument(Value(Value.Sum.Record(com.daml.ledger.api.v2.value.Record())))
+        .withChoiceArgument(arg)
       Command(Command.Command.Exercise(command))
     }
 
@@ -454,7 +478,7 @@ object Ledger:
         )(CantonConf.cantonAdditionalCmds*)
         .build
       svc = env.get[Service[Ledger]]
-      _ <- svc.blockUntilStdOut(_.contains(CantonConf.bootstrapCompleteMessage))
+      _       <- svc.blockUntilStdOut(_.contains(CantonConf.bootstrapCompleteMessage))
       channel <- createChannel(svc)
     yield Ledger(svc, channel)
 
@@ -468,3 +492,5 @@ object Ledger:
     CumulativeFilter.IdentifierFilter.WildcardFilter(WildcardFilter(includeCreatedEventBlob))
 
   private def nextCommandId: UIO[String] = Random.nextUUID.map(_.toString)
+
+  private def emptyValue = Value(Value.Sum.Record(com.daml.ledger.api.v2.value.Record()))

@@ -11,8 +11,7 @@ import com.digitalasset.pqs.services.daml.Parties
 object SharedHydratedLedgerTest:
   val alice = Party("alice_1")
 
-  /** Loading the checked-in Postgres dumps to rehydrate the Canton ledger.
-    */
+  /** Load the checked-in Postgres dumps to rehydrate the Canton ledger. */
   val shared = Postgres.restore(CantonDumps.all) >+> Ledger.instanceWithPgStorage >+> DamlSdk.allocatedParties(alice)
 
 trait SharedHydratedLedgerTest extends FuncTest[Ledger & Postgres & Parties]:
