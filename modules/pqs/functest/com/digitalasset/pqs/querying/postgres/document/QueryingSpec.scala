@@ -326,6 +326,10 @@ object QueryingSpec extends SharedLedgerAndPostgresTest:
           Postgres query {
             sql"""select count(*) from transactions;"""
           } `returns` table { 6 }
+        And:
+          Postgres query {
+            sql"""select bool_and(v.record_time is not distinct from t.record_time) from transactions v join __transactions t on t.ix = v.ix;"""
+          } `returns` table { true }
         When:
           Postgres.Session.init
         And:
@@ -595,7 +599,8 @@ object QueryingSpec extends SharedLedgerAndPostgresTest:
           upAndRunning
         Then:
           Postgres query {
-            sql"""select template_fqn, choice_fqn, exercised_at_offset, exercised_effective_at, contract_id, exercise_event_id, argument->>'newLastName', result
+            sql"""select template_fqn, choice_fqn, exercised_at_offset, exercised_effective_at, contract_id, exercise_event_id, argument->>'newLastName', result,
+                       exercised_record_time = (select record_time from __transactions where "offset" = exercised_at_offset)
                 from lookup_exercises((select distinct contract_id from __contracts where created_at_ix = 2));"""
           } `returns` table {
             s"${nameRegistry.name}:NameRegistry:BirthCertificate" |
@@ -605,7 +610,8 @@ object QueryingSpec extends SharedLedgerAndPostgresTest:
               anything |
               anything |
               "Bloggs" |
-              anything
+              anything |
+              true
           }
       ,
       funcTest("summary queries: active Daml contracts counts at offset"):

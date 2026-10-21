@@ -21,6 +21,7 @@ This release includes the following SQL migrations:
 - _V047__Create_reassignments_table.sql_: creates the `__reassignment_type` enum and the list-partitioned `__reassignments` table, then creates one partition per row already present in `__contract_tpe`. **[Impact: Instantaneous /< 1 min]**
 - _V048__Prunning_reassignments.sql_: drops `prune_archived_to_offset` and `prune_archived_to_offset_dry_run` so that they can be re-created with the new `deleted_reassignments` result column. **[Impact: Instantaneous]**
 - _V049__Store_record_time.sql_: adds the `record_time` column to `__transactions`, which is metadata-only, and a BRIN index on it, which reads `__transactions` once. **[Impact: < 1 min/10M transactions]**
+- _V050__Expose_record_time.sql_: adds the `*_record_time` attributes to the `contract` and `exercise` types. Metadata-only, no table is scanned or rewritten. **[Impact: Instantaneous]**
 
 ## What's New
 
@@ -50,14 +51,22 @@ unassign_event_id event_id,
 unassigned_at_ix bigint,
 unassigned_at_offset bigint,
 reassignment_counter bigint,
-synchronizer_id text;
+synchronizer_id text,
+tpe_pk bigint,
+created_record_time timestamp with time zone,
+archived_record_time timestamp with time zone,
+assigned_record_time timestamp with time zone,
+unassigned_record_time timestamp with time zone;
 ```
+- The `*_record_time` columns of the `contract` type hold the `record_time` of the update that created, archived, assigned or unassigned the contract. They are `NULL` for contracts seeded from the ACS and for rows written before this release.
 - `active` and `lookup_contract` now return a single row per `(contract_id, template_fqn)`, keeping the row with the highest `reassignment_counter`.
 - `summary_active` counts each `contract_id` only once per `template_fqn`.
 - *BREAKING*: The `__transactions` column `domain_id` is renamed to `synchronizer_id`, to match Canton's current vocabulary. It is now populated for every update — every transaction and every reassignment. Rows written before this release keep `NULL` and are not getting backfilled.
 - The new `__transactions` column `record_time` holds the time at which the update was recorded by its synchronizer. It is populated for every update. Rows written before this release keep `NULL` and are not getting backfilled.
 - The `synchronizer_id text` column is added to the `transactions` SQL view.
 - The `synchronizer_id text` column is added to the output of the `exercises` and `lookup_exercise` SQL functions.
+- The `exercised_record_time timestamp with time zone` column is added to the output of the `exercises` and `lookup_exercises` SQL functions.
+- The `record_time timestamp with time zone` column is added to the `transactions` SQL view.
 - The `summary_reassignments` SQL function returns the number of assign and unassign events per Daml fully qualified name and per source and target synchronizer in the `[from_offset, to_offset]` range. It leaves out the assigns recorded by the ACS import.
 
 
