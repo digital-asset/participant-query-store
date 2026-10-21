@@ -242,13 +242,13 @@ object QueryingSpec extends SharedLedgerAndPostgresTest:
           Postgres query {
             sql"""select
                         -- by timestamp (closest match prior)
-                        (select nearest_offset((select (effective_at - interval '00:00:00.000001') from __transactions where ix = 3))),
+                        (select nearest_offset((select (record_time - interval '00:00:00.000001') from __transactions where ix = 3))),
                         -- by interval (closest match prior)
-                        (select nearest_offset(now() - (select (effective_at - interval '00:00:00.000001') from __transactions where ix = 5))),
+                        (select nearest_offset(now() - (select (record_time - interval '00:00:00.000001') from __transactions where ix = 5))),
                         -- by timestamp (exact match)
-                        (select nearest_offset((select effective_at from __transactions where ix = 3))),
+                        (select nearest_offset((select record_time from __transactions where ix = 3))),
                         -- by interval (exact match)
-                        (select nearest_offset(now() - (select effective_at from __transactions where ix = 5)));"""
+                        (select nearest_offset(now() - (select record_time from __transactions where ix = 5)));"""
           } `returns` table {
             offsetSlightlyPriorTo3.capture | offsetSlightlyPriorTo5.capture | offsetAt3.capture | offsetAt5.capture
           }
@@ -277,8 +277,8 @@ object QueryingSpec extends SharedLedgerAndPostgresTest:
         And:
           Postgres query {
             sql"""select
-                              (select nearest_offset((select effective_at from __transactions where ix = 5))),
-                              (select nearest_offset((select effective_at from __transactions where ix = 10)));
+                              (select nearest_offset((select record_time from __transactions where ix = 5))),
+                              (select nearest_offset((select record_time from __transactions where ix = 10)));
                               """
           } `returns` table {
             txOffset.capture | txInFlight.capture
@@ -289,8 +289,22 @@ object QueryingSpec extends SharedLedgerAndPostgresTest:
           Postgres.Session.init
         Then:
           Postgres query {
-            sql"select nearest_offset((select effective_at from __transactions where ix = 10))"
+            sql"select nearest_offset((select record_time from __transactions where ix = 10))"
           } `returns` table { txOffset.get }
+      ,
+      funcTest("resolves offset based on effective time for rows without record time"):
+        Given:
+          upAndRunning
+        And:
+          Postgres `query` sql"update __transactions set record_time = null where ix <= 5".update `returns` anything
+        Then:
+          Postgres query {
+            sql"""select
+                        (select nearest_offset((select effective_at from __transactions where ix = 3)))
+                          = (select "offset" from __transactions where ix = 3),
+                        (select nearest_offset((select (record_time - interval '00:00:00.000001') from __transactions where ix = 7)))
+                          = (select "offset" from __transactions where ix = 6);"""
+          } `returns` table { true <|> true }
     ),
     suite("read API")(
       funcTest("transactions queries"):

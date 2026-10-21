@@ -65,6 +65,7 @@ synchronizer_id text;
 
 - *BREAKING*: `prune_archived_to_offset` and `prune_archived_to_offset_dry_run` return an additional `deleted_reassignments integer` column. The `prune` command prints it as `Deleted reassignments`.
 - Pruning takes reassignments into account - SQL functions now also delete related `__reassignments` entries.
+- `nearest_offset`, which the `prune` command uses for timestamp and duration targets, compares the cut-off with `record_time` instead of `effective_at`. Rows written before this release have no `record_time` and are still compared by `effective_at`.
 - `redact_contract` redacts a contract once all its rows are deactivated (archived or unassigned), so reassigned and unassigned contracts can be redacted; rows inserted after a redaction (a late assign or create, or rows replayed by `reset_to_offset`) keep their payload — call `redact_contract` again once they are deactivated, and it fails with "already redacted" only when every row is redacted.
 - Resetting to an offset takes reassignments into account: `reset_to_offset` and `__cleanup_transactions_after_watermark` delete the contracts assigned after the offset and the `__reassignments` entries recorded after it, and revives the contracts unassigned after it.
 
