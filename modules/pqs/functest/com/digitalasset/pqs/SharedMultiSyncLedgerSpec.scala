@@ -11,7 +11,7 @@ import com.digitalasset.pqs.services.postgres.Postgres
 import zio.{ZIO, ZLayer}
 
 object SharedMultiSyncLedgerSpec:
-  val pingPong: DamlSource = Dars.pingSender
+  val pingPong: DamlSource = Dars.pingPong
 
   val sync1: Synchronizer = Synchronizer("synchronizer1")
   val sync2: Synchronizer = Synchronizer("synchronizer2")

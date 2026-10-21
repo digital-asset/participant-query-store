@@ -51,7 +51,7 @@ object OAuthProxySpec
   lazy val shared =
     networkIsolation(OAuth.instance, ForwardProxy.instance(OAuth.port)) >+> TokenService.liveViaProxy
       >+> Ledger.instance ++ Postgres.instance
-      >+> DamlSdk.deploy(Dars.pingPongTransact)
+      >+> DamlSdk.deploy(Dars.pingPong)
 
   private def context =
     Postgres.database ++ DamlSdk.parties(Party("Alice"))

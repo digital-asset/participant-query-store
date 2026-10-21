@@ -27,7 +27,7 @@ object OrphanedPackageDecodingSpec extends SharedLedgerAndPostgresTest:
 
   private def orphanedDecoding(label: String, acsStream: Boolean) = funcTest(label):
     val alice       = Party("Alice")
-    val orphaned    = Dars.pingSender.withNameSuffix(if acsStream then "orphaned-acs" else "orphaned-updates")
+    val orphaned    = Dars.pingPong.withNameSuffix(if acsStream then "orphaned-acs" else "orphaned-updates")
     val dar         = Capture[DarFile]
     val contractId  = Capture[String]
     val templateFqn = s"${orphaned.name}:PingPong:Ping"

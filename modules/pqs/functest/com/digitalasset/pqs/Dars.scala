@@ -7,28 +7,8 @@ import com.digitalasset.pqs.services.daml.DamlSource
 
 /** Daml sources shared between specs; each is compiled once per test run. */
 object Dars:
-  /** Ping(owner) and `transact : Party -> Script ()` creating one Ping. */
-  private[pqs] val pingPongTransact = DamlSource(
-    "PingPong" ->
-      """module PingPong where
-        |
-        |import Daml.Script
-        |import DA.Functor (void)
-        |
-        |template Ping
-        |  with
-        |    owner: Party
-        |  where
-        |    signatory owner
-        |
-        |transact : Party -> Script ()
-        |transact party = void do
-        |  submit party $ createCmd Ping with owner = party
-        |""".stripMargin
-  )
-
-  /** Ping(sender, receiver) and `transact1 : Party -> Script ()` creating one Ping. */
-  private[pqs] val pingPongTransact1 = DamlSource(
+  /** Ping(sender) and `transact1 : Party -> Script ()` creating one Ping. */
+  private[pqs] val pingPong = DamlSource(
     "PingPong" ->
       """module PingPong where
         |
@@ -38,42 +18,12 @@ object Dars:
         |template Ping
         |  with
         |    sender: Party
-        |    receiver: Party
         |  where
         |    signatory sender
-        |    observer receiver
         |
         |transact1 : Party -> Script ()
         |transact1 party = void do
-        |  submit party $ createCmd Ping with sender = party, receiver = party
-        |""".stripMargin
-  )
-
-  /** Ping(sender) without any script. */
-  private[pqs] val pingSender = DamlSource(
-    "PingPong" ->
-      """module PingPong where
-        |
-        |template Ping
-        |  with
-        |    sender: Party
-        |  where
-        |    signatory sender
-        |""".stripMargin
-  )
-
-  /** Ping(sender, receiver) without any script. */
-  private[pqs] val pingSenderReceiver = DamlSource(
-    "PingPong" ->
-      """module PingPong where
-        |
-        |template Ping
-        |  with
-        |    sender: Party
-        |    receiver: Party
-        |  where
-        |    signatory sender
-        |    observer receiver
+        |  submit party $ createCmd Ping with sender = party
         |""".stripMargin
   )
 

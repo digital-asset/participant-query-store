@@ -20,7 +20,7 @@ import scala.language.implicitConversions
 object AuthSpec extends SharedLedgerAndPostgresAndAuthTest:
 
   private def context(parties: Party*) =
-    DamlSdk.deploy(Dars.pingPongTransact1) ++ DamlSdk.parties(parties*) ++ Postgres.database
+    DamlSdk.deploy(Dars.pingPong) ++ DamlSdk.parties(parties*) ++ Postgres.database
 
   def spec = suite("auth")(
     funcTest("no party filter"):

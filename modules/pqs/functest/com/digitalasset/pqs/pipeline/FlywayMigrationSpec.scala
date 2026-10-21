@@ -19,7 +19,7 @@ import zio.test.Assertion.*
   * Canton instance.
   */
 object FlywayMigrationSpec extends FuncTestStandalone:
-  private val pingPong = Dars.pingPongTransact
+  private val pingPong = Dars.pingPong
 
   private val pingPongWithKey = DamlSource(
     "PingPongWithKey" -> """module PingPongWithKey where
@@ -62,7 +62,7 @@ object FlywayMigrationSpec extends FuncTestStandalone:
           >+> DamlSdk.deploy(pingPong)
 
       And:
-        DamlSdk.runScript("PingPong:transact", alice.id)
+        DamlSdk.runScript("PingPong:transact1", alice.id)
       And:
         Pqs34.runPipeline(
           "--pipeline-datasource=TransactionStream",
@@ -92,7 +92,7 @@ object FlywayMigrationSpec extends FuncTestStandalone:
           .query(sql"select instance_id from __watermark")
           .returns(table(not(isNull) && instanceId.capture))
       And:
-        DamlSdk.runScript("PingPong:transact", alice.id)
+        DamlSdk.runScript("PingPong:transact1", alice.id)
       And:
         Pqs.runPipeline(
           "--pipeline-datasource=TransactionStream",
@@ -267,7 +267,7 @@ object FlywayMigrationSpec extends FuncTestStandalone:
     Postgres.query(sql"$select from active($fqn) order by created_at_ix")
 
   private def createContract(party: Party, sync: Synchronizer) =
-    val args = Record.defaultInstance.addFields(RecordField("owner", Some(Value(Value.Sum.Party(party.id)))))
+    val args = Record.defaultInstance.addFields(RecordField("sender", Some(Value(Value.Sum.Party(party.id)))))
     Ledger
       .create("PingPong:Ping", args, party, sync)
       .map(_.getTransaction.events(0).getCreated.contractId)

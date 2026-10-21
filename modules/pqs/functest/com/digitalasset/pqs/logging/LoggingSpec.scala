@@ -17,7 +17,7 @@ object LoggingSpec extends SharedLedgerAndPostgresTest:
   def context =
     val alice = Party("Alice")
     DamlSdk.parties(alice) ++ Postgres.database
-      >+> DamlSdk.deploy(Dars.pingSenderReceiver)
+      >+> DamlSdk.deploy(Dars.pingPong)
 
   def spec = suite("Logging")(
     suite("console-based logging")(

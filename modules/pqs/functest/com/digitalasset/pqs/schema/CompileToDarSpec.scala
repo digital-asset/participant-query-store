@@ -12,7 +12,7 @@ object CompileToDarSpec extends FuncTestDefault:
 
   def spec = funcTest("compile small model to dar"):
     Expect:
-      DamlSdk.buildDar(Dars.pingSenderReceiver).map { dar =>
+      DamlSdk.buildDar(Dars.pingPong).map { dar =>
         assertTrue(
           dar.darBytes.nonEmpty,
           dar.packageId.length == 64,

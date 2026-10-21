@@ -31,7 +31,7 @@ object ReadyzResilienceSpec extends FuncTestStandalone:
       Given:
         Ledger.instance ++ Postgres.instance
       And:
-        DamlSdk.deploy(Dars.pingPongTransact1) ++ DamlSdk.parties(alice) ++ Postgres.database
+        DamlSdk.deploy(Dars.pingPong) ++ DamlSdk.parties(alice) ++ Postgres.database
       And:
         DamlSdk.runScript[String]("PingPong:transact1", alice.id)
       And:
@@ -64,7 +64,7 @@ object ReadyzResilienceSpec extends FuncTestStandalone:
       Given:
         Ledger.instance ++ Postgres.instance
       And:
-        DamlSdk.deploy(Dars.pingPongTransact1) ++ DamlSdk.parties(alice) ++ Postgres.database
+        DamlSdk.deploy(Dars.pingPong) ++ DamlSdk.parties(alice) ++ Postgres.database
       And:
         DamlSdk.runScript[String]("PingPong:transact1", alice.id)
       And:

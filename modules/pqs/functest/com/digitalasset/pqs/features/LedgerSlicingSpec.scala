@@ -21,7 +21,7 @@ import scala.language.{implicitConversions, postfixOps}
 
 object LedgerSlicingSpec extends SharedLedgerAndPostgresTest:
   private def context(alice: Party) =
-    DamlSdk.deploy(Dars.pingPongTransact1)
+    DamlSdk.deploy(Dars.pingPong)
       ++ DamlSdk.parties(alice) ++ Postgres.database
       >+> DamlSdk.runScript("PingPong:transact1", alice.id)
 

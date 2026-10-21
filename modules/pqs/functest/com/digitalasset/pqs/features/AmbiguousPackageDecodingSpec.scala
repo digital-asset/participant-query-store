@@ -46,7 +46,7 @@ object AmbiguousPackageDecodingSpec extends SharedLedgerAndPostgresTest:
   private def ambiguousDecoding(label: String, acsStream: Boolean) = funcTest(label):
     val alice       = Party("Alice")
     val packageName = if acsStream then "ambiguous-package-acs" else "ambiguous-package-updates"
-    val p1          = Dars.pingSender.withName(packageName).withVersion(packageVersion)
+    val p1          = Dars.pingPong.withName(packageName).withVersion(packageVersion)
     val p2          = pingWithNote.withName(packageName).withVersion(packageVersion)
     val dar1        = Capture[DarFile]
     val dar2        = Capture[DarFile]

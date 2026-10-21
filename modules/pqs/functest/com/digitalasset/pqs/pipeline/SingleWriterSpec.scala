@@ -35,7 +35,7 @@ object SingleWriterSpec extends SharedLedgerAndPostgresTest:
       def survivor         = if loser.get == d.get then e.get else d.get
 
       Given:
-        DamlSdk.deploy(Dars.pingSender) ++ DamlSdk.parties(alice) ++ Postgres.database
+        DamlSdk.deploy(Dars.pingPong) ++ DamlSdk.parties(alice) ++ Postgres.database
       When:
         startLedgerTraffic(alice)
       And:
@@ -111,7 +111,7 @@ object SingleWriterSpec extends SharedLedgerAndPostgresTest:
   private type LedgerEnv = Docker & Ledger & DarFile
   private type PqsEnv    = LedgerEnv & Parties & Postgres & Database & Scope
 
-  private val pingFqn = s"${Dars.pingSender.name}:PingPong:Ping"
+  private val pingFqn = s"${Dars.pingPong.name}:PingPong:Ping"
 
   private val asyncProcessingTimeout: Duration = 50.seconds
 
