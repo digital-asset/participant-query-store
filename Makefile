@@ -180,8 +180,12 @@ test: auth.test ## Unit test all modules
 	mill ${MILL_OPTS} __.test.test
 
 .PHONY: func-test
-func-test: package ## Run all (expensive) functional tests
+func-test: ## Run all (expensive) functional tests
 	mill ${MILL_OPTS} -k -j 1 pqs.functest.test ${FUNC_TEST_CONTROLS}
+
+.PHONY: perf-test
+perf-test: ## Run performance tests
+	mill ${MILL_OPTS} -k -j 1 pqs.perftest.test --pools 1 --lanes 1
 
 .PHONY: consolidate-test-results
 consolidate-test-results: ## Consolidate all test results in one folder

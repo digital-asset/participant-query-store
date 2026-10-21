@@ -1,0 +1,34 @@
+name: Performance
+on:
+  pull_request:
+  workflow_dispatch: # Enables manual triggering
+
+# Cancel in-progress CI runs for the same PR
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  MILL_OPTS: "-Dcoursier.cache.dir=/data/coursier"
+
+defaults:
+  run:
+    shell: bash -euo pipefail -c "source nix.source && exec bash -euo pipefail {0}"
+
+jobs:
+  perf-test:
+    runs-on: digital-asset-participant-query-store
+    steps:
+      - uses: actions/checkout@v5
+      - uses: ./.github/actions/nix
+      - name: git lfs pull
+        run: git lfs install --local && git lfs pull
+      - name: Check copyright headers
+        run: make copyright-check
+      - uses: ./.github/actions/gen-version
+        id: gen-version
+      - run: make prefetch-deps
+      - name: Build & Package
+        run: make build package
+      - name: Perf tests
+        run: make perf-test
