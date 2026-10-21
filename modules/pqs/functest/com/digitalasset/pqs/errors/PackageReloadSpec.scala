@@ -3,6 +3,7 @@
 
 package com.digitalasset.pqs.errors
 
+import com.digitalasset.pqs.Dars
 import com.digitalasset.pqs.SharedLedgerAndPostgresTest
 import com.digitalasset.pqs.functest.matchers.*
 import com.digitalasset.pqs.health.HealthEndpoint.responseStatus
@@ -15,19 +16,9 @@ import zio.internal.stacktracer.SourceLocation
 import scala.language.{implicitConversions, postfixOps}
 
 object PackageReloadSpec extends SharedLedgerAndPostgresTest:
-
   // Use SourceLocation to create a unique name for the package
-  private def createInterfaces(using location: SourceLocation) = DamlSource(
-    "Interfaces" -> """module Interfaces where
-                      |
-                      |interface IPingable
-                      |  where
-                      |    viewtype VPingable
-                      |
-                      |data VPingable = VPingable with sender: Party
-                      |  deriving (Eq, Ord, Show)
-                      |""".stripMargin
-  ).withNameSuffix(s"v${location.line}")
+  private def createInterfaces(using location: SourceLocation) =
+    Dars.pingableInterfaces.withNameSuffix(s"v${location.line}")
 
   private def createPing(interfaces: DamlSource)(using location: SourceLocation) = DamlSource(
     "Ping" -> """module Ping where

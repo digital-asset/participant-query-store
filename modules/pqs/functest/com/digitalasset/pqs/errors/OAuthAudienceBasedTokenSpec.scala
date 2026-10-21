@@ -3,6 +3,7 @@
 
 package com.digitalasset.pqs.errors
 
+import com.digitalasset.pqs.Dars
 import com.digitalasset.pqs.SharedLedgerAndPostgresAndAuthTest
 import com.digitalasset.pqs.functest.matchers.*
 import com.digitalasset.pqs.services.daml.*
@@ -13,32 +14,13 @@ import zio.{ExitCode, ZLayer}
 import scala.language.{implicitConversions, postfixOps}
 
 object OAuthAudienceBasedTokenSpec extends SharedLedgerAndPostgresAndAuthTest:
-  private val pingPong = DamlSource(
-    "PingPong" -> """module PingPong where
-                    |
-                    |import Daml.Script
-                    |import DA.Functor (void)
-                    |
-                    |template Ping
-                    |  with
-                    |    sender: Party
-                    |    receiver: Party
-                    |  where
-                    |    signatory sender
-                    |    observer receiver
-                    |
-                    |transact1: Party -> Script ()
-                    |transact1 alice = void do
-                    |  submit alice $ createCmd Ping with sender = alice, receiver = alice
-                    |""".stripMargin
-  )
 
   def spec = suite("OAuthAudienceBasedToken")(
     funcTest("pipeline should fail for audience with wrong participantId"):
       val alice = Party("Alice")
       val user  = User(primaryParty = alice)
       Given:
-        (DamlSdk.deploy(pingPong) ++ DamlSdk.parties(alice) ++ Postgres.database)
+        (DamlSdk.deploy(Dars.pingPong) ++ DamlSdk.parties(alice) ++ Postgres.database)
           >+> DamlSdk.runScript("PingPong:transact1", alice.id)
 
       And:

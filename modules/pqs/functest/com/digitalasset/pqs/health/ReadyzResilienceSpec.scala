@@ -3,6 +3,7 @@
 
 package com.digitalasset.pqs.health
 
+import com.digitalasset.pqs.Dars
 import com.digitalasset.pqs.docker.Client
 import com.digitalasset.pqs.docker.Client.run
 import com.digitalasset.pqs.functest.FuncTestStandalone
@@ -23,25 +24,6 @@ import scala.language.{implicitConversions, postfixOps}
   * sharing the same infrastructure.
   */
 object ReadyzResilienceSpec extends FuncTestStandalone:
-  private val ping = DamlSource(
-    "Ping" -> """module Ping where
-                |
-                |import Daml.Script
-                |import DA.Functor (void)
-                |
-                |template Ping
-                |  with
-                |    sender: Party
-                |    receiver: Party
-                |  where
-                |    signatory sender
-                |    observer receiver
-                |
-                |transact1: Party -> Script ()
-                |transact1 alice = void do
-                |  submit alice $ createCmd Ping with sender = alice, receiver = alice
-                |""".stripMargin
-  )
 
   def spec = suite("readyz resilience")(
     funcTest("Postgres failure and recovery"):
@@ -49,9 +31,9 @@ object ReadyzResilienceSpec extends FuncTestStandalone:
       Given:
         Ledger.instance ++ Postgres.instance
       And:
-        DamlSdk.deploy(ping) ++ DamlSdk.parties(alice) ++ Postgres.database
+        DamlSdk.deploy(Dars.pingPong) ++ DamlSdk.parties(alice) ++ Postgres.database
       And:
-        DamlSdk.runScript[String]("Ping:transact1", alice.id)
+        DamlSdk.runScript[String]("PingPong:transact1", alice.id)
       And:
         Pqs.pipeline(
           "--health-address=0.0.0.0",
@@ -82,9 +64,9 @@ object ReadyzResilienceSpec extends FuncTestStandalone:
       Given:
         Ledger.instance ++ Postgres.instance
       And:
-        DamlSdk.deploy(ping) ++ DamlSdk.parties(alice) ++ Postgres.database
+        DamlSdk.deploy(Dars.pingPong) ++ DamlSdk.parties(alice) ++ Postgres.database
       And:
-        DamlSdk.runScript[String]("Ping:transact1", alice.id)
+        DamlSdk.runScript[String]("PingPong:transact1", alice.id)
       And:
         Pqs.pipeline(
           "--health-address=0.0.0.0",

@@ -3,6 +3,7 @@
 
 package com.digitalasset.pqs.features.upgrades
 
+import com.digitalasset.pqs.Dars
 import com.digitalasset.pqs.functest.FuncTestStandalone
 import com.digitalasset.pqs.functest.matchers.*
 import com.digitalasset.pqs.functest.table.*
@@ -18,26 +19,7 @@ import scala.language.{implicitConversions, postfixOps}
 /** This must remain standalone to ensure the package store is not polluted by other concurrent tests.
   */
 object PackageNameSupportSpec extends FuncTestStandalone:
-
-  private val interfaces = DamlSource(
-    "Interfaces" -> """module Interfaces where
-                      |
-                      |interface Labelable
-                      |  where
-                      |    viewtype LabelableView
-                      |
-                      |    setLabel : Text -> Labelable
-                      |
-                      |    choice SetLabelChoice : ContractId Labelable
-                      |      with newLabel : Text
-                      |      controller (view this).owner
-                      |      do create (setLabel this newLabel)
-                      |
-                      |data LabelableView = LabelableView with owner: Party, label: Optional Text
-                      |  deriving (Eq, Ord, Show)
-                      |
-                      |""".stripMargin
-  )
+  private val interfaces = Dars.labelableInterfaces
 
   private val ping = DamlSource(
     "Ping" -> """module Ping where

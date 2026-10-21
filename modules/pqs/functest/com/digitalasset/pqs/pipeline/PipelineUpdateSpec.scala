@@ -3,10 +3,11 @@
 
 package com.digitalasset.pqs.pipeline
 
+import com.digitalasset.pqs.Dars
 import com.digitalasset.pqs.SharedLedgerAndPostgresTest
 import com.digitalasset.pqs.functest.matchers.*
 import com.digitalasset.pqs.functest.table.*
-import com.digitalasset.pqs.services.daml.{DamlSdk, DamlSource, Party}
+import com.digitalasset.pqs.services.daml.{DamlSdk, Party}
 import com.digitalasset.pqs.services.postgres.Postgres
 import com.digitalasset.pqs.services.pqs.Pqs
 import zio.jdbc.sqlInterpolator
@@ -15,39 +16,8 @@ import zio.{durationInt, ExitCode, Promise, ZIO, ZLayer}
 import scala.language.implicitConversions
 
 object PipelineUpdateSpec extends SharedLedgerAndPostgresTest:
-  val pingPong = DamlSource(
-    "PingPong" ->
-      """module PingPong where
-        |
-        |import Daml.Script
-        |import DA.Functor (void)
-        |
-        |template Ping
-        |  with
-        |    sender: Party
-        |    receiver: Party
-        |    text: Text
-        |  where
-        |    signatory sender
-        |    observer receiver
-        |
-        |transact1 : (Party, Party, Text) -> Script ()
-        |transact1 (alice, bob, text) = void do
-        |  submitMulti [alice, bob] [] $ createCmd Ping with sender = alice, receiver = bob, text = text
-        |
-        |-- test Archive edge case, create another contract with implicit Archive in the same module
-        |template ArchiveTest
-        |  with nobody: Party
-        |  where signatory nobody
-        |
-        |transact2 : (Party, Party, Text) -> Script ()
-        |transact2 (alice, bob, text) = void do
-        |  cid <- submitMulti [alice, bob] [] $ createCmd Ping with sender = alice, receiver = bob, text = text
-        |  submit alice $ archiveCmd cid
-        |""".stripMargin
-  )
 
-  private val packageName = pingPong.name
+  private val packageName = Dars.pingPongArchiveTest.name
   private val templateRef = s"$packageName:PingPong:Ping"
   private val archiveRef  = s"$templateRef:Archive"
 
@@ -56,7 +26,7 @@ object PipelineUpdateSpec extends SharedLedgerAndPostgresTest:
       val alice = Party("Alice")
       val bob   = Party("Bob")
       Given:
-        DamlSdk.deploy(pingPong) ++ DamlSdk.parties(alice, bob) ++ Postgres.database
+        DamlSdk.deploy(Dars.pingPongArchiveTest) ++ DamlSdk.parties(alice, bob) ++ Postgres.database
       And:
         DamlSdk.runScript("PingPong:transact1", (alice.id, bob.id, "test"))
       When:
@@ -115,7 +85,7 @@ object PipelineUpdateSpec extends SharedLedgerAndPostgresTest:
       @volatile var releaseTransaction: Promise[Nothing, Unit] = null
 
       Given:
-        DamlSdk.deploy(pingPong) ++ DamlSdk.parties(alice, bob) ++ Postgres.database
+        DamlSdk.deploy(Dars.pingPongArchiveTest) ++ DamlSdk.parties(alice, bob) ++ Postgres.database
       When:
         // Run pipeline once to initialize the schema
         Pqs.runPipeline("--pipeline-ledger-stop=Latest").unit
@@ -167,7 +137,7 @@ object PipelineUpdateSpec extends SharedLedgerAndPostgresTest:
       @volatile var releaseTransaction: Promise[Nothing, Unit] = null
 
       Given:
-        DamlSdk.deploy(pingPong) ++ DamlSdk.parties(alice, bob) ++ Postgres.database
+        DamlSdk.deploy(Dars.pingPongArchiveTest) ++ DamlSdk.parties(alice, bob) ++ Postgres.database
       When:
         // Run pipeline once to initialize the schema
         Pqs.runPipeline("--pipeline-ledger-stop=Latest").unit
