@@ -352,7 +352,7 @@ object DatastorePruningSpec extends SharedLedgerAndPostgresTest:
           Postgres `query`
             sql"""
                  update __transactions
-                 set effective_at = $resetTime :: timestamp with time zone
+                 set record_time = $resetTime :: timestamp with time zone
                  where "offset" <= ${twoArchived.get}
               """.update `returns` anything
         Expect:
