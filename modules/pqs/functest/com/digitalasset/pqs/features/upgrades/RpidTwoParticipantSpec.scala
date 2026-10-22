@@ -21,8 +21,6 @@ import scala.language.implicitConversions
   */
 object RpidTwoParticipantSpec extends FuncTestStandalone:
 
-  override protected def layerTimeout = 10.minutes
-
   private val packageV1 = DamlSource(
     "RpidTest" ->
       """module RpidTest where
@@ -78,7 +76,7 @@ object RpidTwoParticipantSpec extends FuncTestStandalone:
         DamlSdk.buildDar(packageV1).is(v1Dar.capture)
       And:
         DamlSdk.buildDar(packageV2).is(v2Dar.capture)
-      And:
+      And(timeout = 10.minutes):
         cantonParticipantWithACSImportContract(alice, v1Dar.get, v2Dar.get) ++ Postgres.database
       When:
         Pqs.pipeline(
@@ -185,7 +183,7 @@ object RpidTwoParticipantSpec extends FuncTestStandalone:
           os.root / "tls" / "pg-client.crt"    -> pgClientCert.certificate.crt,
           os.root / "tls" / "pg-client.der"    -> pgClientCert.certificate.der
         )
-        cantonConf <- CantonConf()
+        cantonConf <- CantonConf.load()
         appConf     = cantonConf.twoParticipantsConfigOnly(pgHostname, Postgres.port, dbP1, dbP2)
         bootstrapSc = bootstrapScript("rpiddomain")
         prepopulateFiles = certFiles ++ Seq(
@@ -206,7 +204,9 @@ object RpidTwoParticipantSpec extends FuncTestStandalone:
           )("daemon")
           .tap(_.get.blockUntilStdOut(_.contains(CantonConf.bootstrapCompleteMessage)))
           .build
-      yield Ledger(svc.get[Service[Ledger]])
+          .map(_.get)
+        channel <- Ledger.createChannel(svc)
+      yield Ledger(svc, channel)
     )
     cantonLayer >+> DamlSdk.allocatedParties(alice) ++ ZLayer.succeed(v2Dar)
 

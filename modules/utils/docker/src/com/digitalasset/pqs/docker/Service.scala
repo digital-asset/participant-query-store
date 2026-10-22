@@ -4,19 +4,23 @@
 package com.digitalasset.pqs.docker
 
 import os.Shellable
-import zio.ZIO.{logDebug, logError}
 import zio.stream.ZStream
-import zio.{ExitCode, Task, Trace, ZIO}
+import zio.*
+
+final case class ExitState(code: ExitCode, duration: Duration)
 
 final case class Service[T](
     container: Container,
     exposedAddress: String,
     exposedPorts: Map[Int, Int],
     io: ZStream[Any, Throwable, StdIO],
-    exitCode: Task[ExitCode],
+    exit: Task[ExitState],
     getFileContents: os.Path => Task[Array[Byte]],
     execute: Seq[Shellable] => Task[ExecResult]
 ) {
+
+  val exitCode = exit.map(_.code)
+  val duration = exit.map(_.duration)
 
   /** Runs a command inside this (already running) container, the equivalent of `docker exec`, and collects its output
     * and exit code.
@@ -29,7 +33,7 @@ final case class Service[T](
     blockUntilOutput { case StdIO.Err(line) if predicate(line) => () }
   def blockUntilOutput[A](p: PartialFunction[StdIO, A])(implicit trace: Trace): Task[A] =
     ContainerImage(container.image)(
-      logDebug("Blocking for output...")
+      ZIO.logDebug("Blocking for output...")
         *> io
           .collect(p)
           .runHead
@@ -39,7 +43,7 @@ final case class Service[T](
               stdout <- io.takeRight(20).map(_.line).runCollect
               errorMessage =
                 s"Container ${container.hostName} (${container.image}) exited (exit code $code) before expected output was observed"
-              _ <- logError(
+              _ <- ZIO.logError(
                 s"""|$errorMessage
                     |Last output:
                     |${stdout.mkString("\n")}""".stripMargin
@@ -47,6 +51,8 @@ final case class Service[T](
               err <- ZIO.fail(ContainerExitedException(errorMessage))
             } yield err
           )
-        <* logDebug(s"Predicate satisfied, unblocking. Exposed address: $exposedAddress. Exposed ports: $exposedPorts")
+        <* ZIO.logDebug(
+          s"Predicate satisfied, unblocking. Exposed address: $exposedAddress. Exposed ports: $exposedPorts"
+        )
     )
 }

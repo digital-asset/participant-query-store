@@ -3,12 +3,13 @@
 
 package com.digitalasset.pqs
 
-import com.digitalasset.pqs.docker.Docker
+import com.digitalasset.pqs.docker.{Service, Docker}
+import com.digitalasset.pqs.services.inspectMaybe
 import com.digitalasset.pqs.services.daml.CantonConf
 import com.digitalasset.pqs.services.daml.Ledger
 import com.digitalasset.pqs.services.oauth.OAuth
 import com.digitalasset.pqs.services.postgres.*
-import com.digitalasset.pqs.services.pqs.{CliRun, localPqsDockerImage}
+import com.digitalasset.pqs.services.pqs.{CliRun, Pqs}
 import zio.{ZIO, ZLayer}
 
 package object errors:
@@ -18,7 +19,7 @@ package object errors:
       .project { conf =>
         Docker
           .service[Unit](
-            image = localPqsDockerImage,
+            image = Pqs.image,
             env = conf._1,
             prepopulateFiles = conf._2
           )(args)
@@ -46,7 +47,7 @@ package object errors:
         ca                <- Docker.certificateAuthority
         clientCertificate <- ca.generate("pqs")
         ledger            <- ZIO.service[Ledger]
-        oauthInstance     <- Docker.inspectMaybe[OAuth.Instance]
+        oauthInstance     <- inspectMaybe[Service[OAuth.Instance]]
         _prefix = if prefix.isEmpty then prefix else s"${prefix}_".toUpperCase
         base = Map(
           s"PQS_${_prefix}LEDGER_HOST"       -> ledger.container.hostName,

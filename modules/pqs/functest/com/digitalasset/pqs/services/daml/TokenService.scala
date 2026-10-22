@@ -34,11 +34,13 @@ object TokenService:
   private def oauthEndpoint(hostname: String, port: Int): URI =
     URI(s"https://$hostname:$port/issuer1/token")
 
+  val oauth = ZIO.service[Service[OAuth.Instance]]
+
   val live: RLayer[Docker & Service[OAuth.Instance], TokenService] =
     val clientParams = ZLayer.fromZIO(caCertFile.map(f => AuthTokenService.HttpClientParams(Some(f))))
 
     val endpoint = ZLayer.fromZIO {
-      Docker.inspect[OAuth.Instance].map(i => oauthEndpoint(i.exposedAddress, i.exposedPorts(OAuth.port)))
+      oauth.map(i => oauthEndpoint(i.exposedAddress, i.exposedPorts(OAuth.port)))
     }
 
     buildLayer(clientParams, endpoint)
@@ -48,7 +50,7 @@ object TokenService:
     val clientParams = ZLayer.fromZIO {
       for
         cacert <- caCertFile
-        proxy  <- Docker.inspect[ForwardProxy.Instance]
+        proxy  <- ZIO.service[Service[ForwardProxy.Instance]]
         proxyUri = URI(s"http://${proxy.exposedAddress}:${proxy.exposedPorts(ForwardProxy.port)}")
       yield AuthTokenService.HttpClientParams(
         Some(cacert),
@@ -64,7 +66,7 @@ object TokenService:
 
     // Use container hostname (not exposedAddress) because the proxy resolves it on the Docker network
     val endpoint = ZLayer.fromZIO {
-      Docker.inspect[OAuth.Instance].map(i => oauthEndpoint(i.container.hostName, OAuth.port))
+      oauth.map(i => oauthEndpoint(i.container.hostName, OAuth.port))
     }
 
     buildLayer(clientParams, endpoint)

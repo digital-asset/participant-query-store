@@ -166,9 +166,9 @@ object Grafana:
 
   private val configFiles = ZLayer.fromZIO(
     for
-      prometheus <- Docker.inspect[Prometheus.Instance]
-      tempo      <- Docker.inspect[Tempo.Instance]
-      loki       <- Docker.inspect[Loki.Instance]
+      prometheus <- ZIO.service[Service[Prometheus.Instance]]
+      tempo      <- ZIO.service[Service[Tempo.Instance]]
+      loki       <- ZIO.service[Service[Loki.Instance]]
     yield Seq(
       os.root / "data" / "grafana-provisioning" / "datasources" / "datasources.yaml" ->
         s"""apiVersion: 1
