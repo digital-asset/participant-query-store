@@ -15,10 +15,8 @@ object IngestionPerfSpec extends SharedHydratedLedgerTest:
 
   def spec = suite("IngestionPerfSpec")(
     funcTest("Ingestion perf") {
-      val pqs36Database    = Capture[Database]
-      val pqsLocalDatabase = Capture[Database]
-      val pqs36Run         = Capture[CliRun]
-      val pqsLocalRun      = Capture[CliRun]
+      val baselineDatabase = Capture[Database]
+      val baselineRun      = Capture[CliRun]
       Given:
         Postgres.database
           >+> Pqs36.applySchema // apply schema and warm the cache
@@ -28,10 +26,12 @@ object IngestionPerfSpec extends SharedHydratedLedgerTest:
             "--logger-level=Warning"
           )
       Expect:
-        pqs36Database.captureFromService
+        baselineDatabase.captureFromService
       And:
-        pqs36Run.captureFromService
+        baselineRun.captureFromService
 
+      val candidateDatabase = Capture[Database]
+      val candidateRun      = Capture[CliRun]
       When:
         Postgres.database
           >+> Pqs.applySchema // apply schema and warm the cache
@@ -41,17 +41,18 @@ object IngestionPerfSpec extends SharedHydratedLedgerTest:
             "--logger-level=Warning"
           )
       Expect:
-        pqsLocalDatabase.captureFromService
+        candidateDatabase.captureFromService
       And:
-        pqsLocalRun.captureFromService
+        candidateRun.captureFromService
 
       Expect:
         ZIO.succeed {
-          val pqsLocalDurationMs = pqsLocalRun.get.duration.toMillis
-          val pqs36DurationMs    = pqs36Run.get.duration.toMillis
-          val diff               = (pqsLocalDurationMs.toDouble - pqs36DurationMs) / pqs36DurationMs
+          val baselineDurationMs  = baselineRun.get.duration.toMillis
+          val candidateDurationMs = candidateRun.get.duration.toMillis
+
+          val diff = (candidateDurationMs.toDouble - baselineDurationMs) / baselineDurationMs
           assertTrue(diff < 0.4).label(
-            s"Local PQS (${pqsLocalRun.get.duration}) is ${(diff * 100).toInt}% slower than PQS ${Pqs36.version} (${pqs36Run.get.duration})"
+            s"Candidate (${candidateRun.get.duration}) is ${(diff * 100).toInt}% slower than baseline (${baselineRun.get.duration})"
           )
         }
     }
