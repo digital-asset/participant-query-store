@@ -8,6 +8,7 @@ import com.digitalasset.pqs.docker.ContainerLimits
 import com.digitalasset.pqs.services.postgres.{Database, Postgres}
 import com.digitalasset.pqs.services.pqs.*
 import zio.ZIO
+import zio.jdbc.*
 import zio.test.*
 
 object IngestionPerfSpec extends SharedHydratedLedgerTest:
@@ -15,8 +16,8 @@ object IngestionPerfSpec extends SharedHydratedLedgerTest:
 
   def spec = suite("IngestionPerfSpec")(
     funcTest("Ingestion perf") {
-      val baselineDatabase = Capture[Database]
-      val baselineRun      = Capture[CliRun]
+      val baselineSummary = Capture[DatabaseSummary]
+      val baselineRun     = Capture[CliRun]
       Given:
         Postgres.database
           >+> Pqs36.applySchema // apply schema and warm the cache
@@ -26,12 +27,10 @@ object IngestionPerfSpec extends SharedHydratedLedgerTest:
             "--logger-level=Warning"
           )
       Expect:
-        baselineDatabase.captureFromService
+        getDatabaseSummary.is(baselineSummary.capture)
       And:
         baselineRun.captureFromService
 
-      val candidateDatabase = Capture[Database]
-      val candidateRun      = Capture[CliRun]
       When:
         Postgres.database
           >+> Pqs.applySchema // apply schema and warm the cache
@@ -41,19 +40,28 @@ object IngestionPerfSpec extends SharedHydratedLedgerTest:
             "--logger-level=Warning"
           )
       Expect:
-        candidateDatabase.captureFromService
-      And:
-        candidateRun.captureFromService
+        getDatabaseSummary.is(baselineSummary.get)
 
       Expect:
-        ZIO.succeed {
+        ZIO.service[CliRun].map { candidateRun =>
           val baselineDurationMs  = baselineRun.get.duration.toMillis
-          val candidateDurationMs = candidateRun.get.duration.toMillis
+          val candidateDurationMs = candidateRun.duration.toMillis
 
           val diff = (candidateDurationMs.toDouble - baselineDurationMs) / baselineDurationMs
           assertTrue(diff < 0.4).label(
-            s"Candidate (${candidateRun.get.duration}) is ${(diff * 100).toInt}% slower than baseline (${baselineRun.get.duration})"
+            s"Candidate (${candidateRun.duration}) is ${(diff * 100).toInt}% slower than baseline (${baselineRun.get.duration})"
           )
         }
     }
   )
+
+  private case class DatabaseSummary(creates: Long, archives: Long, active: Long, transactions: Long, events: Long)
+
+  private def getDatabaseSummary =
+    for
+      creates      <- Postgres.get[Long](sql"select count(*) from creates()")
+      archives     <- Postgres.get[Long](sql"select count(*) from archives()")
+      active       <- Postgres.get[Long](sql"select count(*) from active()")
+      transactions <- Postgres.get[Long](sql"select count(*) from __transactions")
+      events       <- Postgres.get[Long](sql"select count(*) from __events")
+    yield DatabaseSummary(creates, archives, active, transactions, events)

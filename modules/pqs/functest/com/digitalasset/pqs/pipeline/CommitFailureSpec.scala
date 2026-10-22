@@ -44,7 +44,7 @@ object CommitFailureSpec extends FuncTestStandalone:
       And:
         DamlSdk.runScript("Foo:createFoo", (alice.id, "before"))
       Then:
-        activeLabels.is(Some("before")).retryUntilTimeout
+        activeLabels.is("before").retryUntilTimeout
       When:
         failCommitsWritingTransactions
       And:
@@ -57,7 +57,7 @@ object CommitFailureSpec extends FuncTestStandalone:
         DamlSdk.runScript("Foo:createFoo", (alice.id, "after"))
       Then:
         // PQS retries ingesting "failure" after the trigger is dropped
-        activeLabels.is(Some("after,before,failure")).retryUntilTimeout
+        activeLabels.is("after,before,failure").retryUntilTimeout
   )
 
   private val failCommitsWritingTransactions =
@@ -79,6 +79,6 @@ object CommitFailureSpec extends FuncTestStandalone:
     Postgres.call(sql"drop trigger fail_commit_trg on __transactions")
       *> Postgres.call(sql"drop function fail_commit()")
 
-  private val activeLabels = Postgres.get(
+  private val activeLabels = Postgres.get[String](
     sql"select string_agg(payload->>'label', ',' order by payload->>'label') from active('Foo:Foo')"
   )

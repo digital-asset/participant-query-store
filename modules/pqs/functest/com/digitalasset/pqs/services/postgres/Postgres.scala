@@ -162,8 +162,8 @@ object Postgres:
   def call(sql: SqlFragment): ZIO[Database, Throwable, Unit] =
     Database.autoCommit(sql.execute)
 
-  def get(sql: SqlFragment): ZIO[Database, Throwable, Option[String]] =
-    Database.transaction(sql.query[String].selectOne)
+  def get[A: JdbcDecoder](sql: SqlFragment): ZIO[Database, Throwable, A] =
+    Database.transaction(sql.query[A].selectOne).someOrFailException
 
   def query(sql: SqlFragment): ZIO[Database, Throwable, Table] =
     Database.transaction(sql.query[Row].selectAll).map(Table.apply)
