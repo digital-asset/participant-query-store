@@ -1,12 +1,8 @@
 name: Performance
 on:
-  pull_request:
+  schedule:
+    - cron: "0 2 * * *" # Nightly at 02:00 UTC
   workflow_dispatch: # Enables manual triggering
-
-# Cancel in-progress CI runs for the same PR
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
   MILL_OPTS: "-Dcoursier.cache.dir=/data/coursier"
