@@ -4,7 +4,7 @@
 package com.digitalasset.pqs.services.postgres
 
 import com.digitalasset.pqs.configuration.Secret
-import com.digitalasset.pqs.docker.{Docker, Service}
+import com.digitalasset.pqs.docker.{ContainerLimits, Docker, Service}
 import com.digitalasset.pqs.functest.FTEnv
 import com.digitalasset.pqs.functest.table.{Cell, Row, Table}
 import com.digitalasset.pqs.postgres.backend
@@ -65,31 +65,37 @@ object Postgres:
 
   /** Restores a Postgres instance from dump files.
     */
-  def restore(dumps: Seq[Dump]): ZLayer[FTEnv & Docker, Throwable, Postgres] =
-    Postgres.startInstance(extraVolumes = dumps.map(dump => dump.file -> dump.containerPath)).tap { env =>
-      ZIO.foreachDiscard(dumps) { dump =>
-        createDatabase(dump.databaseName).provideEnvironment(env)
-          *> env
-            .get[Postgres]
-            .exec(
-              "pg_restore",
-              "--username=postgres",
-              s"--dbname=${dump.databaseName}",
-              "--no-owner",
-              "--no-privileges",
-              "--jobs",
-              "4",
-              dump.containerPath.toString
-            )
-            .tapSome {
-              case res if res.exitCode =/= ExitCode.success =>
-                ZIO.fail(RuntimeException(s"pg_restore failed with exit code ${res.exitCode.code}: ${res.stdErr}"))
-            }
+  def restore(
+      dumps: Seq[Dump],
+      limits: ContainerLimits = ContainerLimits.unlimited
+  ): ZLayer[FTEnv & Docker, Throwable, Postgres] =
+    Postgres
+      .startInstance(extraVolumes = dumps.map(dump => dump.file -> dump.containerPath), limits = limits)
+      .tap { env =>
+        ZIO.foreachDiscard(dumps) { dump =>
+          createDatabase(dump.databaseName).provideEnvironment(env)
+            *> env
+              .get[Postgres]
+              .exec(
+                "pg_restore",
+                "--username=postgres",
+                s"--dbname=${dump.databaseName}",
+                "--no-owner",
+                "--no-privileges",
+                "--jobs",
+                "4",
+                dump.containerPath.toString
+              )
+              .tapSome {
+                case res if res.exitCode =/= ExitCode.success =>
+                  ZIO.fail(RuntimeException(s"pg_restore failed with exit code ${res.exitCode.code}: ${res.stdErr}"))
+              }
+        }
       }
-    }
 
   private def startInstance(
-      extraVolumes: Seq[(os.Path, os.Path)] = Seq.empty
+      extraVolumes: Seq[(os.Path, os.Path)] = Seq.empty,
+      limits: ContainerLimits = ContainerLimits.unlimited
   ): ZLayer[FTEnv & Docker, Throwable, Postgres] = ZLayer
     .fromZIO(
       for
@@ -120,7 +126,8 @@ object Postgres:
           volumes = extraVolumes,
           hostname = Some(hostname),
           user = Some(999),
-          suppressOutput = true
+          suppressOutput = true,
+          limits = limits
         )(
           "-c",
           "ssl=on",

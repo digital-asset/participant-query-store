@@ -34,7 +34,8 @@ trait Docker:
       volumes: Seq[(os.Path, os.Path)] = Seq.empty,
       hostname: Option[String] = None,
       user: Option[Int] = None,
-      suppressOutput: Boolean = false
+      suppressOutput: Boolean = false,
+      limits: ContainerLimits = ContainerLimits.unlimited
   )(cmd: Shellable*): ZLayer[Any, Throwable, Service[T]]
 
   def run[T: Tag](
@@ -112,11 +113,16 @@ object Docker:
       volumes: Seq[(os.Path, os.Path)] = Seq.empty,
       hostname: Option[String] = None,
       user: Option[Int] = None,
-      suppressOutput: Boolean = false
+      suppressOutput: Boolean = false,
+      limits: ContainerLimits = ContainerLimits.unlimited
   )(cmd: Shellable*): ZLayer[Docker, Throwable, Service[T]] =
     ZLayer
       .service[Docker]
-      .flatMap(_.get.service(image, exposePorts, env, prepopulateFiles, volumes, hostname, user, suppressOutput)(cmd))
+      .flatMap { docker =>
+        docker.get.service(image, exposePorts, env, prepopulateFiles, volumes, hostname, user, suppressOutput, limits)(
+          cmd
+        )
+      }
 
   def run[T: Tag](
       image: String,
@@ -213,12 +219,13 @@ object Docker:
         volumes: Seq[(os.Path, os.Path)],
         hostname: Option[String],
         user: Option[Int],
-        suppressOutput: Boolean
+        suppressOutput: Boolean,
+        limits: ContainerLimits
     )(
         cmd: Shellable*
     ): ZLayer[Any, Throwable, Service[T]] =
       ZLayer.scoped(ContainerImage(image)(for
-        container <- mkContainer(image, env, prepopulateFiles, volumes, exposePorts, hostname, user)(cmd)
+        container <- mkContainer(image, env, prepopulateFiles, volumes, exposePorts, hostname, user, limits)(cmd)
         svc       <- startContainer[T](container, suppressOutput)
       yield svc))
 
@@ -394,7 +401,8 @@ object Docker:
         volumes: Seq[(os.Path, os.Path)],
         exposePorts: Set[Int],
         hostname: Option[String],
-        user: Option[Int]
+        user: Option[Int],
+        limits: ContainerLimits
     )(
         cmd: Shellable*
     )(implicit
@@ -414,6 +422,15 @@ object Docker:
       containerName = s"${session.prefix}-$containerBaseName-$cnt"
       theHostname   = hostname.getOrElse(s"$containerBaseName-$cnt")
 
+      hostConfig = HostConfig
+        .newHostConfig()
+        .withPortBindings(exposePorts.toSeq.map(p => PortBinding.parse(s"127.0.0.1:$p"))*)
+        .withMounts(Seq(Mount().withSource(session.volumeName).withTarget("/ft").withType(MountType.VOLUME)).asJava)
+        .withBinds(volumes.map((source, target) => new Bind(source.toString, Volume(target.toString)))*)
+
+      _ = limits.cpus.foreach(c => hostConfig.withNanoCPUs(Math.round(c * 1e9)))
+      _ = limits.memoryBytes.foreach(hostConfig.withMemory(_))
+
       createCmd = client
         .createContainerCmd(image)
         .withEnv(env.toSeq.map((k, v) => s"$k=$v")*)
@@ -421,13 +438,7 @@ object Docker:
         .withCmd(unpackedCmd*)
         .withName(containerName)
         .withHostName(theHostname)
-        .withHostConfig(
-          HostConfig
-            .newHostConfig()
-            .withPortBindings(exposePorts.toSeq.map(p => PortBinding.parse(s"127.0.0.1:$p"))*)
-            .withMounts(Seq(Mount().withSource(session.volumeName).withTarget("/ft").withType(MountType.VOLUME)).asJava)
-            .withBinds(volumes.map((source, target) => new Bind(source.toString, Volume(target.toString)))*)
-        )
+        .withHostConfig(hostConfig)
       _ = user.foreach(uid => createCmd.withUser(s"$uid:$uid"))
 
       // create container

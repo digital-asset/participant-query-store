@@ -102,9 +102,22 @@ trait Pqs:
     Docker & Parties & Postgres & Database & Ledger,
     Throwable,
     CliRun
-  ] = attemptPipeline(extraArgs*).flatMap(CliRun.expectSuccess)
+  ] = runPipeline(ContainerLimits.unlimited)(extraArgs*)
+
+  /** Run pipeline and wrap the result into Layer. Fails the layer if the pipeline exits with a non-zero exit code. */
+  def runPipeline(limits: ContainerLimits)(extraArgs: String*): ZLayer[
+    Docker & Parties & Postgres & Database & Ledger,
+    Throwable,
+    CliRun
+  ] = attemptPipeline(limits)(extraArgs*).flatMap(CliRun.expectSuccess)
 
   def attemptPipeline(extraArgs: String*): ZLayer[
+    Docker & Parties & Postgres & Database & Ledger,
+    Throwable,
+    Service[Pipeline]
+  ] = attemptPipeline(ContainerLimits.unlimited)(extraArgs*)
+
+  def attemptPipeline(limits: ContainerLimits)(extraArgs: String*): ZLayer[
     Docker & Parties & Postgres & Database & Ledger,
     Throwable,
     Service[Pipeline]
@@ -115,7 +128,8 @@ trait Pqs:
         env = conf.get._1,
         prepopulateFiles = conf.get._2,
         exposePorts = Set(Pipeline.healthPort),
-        user = user
+        user = user,
+        limits = limits
       )(
         "pipeline",
         "ledger",
