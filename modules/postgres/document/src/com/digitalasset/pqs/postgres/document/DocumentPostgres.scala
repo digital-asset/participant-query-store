@@ -334,7 +334,7 @@ final case class DocumentPostgres(
         acsContract.contract,
         acsContract.synchronizerId,
         reassignmentCounter = 0,
-        isCreate = true,
+        ActivationType.Create,
         metrics
       )
       contracts :+ evt
@@ -346,7 +346,7 @@ final case class DocumentPostgres(
         acsContract.contract,
         acsContract.synchronizerId,
         acsContract.reassignmentCounter,
-        isCreate = false,
+        ActivationType.Assign,
         metrics
       )
       contracts :+ evt
@@ -368,7 +368,7 @@ final case class DocumentPostgres(
           c.contract,
           c.synchronizerId,
           reassignmentCounter = 0,
-          isCreate = true,
+          ActivationType.Create,
           metrics
         )
         contracts :+ evt
@@ -377,7 +377,15 @@ final case class DocumentPostgres(
         val metrics = MetricsContext(a.templateId.qualifiedName, a.synchronizerId)
         val evt     = Event(pk, txIx, a.eventId, EventType.Archive, metrics)
         val archives =
-          mkDeactivatedContracts(pk, txIx, a.contractId, a.templateId, a.synchronizerId, isArchive = true, metrics)
+          mkDeactivatedContracts(
+            pk,
+            txIx,
+            a.contractId,
+            a.templateId,
+            a.synchronizerId,
+            DeactivationType.Archive,
+            metrics
+          )
         archives :+ evt
 
       case e: canonical.Event.Exercised =>
@@ -400,7 +408,15 @@ final case class DocumentPostgres(
         )
         val archives =
           if e.consuming then
-            mkDeactivatedContracts(pk, txIx, e.contractId, e.templateId, e.synchronizerId, isArchive = true, metrics)
+            mkDeactivatedContracts(
+              pk,
+              txIx,
+              e.contractId,
+              e.templateId,
+              e.synchronizerId,
+              DeactivationType.Archive,
+              metrics
+            )
           else Chunk.empty
         archives :+ exercise :+ event
 
@@ -408,7 +424,15 @@ final case class DocumentPostgres(
         val metrics = MetricsContext(u.templateId.qualifiedName, u.synchronizerId)
         val event   = Event(pk, txIx, u.eventId, EventType.Unassign, metrics)
         val unassignedContracts =
-          mkDeactivatedContracts(pk, txIx, u.contractId, u.templateId, u.synchronizerId, isArchive = false, metrics)
+          mkDeactivatedContracts(
+            pk,
+            txIx,
+            u.contractId,
+            u.templateId,
+            u.synchronizerId,
+            DeactivationType.Unassign,
+            metrics
+          )
         val reassignment = mkReassignment(
           eventPk = pk,
           txIx = txIx,
@@ -430,7 +454,7 @@ final case class DocumentPostgres(
         val metrics = MetricsContext(e.contract.templateId.qualifiedName, e.synchronizerId)
         val event   = Event(pk, txIx, e.eventId, EventType.Assign, metrics)
         val contracts =
-          mkContracts(pk, txIx, e.contract, e.synchronizerId, e.reassignmentCounter, isCreate = false, metrics)
+          mkContracts(pk, txIx, e.contract, e.synchronizerId, e.reassignmentCounter, ActivationType.Assign, metrics)
         val reassignment = mkReassignment(
           eventPk = pk,
           txIx = txIx,
@@ -455,16 +479,15 @@ final case class DocumentPostgres(
       contract: canonical.Contract,
       synchronizerId: SynchronizerId,
       reassignmentCounter: Long,
-      isCreate: Boolean,
+      activationType: ActivationType,
       metrics: MetricsContext
   ): Chunk[Contract] =
     contract.payloads.map((entityId, value) =>
       Contract(
         entityType = entityPkMap(entityId),
-        createEventPk = Option.when(isCreate)(eventPk),
-        createdAtIx = Option.when(isCreate)(txIx),
-        assignEventPk = Option.when(!isCreate)(eventPk),
-        assignedAtIx = Option.when(!isCreate)(txIx),
+        activateEventPk = eventPk,
+        activatedAtIx = txIx,
+        activationType = activationType,
         contractId = contract.contractId,
         synchronizerId = synchronizerId,
         reassignmentCounter = reassignmentCounter,
@@ -490,7 +513,7 @@ final case class DocumentPostgres(
       contractId: ContractId,
       templateId: Identifier,
       synchronizerId: SynchronizerId,
-      isArchive: Boolean,
+      deactivationType: DeactivationType,
       metrics: MetricsContext
   ) =
     val templateType = entityPkMap(templateId)
@@ -499,10 +522,9 @@ final case class DocumentPostgres(
       DeactivatedContract(
         entityType,
         contractId,
-        archiveEventPk = Option.when(isArchive)(eventPk),
-        archivedAtIx = Option.when(isArchive)(txIx),
-        unassignEventPk = Option.when(!isArchive)(eventPk),
-        unassignedAtIx = Option.when(!isArchive)(txIx),
+        eventPk,
+        txIx,
+        deactivationType,
         synchronizerId,
         metrics
       )

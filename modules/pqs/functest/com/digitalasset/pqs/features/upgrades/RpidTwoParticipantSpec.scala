@@ -214,31 +214,31 @@ object RpidTwoParticipantSpec extends FuncTestStandalone:
     sql"""SELECT
             p.id as representative_package_id,
             c.creation_package_id,
-            CASE WHEN c.archived_at_ix IS NULL THEN 'active' ELSE 'archived' END as status
+            coalesce(deactivation_type, 'active') as status
           FROM __contracts c
           JOIN __packages p ON c.package_pk = p.pk
-          ORDER BY created_at_ix"""
+          ORDER BY activated_at_ix"""
 
   private def apiActive() = Postgres `query`
     sql"""SELECT
             package_id,
             creation_package_id
           FROM active()
-          ORDER BY created_at_ix"""
+          ORDER BY activated_at_ix"""
 
   private def apiCreates() = Postgres `query`
     sql"""SELECT
             package_id,
             creation_package_id
           FROM creates()
-          ORDER BY created_at_ix"""
+          ORDER BY activated_at_ix"""
 
   private def apiArchives() = Postgres `query`
     sql"""SELECT
             package_id,
             creation_package_id
           FROM archives()
-          ORDER BY created_at_ix"""
+          ORDER BY activated_at_ix"""
 
   private def bootstrapScript(synchronizer: String): String =
     s"""import com.digitalasset.canton.version.ProtocolVersion

@@ -1,29 +1,20 @@
 -- Copyright (c) 2026 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
 -- SPDX-License-Identifier: Apache-2.0
 
+create type __activation_type as enum ('create', 'assign');
+create type __deactivation_type as enum ('archive', 'unassign');
+
+alter table __contracts rename column create_event_pk to activate_event_pk;
+alter table __contracts rename column created_at_ix to activated_at_ix;
+alter table __contracts rename column archive_event_pk to deactivate_event_pk;
+alter table __contracts rename column archived_at_ix to deactivated_at_ix;
 
 alter table __contracts
-  add column assign_event_pk bigint,
-  add column assigned_at_ix bigint,
-  add column unassign_event_pk bigint,
-  add column unassigned_at_ix bigint,
+  -- keep null values to not seq-scan rewrite the table
+  add column activation_type __activation_type,
+  add column deactivation_type __deactivation_type,
   add column reassignment_counter bigint,
-  add column synchronizer_id text,
-  -- Postgres 16 and older does not support altering expression of generated column
-  -- Instead we drop and re-create the column atomically
-  drop column life_ix,
-  add column life_ix int8range not null generated always as (
-    int8range(
-      coalesce(created_at_ix, assigned_at_ix),
-      coalesce(archived_at_ix, unassigned_at_ix)
-    )
-  ) stored;
-
--- re-create index on life_ix
-create index if not exists __contracts_life_ix_idx
-    on __contracts using gist (life_ix)
-    include (tpe_pk)
-    where not divulged_only;
+  add column synchronizer_id text;
 
 alter type contract
     add attribute assign_event_pk bigint,
@@ -36,6 +27,10 @@ alter type contract
     add attribute unassigned_at_offset bigint,
     add attribute reassignment_counter bigint,
     add attribute synchronizer_id text,
+    add attribute activated_at_ix bigint,
+    add attribute activation_type __activation_type,
+    add attribute deactivated_at_ix bigint,
+    add attribute deactivation_type __deactivation_type,
     -- tpe_pk is added to optimize deduplication in active function
     add attribute tpe_pk bigint;
 
@@ -43,12 +38,10 @@ create table if not exists __tmp_deactivated_contracts
 (
   tpe_pk bigint not null,
   contract_id text not null,
-  archive_event_pk bigint,
-  archived_at_ix bigint,
-  unassign_event_pk bigint,
-  unassigned_at_ix bigint,
-  synchronizer_id text not null,
-  deactivated_at_ix bigint not null generated always as (coalesce(archived_at_ix, unassigned_at_ix)) stored
+  deactivate_event_pk bigint not null,
+  deactivated_at_ix bigint not null,
+  deactivation_type __deactivation_type not null,
+  synchronizer_id text not null
 );
 
 create index if not exists __tmp_deactivated_contracts_ix_idx

@@ -130,7 +130,7 @@ object PipelineSpec extends SharedLedgerAndPostgresTest:
           val eventBlob = createdEvent.createdEventBlob.toByteArray.toSeq
           zio.test.assert(eventBlob)(not(isEmpty) && equalTo(storedMetadata.toSeq))
     ,
-    funcTest("created_at should be not null"):
+    funcTest("activated_at_ix should be not null"):
       val alice = Party("Alice")
       val bob   = Party("Bob")
       Given:
@@ -139,7 +139,7 @@ object PipelineSpec extends SharedLedgerAndPostgresTest:
         Pqs.runPipeline("--pipeline-ledger-stop=Latest")
       Expect:
         Postgres query {
-          sql"""select count(*) from __contracts where created_at_ix is not null"""
+          sql"""select count(*) from __contracts where activated_at_ix is not null"""
         } `returns` table {
           1
         }
