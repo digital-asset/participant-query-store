@@ -560,7 +560,7 @@ object QueryingSpec extends SharedLedgerAndPostgresTest:
         Then:
           Postgres query {
             sql"""select template_fqn, created_at_offset, created_effective_at, archived_effective_at, contract_id, create_event_id, payload->>'user_id'
-                  from lookup_contract((select distinct contract_id from __contracts where created_at_ix = 1))
+                  from lookup_contract((select distinct contract_id from __contracts where activated_at_ix = 1))
                   order by template_fqn"""
           } `returns` table {
             s"${interfaces.name}:Interfaces:INameDocument" | anything | anything | anything | anything | anything | anything
@@ -573,7 +573,7 @@ object QueryingSpec extends SharedLedgerAndPostgresTest:
         Then:
           Postgres query {
             sql"""select template_fqn, choice_fqn, exercised_at_offset, exercised_effective_at, contract_id, exercise_event_id, argument->>'newLastName', result
-                from lookup_exercises((select distinct contract_id from __contracts where created_at_ix = 2));"""
+                from lookup_exercises((select distinct contract_id from __contracts where activated_at_ix = 2));"""
           } `returns` table {
             s"${nameRegistry.name}:NameRegistry:BirthCertificate" |
               s"${nameRegistry.name}:NameRegistry:BirthCertificate:BirthCertificateNameChange" |

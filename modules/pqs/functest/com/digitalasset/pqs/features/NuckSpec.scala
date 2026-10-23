@@ -152,18 +152,18 @@ object NuckSpec extends SharedLedgerAndPostgresTest:
     sql"""select contract_id, contract_key_hash, payload ->> 'label'
           from __contracts
           where contract_key = jsonb_build_object('_1', $partyId, '_2', ${k.toString})
-          order by created_at_ix"""
+          order by activated_at_ix"""
   )
 
   private def lookupByKeyHash(contractKeyHash: String) = Postgres.query(
     sql"""select contract_id, payload ->> 'label'
           from __contracts
           where contract_key_hash = $contractKeyHash::bytea
-          order by created_at_ix"""
+          order by activated_at_ix"""
   )
 
   private def keyColumnsOf(qname: String) = Postgres.query(
     sql"""select contract_key ->> '_1', contract_key ->> '_2', contract_key_hash, payload ->> 'label'
           from active($qname)
-          order by created_at_ix"""
+          order by activated_at_ix"""
   )

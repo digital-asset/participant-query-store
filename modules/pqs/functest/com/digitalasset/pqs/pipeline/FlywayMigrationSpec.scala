@@ -292,7 +292,7 @@ object FlywayMigrationSpec extends FuncTestStandalone:
 
   private def legacyActive(fqn: String)(columns: String*) =
     val select = SqlFragment.select(columns*)
-    Postgres.query(sql"$select from active($fqn) order by created_at_ix")
+    Postgres.query(sql"$select from active($fqn) order by activated_at_ix")
 
   private def createContract(party: Party, sync: Synchronizer) =
     val args = Record.defaultInstance.addFields(RecordField("owner", Some(Value(Value.Sum.Party(party.id)))))
