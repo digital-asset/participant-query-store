@@ -131,8 +131,10 @@ abstract class FuncTest[FR: EnvironmentTag] extends ZIOSpec[FTEnv & Dpm & Docker
     interactWithoutAssertion(io, timeout)
 
   def Expect[R](io: => ZIO[R, Throwable, TestResult])(implicit ctx: Ctx[?, ? <: R], trace: Trace) = assert(io)
-  def Then[R](io: => ZIO[R, Throwable, TestResult])(implicit ctx: Ctx[?, ? <: R], trace: Trace)   = assert(io)
-  def And[R](io: => ZIO[R, Throwable, TestResult])(implicit ctx: Ctx[?, ? <: R], trace: Trace)    = assert(io)
+  def Expect[R](timeout: Duration)(io: => ZIO[R, Throwable, TestResult])(implicit ctx: Ctx[?, ? <: R], trace: Trace) =
+    assert(io, timeout)
+  def Then[R](io: => ZIO[R, Throwable, TestResult])(implicit ctx: Ctx[?, ? <: R], trace: Trace) = assert(io)
+  def And[R](io: => ZIO[R, Throwable, TestResult])(implicit ctx: Ctx[?, ? <: R], trace: Trace)  = assert(io)
 
   class Ctx[RProv, RReq]:
     private[FuncTest] var runtime: zio.Runtime[RProv] = uninitialized
