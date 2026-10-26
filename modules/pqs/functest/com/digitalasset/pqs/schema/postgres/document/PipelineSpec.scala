@@ -17,13 +17,13 @@ import zio.{Chunk, ExitCode, ZIO}
 import scala.language.implicitConversions
 
 object PipelineSpec extends SharedLedgerAndPostgresTest:
-  private val packageName = Dars.pingPongArchiveTest.name
-  private val templateRef = s"$packageName:PingPong:Ping"
+  private val packageName = Dars.message.name
+  private val templateRef = s"$packageName:Message:Message"
   private val archiveRef  = s"$templateRef:Archive"
 
-  def context(alice: Party, bob: Party, script: String = "PingPong:transact1", testText: String = "test") =
+  def context(alice: Party, bob: Party, script: String = "Message:createMessage", testText: String = "test") =
     DamlSdk.parties(alice, bob) ++ Postgres.database
-      >+> DamlSdk.deploy(Dars.pingPongArchiveTest)
+      >+> DamlSdk.deploy(Dars.message)
       >+> DamlSdk.runScript(script, (alice.id, bob.id, testText))
 
   def spec = suite("pipeline")(
@@ -119,7 +119,7 @@ object PipelineSpec extends SharedLedgerAndPostgresTest:
       val alice = Party("Alice")
       val bob   = Party("Bob")
       Given:
-        context(alice, bob, script = "PingPong:transact2")
+        context(alice, bob, script = "Message:createAndArchiveMessage")
 
       When:
         Pqs.runPipeline(

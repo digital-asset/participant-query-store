@@ -27,15 +27,15 @@ object Dars:
         |""".stripMargin
   )
 
-  /** Ping(sender, receiver, text) created by `transact1`, and `transact2` which also archives it. */
-  private[pqs] val pingPongArchiveTest = DamlSource(
-    "PingPong" ->
-      """module PingPong where
+  /** Message(sender, receiver, text) created by `createMessage`; `createAndArchiveMessage` also archives it. */
+  private[pqs] val message = DamlSource(
+    "Message" ->
+      """module Message where
         |
         |import Daml.Script
         |import DA.Functor (void)
         |
-        |template Ping
+        |template Message
         |  with
         |    sender: Party
         |    receiver: Party
@@ -44,50 +44,50 @@ object Dars:
         |    signatory sender
         |    observer receiver
         |
-        |transact1 : (Party, Party, Text) -> Script ()
-        |transact1 (alice, bob, text) = void do
-        |  submitMulti [alice, bob] [] $ createCmd Ping with sender = alice, receiver = bob, text = text
+        |createMessage : (Party, Party, Text) -> Script ()
+        |createMessage (alice, bob, text) = void do
+        |  submitMulti [alice, bob] [] $ createCmd Message with sender = alice, receiver = bob, text = text
         |
         |-- test Archive edge case, create another contract with implicit Archive in the same module
         |template ArchiveTest
         |  with nobody: Party
         |  where signatory nobody
         |
-        |transact2 : (Party, Party, Text) -> Script ()
-        |transact2 (alice, bob, text) = void do
-        |  cid <- submitMulti [alice, bob] [] $ createCmd Ping with sender = alice, receiver = bob, text = text
+        |createAndArchiveMessage : (Party, Party, Text) -> Script ()
+        |createAndArchiveMessage (alice, bob, text) = void do
+        |  cid <- submitMulti [alice, bob] [] $ createCmd Message with sender = alice, receiver = bob, text = text
         |  submit alice $ archiveCmd cid
         |""".stripMargin
   )
 
-  /** Ping(owner, label) with a ChangeLabel choice; `setup` creates, relabels and archives a few. */
-  private[pqs] val pingsChangeLabel = DamlSource(
-    "Pings" ->
-      """module Pings where
+  /** Label(owner, label) with a ChangeLabel choice; `setup` creates, relabels and archives a few. */
+  private[pqs] val label = DamlSource(
+    "Label" ->
+      """module Label where
         |
         |import Daml.Script
         |
-        |template Ping
+        |template Label
         |  with
         |    owner : Party
         |    label : Text
         |  where
         |    signatory owner
-        |    choice ChangeLabel : ContractId Ping
+        |    choice ChangeLabel : ContractId Label
         |      with
         |        newLabel : Text
         |      controller owner
         |      do
-        |        create Ping with label = newLabel, ..
+        |        create Label with label = newLabel, ..
         |
         |setup: Party -> Script ()
         |setup alice = do
-        |  one <- submit alice $ createCmd (Ping with owner = alice, label = "one")
+        |  one <- submit alice $ createCmd (Label with owner = alice, label = "one")
         |  submit alice $ exerciseCmd one ChangeLabel with newLabel = "one updated"
-        |  two <- submit alice $ createCmd (Ping with owner = alice, label = "two")
+        |  two <- submit alice $ createCmd (Label with owner = alice, label = "two")
         |  submit alice $ exerciseCmd two Archive
         |  -- ^ pruning cut-off ^ --
-        |  three <- submit alice $ createCmd (Ping with owner = alice, label = "three")
+        |  three <- submit alice $ createCmd (Label with owner = alice, label = "three")
         |  submit alice $ exerciseCmd three ChangeLabel with newLabel = "three updated"
         |  pure ()
         |""".stripMargin

@@ -17,8 +17,8 @@ import scala.language.implicitConversions
 
 object PipelineUpdateSpec extends SharedLedgerAndPostgresTest:
 
-  private val packageName = Dars.pingPongArchiveTest.name
-  private val templateRef = s"$packageName:PingPong:Ping"
+  private val packageName = Dars.message.name
+  private val templateRef = s"$packageName:Message:Message"
   private val archiveRef  = s"$templateRef:Archive"
 
   def spec = suite("pipeline")(
@@ -26,9 +26,9 @@ object PipelineUpdateSpec extends SharedLedgerAndPostgresTest:
       val alice = Party("Alice")
       val bob   = Party("Bob")
       Given:
-        DamlSdk.deploy(Dars.pingPongArchiveTest) ++ DamlSdk.parties(alice, bob) ++ Postgres.database
+        DamlSdk.deploy(Dars.message) ++ DamlSdk.parties(alice, bob) ++ Postgres.database
       And:
-        DamlSdk.runScript("PingPong:transact1", (alice.id, bob.id, "test"))
+        DamlSdk.runScript("Message:createMessage", (alice.id, bob.id, "test"))
       When:
         Pqs.runPipeline("--pipeline-ledger-stop=Latest")
       And:
@@ -62,7 +62,7 @@ object PipelineUpdateSpec extends SharedLedgerAndPostgresTest:
           }
           .returns(0)
       And:
-        DamlSdk.runScript("PingPong:transact1", (alice.id, bob.id, "test"))
+        DamlSdk.runScript("Message:createMessage", (alice.id, bob.id, "test"))
       And:
         Pqs.attemptPipeline(
           "--pipeline-ledger-start=Latest",
@@ -85,14 +85,14 @@ object PipelineUpdateSpec extends SharedLedgerAndPostgresTest:
       @volatile var releaseTransaction: Promise[Nothing, Unit] = null
 
       Given:
-        DamlSdk.deploy(Dars.pingPongArchiveTest) ++ DamlSdk.parties(alice, bob) ++ Postgres.database
+        DamlSdk.deploy(Dars.message) ++ DamlSdk.parties(alice, bob) ++ Postgres.database
       When:
         // Run pipeline once to initialize the schema
         Pqs.runPipeline("--pipeline-ledger-stop=Latest").unit
       Expect:
         Postgres.query(sql"select count(*) from __contracts").returns(table(0))
       When:
-        DamlSdk.runScript("PingPong:transact1", (alice.id, bob.id, "test"))
+        DamlSdk.runScript("Message:createMessage", (alice.id, bob.id, "test"))
       When:
         ZLayer.fromZIO {
           for {
@@ -137,14 +137,14 @@ object PipelineUpdateSpec extends SharedLedgerAndPostgresTest:
       @volatile var releaseTransaction: Promise[Nothing, Unit] = null
 
       Given:
-        DamlSdk.deploy(Dars.pingPongArchiveTest) ++ DamlSdk.parties(alice, bob) ++ Postgres.database
+        DamlSdk.deploy(Dars.message) ++ DamlSdk.parties(alice, bob) ++ Postgres.database
       When:
         // Run pipeline once to initialize the schema
         Pqs.runPipeline("--pipeline-ledger-stop=Latest").unit
       Expect:
         Postgres.query(sql"select count(*) from __contracts").returns(table(0))
       When:
-        DamlSdk.runScript("PingPong:transact1", (alice.id, bob.id, "test"))
+        DamlSdk.runScript("Message:createMessage", (alice.id, bob.id, "test"))
       When:
         ZLayer.fromZIO {
           for {

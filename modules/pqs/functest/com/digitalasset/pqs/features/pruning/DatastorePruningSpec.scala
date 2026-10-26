@@ -20,15 +20,15 @@ import zio.test.Assertion.*
 import scala.language.implicitConversions
 
 object DatastorePruningSpec extends SharedLedgerAndPostgresTest:
-  private val packageName = Dars.pingsChangeLabel.name
-  private val templateRef = s"$packageName:Pings:Ping"
+  private val packageName = Dars.label.name
+  private val templateRef = s"$packageName:Label:Label"
   private val choiceRef   = s"$templateRef:ChangeLabel"
 
   def context =
     val alice = Party("Alice")
     DamlSdk.parties(alice) ++ Postgres.database
-      >+> DamlSdk.deploy(Dars.pingsChangeLabel)
-      >+> DamlSdk.runScript("Pings:setup", alice.id)
+      >+> DamlSdk.deploy(Dars.label)
+      >+> DamlSdk.runScript("Label:setup", alice.id)
       >+> Pqs.runPipeline(
         "--pipeline-datasource=TransactionTreeStream",
         "--pipeline-ledger-start=Genesis",
