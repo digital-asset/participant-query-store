@@ -9,16 +9,16 @@ _Write summary of release_
 ## SQL Migration
 
 This release includes the following SQL migrations:
-- _V044__Add_reassignment_event_types.sql_:a dds the `assign` and `unassign` labels to the `__event_type` enum. Metadata-only, no table is scanned or rewritten. **[Impact: Instantaneous]**
-- _V045__Rename_domain_id_to_synchronizer_id.sql_: renames the `domain_id` column of `__transactions` to `synchronizer_id`. Metadata-only, no table is scanned or rewritten. **[Impact: Instantaneous]**
-- _V046__Add_multisync_contract_columns.sql_ **[Impact: Instantaneous]**:
-  - Define the `__activation_type` and `__deactivation_type` enums for the new `activation_type` and `deactivation_type` columns in the `__contracts` table,
+- [V044__Add_reassignment_event_types.sql](https://github.com/digital-asset/participant-query-store/blob/main/modules/postgres/document/resources/db/migration/V044__Add_reassignment_event_types.sql):a dds the `assign` and `unassign` labels to the `__event_type` enum. Metadata-only, no table is scanned or rewritten. **[Impact: Instantaneous]**
+- [V045__Rename_domain_id_to_synchronizer_id.sql](https://github.com/digital-asset/participant-query-store/blob/main/modules/postgres/document/resources/db/migration/V045__Rename_domain_id_to_synchronizer_id.sql): renames the `domain_id` column of `__transactions` to `synchronizer_id`. Metadata-only, no table is scanned or rewritten. **[Impact: Instantaneous]**
+- [V046__Add_multisync_contract_columns.sql](https://github.com/digital-asset/participant-query-store/blob/main/modules/postgres/document/resources/db/migration/V046__Add_multisync_contract_columns.sql) **[Impact: Instantaneous]**:
+  - Define the `__activation_type` and `__deactivation_type` enums for the new `activation_type` and `deactivation_type` columns in the `__contracts` table.
   - Rename column `created_at_ix` to `activated_at_ix`, and `archived_at_ix` to `deactivated_at_ix`, in the `__contracts` table.
   - Add the multi-sync columns `reassignment_counter`, `synchronizer_id` in the `__contracts` table.
   - Drop the internal `__archives` view.
   - Drop the `__tmp_archived_contracts` and replace with `__tmp_deactivated_contracts` for internal use by the PQS pipeline.
-- _V047__Create_reassignments_table.sql_: creates the `__reassignment_type` enum and the list-partitioned `__reassignments` table, then creates one partition per row already present in `__contract_tpe`. **[Impact: Instantaneous /< 1 min]**
-- _V048__Prunning_reassignments.sql_: drops `prune_archived_to_offset` and `prune_archived_to_offset_dry_run` so that they can be re-created with the new `deleted_reassignments` result column. **[Impact: Instantaneous]**
+- [V047__Create_reassignments_table.sql](https://github.com/digital-asset/participant-query-store/blob/main/modules/postgres/document/resources/db/migration/V047__Create_reassignments_table.sql): creates the `__reassignment_type` enum and the list-partitioned `__reassignments` table, then creates one partition per row already present in `__contract_tpe`. **[Impact: Instantaneous /< 1 min]**
+- [V048__Prunning_reassignments.sql](https://github.com/digital-asset/participant-query-store/blob/main/modules/postgres/document/resources/db/migration/V048__Prunning_reassignments.sql): drops `prune_archived_to_offset` and `prune_archived_to_offset_dry_run` so that they can be re-created with the new `deleted_reassignments` result column. **[Impact: Instantaneous]**
 
 ## What's New
 
