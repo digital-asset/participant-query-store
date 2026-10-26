@@ -46,7 +46,7 @@ object GenerateCantonDumpSpec extends FuncTestStandalone:
 
       When(timeout = 4.minutes):
         ZIO.foreachDiscard(CantonDumps.all)(Postgres.dumpDatabase(_))
-  ) @@ TestAspect.ifEnv("REGENERATE_CANTON_DUMP")(_.toBooleanOption.getOrElse(false))
+  ) @@ TestAspect.ifEnv("REGENERATE_PERF_DUMP")(_.toBooleanOption.getOrElse(false))
 
   private def hydrateLedger(
       alice: Party,
