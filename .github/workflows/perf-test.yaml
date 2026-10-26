@@ -19,8 +19,6 @@ jobs:
       - uses: ./.github/actions/nix
       - name: git lfs pull
         run: git lfs install --local && git lfs pull
-      - name: Check copyright headers
-        run: make copyright-check
       - uses: ./.github/actions/gen-version
         id: gen-version
       - run: make prefetch-deps
