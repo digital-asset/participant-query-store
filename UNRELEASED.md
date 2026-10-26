@@ -9,13 +9,12 @@ _Write summary of release_
 ## SQL Migration
 
 This release includes the following SQL migrations:
-- _V043__Add_divulged_created_at_ix_index.sql_: adds a partial index on `__contracts` so `prune_archived_to_offset` can prune divulged-only contracts via an index scan. **[Impact: ~ 1 min]**
-- _V044__Add_reassignment_event_types.sql_: adds the `assign` and `unassign` labels to the `__event_type` enum. Metadata-only, no table is scanned or rewritten. **[Impact: Instantaneous]**
+- _V044__Add_reassignment_event_types.sql_:a dds the `assign` and `unassign` labels to the `__event_type` enum. Metadata-only, no table is scanned or rewritten. **[Impact: Instantaneous]**
 - _V045__Rename_domain_id_to_synchronizer_id.sql_: renames the `domain_id` column of `__transactions` to `synchronizer_id`. Metadata-only, no table is scanned or rewritten. **[Impact: Instantaneous]**
-- _V046__Add_multisync_contract_columns.sql_ **[Impact: ~2 min/10M contracts]**:
-  - Add the multi-sync columns (`assigned_at_ix`, `unassigned_at_ix`, `reassignment_counter`, `synchronizer_id`) to the `__contracts` table and `contract` type.
-  - **Full __contracts rewrite:** Redefine the `life_ix` column to take `assigned_at_ix` and `unassigned_at_ix` into account.
-  - **Rebuild GiST index on __contracts.**
+- _V046__Add_multisync_contract_columns.sql_ **[Impact: Instantaneous]**:
+  - Define the `__activation_type` and `__deactivation_type` enums for the new `activation_type` and `deactivation_type` columns in the `__contracts` table,
+  - Rename column `created_at_ix` to `activated_at_ix`, and `archived_at_ix` to `deactivated_at_ix`, in the `__contracts` table.
+  - Add the multi-sync columns `reassignment_counter`, `synchronizer_id` in the `__contracts` table.
   - Drop the internal `__archives` view.
   - Drop the `__tmp_archived_contracts` and replace with `__tmp_deactivated_contracts` for internal use by the PQS pipeline.
 - _V047__Create_reassignments_table.sql_: creates the `__reassignment_type` enum and the list-partitioned `__reassignments` table, then creates one partition per row already present in `__contract_tpe`. **[Impact: Instantaneous /< 1 min]**
