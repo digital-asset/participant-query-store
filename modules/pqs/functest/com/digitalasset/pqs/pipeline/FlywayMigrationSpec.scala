@@ -256,24 +256,24 @@ object FlywayMigrationSpec extends FuncTestStandalone:
       Expect:
         // The second reassignment deactivates the initial row and creates a new one
         Database
-          .__contracts(extraColumns = Seq("unassigned_at_ix", "reassignment_counter", "synchronizer_id"))
+          .__contracts(extraColumns = Seq("deactivated_at_ix::text", "reassignment_counter::text", "synchronizer_id"))
           .returns(
             table {
-              anything | anything | contractId1 | "[1,3)" | 3 | 0 | null
-              anything | anything | contractId2 | "[2,)"  | 0 | 0 | null
-              anything | anything | contractId1 | "[4,)"  | 0 | 2 | sync1.id
+              anything | anything | contractId1 | "[1,3)" | "3"  | null | null
+              anything | anything | contractId2 | "[2,)"  | null | null | null
+              anything | anything | contractId1 | "[4,)"  | null | "2"  | sync1.id
             }
           )
       Expect:
         Database
           .active(
             Some(s"${pingPong.name}:PingPong:Ping"),
-            extraColumns = Seq("reassignment_counter", "synchronizer_id")
+            extraColumns = Seq("reassignment_counter::text", "synchronizer_id")
           )
           .returns(
             table {
-              anything | s"${pingPong.name}:PingPong:Ping" | "template" | contractId2 | 0 | null
-              anything | s"${pingPong.name}:PingPong:Ping" | "template" | contractId1 | 2 | sync1.id
+              anything | s"${pingPong.name}:PingPong:Ping" | "template" | contractId2 | null | null
+              anything | s"${pingPong.name}:PingPong:Ping" | "template" | contractId1 | "2"  | sync1.id
             }
           )
 
@@ -292,7 +292,7 @@ object FlywayMigrationSpec extends FuncTestStandalone:
 
   private def legacyActive(fqn: String)(columns: String*) =
     val select = SqlFragment.select(columns*)
-    Postgres.query(sql"$select from active($fqn) order by activated_at_ix")
+    Postgres.query(sql"$select from active($fqn) order by created_at_ix")
 
   private def createContract(party: Party, sync: Synchronizer) =
     val args = Record.defaultInstance.addFields(RecordField("owner", Some(Value(Value.Sum.Party(party.id)))))

@@ -130,8 +130,8 @@ object RpidTwoParticipantSpec extends FuncTestStandalone:
         storageContracts() `returns` table {
           "representative_package_id" | "creation_package_id" | "status"
           ---                         | ---                   | ---
-          v2Dar.get.packageId         | v1Dar.get.packageId   | "archived"
-          v2Dar.get.packageId         | null                  | "archived"
+          v2Dar.get.packageId         | v1Dar.get.packageId   | "archive"
+          v2Dar.get.packageId         | null                  | "archive"
         }
   )
 
@@ -214,7 +214,7 @@ object RpidTwoParticipantSpec extends FuncTestStandalone:
     sql"""SELECT
             p.id as representative_package_id,
             c.creation_package_id,
-            coalesce(deactivation_type, 'active') as status
+            coalesce(deactivation_type::text, 'active') as status
           FROM __contracts c
           JOIN __packages p ON c.package_pk = p.pk
           ORDER BY activated_at_ix"""
