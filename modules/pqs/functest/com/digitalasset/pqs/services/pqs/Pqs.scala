@@ -6,20 +6,16 @@ package com.digitalasset.pqs.services.pqs
 import com.digitalasset.pqs.docker
 import com.digitalasset.pqs.docker.*
 import com.digitalasset.pqs.functest.FuncTest
-import com.digitalasset.pqs.postgres.document.Prune
+import com.digitalasset.pqs.services.inspectMaybe
 import com.digitalasset.pqs.services.daml.*
 import com.digitalasset.pqs.services.o11y.Collector
 import com.digitalasset.pqs.services.oauth.OAuth
 import com.digitalasset.pqs.services.postgres.*
 import com.digitalasset.pqs.utils.safeequals.=/=
-import org.semver4j.Semver
 import os.Shellable
 import zio.stream.ZStream
-import zio.test.{TestResult, assert}
-import zio.test.Assertion.isRight
-import zio.{ExitCode, Tag, ZEnvironment, ZIO, ZLayer, durationInt}
-import scala.math.Ordered.orderingToOrdered
-import zio.Duration
+import zio.test.*
+import zio.*
 
 /** Service representing Pqs data pipeline */
 trait Pipeline
@@ -30,16 +26,17 @@ object Pipeline:
     "(* & !(AdminWorkflows:* | AdminWorkflowsWithVacuuming:* | canton-builtin-admin-workflow-ping:*))"
 
 /** Result of execution of a command line interface based command */
-case class CliRun(exitCode: ExitCode, io: ZStream[Any, Throwable, StdIO])
+case class CliRun(exitCode: ExitCode, io: ZStream[Any, Throwable, StdIO], duration: Duration)
 
 object CliRun:
   def fromSvc(svc: ZEnvironment[Service[?]]): ZLayer[Any, Throwable, CliRun] =
-    ZLayer.fromZIO(for exitCode <- svc.get.exitCode yield CliRun(exitCode, svc.get.io))
+    ZLayer.fromZIO(for state <- svc.get.exit yield CliRun(state.code, svc.get.io, state.duration))
 
-  def fromSvcExpectSuccess(svc: ZEnvironment[Service[?]]): ZLayer[Any, Throwable, CliRun] =
-    ZLayer.fromZIO(for
-      exitCode <- svc.get.exitCode
-      _ <- ZIO.when(exitCode =/= ExitCode.success)(
+  /** Awaits the (already running) service's process exit, failing if it terminates with a non-zero exit code. */
+  def expectSuccess(svc: ZEnvironment[Service[?]]): ZLayer[Any, Throwable, CliRun] = ZLayer.fromZIO(
+    for
+      exit <- svc.get.exit
+      _ <- ZIO.when(exit.code =/= ExitCode.success)(
         svc.get.io
           .collect { case StdIO.Err(line) => line }
           .takeRight(20)
@@ -48,23 +45,25 @@ object CliRun:
           .flatMap(stderr =>
             ZIO.fail(
               RuntimeException(
-                s"""|Pqs pipeline exited with non-zero exit code: $exitCode
+                s"""|PQS exited with non-zero exit code: ${exit.code}
                     |Last stderr:
                     |$stderr""".stripMargin
               )
             )
           )
       )
-    yield CliRun(exitCode, svc.get.io))
+    yield CliRun(exit.code, svc.get.io, exit.duration)
+  )
 
 object Pqs extends Pqs:
+  private val suffix: String       = sys.env.getOrElse("PQS_IMAGE_TAG_SUFFIX", "")
   override def version: PqsVersion = PqsVersion.Latest
-  override def image: String       = localPqsDockerImage
+  override def image: String       = s"pqs$suffix"
   override def user: Option[Int]   = Some(65532)
   override def envPrefix: String   = "PQS_"
 
 object Pqs36 extends Pqs:
-  override def version: PqsVersion = PqsVersion("3.6.0")
+  override def version: PqsVersion = PqsVersion("3.6.1")
   override def image: String     = s"europe-docker.pkg.dev/da-images/public-all/docker/participant-query-store:$version"
   override def user: Option[Int] = Some(1001)
   override def envPrefix: String = "PQS_"
@@ -93,13 +92,33 @@ trait Pqs:
 
   /** Pqs Pipeline Service wrapped into Layer */
   def pipeline(extraArgs: String*): ZLayer[
-    Docker & Parties & Postgres & Database & Ledger & DarFile,
+    Docker & Parties & Postgres & Database & Ledger,
     Throwable,
     Service[Pipeline]
   ] = attemptPipeline(extraArgs*).tap(_.get.blockUntilStdOut(_.contains("Continuing from offset")))
 
+  /** Run pipeline and wrap the result into Layer. Fails the layer if the pipeline exits with a non-zero exit code. */
+  def runPipeline(extraArgs: String*): ZLayer[
+    Docker & Parties & Postgres & Database & Ledger,
+    Throwable,
+    CliRun
+  ] = runPipeline(ContainerLimits.unlimited)(extraArgs*)
+
+  /** Run pipeline and wrap the result into Layer. Fails the layer if the pipeline exits with a non-zero exit code. */
+  def runPipeline(limits: ContainerLimits)(extraArgs: String*): ZLayer[
+    Docker & Parties & Postgres & Database & Ledger,
+    Throwable,
+    CliRun
+  ] = attemptPipeline(limits)(extraArgs*).flatMap(CliRun.expectSuccess)
+
   def attemptPipeline(extraArgs: String*): ZLayer[
-    Docker & Parties & Postgres & Database & Ledger & DarFile,
+    Docker & Parties & Postgres & Database & Ledger,
+    Throwable,
+    Service[Pipeline]
+  ] = attemptPipeline(ContainerLimits.unlimited)(extraArgs*)
+
+  def attemptPipeline(limits: ContainerLimits)(extraArgs: String*): ZLayer[
+    Docker & Parties & Postgres & Database & Ledger,
     Throwable,
     Service[Pipeline]
   ] = conf.flatMap(conf =>
@@ -109,7 +128,8 @@ trait Pqs:
         env = conf.get._1,
         prepopulateFiles = conf.get._2,
         exposePorts = Set(Pipeline.healthPort),
-        user = user
+        user = user,
+        limits = limits
       )(
         "pipeline",
         "ledger",
@@ -118,15 +138,12 @@ trait Pqs:
       )
   )
 
-  def prune(extraArgs: String*): ZLayer[
-    Docker & Parties & Postgres & Database & Ledger & DarFile,
-    Throwable,
-    Service[Prune]
-  ] =
+  private def datastore(args: String*) =
     val layer = ZLayer.fromZIO {
       for
         pg                <- ZIO.service[Postgres]
         dbName            <- ZIO.service[Database]
+        ledger            <- ZIO.service[Ledger]
         ca                <- Docker.certificateAuthority
         clientCertificate <- ca.generate("pqs")
         files = Seq(
@@ -144,23 +161,25 @@ trait Pqs:
           "POSTGRES_TLS_MODE"   -> "VerifyFull",
           "POSTGRES_TLS_KEY"    -> "/tls/client.der",
           "POSTGRES_TLS_CERT"   -> "/tls/client.crt",
-          "POSTGRES_TLS_CAFILE" -> "/tls/root-ca.crt"
+          "POSTGRES_TLS_CAFILE" -> "/tls/root-ca.crt",
+          "LEDGER_HOST"         -> ledger.container.hostName,
+          "LEDGER_PORT"         -> CantonConf.participantPort,
+          "LEDGER_TLS_KEY"      -> "/tls/client.pem",
+          "LEDGER_TLS_CERT"     -> "/tls/client.crt",
+          "LEDGER_TLS_CAFILE"   -> "/tls/root-ca.crt",
+          "LOGGER_DESTINATION"  -> "/tmp/output.log"
         )
         namespaced    = unprefixedBase.map { case (k, v) => s"PQS_$k" -> v }
         daDiagnostics = Map("DA_DIAGNOSTICS_ENABLED" -> "false")
       yield (daDiagnostics ++ namespaced) -> files
     }
     layer.flatMap(env =>
-      Docker.service[Prune](
-        image = localPqsDockerImage,
+      Docker.service[Unit](
+        image = image,
         env = env.get._1,
-        prepopulateFiles = env.get._2
-      )(
-        "datastore",
-        "postgres-document",
-        "prune",
-        extraArgs
-      )
+        prepopulateFiles = env.get._2,
+        user = user
+      )("datastore", "postgres-document", args)
     )
 
   private val conf = ZLayer.fromZIO(
@@ -169,21 +188,16 @@ trait Pqs:
       clientCertificate <- ca.generate("pqs")
       ledger            <- ZIO.service[Ledger]
       pg                <- ZIO.service[Postgres]
-      oauthInstance     <- Docker.inspectMaybe[OAuth.Instance]
-      collectorInstance <- Docker.inspectMaybe[Collector.Instance]
+      oauthInstance     <- inspectMaybe[Service[OAuth.Instance]]
+      collectorInstance <- inspectMaybe[Service[Collector.Instance]]
       database          <- ZIO.service[Database]
       parties           <- ZIO.service[Parties]
-      dar               <- ZIO.service[DarFile]
+      dar               <- inspectMaybe[DarFile]
       partyIds = parties.get.map(_.id)
 
       unprefixedBase = Map(
-        "SOURCE_LEDGER_CACHEDIR" -> "/ft/pqs-cache",
-        "HEALTH_PORT"            -> Pipeline.healthPort,
-        "PIPELINE_FILTER_CONTRACTS" -> (
-          if version.semVer >= Semver.parse("0.4.0")
-          then dar.packageInfo.map((name, _, _) => s"$name:*").mkString("|")
-          else dar.packageInfo.map((_, _, id) => s"$id:*").mkString("|")
-        ),
+        "SOURCE_LEDGER_CACHEDIR"     -> "/ft/pqs-cache",
+        "HEALTH_PORT"                -> Pipeline.healthPort,
         "SOURCE_LEDGER_HOST"         -> ledger.container.hostName,
         "SOURCE_LEDGER_PORT"         -> CantonConf.participantPort,
         "TARGET_POSTGRES_HOST"       -> pg.container.hostName,
@@ -200,7 +214,9 @@ trait Pqs:
         "TARGET_POSTGRES_TLS_CAFILE" -> "/tls/root-ca.crt",
         "LOGGER_LEVEL"               -> "Info"
       )
-
+      unprefixedFilterContract = dar.fold(Map.empty) { dar =>
+        Map("PIPELINE_FILTER_CONTRACTS" -> dar.packageInfo.map((name, _, _) => s"$name:*").mkString("|"))
+      }
       unprefixedOauth = oauthInstance.fold(Map("PIPELINE_FILTER_PARTIES" -> partyIds.mkString("|"))) { oauth =>
         Map(
           "PIPELINE_OAUTH_CLIENTSECRET" -> "clientsecret",
@@ -223,7 +239,9 @@ trait Pqs:
         )
       )
 
-      namespaced    = (unprefixedBase ++ unprefixedOauth).map { case (k, v) => s"$envPrefix$k" -> v }
+      namespaced = (unprefixedBase ++ unprefixedFilterContract ++ unprefixedOauth).map {
+        case (k, v) => s"$envPrefix$k" -> v
+      }
       daDiagnostics = Map("DA_DIAGNOSTICS_ENABLED" -> "false")
     yield (
       daDiagnostics ++ namespaced ++ telemetry,
@@ -236,22 +254,21 @@ trait Pqs:
     )
   )
 
-  /** Run pipeline and wrap the result into Layer. Fails the layer if the pipeline exits with a non-zero exit code. */
-  def runPipeline(extraArgs: String*): ZLayer[
-    Docker & Parties & Postgres & Database & Ledger & DarFile,
-    Throwable,
-    CliRun
-  ] = attemptPipeline(extraArgs*).flatMap(CliRun.fromSvcExpectSuccess)
-
   def runPrune(extraArgs: String*): ZLayer[
-    Docker & Parties & Postgres & Database & Ledger & DarFile,
+    Docker & Parties & Postgres & Database & Ledger,
     Throwable,
     CliRun
-  ] = prune(extraArgs*).flatMap(CliRun.fromSvc)
+  ] = datastore(Seq("prune") ++ extraArgs*).flatMap(CliRun.fromSvc)
+
+  val applySchema: ZLayer[
+    Docker & Parties & Postgres & Database & Ledger,
+    Throwable,
+    CliRun
+  ] = datastore("schema", "apply").flatMap(CliRun.expectSuccess)
 
   /** Run CLI command in Pqs and wrap the result into Layer */
   def run(cmd: Shellable*): ZLayer[Docker, Throwable, CliRun] =
-    Docker.service[Unit](image = localPqsDockerImage)(cmd).flatMap(CliRun.fromSvc)
+    Docker.service[Unit](image = image)(cmd).flatMap(CliRun.fromSvc)
 
   val exitCode: ZIO[CliRun | Service[Pipeline], Throwable, ExitCode] =
     ZIO.serviceWithZIO[CliRun | Service[Pipeline]] {
@@ -294,7 +311,7 @@ trait Pqs:
         // This is to avoid hanging tests when the expected line is never emitted in an infinite stream.
         .raceFirst(ZIO.sleep(duration).as(Left(timeoutMessage)))
         // The failure text is coming in Left.
-        .map(result => assert(result)(isRight.label(result.left.getOrElse(""))))
+        .map(result => assert(result)(Assertion.isRight.label(result.left.getOrElse(""))))
     )
 
   /** Asserts that the pipeline has encountered an unknown package and is retrying to discover it.

@@ -3,7 +3,7 @@
 
 package com.digitalasset.pqs.health
 
-import com.digitalasset.pqs.docker.Docker
+import com.digitalasset.pqs.docker.Service
 import com.digitalasset.pqs.services.pqs.Pipeline
 import com.digitalasset.pqs.utils.safeequals.===
 import zio.ZIO
@@ -12,8 +12,8 @@ import zio.json.ast.Json
 
 object HealthEndpoint:
   private def callHealthEndpoint(path: String) =
-    Docker
-      .inspect[Pipeline]
+    ZIO
+      .service[Service[Pipeline]]
       .flatMap(pipeline =>
         ZIO
           .scoped(

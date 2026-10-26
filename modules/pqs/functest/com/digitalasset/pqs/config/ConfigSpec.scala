@@ -133,7 +133,7 @@ object ConfigSpec extends FuncTestStandalone:
 
   def runPqs(env: Map[String, Any], args: Seq[String] = Seq.empty): ZLayer[Docker, Throwable, CliRun] =
     Docker
-      .service[Unit](image = localPqsDockerImage, env = env)(
+      .service[Unit](image = Pqs.image, env = env)(
         "pipeline",
         "ledger",
         "postgres-document",
