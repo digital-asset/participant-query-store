@@ -34,7 +34,7 @@ object TokenService:
   private def oauthEndpoint(hostname: String, port: Int): URI =
     URI(s"https://$hostname:$port/issuer1/token")
 
-  val oauth = ZIO.service[Service[OAuth.Instance]]
+  private val oauth = ZIO.service[Service[OAuth.Instance]]
 
   val live: RLayer[Docker & Service[OAuth.Instance], TokenService] =
     val clientParams = ZLayer.fromZIO(caCertFile.map(f => AuthTokenService.HttpClientParams(Some(f))))
