@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "metals": {
+      "type": "stdio",
+      "command": "metals-mcp",
+      "args": ["--workspace", ".", "--transport", "stdio", "--default-bsp-to-build-tool"]
+    }
+  }
+}
