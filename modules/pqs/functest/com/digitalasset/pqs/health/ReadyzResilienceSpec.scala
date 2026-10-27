@@ -25,6 +25,9 @@ import scala.language.{implicitConversions, postfixOps}
   */
 object ReadyzResilienceSpec extends FuncTestStandalone:
 
+  // Stopping or pausing a container and waiting for PQS to notice can exceed the default step timeout
+  override protected def instructionTimeout = 60.seconds
+
   def spec = suite("readyz resilience")(
     funcTest("Postgres failure and recovery"):
       val alice = Party("Alice")

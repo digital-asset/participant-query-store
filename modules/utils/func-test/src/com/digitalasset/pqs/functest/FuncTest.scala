@@ -14,12 +14,12 @@ import scala.collection.mutable
 import scala.compiletime.uninitialized
 
 object FuncTest:
-  private val layerTimeout       = 5.minutes
-  private val instructionTimeout = 30.seconds
+  private val layerTimeout              = 5.minutes
+  private val defaultInstructionTimeout = 30.seconds
 
   def retryUntilTimeout[R, E](
       io: ZIO[R, E, TestResult],
-      timeout: Duration = instructionTimeout
+      timeout: Duration = defaultInstructionTimeout
   ): ZIO[R, E, TestResult] =
     val retryFailures = Schedule.identity[TestResult].whileInput(_.isFailure)
     val log = Schedule.identity[TestResult].tapOutput { tr =>
@@ -38,6 +38,9 @@ abstract class FuncTest[FR: EnvironmentTag] extends ZIOSpec[FTEnv & Dpm & Docker
 
   def shared: ZLayer[FTEnv & Dpm & Docker, Throwable, FR]
   val sharedTag = summon[EnvironmentTag[FR]]
+
+  /** Default timeout of a `When`, `Expect`, `Then` or `And` step; override to change it for a whole spec. */
+  protected def instructionTimeout: Duration = FuncTest.defaultInstructionTimeout
 
   def specName: String = getClass.getSimpleName.replaceAll("\\$", "")
 
@@ -116,12 +119,12 @@ abstract class FuncTest[FR: EnvironmentTag] extends ZIOSpec[FTEnv & Dpm & Docker
   // Interactions
   private def interactWithoutAssertion[R](
       io: => ZIO[R, Throwable, Any],
-      timeout: Duration = FuncTest.instructionTimeout
+      timeout: Duration = instructionTimeout
   )(implicit ctx: Ctx[?, ? <: R], trace: Trace) =
     assert(io.as(zio.test.assertCompletes), timeout)
   private def assert[R](
       io: => ZIO[R, Throwable, TestResult],
-      timeout: Duration = FuncTest.instructionTimeout
+      timeout: Duration = instructionTimeout
   )(implicit ctx: Ctx[?, ? <: R], trace: Trace) =
     ctx.instructions.append(
       ZIO.suspend(io.timeoutFail(TestTimeoutException("Test instruction timed out"))(timeout))
