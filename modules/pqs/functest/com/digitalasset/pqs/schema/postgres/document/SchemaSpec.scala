@@ -3,6 +3,7 @@
 
 package com.digitalasset.pqs.schema.postgres.document
 
+import com.digitalasset.pqs.Dars
 import com.digitalasset.pqs.SharedLedgerAndPostgresTest
 import com.digitalasset.pqs.functest.matchers.*
 import com.digitalasset.pqs.functest.table.*
@@ -17,17 +18,6 @@ import zio.test.Assertion.equalTo
 import scala.language.{implicitConversions, postfixOps}
 
 object SchemaSpec extends SharedLedgerAndPostgresTest:
-  val interfaces = DamlSource(
-    "Interfaces" -> """module Interfaces where
-                      |
-                      |interface IPingable
-                      |  where
-                      |    viewtype VPingable
-                      |
-                      |data VPingable = VPingable with sender: Party
-                      |  deriving (Eq, Ord, Show)
-                      |""".stripMargin
-  )
   val pingPong = DamlSource(
     "PingPong" -> """module PingPong where
                     |
@@ -44,7 +34,7 @@ object SchemaSpec extends SharedLedgerAndPostgresTest:
                     |    interface instance IPingable for Ping where
                     |      view = VPingable with sender = sender
                     |""".stripMargin
-  ).dependsOn(interfaces)
+  ).dependsOn(Dars.pingableInterfaces)
 
   private def context =
     DamlSdk.parties(Party("Alice")) ++ Postgres.database ++ DamlSdk.deploy(pingPong)

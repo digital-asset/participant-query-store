@@ -4,6 +4,7 @@
 package com.digitalasset.pqs.features
 
 import com.daml.ledger.api.v2.value.*
+import com.digitalasset.pqs.Dars
 import com.digitalasset.pqs.SharedLedgerAndPostgresTest
 import com.digitalasset.pqs.docker.Docker
 import com.digitalasset.pqs.functest.matchers.*
@@ -18,19 +19,6 @@ import zio.{ZIO, ZLayer}
 import scala.language.{implicitConversions, postfixOps}
 
 object OrphanedPackageDecodingSpec extends SharedLedgerAndPostgresTest:
-  private val pingPong = DamlSource(
-    "PingPong" -> """module PingPong where
-                    |
-                    |import Daml.Script
-                    |import DA.Functor (void)
-                    |
-                    |template Ping
-                    |  with
-                    |    sender: Party
-                    |  where
-                    |    signatory sender
-                    |""".stripMargin
-  )
 
   def spec = suite("Orphaned package decoding")(
     orphanedDecoding("Contract of an unvetted package is decoded - updates stream", acsStream = false),
@@ -39,7 +27,7 @@ object OrphanedPackageDecodingSpec extends SharedLedgerAndPostgresTest:
 
   private def orphanedDecoding(label: String, acsStream: Boolean) = funcTest(label):
     val alice       = Party("Alice")
-    val orphaned    = pingPong.withNameSuffix(if acsStream then "orphaned-acs" else "orphaned-updates")
+    val orphaned    = Dars.pingPong.withNameSuffix(if acsStream then "orphaned-acs" else "orphaned-updates")
     val dar         = Capture[DarFile]
     val contractId  = Capture[String]
     val templateFqn = s"${orphaned.name}:PingPong:Ping"

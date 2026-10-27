@@ -3,32 +3,21 @@
 
 package com.digitalasset.pqs.logging
 
+import com.digitalasset.pqs.Dars
 import com.digitalasset.pqs.SharedLedgerAndPostgresTest
 import com.digitalasset.pqs.functest.FuncTest
 import com.digitalasset.pqs.functest.matchers.*
-import com.digitalasset.pqs.services.daml.{DamlSdk, DamlSource, DarFile, Party}
+import com.digitalasset.pqs.services.daml.{DamlSdk, DarFile, Party}
 import com.digitalasset.pqs.services.postgres.Postgres
 import com.digitalasset.pqs.services.pqs.Pqs
 import zio.test.Assertion.not
 
 object LoggingSpec extends SharedLedgerAndPostgresTest:
-  val pingPong = DamlSource(
-    "PingPong" -> """module PingPong where
-                    |
-                    |template Ping
-                    |  with
-                    |    sender: Party
-                    |    receiver: Party
-                    |  where
-                    |    signatory sender
-                    |    observer receiver
-                    |""".stripMargin
-  )
 
   def context =
     val alice = Party("Alice")
     DamlSdk.parties(alice) ++ Postgres.database
-      >+> DamlSdk.deploy(pingPong)
+      >+> DamlSdk.deploy(Dars.pingPong)
 
   def spec = suite("Logging")(
     suite("console-based logging")(
