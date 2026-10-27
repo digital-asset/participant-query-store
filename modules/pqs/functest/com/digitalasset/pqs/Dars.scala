@@ -48,11 +48,6 @@ private[pqs] object Dars:
          |createMessage (alice, bob, text) = void do
          |  submitMulti [alice, bob] [] $ createCmd Message with sender = alice, receiver = bob, text = text
          |
-         |-- test Archive edge case, create another contract with implicit Archive in the same module
-         |template ArchiveTest
-         |  with nobody: Party
-         |  where signatory nobody
-         |
          |createAndArchiveMessage : (Party, Party, Text) -> Script ()
          |createAndArchiveMessage (alice, bob, text) = void do
          |  cid <- submitMulti [alice, bob] [] $ createCmd Message with sender = alice, receiver = bob, text = text
