@@ -57,10 +57,10 @@ object OAuthProxySpec
     Postgres.database ++ DamlSdk.parties(Party("Alice"))
 
   private val proxyUrl =
-    Docker.inspect[ForwardProxy.Instance].map(i => s"http://${i.container.hostName}:${ForwardProxy.port}")
+    ZIO.service[Service[ForwardProxy.Instance]].map(i => s"http://${i.container.hostName}:${ForwardProxy.port}")
 
   private val oauthUrl =
-    Docker.inspect[OAuth.Instance].map(i => s"https://${i.container.hostName}:${OAuth.port}/issuer1/token")
+    ZIO.service[Service[OAuth.Instance]].map(i => s"https://${i.container.hostName}:${OAuth.port}/issuer1/token")
 
   def spec = suite("oauth-proxy")(
     funcTest("pipeline acquires token through proxy"):

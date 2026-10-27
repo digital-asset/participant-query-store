@@ -4,8 +4,9 @@
 package com.digitalasset.pqs.services.daml
 
 import com.digitalasset.transcode.schema.{PackageId, PackageName, PackageVersion}
-import com.digitalasset.pqs.docker.Docker
+import com.digitalasset.pqs.docker.{Docker, Service}
 import com.digitalasset.pqs.functest.{Dpm, FTConfig, FTEnv}
+import com.digitalasset.pqs.services.inspectMaybe
 import com.digitalasset.pqs.services.daml
 import com.digitalasset.pqs.services.oauth.OAuth
 import org.semver4j.Semver
@@ -148,7 +149,7 @@ object DamlSdk:
     ZLayer.fromZIO(
       for
         partyCounter  <- Docker.share("party_cnt")(Ref.Synchronized.make(0)).flatMap(_.updateAndGet(_ + 1))
-        oauthInstance <- Docker.inspectMaybe[OAuth.Instance]
+        oauthInstance <- inspectMaybe[Service[OAuth.Instance]]
         parties <- ZIO.foreach(partySynchronizers) { (party, synchronizers) =>
           val hint = s"${party.prefix}_$partyCounter"
           for

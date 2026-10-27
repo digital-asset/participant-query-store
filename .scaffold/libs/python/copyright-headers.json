@@ -4,6 +4,7 @@
   "excludes": [
     ".scaffold/libs/bash/shared_functions",
     ".github/",
+    "*.gitattributes",
     "*.gitignore",
     "*.md",
     "*.txt",

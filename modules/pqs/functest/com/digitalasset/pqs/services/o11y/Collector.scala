@@ -4,7 +4,7 @@
 package com.digitalasset.pqs.services.o11y
 
 import com.digitalasset.pqs.docker.{Docker, Service}
-import zio.ZLayer
+import zio.{ZIO, ZLayer}
 
 object Collector {
   trait Instance
@@ -30,9 +30,9 @@ object Collector {
 
   private val configFiles = ZLayer.fromZIO(
     for
-      tempo      <- Docker.inspect[Tempo.Instance]
-      loki       <- Docker.inspect[Loki.Instance]
-      prometheus <- Docker.inspect[Prometheus.Instance]
+      tempo      <- ZIO.service[Service[Tempo.Instance]]
+      loki       <- ZIO.service[Service[Loki.Instance]]
+      prometheus <- ZIO.service[Service[Prometheus.Instance]]
     yield Seq(
       os.root / "etc" / "otel-collector" / "config.yml" ->
         s"""|receivers:

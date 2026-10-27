@@ -30,7 +30,7 @@ package object millbuild {
 
     // Pulled transitively by Flyway
     // Force specific version to address vulnerabilities
-    val jackson3 = "3.2.2"
+    val jackson3 = "3.2.4"
 
     // Pulled transitively by azure-identity
     // Force specific version to address vulnerabilities

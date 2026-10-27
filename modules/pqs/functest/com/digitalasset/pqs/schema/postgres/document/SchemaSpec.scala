@@ -55,12 +55,7 @@ object SchemaSpec extends SharedLedgerAndPostgresTest:
           } `returns` ()
         And:
           for
-            tpe_pk <-
-              Postgres
-                .get {
-                  sql"select __contract_tpe4name($contractName);"
-                }
-                .map(_.get)
+            tpe_pk <- Postgres.get[String](sql"select __contract_tpe4name($contractName)")
             result <- Postgres query {
               sql"""select
                           c.relname as table_name,
@@ -89,21 +84,13 @@ object SchemaSpec extends SharedLedgerAndPostgresTest:
           Pqs.runPipeline("--pipeline-ledger-stop=Latest")
         Then:
           for
-            tpe_pk <- Postgres
-              .get {
-                sql"select __contract_tpe4name($contractName);"
-              }
-              .map(_.get)
-            queryConcurrently <- Postgres
-              .get {
-                sql"select print_create_index_for_contract($indexName, $contractName, $indexExpression, $indexType);"
-              }
-              .map(_.get)
-            query <- Postgres
-              .get {
-                sql"select print_create_index_for_contract($indexName, $contractName, $indexExpression, $indexType, use_concurrently => false);"
-              }
-              .map(_.get)
+            tpe_pk <- Postgres.get[String](sql"select __contract_tpe4name($contractName)")
+            queryConcurrently <- Postgres.get[String](
+              sql"select print_create_index_for_contract($indexName, $contractName, $indexExpression, $indexType)"
+            )
+            query <- Postgres.get[String](
+              sql"select print_create_index_for_contract($indexName, $contractName, $indexExpression, $indexType, use_concurrently => false)"
+            )
           yield zio.test.assert(queryConcurrently)(
             equalTo(
               s"""create index concurrently if not exists "__contracts_${tpe_pk}_${indexName}_idx" on __contracts_$tpe_pk using $indexType($indexExpression )"""

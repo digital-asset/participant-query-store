@@ -1,0 +1,28 @@
+name: Performance
+on:
+  schedule:
+    - cron: "0 2 * * *" # Nightly at 02:00 UTC
+  workflow_dispatch: # Enables manual triggering
+
+env:
+  MILL_OPTS: "-Dcoursier.cache.dir=/data/coursier"
+
+defaults:
+  run:
+    shell: bash -euo pipefail -c "source nix.source && exec bash -euo pipefail {0}"
+
+jobs:
+  perf-test:
+    runs-on: digital-asset-participant-query-store
+    steps:
+      - uses: actions/checkout@v5
+      - uses: ./.github/actions/nix
+      - name: git lfs pull
+        run: git lfs install --local && git lfs pull
+      - uses: ./.github/actions/gen-version
+        id: gen-version
+      - run: make prefetch-deps
+      - name: Build & Package
+        run: make build package
+      - name: Perf tests
+        run: make perf-test

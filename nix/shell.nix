@@ -16,6 +16,7 @@ let
     file
     gawk
     git
+    git-lfs
     gh
     gnugrep
     gnused
