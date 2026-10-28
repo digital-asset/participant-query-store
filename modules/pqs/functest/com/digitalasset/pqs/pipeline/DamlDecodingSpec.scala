@@ -76,5 +76,5 @@ object DamlDecodingSpec extends SharedLedgerAndPostgresTest:
               anything | s"$packageName:Void:T2" | "template" | anything | cid.get
             }
           )
-    } @@ DamlSdk.onlyCantonVersion(">=3.5.2")
+    }
   )
