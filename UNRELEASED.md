@@ -12,7 +12,7 @@ This release includes the following SQL migrations:
 - [V044__Add_reassignment_event_types.sql](https://github.com/digital-asset/participant-query-store/blob/main/modules/postgres/document/resources/db/migration/V044__Add_reassignment_event_types.sql):a dds the `assign` and `unassign` labels to the `__event_type` enum. Metadata-only, no table is scanned or rewritten. **[Impact: Instantaneous]**
 - [V045__Rename_domain_id_to_synchronizer_id.sql](https://github.com/digital-asset/participant-query-store/blob/main/modules/postgres/document/resources/db/migration/V045__Rename_domain_id_to_synchronizer_id.sql): renames the `domain_id` column of `__transactions` to `synchronizer_id`. Metadata-only, no table is scanned or rewritten. **[Impact: Instantaneous]**
 - [V046__Add_multisync_contract_columns.sql](https://github.com/digital-asset/participant-query-store/blob/main/modules/postgres/document/resources/db/migration/V046__Add_multisync_contract_columns.sql) **[Impact: Instantaneous]**:
-  - Define the `__activation_type` and `__deactivation_type` enums for the new `activation_type` and `deactivation_type` columns in the `__contracts` table.
+  - Define the `activation_type` and `deactivation_type` enums for the new `activation_type` and `deactivation_type` columns in the `__contracts` table.
   - Rename column `created_at_ix` to `activated_at_ix`, and `archived_at_ix` to `deactivated_at_ix`, in the `__contracts` table.
   - Add the multi-sync columns `reassignment_counter`, `synchronizer_id` in the `__contracts` table.
   - Drop the internal `__archives` view.
@@ -29,9 +29,9 @@ This release includes the following SQL migrations:
 - PQS now subscribes to reassignments in addition to transactions.
 - Every `Reassignment` received from the ledger is recorded in `__transactions`, and its `Assigned` and `Unassigned` events are recorded in `__events` with the new `assign` and `unassign` types.
 - Each `Assigned` and `Unassigned` event is also recorded in the new `__reassignments` table. The table is a standalone audit log of what the ledger reported about the reassignment itself.
-- An `Assigned` event creates a new row in the `__contracts` table. Instead of setting `created_at_ix` and `create_event_pk`, it sets `assigned_at_ix` and `assign_event_pk`.
-- An `Unassigned` event deactivates its corresponding row from the `__contracts` table. Instead of setting `archived_at_ix` and `archive_event_pk`, it sets `unassigned_at_ix` and `unassign_event_pk`.
-- `Created` and `Assigned` events from the ledger now set `reassignment_counter` and `synchronizer_id`. These columns are left empty in legacy rows (PQS 3.6 or older).
+- An `Assigned` event creates a new row in the `__contracts` table. It sets `activation_type='assign'`.
+- An `Unassigned` event deactivates its corresponding row from the `__contracts` table. It sets `deactivation_type='unassign'`.
+- `Created` and `Assigned` events from the ledger now set `reassignment_counter` and `synchronizer_id`. For legacy rows (PQS 3.6 or older), `synchronizer_id` is left empty and `reassignment_counter` defaults to `0`.
 - ACS import records contract that was reassigned onto its current synchronizer with an `assign` event.
 
 
@@ -39,14 +39,16 @@ This release includes the following SQL migrations:
 
 - The SQL `contract` type, describing the output of the `active`, `creates` and `archives` SQL functions, is modified with new columns:
 ```sql
-assign_event_pk bigint,
-assign_event_id event_id,
-assigned_at_ix bigint,
-assigned_at_offset bigint,
-unassign_event_pk bigint,
-unassign_event_id event_id,
-unassigned_at_ix bigint,
-unassigned_at_offset bigint,
+activate_event_pk bigint,
+activate_event_id event_id,
+activated_at_ix bigint,
+activated_at_offset bigint,
+activation_type activation_type,
+deactivate_event_pk bigint,
+deactivate_event_id event_id,
+deactivated_at_ix bigint,
+deactivated_at_offset bigint,
+deactivation_type deactivation_type,
 reassignment_counter bigint,
 synchronizer_id text;
 ```

@@ -117,28 +117,26 @@ select tpe.template_fqn,
        -- was always the creation package id.
        COALESCE(c.creation_package_id, p.id) as creation_package_id,
        c.contract_key_hash,
-       case when c.activation_type = 'assign' then c.activate_event_pk end as assign_event_pk,
-       case when c.activation_type = 'assign' then ae.event_id end as assign_event_id,
-       case when c.activation_type = 'assign' then c.activated_at_ix end as assigned_at_ix,
-       case when c.activation_type = 'assign' then at."offset" end as assigned_at_offset,
-       case when c.deactivation_type = 'unassign' then c.deactivate_event_pk end as unassign_event_pk,
-       case when c.deactivation_type = 'unassign' then de.event_id end as unassign_event_id,
-       case when c.deactivation_type = 'unassign' then c.deactivated_at_ix end as unassigned_at_ix,
-       case when c.deactivation_type = 'unassign' then dt."offset" end as unassigned_at_offset,
+       c.activate_event_pk,
+       ae.event_id,
+       c.activated_at_ix,
+       at."offset",
+       c.activation_type,
+       c.deactivate_event_pk,
+       de.event_id,
+       c.deactivated_at_ix,
+       dt."offset",
+       c.deactivation_type,
        c.reassignment_counter,
        c.synchronizer_id,
-       c.activated_at_ix,
-       c.activation_type,
-       c.deactivated_at_ix,
-       c.deactivation_type,
        c.tpe_pk
 from __contracts c
-         left join __contract_tpe tpe on tpe.pk = c.tpe_pk
-         left join __transactions at on at.ix = c.activated_at_ix
-         left join __transactions dt on dt.ix = c.deactivated_at_ix
-         left join __events ae on ae.pk = c.activate_event_pk
-         left join __events de on de.pk = c.deactivate_event_pk
-         left join __packages p on c.package_pk = p.pk
+    left join __contract_tpe tpe on tpe.pk = c.tpe_pk
+    left join __transactions at on at.ix = c.activated_at_ix
+    left join __transactions dt on dt.ix = c.deactivated_at_ix
+    left join __events ae on ae.pk = c.activate_event_pk
+    left join __events de on de.pk = c.deactivate_event_pk
+    left join __packages p on c.package_pk = p.pk
 where qname is null or c.tpe_pk = __contract_tpe4name(qname)
 $$ language sql stable
                 parallel safe;
@@ -1300,20 +1298,18 @@ $$
         c.divulged_only,
         c.creation_package_id,
         c.contract_key_hash,
-        c.assign_event_pk,
-        c.assign_event_id,
-        c.assigned_at_ix,
-        c.assigned_at_offset,
-        c.unassign_event_pk,
-        c.unassign_event_id,
-        c.unassigned_at_ix,
-        c.unassigned_at_offset, 
+        c.activate_event_pk,
+        c.activate_event_id,
+        c.activated_at_ix,
+        c.activated_at_offset,
+        c.activation_type,
+        c.deactivate_event_pk,
+        c.deactivate_event_id,
+        c.deactivated_at_ix,
+        c.deactivated_at_offset,
+        c.deactivation_type,
         c.reassignment_counter,
         c.synchronizer_id,
-        c.activated_at_ix,
-        c.activation_type,
-        c.deactivated_at_ix,
-        c.deactivation_type,
         c.tpe_pk
     from __contracts(qname) c
     where (c.deactivation_type is null or c.deactivation_type = 'archive')
