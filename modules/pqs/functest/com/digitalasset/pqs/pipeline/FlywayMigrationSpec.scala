@@ -263,7 +263,7 @@ object FlywayMigrationSpec extends FuncTestStandalone:
             table {
               anything | anything | contractId1 | "[1,3)" | "unassign" | "3"  | 0 | null
               anything | anything | contractId2 | "[2,)"  | null       | null | 0 | null
-              anything | anything | contractId1 | "[4,)"  | null       | null | 2  | sync1.id
+              anything | anything | contractId1 | "[4,)"  | null       | null | 2 | sync1.id
             }
           )
       Expect:
@@ -275,7 +275,7 @@ object FlywayMigrationSpec extends FuncTestStandalone:
           .returns(
             table {
               anything | s"${pingPong.name}:PingPong:Ping" | "template" | contractId2 | 0 | null
-              anything | s"${pingPong.name}:PingPong:Ping" | "template" | contractId1 | 2  | sync1.id
+              anything | s"${pingPong.name}:PingPong:Ping" | "template" | contractId1 | 2 | sync1.id
             }
           )
 

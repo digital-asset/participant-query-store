@@ -174,9 +174,9 @@ object ReassignmentSpec extends SharedMultiSyncLedgerSpec:
           >+> DamlSchema.protobufCodecs
           >+> Ledger.updateService ++ Ledger.stateService
 
-      val transactions       = Capture[Chunk[Transaction[Event]]]
+      val transactions = Capture[Chunk[Transaction[Event]]]
 
-      def assignTx   = transactions.get(2).copy(offset =  Offset.Absolute(1))
+      def assignTx   = transactions.get(2).copy(offset = Offset.Absolute(1))
       def archiveTx  = transactions.get(3).copy(offset = Offset.Absolute(2))
       def createTx   = transactions.get(0).copy(offset = Offset.Absolute(3))
       def unassignTx = transactions.get(1).copy(offset = Offset.Absolute(4))
@@ -202,8 +202,8 @@ object ReassignmentSpec extends SharedMultiSyncLedgerSpec:
           .returns(
             table {
               assignTx.offset.toLong   | sync2.id
-              archiveTx.offset.toLong   | sync2.id
-              createTx.offset.toLong    | sync1.id
+              archiveTx.offset.toLong  | sync2.id
+              createTx.offset.toLong   | sync1.id
               unassignTx.offset.toLong | sync1.id
             }
           )
@@ -288,7 +288,7 @@ object ReassignmentSpec extends SharedMultiSyncLedgerSpec:
           >+> DamlSchema.protobufCodecs
           >+> Ledger.updateService ++ Ledger.stateService
 
-      val transactions       = Capture[Chunk[Transaction[Event]]]
+      val transactions = Capture[Chunk[Transaction[Event]]]
 
       def createTx   = transactions.get(0).copy(offset = Offset.Absolute(1))
       def assignTx   = transactions.get(2).copy(offset = Offset.Absolute(2))
@@ -312,10 +312,10 @@ object ReassignmentSpec extends SharedMultiSyncLedgerSpec:
           .query(sql"""select "offset", synchronizer_id from __transactions order by "offset"""")
           .returns(
             table {
-              createTx.offset.toLong    | sync1.id
+              createTx.offset.toLong   | sync1.id
               assignTx.offset.toLong   | sync2.id
               unassignTx.offset.toLong | sync1.id
-              archiveTx.offset.toLong   | sync2.id
+              archiveTx.offset.toLong  | sync2.id
             }
           )
 
