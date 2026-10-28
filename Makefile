@@ -238,10 +238,10 @@ populate-component-yaml: ## Render dpm component.yaml
 publish-component: ## publish dpm component
 	dpm publish component \
 		-p generic=.dist/${PQS_VERSION}/ $(ASSISTANT_ARGS)/participant-query-store:$(patsubst v%,%,$(PQS_VERSION)) \
-		--extra-tags 3.6
+		--extra-tags 3.7
 	dpm publish component \
 		-p generic=.dist/${PQS_VERSION}/ $(ASSISTANT_ARGS)/scribe:$(patsubst v%,%,$(PQS_VERSION)) \
-		--extra-tags 3.6
+		--extra-tags 3.7
 
 ## Discovered Targets:
 ## The following is designed to generate all documented targets found in sub folders:
