@@ -89,7 +89,7 @@ db.new('Participant Query Store (PQS)')
     p.stat('Ledger events ingested *', qs.pipeline.count.all_events, width=6, height=4)
     + ptsOpts.withDescription('\\* as observed since last restart'),
     pts.latency('Transaction lag', qs.tx_lag)
-    + ptsOpts.withDescription('Delta between command completion as determined by transaction’s effective_at attribute and ingestion by PQS pipeline as determined by wall clock'),
+    + ptsOpts.withDescription('Delta between the record time of a transaction or reassignment and its ingestion by PQS pipeline as determined by wall clock'),
     pts.throughput('Watermark history', qs.watermark.throughput)
     + ptsOpts.withDescription('Rate of ledger transactions becoming available for querying by Read API functions'),
     pts.throughput('Transactions and events', qs.pipeline.throughput.all_entities)
