@@ -94,6 +94,7 @@ select t.ix,
        t.trace_context,
        t.external_transaction_hash,
        t.paid_traffic_cost,
-       t.synchronizer_id
+       t.synchronizer_id,
+       t.record_time
 from __transactions t
 where t."offset" between (select oldest_offset()) and (select latest_offset());
