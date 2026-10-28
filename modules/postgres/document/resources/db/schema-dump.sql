@@ -2103,7 +2103,8 @@ CREATE TABLE public.__transactions (
     synchronizer_id text,
     trace_context public.trace_context,
     external_transaction_hash bytea,
-    paid_traffic_cost bigint
+    paid_traffic_cost bigint,
+    record_time timestamp with time zone
 );
 ALTER TABLE ONLY public.__transactions ALTER COLUMN external_transaction_hash SET STORAGE EXTERNAL;
 
@@ -2507,6 +2508,13 @@ CREATE INDEX __transactions_ext_tx_hash_idx ON public.__transactions USING hash 
 --
 
 CREATE UNIQUE INDEX __transactions_offset_ix_idx ON public.__transactions USING btree ("offset", ix);
+
+
+--
+-- Name: __transactions_record_time_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX __transactions_record_time_idx ON public.__transactions USING brin (record_time);
 
 
 --

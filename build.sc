@@ -274,45 +274,52 @@ object `package` extends RootModule { root =>
 
     object test extends PqsTests
 
-    /** Control parallelism by passing in pools and lanes parameters, e.g. --pools 2 --lanes 4 */
-    object functest extends PqsTests with ScalafmtModule with WartRemoverModule {
-      // There isn't single source of truth for env var names.
-      // There is one in build system (here) and another on the test code side.
-      // Please keep them in sync if making any changes.
-      val PostgresVersionEnvVar       = "PQS_POSTGRESVERSION"
-      val DamlSdkVersionEnvVar        = "PQS_DAMLSDKVERSION"
-      val CantonVersionEnvVar         = "PQS_CANTONVERSION"
-      val CantonProtocolVersionEnvVar = "PQS_CANTONPROTOCOLVERSION"
-      val DamlLfTargetEnvVar          = "PQS_DAMLLFTARGET"
+    trait FuncTests extends PqsTests {
+      override def testFramework: T[String] = "com.digitalasset.pqs.functest.sbt.FTFramework"
 
-      // This is needed to prevent mill caching from storing env values from previous invocations
+      override def sources = Task.Sources {
+        super.sources().map(p => PathRef(p.path / os.up / os.up / moduleSegments.last.value))
+      }
+
+      // The environment variables passed to the Mill command when it is run.
+      // Wrapped inside a Task.input to prevent mill from caching the variables
       // https://mill-build.org/mill/fundamentals/tasks.html#_environment_variable_inputs
-      def functestEnvInput = Task.Input {
+      def envInput = Task.Input {
         Task.env
       }
 
-      override def testFramework: T[String] = "com.digitalasset.pqs.functest.sbt.FTFramework"
-
       override def forkEnv = T {
         pqs.docker.build()
-        val commonOverrides = Map(
-          PostgresVersionEnvVar     -> "17",
-          DamlSdkVersionEnvVar      -> V.damlc,
-          CantonVersionEnvVar       -> V.canton,
-          "PQS_IMAGE_TAG_SUFFIX" -> localImageSuffix()
+
+        // There isn't single source of truth for env var names.
+        // There is one in build system (here) and another on the test code side.
+        // Please keep them in sync if making any changes.
+        val ftConfig = Map(
+          "PQS_POSTGRESVERSION"     -> "17",
+          "PQS_DAMLSDKVERSION"      -> V.damlc,
+          "PQS_CANTONVERSION"       -> V.canton,
+          "PQS_CANTONPROTOCOLVERSION" -> "36",
+          "PQS_DAMLLFTARGET"          -> "2.4"
         )
-        val sdkOverrides = Map(
-          CantonProtocolVersionEnvVar -> "36",
-          DamlLfTargetEnvVar          -> "2.4"
+
+        val dockerImage = Map(
+          "PQS_IMAGE_TAG_SUFFIX" -> localImageSuffix(),
         )
-        commonOverrides ++ sdkOverrides ++ functestEnvInput() ++ super.forkEnv()
+
+        ftConfig ++ dockerImage ++ envInput() ++ super.forkEnv()
       }
 
-      override def sources   = Task.Sources { super.sources().map(p => PathRef(p.path / os.up / os.up / "functest")) }
-
       override def ivyDeps = T { super.ivyDeps() ++ Agg(L.sourceCode) }
+      override def moduleDeps = { super.moduleDeps ++ Seq(utils.`func-test`) }
+    }
+
+    /** Control parallelism by passing in pools and lanes parameters, e.g. --pools 2 --lanes 4 */
+    object functest extends FuncTests
+
+    /** The perftest module reuses the functest service infrastructure (Postgres / Daml / Canton) */
+    object perftest extends FuncTests {
       override def moduleDeps = {
-        super.moduleDeps ++ Seq(utils.`func-test`)
+        super.moduleDeps ++ Seq(functest)
       }
     }
   }

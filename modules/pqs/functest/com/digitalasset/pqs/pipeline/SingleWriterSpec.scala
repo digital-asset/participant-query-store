@@ -4,6 +4,7 @@
 package com.digitalasset.pqs.pipeline
 
 import com.daml.ledger.api.v2.value.{Record, RecordField, Value}
+import com.digitalasset.pqs.Dars
 import com.digitalasset.pqs.SharedLedgerAndPostgresTest
 import com.digitalasset.pqs.docker.{Docker, Service}
 import com.digitalasset.pqs.functest.matchers.*
@@ -19,16 +20,6 @@ import zio.test.*
 import zio.test.Assertion.*
 
 object SingleWriterSpec extends SharedLedgerAndPostgresTest:
-  private val pingPong = DamlSource(
-    "PingPong" -> """module PingPong where
-                    |
-                    |template Ping
-                    |  with
-                    |    sender: Party
-                    |  where
-                    |    signatory sender
-                    |""".stripMargin
-  )
 
   def spec = suite("single writer")(
     funcTest("concurrent PQS instances keep a single writer and a consistent database") {
@@ -44,7 +35,7 @@ object SingleWriterSpec extends SharedLedgerAndPostgresTest:
       def survivor         = if loser.get == d.get then e.get else d.get
 
       Given:
-        DamlSdk.deploy(pingPong) ++ DamlSdk.parties(alice) ++ Postgres.database
+        DamlSdk.deploy(Dars.pingPong) ++ DamlSdk.parties(alice) ++ Postgres.database
       When:
         startLedgerTraffic(alice)
       And:
@@ -120,7 +111,7 @@ object SingleWriterSpec extends SharedLedgerAndPostgresTest:
   private type LedgerEnv = Docker & Ledger & DarFile
   private type PqsEnv    = LedgerEnv & Parties & Postgres & Database & Scope
 
-  private val pingFqn = s"${pingPong.name}:PingPong:Ping"
+  private val pingFqn = s"${Dars.pingPong.name}:PingPong:Ping"
 
   private val asyncProcessingTimeout: Duration = 50.seconds
 

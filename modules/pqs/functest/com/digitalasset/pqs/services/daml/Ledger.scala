@@ -29,6 +29,8 @@ import com.digitalasset.canonical.{ContractFilter, Event, MetadataFilter, Offset
 import com.digitalasset.pqs.docker.{Docker, Service}
 import com.digitalasset.pqs.functest.FTEnv
 import com.digitalasset.pqs.grpc.{ZClientInterceptor, ZManagedChannel}
+import com.digitalasset.pqs.services.inspectMaybe
+import com.digitalasset.pqs.services.postgres.Postgres
 import com.digitalasset.pqs.utils.safeequals.*
 import com.digitalasset.transcode.schema.IdentifierFilter
 import com.digitalasset.zio.daml.DamlSchema
@@ -39,27 +41,40 @@ import io.grpc.Metadata
 import zio.stream.ZStream
 import zio.*
 
-final class Ledger(svc: Service[Ledger]):
+final class Ledger(svc: Service[Ledger], val channel: ZManagedChannel):
   export svc.*
 
 object Ledger:
-  private val channel: RLayer[Docker & Ledger, ZManagedChannel] =
-    ZLayer.scoped(createChannel)
-
+  private val channel: RLayer[Ledger, ZManagedChannel] =
+    ZLayer.service[Ledger].map(env => ZEnvironment(env.get.channel))
   val instance: RLayer[FTEnv & Docker, Ledger] = ZLayer.scoped(
     for
-      conf     <- CantonConf()
-      hostname <- cantonHostname
+      conf     <- CantonConf.load()
+      hostname <- newCantonHostName
       files    <- conf.oneParticipant(hostname)
       svc      <- canton(hostname, conf.cantonDockerImage, files)
+    yield svc
+  )
+
+  val instanceWithPgStorage: RLayer[FTEnv & Docker & Postgres, Ledger] = ZLayer.scoped(
+    for
+      conf     <- CantonConf.load()
+      pg       <- ZIO.service[Postgres]
+      hostname <- newCantonHostName
+      files <- conf.oneParticipant(
+        hostname,
+        enableTrafficControl = false, // disabled because GenerateCantonDumpSpec generates a lot of traffic
+        usingPostgres = Some(pg.container.hostName, Postgres.port)
+      )
+      svc <- canton(hostname, conf.cantonDockerImage, files)
     yield svc
   )
 
   def multiSync(sync1: Synchronizer, sync2: Synchronizer): RLayer[FTEnv & Docker, Ledger] =
     ZLayer.scoped(
       for
-        conf     <- CantonConf()
-        hostname <- cantonHostname
+        conf     <- CantonConf.load()
+        hostname <- newCantonHostName
         files    <- conf.twoSynchronizers(hostname, sync1, sync2)
         svc      <- canton(hostname, conf.cantonDockerImage, files)
       yield svc
@@ -87,7 +102,7 @@ object Ledger:
     packageService ++ ZLayer.succeed(contractFilter) ++ ZLayer.succeed(metadataFilter)
       >>> DamlSchema.layer
 
-  private val svc = channel >>> (
+  private val client = channel >>> (
     PartyManagementServiceClient.live
       ++ UserManagementServiceClient.live
       ++ PackageManagementServiceClient.live
@@ -98,21 +113,21 @@ object Ledger:
       ++ StateServiceClient.live
   )
 
-  def participantId = svc(
+  def participantId = client(
     PartyManagementServiceClient.getParticipantId(GetParticipantIdRequest()).map(_.participantId)
   )
 
-  def getAllSynchronizers = svc(
+  def getAllSynchronizers = client(
     StateServiceClient
       .getConnectedSynchronizers(GetConnectedSynchronizersRequest.defaultInstance)
       .map(_.connectedSynchronizers)
   )
 
-  def listPackageIds = svc(
+  def listPackageIds = client(
     PackageManagementServiceClient.listKnownPackages(ListKnownPackagesRequest()).map(_.packageDetails.map(_.packageId))
   )
 
-  def uploadDar(dar: DarFile, withVetting: Boolean) = svc {
+  def uploadDar(dar: DarFile, withVetting: Boolean) = client {
     val request = UploadDarFileRequest.defaultInstance
       .withDarFile(ByteString.copyFrom(dar.darBytes))
       .withVettingChange(
@@ -122,7 +137,7 @@ object Ledger:
     PackageManagementServiceClient.uploadDarFile(request)
   }
 
-  def vetDar(dar: DarFile, synchronizer: Synchronizer) = svc {
+  def vetDar(dar: DarFile, synchronizer: Synchronizer) = client {
     val packageRefs = dar.packageInfo.map { case (name, version, id) => VettedPackagesRef(id, name, version) }
     val vet = VettedPackagesChange.Operation.Vet(VettedPackagesChange.Vet.defaultInstance.withPackages(packageRefs))
     val request = UpdateVettedPackagesRequest.defaultInstance
@@ -135,7 +150,7 @@ object Ledger:
   def unvetDar(dar: DarFile): ZIO[Docker & Ledger, Throwable, UpdateVettedPackagesResponse] =
     getSingleConnectedSynchronizerId.flatMap(unvetDar(dar, _))
 
-  def isPackageVetted(packageId: String) = svc(
+  def isPackageVetted(packageId: String) = client(
     PackageServiceClient
       .listVettedPackages(
         ListVettedPackagesRequest.defaultInstance.withPackageMetadataFilter(
@@ -145,7 +160,7 @@ object Ledger:
       .map(_.vettedPackages.nonEmpty)
   )
 
-  def allocateParty(synchronizerId: String, hint: String) = svc {
+  def allocateParty(synchronizerId: String, hint: String) = client {
     val request = AllocatePartyRequest.defaultInstance
       .withPartyIdHint(hint)
       .withSynchronizerId(synchronizerId)
@@ -155,7 +170,7 @@ object Ledger:
       .someOrFail(Throwable(s"No party details available after allocating party $hint"))
   }
 
-  def listKnownParties = svc(
+  def listKnownParties = client(
     PartyManagementServiceClient
       .listKnownParties(ListKnownPartiesRequest.defaultInstance)
       .map(_.partyDetails)
@@ -167,7 +182,7 @@ object Ledger:
       canActAs: Seq[String],
       canReadAs: Seq[String],
       canReadAsAnyParty: Boolean
-  ) = svc(
+  ) = client(
     UserManagementServiceClient.createUser(
       CreateUserRequest(
         user = Some(
@@ -185,7 +200,7 @@ object Ledger:
     )
   )
 
-  def grantRights(partyId: String) = svc(
+  def grantRights(partyId: String) = client(
     UserManagementServiceClient.grantUserRights(
       GrantUserRightsRequest.defaultInstance
         .withUserId(CantonConf.participantAdmin)
@@ -215,7 +230,9 @@ object Ledger:
       actAs: Party,
       sync: Synchronizer
   ): ZIO[Docker & Ledger & DarFile, Throwable, SubmitAndWaitForTransactionResponse] =
-    exerciseCommand(templateQname, contractId, "Archive").flatMap(submitAndWaitForTransaction(actAs, Some(sync), _))
+    exerciseCommand(templateQname, contractId, "Archive", emptyValue).flatMap(
+      submitAndWaitForTransaction(actAs, Some(sync), _)
+    )
 
   /** Canton picks the synchronizer, which on a single-synchronizer ledger is the connected one */
   def archive(
@@ -223,7 +240,18 @@ object Ledger:
       contractId: String,
       actAs: Party
   ): ZIO[Docker & Ledger & DarFile, Throwable, SubmitAndWaitForTransactionResponse] =
-    exerciseCommand(templateQname, contractId, "Archive").flatMap(submitAndWaitForTransaction(actAs, None, _))
+    exerciseCommand(templateQname, contractId, "Archive", emptyValue).flatMap(
+      submitAndWaitForTransaction(actAs, None, _)
+    )
+
+  def exercise(
+      templateQname: String,
+      contractId: String,
+      choice: String,
+      arg: com.daml.ledger.api.v2.value.Value,
+      actAs: Party
+  ): ZIO[Docker & Ledger & DarFile, Throwable, SubmitAndWaitForTransactionResponse] =
+    exerciseCommand(templateQname, contractId, choice, arg).flatMap(submitAndWaitForTransaction(actAs, None, _))
 
   /** Exercises a choice that takes no arguments */
   def exercise(
@@ -233,7 +261,9 @@ object Ledger:
       actAs: Party,
       sync: Synchronizer
   ): ZIO[Docker & Ledger & DarFile, Throwable, SubmitAndWaitForTransactionResponse] =
-    exerciseCommand(templateQname, contractId, choice).flatMap(submitAndWaitForTransaction(actAs, Some(sync), _))
+    exerciseCommand(templateQname, contractId, choice, emptyValue).flatMap(
+      submitAndWaitForTransaction(actAs, Some(sync), _)
+    )
 
   private def createCommand(templateQname: String, args: com.daml.ledger.api.v2.value.Record) =
     toIdentifier(templateQname).map { templateId =>
@@ -242,17 +272,22 @@ object Ledger:
       )
     }
 
-  private def exerciseCommand(templateQname: String, contractId: String, choice: String) =
+  private def exerciseCommand(
+      templateQname: String,
+      contractId: String,
+      choice: String,
+      arg: com.daml.ledger.api.v2.value.Value
+  ) =
     toIdentifier(templateQname).map { templateId =>
       val command = ExerciseCommand.defaultInstance
         .withTemplateId(templateId)
         .withContractId(contractId)
         .withChoice(choice)
-        .withChoiceArgument(Value(Value.Sum.Record(com.daml.ledger.api.v2.value.Record())))
+        .withChoiceArgument(arg)
       Command(Command.Command.Exercise(command))
     }
 
-  def reassign(contractId: String, submitter: Party, source: Synchronizer, target: Synchronizer) = svc {
+  def reassign(contractId: String, submitter: Party, source: Synchronizer, target: Synchronizer) = client {
     val unassignCommand = ReassignmentCommand.Command.UnassignCommand(
       UnassignCommand(contractId, source.id, target.id)
     )
@@ -270,7 +305,7 @@ object Ledger:
     Docker & Ledger & Parties & UpdateService & StateService,
     Throwable,
     Chunk[Transaction[Event]]
-  ] = svc {
+  ] = client {
     for
       parties       <- ZIO.service[Parties]
       updateService <- ZIO.service[UpdateService]
@@ -284,7 +319,7 @@ object Ledger:
   def getSingleCreatedEvent(
       parties: Seq[Party],
       transactionId: String
-  ): ZIO[Docker & Ledger, Throwable, CreatedEvent] = svc {
+  ): ZIO[Docker & Ledger, Throwable, CreatedEvent] = client {
     updatesFromGenesis(parties, wildcardFilter(true))
       .dropWhile(_.getTransaction.updateId =/= transactionId)
       .runHead
@@ -300,7 +335,7 @@ object Ledger:
     * @param interfaceQname
     *   fully qualified interface name, `"package-name:Module:Entity"`
     */
-  def getCreatedEventViaInterface(parties: Seq[Party], interfaceFqname: String, contractId: String) = svc {
+  def getCreatedEventViaInterface(parties: Seq[Party], interfaceFqname: String, contractId: String) = client {
     val parts = interfaceFqname.split(':')
     updatesFromGenesis(
       parties,
@@ -319,17 +354,16 @@ object Ledger:
       .map(_.getCreated)
   }
 
-  def pruneLedger(upToOffset: Offset.Absolute) = svc(
+  def pruneLedger(upToOffset: Offset.Absolute) = client(
     ParticipantPruningServiceClient
       .prune(PruneRequest.defaultInstance.withPruneUpTo(upToOffset.toLong))
       .logError
       .retry(Schedule.spaced(1.second))
   )
 
-  private def createChannel =
+  private[pqs] def createChannel(svc: Service[Ledger]) =
     val authHeader = Metadata.Key.of("Authorization", Metadata.ASCII_STRING_MARSHALLER)
     for
-      svc               <- ZIO.service[Ledger]
       adminTokenService <- inspectMaybe[TokenService]
       ca                <- Docker.certificateAuthority
       cert              <- ca.generate("participant")
@@ -353,7 +387,7 @@ object Ledger:
       channel <- ZManagedChannel(mkBuilder(), 128, interceptor).build
     yield channel.get
 
-  private def submitAndWaitForTransaction(actAs: Party, sync: Option[Synchronizer], command: Command) = svc {
+  private def submitAndWaitForTransaction(actAs: Party, sync: Option[Synchronizer], command: Command) = client {
     for
       commandId <- nextCommandId
       resp <- CommandServiceClient.submitAndWaitForTransaction(
@@ -410,7 +444,7 @@ object Ledger:
   private def unvetDar(
       dar: DarFile,
       synchronizerId: Synchronizer
-  ): ZIO[Docker & Ledger, Throwable, UpdateVettedPackagesResponse] = svc {
+  ): ZIO[Docker & Ledger, Throwable, UpdateVettedPackagesResponse] = client {
     val packageRefs = dar.packageInfo.collect {
       case (name, version, id) if id === dar.packageId => VettedPackagesRef(id, name, version)
     }
@@ -422,14 +456,14 @@ object Ledger:
     PackageManagementServiceClient.updateVettedPackages(request)
   }
 
-  private val cantonHostname =
+  private val newCantonHostName =
     Docker.share(s"canton_cnt")(zio.Ref.Synchronized.make(0)).flatMap(_.updateAndGet(_ + 1)).map(cnt => s"canton-$cnt")
 
   private def canton(
       hostname: String,
       dockerImage: String,
       cantonFiles: Seq[(os.Path, String | Array[Byte])]
-  ): ZIO[FTEnv & (Docker & Scope), Throwable, Ledger] =
+  ): ZIO[FTEnv & Docker & Scope, Throwable, Ledger] =
     for
       showCantonLogs <- FTEnv.showCantonLogs
       env <- Docker
@@ -444,8 +478,9 @@ object Ledger:
         )(CantonConf.cantonAdditionalCmds*)
         .build
       svc = env.get[Service[Ledger]]
-      _ <- svc.blockUntilStdOut(_.contains(CantonConf.bootstrapCompleteMessage))
-    yield Ledger(svc)
+      _       <- svc.blockUntilStdOut(_.contains(CantonConf.bootstrapCompleteMessage))
+      channel <- createChannel(svc)
+    yield Ledger(svc, channel)
 
   private def getSingleConnectedSynchronizerId: ZIO[Docker & Ledger, Throwable, Synchronizer] =
     getAllSynchronizers.flatMap {
@@ -457,3 +492,5 @@ object Ledger:
     CumulativeFilter.IdentifierFilter.WildcardFilter(WildcardFilter(includeCreatedEventBlob))
 
   private def nextCommandId: UIO[String] = Random.nextUUID.map(_.toString)
+
+  private def emptyValue = Value(Value.Sum.Record(com.daml.ledger.api.v2.value.Record()))

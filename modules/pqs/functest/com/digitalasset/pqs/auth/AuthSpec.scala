@@ -3,6 +3,7 @@
 
 package com.digitalasset.pqs.auth
 
+import com.digitalasset.pqs.Dars
 import com.digitalasset.pqs.SharedLedgerAndPostgresAndAuthTest
 import com.digitalasset.pqs.functest.matchers.*
 import com.digitalasset.pqs.functest.table.*
@@ -17,28 +18,9 @@ import zio.test.*
 import scala.language.implicitConversions
 
 object AuthSpec extends SharedLedgerAndPostgresAndAuthTest:
-  private val pingPong = DamlSource(
-    "PingPong" -> """module PingPong where
-                    |
-                    |import Daml.Script
-                    |import DA.Functor (void)
-                    |
-                    |template Ping
-                    |  with
-                    |    sender: Party
-                    |    receiver: Party
-                    |  where
-                    |    signatory sender
-                    |    observer receiver
-                    |
-                    |transact1 : Party -> Script ()
-                    |transact1 party = void do
-                    |  submit party $ createCmd Ping with sender = party, receiver = party
-                    |""".stripMargin
-  )
 
   private def context(parties: Party*) =
-    DamlSdk.deploy(pingPong) ++ DamlSdk.parties(parties*) ++ Postgres.database
+    DamlSdk.deploy(Dars.pingPong) ++ DamlSdk.parties(parties*) ++ Postgres.database
 
   def spec = suite("auth")(
     funcTest("no party filter"):

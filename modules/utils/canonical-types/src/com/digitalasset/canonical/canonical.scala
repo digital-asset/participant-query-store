@@ -47,6 +47,7 @@ case class Transaction[+E](
     commandId: CommandId,
     workflowId: WorkflowId,
     effectiveAt: Option[Instant],
+    recordTime: Instant,
     offset: Offset,
     events: Chunk[E],
     synchronizerId: SynchronizerId,

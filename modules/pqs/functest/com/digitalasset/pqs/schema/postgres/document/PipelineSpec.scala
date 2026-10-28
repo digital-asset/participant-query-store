@@ -3,6 +3,7 @@
 
 package com.digitalasset.pqs.schema.postgres.document
 
+import com.digitalasset.pqs.Dars
 import com.digitalasset.pqs.SharedLedgerAndPostgresTest
 import com.digitalasset.pqs.functest.matchers.*
 import com.digitalasset.pqs.functest.table.*
@@ -16,43 +17,13 @@ import zio.{Chunk, ExitCode, ZIO}
 import scala.language.implicitConversions
 
 object PipelineSpec extends SharedLedgerAndPostgresTest:
-  val pingPong = DamlSource(
-    "PingPong" -> """module PingPong where
-                    |
-                    |import Daml.Script
-                    |import DA.Functor (void)
-                    |
-                    |template Ping
-                    |  with
-                    |    sender: Party
-                    |    receiver: Party
-                    |    text: Text
-                    |  where
-                    |    signatory sender
-                    |    observer receiver
-                    |
-                    |transact1 : (Party, Party, Text) -> Script ()
-                    |transact1 (alice, bob, text) = void do
-                    |  submitMulti [alice, bob] [] $ createCmd Ping with sender = alice, receiver = bob, text = text
-                    |
-                    |-- test Archive edge case, create another contract with implicit Archive in the same module
-                    |template ArchiveTest
-                    |  with nobody: Party
-                    |  where signatory nobody
-                    |
-                    |transact2 : (Party, Party, Text) -> Script ()
-                    |transact2 (alice, bob, text) = void do
-                    |  cid <- submitMulti [alice, bob] [] $ createCmd Ping with sender = alice, receiver = bob, text = text
-                    |  submit alice $ archiveCmd cid
-                    |""".stripMargin
-  )
-  private val packageName = pingPong.name
-  private val templateRef = s"$packageName:PingPong:Ping"
+  private val packageName = Dars.message.name
+  private val templateRef = s"$packageName:Message:Message"
   private val archiveRef  = s"$templateRef:Archive"
 
-  def context(alice: Party, bob: Party, script: String = "PingPong:transact1", testText: String = "test") =
+  def context(alice: Party, bob: Party, script: String = "Message:createMessage", testText: String = "test") =
     DamlSdk.parties(alice, bob) ++ Postgres.database
-      >+> DamlSdk.deploy(pingPong)
+      >+> DamlSdk.deploy(Dars.message)
       >+> DamlSdk.runScript(script, (alice.id, bob.id, testText))
 
   def spec = suite("pipeline")(
@@ -148,7 +119,7 @@ object PipelineSpec extends SharedLedgerAndPostgresTest:
       val alice = Party("Alice")
       val bob   = Party("Bob")
       Given:
-        context(alice, bob, script = "PingPong:transact2")
+        context(alice, bob, script = "Message:createAndArchiveMessage")
 
       When:
         Pqs.runPipeline(

@@ -3,6 +3,7 @@
 
 package com.digitalasset.pqs.schema.postgres.document
 
+import com.digitalasset.pqs.Dars
 import com.digitalasset.pqs.SharedLedgerAndPostgresTest
 import com.digitalasset.pqs.functest.matchers.*
 import com.digitalasset.pqs.functest.table.*
@@ -17,17 +18,6 @@ import zio.test.Assertion.equalTo
 import scala.language.{implicitConversions, postfixOps}
 
 object SchemaSpec extends SharedLedgerAndPostgresTest:
-  val interfaces = DamlSource(
-    "Interfaces" -> """module Interfaces where
-                      |
-                      |interface IPingable
-                      |  where
-                      |    viewtype VPingable
-                      |
-                      |data VPingable = VPingable with sender: Party
-                      |  deriving (Eq, Ord, Show)
-                      |""".stripMargin
-  )
   val pingPong = DamlSource(
     "PingPong" -> """module PingPong where
                     |
@@ -44,7 +34,7 @@ object SchemaSpec extends SharedLedgerAndPostgresTest:
                     |    interface instance IPingable for Ping where
                     |      view = VPingable with sender = sender
                     |""".stripMargin
-  ).dependsOn(interfaces)
+  ).dependsOn(Dars.pingableInterfaces)
 
   private def context =
     DamlSdk.parties(Party("Alice")) ++ Postgres.database ++ DamlSdk.deploy(pingPong)
@@ -65,12 +55,7 @@ object SchemaSpec extends SharedLedgerAndPostgresTest:
           } `returns` ()
         And:
           for
-            tpe_pk <-
-              Postgres
-                .get {
-                  sql"select __contract_tpe4name($contractName);"
-                }
-                .map(_.get)
+            tpe_pk <- Postgres.get[String](sql"select __contract_tpe4name($contractName)")
             result <- Postgres query {
               sql"""select
                           c.relname as table_name,
@@ -99,21 +84,13 @@ object SchemaSpec extends SharedLedgerAndPostgresTest:
           Pqs.runPipeline("--pipeline-ledger-stop=Latest")
         Then:
           for
-            tpe_pk <- Postgres
-              .get {
-                sql"select __contract_tpe4name($contractName);"
-              }
-              .map(_.get)
-            queryConcurrently <- Postgres
-              .get {
-                sql"select print_create_index_for_contract($indexName, $contractName, $indexExpression, $indexType);"
-              }
-              .map(_.get)
-            query <- Postgres
-              .get {
-                sql"select print_create_index_for_contract($indexName, $contractName, $indexExpression, $indexType, use_concurrently => false);"
-              }
-              .map(_.get)
+            tpe_pk <- Postgres.get[String](sql"select __contract_tpe4name($contractName)")
+            queryConcurrently <- Postgres.get[String](
+              sql"select print_create_index_for_contract($indexName, $contractName, $indexExpression, $indexType)"
+            )
+            query <- Postgres.get[String](
+              sql"select print_create_index_for_contract($indexName, $contractName, $indexExpression, $indexType, use_concurrently => false)"
+            )
           yield zio.test.assert(queryConcurrently)(
             equalTo(
               s"""create index concurrently if not exists "__contracts_${tpe_pk}_${indexName}_idx" on __contracts_$tpe_pk using $indexType($indexExpression )"""

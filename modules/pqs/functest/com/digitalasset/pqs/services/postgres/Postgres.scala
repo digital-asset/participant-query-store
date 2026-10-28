@@ -4,13 +4,13 @@
 package com.digitalasset.pqs.services.postgres
 
 import com.digitalasset.pqs.configuration.Secret
-import com.digitalasset.pqs.docker.{Docker, Service}
+import com.digitalasset.pqs.docker.{ContainerLimits, Docker, Service}
 import com.digitalasset.pqs.functest.FTEnv
 import com.digitalasset.pqs.functest.table.{Cell, Row, Table}
 import com.digitalasset.pqs.postgres.backend
 import com.digitalasset.pqs.postgres.backend.{PostgresConfig, TlsConfig}
 import com.digitalasset.pqs.offsetSqlFragment
-import com.digitalasset.pqs.utils.safeequals.===
+import com.digitalasset.pqs.utils.safeequals.*
 import zio.*
 import zio.ZIO.{acquireRelease, attemptBlocking, logDebug}
 import zio.jdbc.*
@@ -48,14 +48,55 @@ object Postgres:
         postgres  <- ZIO.service[Postgres]
         dbCounter <- Docker.share("db_cnt")(Ref.Synchronized.make(0)).flatMap(_.updateAndGet(_ + 1))
         dbName = s"ft_db_$dbCounter"
-        _ <- postgres.adminDatabase.autoCommit(sql"""create database "${Syntax(dbName)}"""".execute)
+        _ <- createDatabase(dbName)
         _ <- logDebug(s"Using database [$dbName]")
       yield initDatabase(dbName, postgres.service)
     )
     .flatten
 
   /** Docker Instances Service wrapped into Layer */
-  val instance: ZLayer[FTEnv & Docker, Throwable, Postgres] = ZLayer
+  val instance: ZLayer[FTEnv & Docker, Throwable, Postgres] = startInstance(Seq.empty)
+
+  /** Start a fresh Postgres instance and create some empty databases */
+  def instance(databases: Seq[String]): ZLayer[FTEnv & Docker, Throwable, Postgres] =
+    Postgres.startInstance().tap { env =>
+      ZIO.foreachDiscard(databases)(createDatabase).provideEnvironment(env)
+    }
+
+  /** Restores a Postgres instance from dump files.
+    */
+  def restore(
+      dumps: Seq[Dump],
+      limits: ContainerLimits = ContainerLimits.unlimited
+  ): ZLayer[FTEnv & Docker, Throwable, Postgres] =
+    Postgres
+      .startInstance(extraVolumes = dumps.map(dump => dump.file -> dump.containerPath), limits = limits)
+      .tap { env =>
+        ZIO.foreachDiscard(dumps) { dump =>
+          createDatabase(dump.databaseName).provideEnvironment(env)
+            *> env
+              .get[Postgres]
+              .exec(
+                "pg_restore",
+                "--username=postgres",
+                s"--dbname=${dump.databaseName}",
+                "--no-owner",
+                "--no-privileges",
+                "--jobs",
+                "4",
+                dump.containerPath.toString
+              )
+              .tapSome {
+                case res if res.exitCode =/= ExitCode.success =>
+                  ZIO.fail(RuntimeException(s"pg_restore failed with exit code ${res.exitCode.code}: ${res.stdErr}"))
+              }
+        }
+      }
+
+  private def startInstance(
+      extraVolumes: Seq[(os.Path, os.Path)] = Seq.empty,
+      limits: ContainerLimits = ContainerLimits.unlimited
+  ): ZLayer[FTEnv & Docker, Throwable, Postgres] = ZLayer
     .fromZIO(
       for
         cnt <- Docker.share("pg_cnt")(Ref.Synchronized.make(0)).flatMap(_.updateAndGet(_ + 1))
@@ -82,9 +123,11 @@ object Postgres:
                 |hostssl all             all             all                     md5 clientcert=verify-ca
                 |""".stripMargin
           ),
+          volumes = extraVolumes,
           hostname = Some(hostname),
           user = Some(999),
-          suppressOutput = true
+          suppressOutput = true,
+          limits = limits
         )(
           "-c",
           "ssl=on",
@@ -119,8 +162,8 @@ object Postgres:
   def call(sql: SqlFragment): ZIO[Database, Throwable, Unit] =
     Database.autoCommit(sql.execute)
 
-  def get(sql: SqlFragment): ZIO[Database, Throwable, Option[String]] =
-    Database.transaction(sql.query[String].selectOne)
+  def get[A: JdbcDecoder](sql: SqlFragment): ZIO[Database, Throwable, A] =
+    Database.transaction(sql.query[A].selectOne).someOrFailException
 
   def query(sql: SqlFragment): ZIO[Database, Throwable, Table] =
     Database.transaction(sql.query[Row].selectAll).map(Table.apply)
@@ -216,6 +259,31 @@ object Postgres:
         .fail(RuntimeException(s"pg_dump failed with exit code ${result.exitCode.code}: ${result.stdErr}"))
         .unless(result.exitCode === ExitCode.success)
     yield result.stdOut
+
+  /** Dumps a database schema and data using Postgres custom format. */
+  def dumpDatabase(dump: Dump): ZIO[Postgres, Throwable, Unit] =
+    for
+      pg <- ZIO.service[Postgres]
+      tmpFile = os.root / "tmp" / s"${dump.databaseName}.dump"
+      result <- pg.exec(
+        "pg_dump",
+        "--username=postgres",
+        s"--dbname=${dump.databaseName}",
+        "--format=custom",
+        "--no-owner",
+        "--no-privileges",
+        s"--file=$tmpFile"
+      )
+      _ <- ZIO
+        .fail(RuntimeException(s"pg_dump failed with exit code ${result.exitCode.code}: ${result.stdErr}"))
+        .unless(result.exitCode === ExitCode.success)
+      // TODO(perf): this materializes the whole dump in memory. Consider streaming or using a bind-mount.
+      bytes <- pg.getFileContents(tmpFile)
+      _ <- attemptBlocking {
+        if os.exists(dump.file) then os.write.over(dump.file, bytes)
+        else os.write(dump.file, bytes, createFolders = true)
+      }
+    yield ()
 
   /////////////////
   // Session API //
@@ -317,6 +385,9 @@ object Postgres:
   ///////////////
   // Internals //
   ///////////////
+
+  private def createDatabase(name: String): ZIO[Postgres, Throwable, Unit] =
+    ZIO.service[Postgres].flatMap(_.adminDatabase.autoCommit(sql"""create database "${Syntax(name)}"""".execute))
 
   private def initDatabase(dbName: String, svc: Service[?]): ZLayer[Docker, Throwable, Database] =
     ZLayer

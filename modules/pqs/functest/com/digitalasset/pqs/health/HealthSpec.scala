@@ -3,6 +3,7 @@
 
 package com.digitalasset.pqs.health
 
+import com.digitalasset.pqs.Dars
 import com.digitalasset.pqs.SharedLedgerAndPostgresTest
 import com.digitalasset.pqs.functest.FuncTest
 import com.digitalasset.pqs.functest.matchers.is
@@ -17,29 +18,10 @@ import zio.json.ast.Json
 import scala.language.{implicitConversions, postfixOps}
 
 object HealthSpec extends SharedLedgerAndPostgresTest:
-  private val pingPong = DamlSource(
-    "PingPong" -> """module PingPong where
-                    |
-                    |import Daml.Script
-                    |import DA.Functor (void)
-                    |
-                    |template Ping
-                    |  with
-                    |    sender: Party
-                    |    receiver: Party
-                    |  where
-                    |    signatory sender
-                    |    observer receiver
-                    |
-                    |transact1: Party -> Script ()
-                    |transact1 alice = void do
-                    |  submit alice $ createCmd Ping with sender = alice, receiver = alice
-                    |""".stripMargin
-  )
   private def context =
     val alice = Party("Alice")
     DamlSdk.parties(alice) ++ Postgres.database
-      >+> DamlSdk.deploy(pingPong)
+      >+> DamlSdk.deploy(Dars.pingPong)
       >+> DamlSdk.runScript("PingPong:transact1", alice.id)
 
   def spec = suite("health")(

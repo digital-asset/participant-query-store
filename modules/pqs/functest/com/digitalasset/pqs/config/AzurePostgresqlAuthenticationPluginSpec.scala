@@ -41,7 +41,7 @@ object AzurePostgresqlAuthenticationPluginSpec extends SharedLedgerAndPostgresTe
       Given:
         Postgres.database
       When:
-        EntraAuthorityMock.instance("invalid-token")
+        EntraAuthorityMock.instance("login.microsoftonline.com", "invalid-token")
           >>> runPqsWithEnvironmentCredential("--pipeline-ledger-stop=Latest")
       Expect:
         Pqs.exitCode.is(ExitCode.failure)
@@ -51,7 +51,8 @@ object AzurePostgresqlAuthenticationPluginSpec extends SharedLedgerAndPostgresTe
         // The client-secret token is used as the Postgres password, which Postgres rejects.
         Pqs.stdio.is(stringContaining("password authentication failed for user \"postgres\""))
       When:
-        EntraAuthorityMock.instance("postgres")
+        // A different trusted host, as the first mock is still running on the same Docker network.
+        EntraAuthorityMock.instance("login.windows.net", "postgres")
           >>> runPqsWithEnvironmentCredential("--pipeline-ledger-stop=Latest")
       Expect:
         Pqs.exitCode.is(ExitCode.success)
@@ -67,7 +68,7 @@ object AzurePostgresqlAuthenticationPluginSpec extends SharedLedgerAndPostgresTe
           (env, tlsFiles) <- pqsConf
           entra           <- ZIO.service[Service[EntraMock]]
         yield Docker.service[Unit](
-          image = localPqsDockerImage,
+          image = Pqs.image,
           env = env ++ Map(
             // Restrict the credential chain to managed identity and point it at the mock token endpoint.
             "AZURE_TOKEN_CREDENTIALS" -> "ManagedIdentityCredential",
@@ -99,7 +100,7 @@ object AzurePostgresqlAuthenticationPluginSpec extends SharedLedgerAndPostgresTe
           )
 
           Docker.service[Unit](
-            image = localPqsDockerImage,
+            image = Pqs.image,
             env = env ++ Map(
               "AZURE_TOKEN_CREDENTIALS" -> "EnvironmentCredential",
               "AZURE_CLIENT_ID"         -> EntraAuthorityMock.clientId,

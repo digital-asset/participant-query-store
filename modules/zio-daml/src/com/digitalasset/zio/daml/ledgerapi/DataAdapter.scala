@@ -20,6 +20,7 @@ private[ledgerapi] sealed trait DataAdapter[T]:
   def commandId: String
   def workflowId: String
   def effectiveAt: Option[Instant]
+  def recordTime: Instant
   def synchronizerId: SynchronizerId
   def externalTransactionHash: Option[Array[Byte]]
   def paidTrafficCost: Option[Long]
@@ -41,6 +42,7 @@ private[ledgerapi] object DataAdapter:
     override def commandId: String              = tx.commandId
     override def workflowId: String             = tx.workflowId
     override def effectiveAt: Option[Instant]   = Some(TimestampConverters.asJavaInstant(tx.getEffectiveAt))
+    override def recordTime: Instant            = TimestampConverters.asJavaInstant(tx.getRecordTime)
     override def synchronizerId: SynchronizerId = SynchronizerId(tx.synchronizerId)
     override def externalTransactionHash: Option[Array[Byte]] = extractors.externalTransactionHash(tx)
     override def paidTrafficCost: Option[Long]                = tx.paidTrafficCost
@@ -57,8 +59,9 @@ private[ledgerapi] object DataAdapter:
     // A Reassignment carries no ledger effective time: no Daml code is interpreted, so there is
     // nothing for one to be the answer to. `record_time` is a different quantity, set by the
     // synchronizer rather than the submitting participant, and is deliberately not substituted here
-    override def effectiveAt: Option[Instant]                 = None
-    override def synchronizerId: SynchronizerId               = SynchronizerId(reassignment.synchronizerId)
+    override def effectiveAt: Option[Instant]   = None
+    override def recordTime: Instant            = TimestampConverters.asJavaInstant(reassignment.getRecordTime)
+    override def synchronizerId: SynchronizerId = SynchronizerId(reassignment.synchronizerId)
     override def externalTransactionHash: Option[Array[Byte]] = None // no such field on a Reassignment
     override def paidTrafficCost: Option[Long]                = reassignment.paidTrafficCost
     override def traceContext: TraceContext                   = reassignment.getTraceContext

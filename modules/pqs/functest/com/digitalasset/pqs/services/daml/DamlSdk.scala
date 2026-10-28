@@ -4,8 +4,9 @@
 package com.digitalasset.pqs.services.daml
 
 import com.digitalasset.transcode.schema.{PackageId, PackageName, PackageVersion}
-import com.digitalasset.pqs.docker.Docker
+import com.digitalasset.pqs.docker.{Docker, Service}
 import com.digitalasset.pqs.functest.{Dpm, FTConfig, FTEnv}
+import com.digitalasset.pqs.services.inspectMaybe
 import com.digitalasset.pqs.services.daml
 import com.digitalasset.pqs.services.oauth.OAuth
 import org.semver4j.Semver
@@ -23,10 +24,16 @@ object DamlSdk:
   // Layers //
   ////////////
 
-  /** Compile DAML sources and wrap them into DarFile layer */
-  def buildDar(source: DamlSource): ZIO[Dpm & FTEnv, Throwable, DarFile] =
+  /** Compile DAML sources into a DarFile. Compilation is memoized for the whole test run, keyed by the source contents,
+    * so the same package is built once no matter how many tests deploy it.
+    */
+  def buildDar(source: DamlSource): ZIO[Dpm & FTEnv & Docker, Throwable, DarFile] =
+    FTEnv.damlLfTarget.flatMap(lfTarget => Docker.share(("build_dar", source, lfTarget))(compileDar(source)))
+
+  private def compileDar(source: DamlSource): ZIO[Dpm & FTEnv, Throwable, DarFile] =
     val packages = (source :: source.deps).distinct.toList
     for
+      _               <- logInfo(s"Building DAR ${source.name}-${source.version}")
       multiPackageDir <- FTEnv.createUniqueDirectory(s"build-dar-${source.name}")
       mainPackageDir = multiPackageDir / source.name
       _ <- writeMultiPackage(multiPackageDir, packages)
@@ -142,7 +149,7 @@ object DamlSdk:
     ZLayer.fromZIO(
       for
         partyCounter  <- Docker.share("party_cnt")(Ref.Synchronized.make(0)).flatMap(_.updateAndGet(_ + 1))
-        oauthInstance <- Docker.inspectMaybe[OAuth.Instance]
+        oauthInstance <- inspectMaybe[Service[OAuth.Instance]]
         parties <- ZIO.foreach(partySynchronizers) { (party, synchronizers) =>
           val hint = s"${party.prefix}_$partyCounter"
           for

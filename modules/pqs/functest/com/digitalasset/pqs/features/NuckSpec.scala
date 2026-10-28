@@ -3,6 +3,7 @@
 
 package com.digitalasset.pqs.features
 
+import com.digitalasset.pqs.Dars
 import com.digitalasset.pqs.SharedLedgerAndPostgresTest
 import com.digitalasset.pqs.functest.matchers.*
 import com.digitalasset.pqs.functest.table.*
@@ -15,18 +16,6 @@ import zio.test.Assertion.*
 import scala.language.implicitConversions
 
 object NuckSpec extends SharedLedgerAndPostgresTest:
-
-  private val iKeyed = DamlSource(
-    "IKeyed" -> """module IKeyed where
-                  |
-                  |interface IKeyed
-                  |  where
-                  |    viewtype VKeyed
-                  |
-                  |data VKeyed = VKeyed with label: Text
-                  |  deriving (Eq, Show)
-                  |""".stripMargin
-  )
 
   private val withKey = DamlSource(
     "WithKey" -> """module WithKey where
@@ -54,14 +43,14 @@ object NuckSpec extends SharedLedgerAndPostgresTest:
                    |  submit alice $ createCmd WithKey with owner = alice, k = 43, label = "C"
                    |  submit alice $ createCmd WithKey with owner = alice, k = 42, label = "B"
                    |""".stripMargin
-  ).dependsOn(iKeyed)
+  ).dependsOn(Dars.iKeyed)
 
   private def context(alice: Party) =
     DamlSdk.parties(alice) ++ Postgres.database
       >+> DamlSdk.deploy(withKey) >+> DamlSdk.runScript("WithKey:setup", alice.id)
 
   private val templateFqn  = s"${withKey.name}:WithKey:WithKey"
-  private val interfaceFqn = s"${iKeyed.name}:IKeyed:IKeyed"
+  private val interfaceFqn = s"${Dars.iKeyed.name}:IKeyed:IKeyed"
 
   def spec = suite("Non-Unique Contract Keys")(
     funcTest("Two contracts with the same key are both stored and queryable") {

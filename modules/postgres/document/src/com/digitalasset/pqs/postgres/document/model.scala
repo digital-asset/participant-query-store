@@ -158,6 +158,7 @@ final class Transaction(
     val offset: Offset,
     transactionId: Option[String] = None,
     effectiveAt: Option[Instant] = None,
+    recordTime: Option[Instant] = None,
     synchronizerId: Option[SynchronizerId] = None,
     workflowId: Option[String] = None,
     remoteSpan: Option[(String, String)] = None,
@@ -171,6 +172,7 @@ final class Transaction(
     offset.toLong,
     transactionId,
     effectiveAt,
+    recordTime,
     synchronizerId,
     workflowId,
     remoteSpan,
@@ -188,6 +190,7 @@ object Transaction
         "\"offset\"",
         "transaction_id",
         "effective_at",
+        "record_time",
         "synchronizer_id",
         "workflow_id",
         "trace_context",
@@ -485,7 +488,7 @@ private object RowValue:
         RowValue(sb.result())
 
   given Converter[Instant] =
-    val fmt = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSSXX")
+    val fmt = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSSSSSXX")
     value => RowValue(value.atZone(ZoneOffset.UTC).format(fmt))
 
   given [A: Converter]: Converter[Option[A]] =

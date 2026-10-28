@@ -3,6 +3,7 @@
 
 package com.digitalasset.pqs.auth
 
+import com.digitalasset.pqs.Dars
 import com.digitalasset.pqs.docker.{Docker, Service}
 import com.digitalasset.pqs.functest.FuncTest
 import com.digitalasset.pqs.functest.matchers.*
@@ -47,37 +48,19 @@ object OAuthProxySpec
       yield oauthEnv ++ proxyEnv
     }
 
-  private val pingPong = DamlSource(
-    "PingPong" -> """module PingPong where
-                    |
-                    |import Daml.Script
-                    |import DA.Functor (void)
-                    |
-                    |template Ping
-                    |  with
-                    |    owner: Party
-                    |  where
-                    |    signatory owner
-                    |
-                    |transact : Party -> Script ()
-                    |transact party = void do
-                    |  submit party $ createCmd Ping with owner = party
-                    |""".stripMargin
-  )
-
   lazy val shared =
     networkIsolation(OAuth.instance, ForwardProxy.instance(OAuth.port)) >+> TokenService.liveViaProxy
       >+> Ledger.instance ++ Postgres.instance
-      >+> DamlSdk.deploy(pingPong)
+      >+> DamlSdk.deploy(Dars.pingPong)
 
   private def context =
     Postgres.database ++ DamlSdk.parties(Party("Alice"))
 
   private val proxyUrl =
-    Docker.inspect[ForwardProxy.Instance].map(i => s"http://${i.container.hostName}:${ForwardProxy.port}")
+    ZIO.service[Service[ForwardProxy.Instance]].map(i => s"http://${i.container.hostName}:${ForwardProxy.port}")
 
   private val oauthUrl =
-    Docker.inspect[OAuth.Instance].map(i => s"https://${i.container.hostName}:${OAuth.port}/issuer1/token")
+    ZIO.service[Service[OAuth.Instance]].map(i => s"https://${i.container.hostName}:${OAuth.port}/issuer1/token")
 
   def spec = suite("oauth-proxy")(
     funcTest("pipeline acquires token through proxy"):
