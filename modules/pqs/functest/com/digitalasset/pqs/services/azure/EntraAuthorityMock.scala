@@ -4,7 +4,7 @@
 package com.digitalasset.pqs.services.azure
 
 import com.digitalasset.pqs.docker.{Docker, Service}
-import zio.{Ref, ZLayer}
+import zio.ZLayer
 
 sealed trait EntraAuthorityMock
 
@@ -12,16 +12,16 @@ sealed trait EntraAuthorityMock
   * (`AZURE_CLIENT_ID`/`AZURE_TENANT_ID`/`AZURE_CLIENT_SECRET`).
   *
   * The endpoint is served over HTTPS with a certificate signed by the func-test CA.
+  *
+  * `host` must be one of MSAL's trusted authority hosts, such as `login.microsoftonline.com` or `login.windows.net`.
   */
 object EntraAuthorityMock:
   val port: Int        = 443
   val tenantId: String = "00000000-0000-0000-0000-000000000001"
   val clientId: String = "00000000-0000-0000-0000-000000000002"
 
-  def instance(token: String): ZLayer[Docker, Throwable, Service[EntraAuthorityMock]] = ZLayer.fromZIO {
+  def instance(host: String, token: String): ZLayer[Docker, Throwable, Service[EntraAuthorityMock]] = ZLayer.fromZIO {
     for
-      cnt <- Docker.share("entra_authority_mock_cnt")(Ref.Synchronized.make(0)).flatMap(_.updateAndGet(_ + 1))
-      host = s"entra-authority-mock-$cnt"
       ca   <- Docker.certificateAuthority
       cert <- ca.generate(host, Seq(host))
     yield
