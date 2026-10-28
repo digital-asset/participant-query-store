@@ -259,10 +259,10 @@ CREATE FUNCTION public.__contracts(qname text DEFAULT NULL::text) RETURNS SETOF 
     AS $$
 select tpe.template_fqn,
        tpe.payload_type,
-       case when (c.activation_type is null or c.activation_type = 'create') then c.activate_event_pk end as create_event_pk,
-       case when (c.activation_type is null or c.activation_type = 'create') then ae.event_id end as create_event_id,
-       case when (c.activation_type is null or c.activation_type = 'create') then c.activated_at_ix end as created_at_ix,
-       case when (c.activation_type is null or c.activation_type = 'create') then at."offset" end as created_at_offset,
+       case when c.activation_type = 'create' then c.activate_event_pk end as create_event_pk,
+       case when c.activation_type = 'create' then ae.event_id end as create_event_id,
+       case when c.activation_type = 'create' then c.activated_at_ix end as created_at_ix,
+       case when c.activation_type = 'create' then at."offset" end as created_at_offset,
        case when (c.deactivation_type is null or c.deactivation_type = 'archive') then c.deactivate_event_pk end as archive_event_pk,
        case when (c.deactivation_type is null or c.deactivation_type = 'archive') then de.event_id end as archive_event_id,
        case when (c.deactivation_type is null or c.deactivation_type = 'archive') then c.deactivated_at_ix end as archived_at_ix,
@@ -272,7 +272,7 @@ select tpe.template_fqn,
        c.payload,
        c.contract_key,
        c.metadata,
-       case when (c.activation_type is null or c.activation_type = 'create') then at.effective_at end as created_effective_at,
+       case when c.activation_type = 'create' then at.effective_at end as created_effective_at,
        case when (c.deactivation_type is null or c.deactivation_type = 'archive') then dt.effective_at end as archived_effective_at,
        c.redaction_id,
        p.name,
@@ -875,7 +875,7 @@ select c.*
 from __contracts(qname) c
 where c.life_ix @> (select __nearest_ix_floor("offset"))
     and not c.divulged_only -- exclude contracts that were merely divulged
-    -- Deduplicate reassigned contracts by keeping the highest reassignment_counter (nulls rank lowest).
+    -- Deduplicate reassigned contracts by keeping the highest reassignment_counter.
     -- Expressed as an anti-join rather than DISTINCT ON so that caller predicates (e.g. WHERE payload ->> 'x' = ?)
     -- can be pushed down to the contract index scan instead of running after a full sort.
     and not exists (
@@ -886,11 +886,11 @@ where c.life_ix @> (select __nearest_ix_floor("offset"))
           and newer.life_ix @> (select __nearest_ix_floor("offset"))
           and not newer.divulged_only
           and (
-                coalesce(newer.reassignment_counter, 0) > coalesce(c.reassignment_counter, 0)
+                newer.reassignment_counter > c.reassignment_counter
                 -- tie on reassignment_counter:
                 -- the PN does not guarantee that reassignment_counter is unique per contract
                 or (
-                    coalesce(newer.reassignment_counter, 0) = coalesce(c.reassignment_counter, 0)
+                    newer.reassignment_counter = c.reassignment_counter
                     and newer.activated_at_ix > c.activated_at_ix
                 )
               )
@@ -1008,7 +1008,7 @@ CREATE FUNCTION public.creates(qname text DEFAULT NULL::text, from_offset bigint
     AS $$
     select c.*
     from __contracts(qname) c
-    where (c.activation_type is null or c.activation_type = 'create')
+    where c.activation_type = 'create'
         and c.activated_at_ix between (select __nearest_ix_ceil(from_offset)) and (select __nearest_ix_floor(to_offset))
 $$;
 
@@ -1047,7 +1047,7 @@ CREATE FUNCTION public.lookup_contract(contract_id text, qname text DEFAULT NULL
 select distinct on (c.tpe_pk) c.*
 from __contracts(qname) c
 where c.contract_id = lookup_contract.contract_id
-order by c.tpe_pk, reassignment_counter desc nulls last
+order by c.tpe_pk, reassignment_counter desc
 $$;
 
 
@@ -1590,7 +1590,7 @@ CREATE FUNCTION public.summary_creates(from_offset bigint DEFAULT public.oldest_
     with stats as (
         select c.tpe_pk as tpe_pk, count(*) as count
         from __contracts c
-        where (c.activation_type is null or c.activation_type = 'create')
+        where c.activation_type = 'create'
             and c.activated_at_ix between (select __nearest_ix_ceil(from_offset)) and (select __nearest_ix_floor(to_offset))
         group by c.tpe_pk)
     select tpe.template_fqn, tpe.payload_type, stats.count
@@ -1675,7 +1675,7 @@ CREATE FUNCTION public.summary_updates(from_offset bigint DEFAULT public.oldest_
     with creates as (
         select c.tpe_pk as tpe_pk, count(*) as count
         from __contracts c
-        where (c.activation_type is null or c.activation_type = 'create')
+        where c.activation_type = 'create'
             and c.activated_at_ix between (select __nearest_ix_ceil(from_offset)) and (select __nearest_ix_floor(to_offset))
         group by c.tpe_pk
     ),
@@ -1871,9 +1871,9 @@ CREATE TABLE public.__contracts (
     divulged_only boolean DEFAULT false NOT NULL,
     creation_package_id text,
     contract_key_hash bytea,
-    activation_type public.__activation_type,
+    activation_type public.__activation_type DEFAULT 'create'::public.__activation_type NOT NULL,
     deactivation_type public.__deactivation_type,
-    reassignment_counter bigint,
+    reassignment_counter bigint DEFAULT 0 NOT NULL,
     synchronizer_id text
 )
 PARTITION BY LIST (tpe_pk);
@@ -1902,9 +1902,9 @@ CREATE TABLE public.__contracts_1 (
     divulged_only boolean DEFAULT false NOT NULL,
     creation_package_id text,
     contract_key_hash bytea,
-    activation_type public.__activation_type,
+    activation_type public.__activation_type DEFAULT 'create'::public.__activation_type NOT NULL,
     deactivation_type public.__deactivation_type,
-    reassignment_counter bigint,
+    reassignment_counter bigint DEFAULT 0 NOT NULL,
     synchronizer_id text
 );
 ALTER TABLE ONLY public.__contracts_1 ALTER COLUMN metadata SET STORAGE EXTERNAL;

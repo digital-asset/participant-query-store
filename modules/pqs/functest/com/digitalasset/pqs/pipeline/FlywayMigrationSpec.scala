@@ -257,25 +257,25 @@ object FlywayMigrationSpec extends FuncTestStandalone:
         // The second reassignment deactivates the initial row and creates a new one
         Database
           .__contracts(extraColumns =
-            Seq("deactivation_type", "deactivated_at_ix::text", "reassignment_counter::text", "synchronizer_id")
+            Seq("deactivation_type", "deactivated_at_ix::text", "reassignment_counter", "synchronizer_id")
           )
           .returns(
             table {
-              anything | anything | contractId1 | "[1,3)" | "unassign" | "3"  | null | null
-              anything | anything | contractId2 | "[2,)"  | null       | null | null | null
-              anything | anything | contractId1 | "[4,)"  | null       | null | "2"  | sync1.id
+              anything | anything | contractId1 | "[1,3)" | "unassign" | "3"  | 0 | null
+              anything | anything | contractId2 | "[2,)"  | null       | null | 0 | null
+              anything | anything | contractId1 | "[4,)"  | null       | null | 2  | sync1.id
             }
           )
       Expect:
         Database
           .active(
             Some(s"${pingPong.name}:PingPong:Ping"),
-            extraColumns = Seq("reassignment_counter::text", "synchronizer_id")
+            extraColumns = Seq("reassignment_counter", "synchronizer_id")
           )
           .returns(
             table {
-              anything | s"${pingPong.name}:PingPong:Ping" | "template" | contractId2 | null | null
-              anything | s"${pingPong.name}:PingPong:Ping" | "template" | contractId1 | "2"  | sync1.id
+              anything | s"${pingPong.name}:PingPong:Ping" | "template" | contractId2 | 0 | null
+              anything | s"${pingPong.name}:PingPong:Ping" | "template" | contractId1 | 2  | sync1.id
             }
           )
 

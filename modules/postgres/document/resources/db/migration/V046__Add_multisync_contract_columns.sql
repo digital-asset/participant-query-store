@@ -11,9 +11,9 @@ alter table __contracts rename column archived_at_ix to deactivated_at_ix;
 
 alter table __contracts
   -- keep null values to not seq-scan rewrite the table
-  add column activation_type __activation_type,
+  add column activation_type __activation_type not null default 'create',
   add column deactivation_type __deactivation_type,
-  add column reassignment_counter bigint,
+  add column reassignment_counter bigint not null default 0,
   add column synchronizer_id text;
 
 alter type contract
