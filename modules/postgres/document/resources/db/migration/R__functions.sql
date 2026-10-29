@@ -1016,7 +1016,6 @@ begin
         delete from __exercises where exercised_at_ix < cutoff_ix;
 
         -- Set the new genesis for active contracts to the cutoff_ix.
-        -- We preserve the source of the contract (create or assign) by updating only the corresponding column.
         with event_pks as (
             update __contracts
             set activated_at_ix = cutoff_ix
