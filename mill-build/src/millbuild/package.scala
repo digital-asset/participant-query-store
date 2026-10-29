@@ -26,7 +26,7 @@ package object millbuild {
 
     // Think twice before changing this version, check with Canton's dependencies for a particular release line
     // for compatibility: https://github.com/DACH-NY/canton/blob/main/shared_dependencies.json
-    val grpc  = "1.81.0"
+    val grpc  = "1.85.0"
 
     // Pulled transitively by Flyway
     // Force specific version to address vulnerabilities
@@ -34,7 +34,7 @@ package object millbuild {
 
     // Pulled transitively by azure-identity
     // Force specific version to address vulnerabilities
-    val jackson2 = "2.21.7"
+    val jackson2 = "2.22.4"
 
     // Pulled transitively by ZIO HTTP and azure-identity
     // Force specific version to address vulnerabilities
@@ -190,7 +190,7 @@ package object millbuild {
     val classgraph = ivy"io.github.classgraph:classgraph:4.8.174"
 
     object commons {
-      val text  = ivy"org.apache.commons:commons-text:1.12.0"
+      val text  = ivy"org.apache.commons:commons-text:1.15.0"
       val lang3 = ivy"org.apache.commons:commons-lang3:3.18.0"
     }
 
