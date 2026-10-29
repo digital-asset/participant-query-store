@@ -9,18 +9,17 @@ _Write summary of release_
 ## SQL Migration
 
 This release includes the following SQL migrations:
-- _V043__Add_divulged_created_at_ix_index.sql_: adds a partial index on `__contracts` so `prune_archived_to_offset` can prune divulged-only contracts via an index scan. **[Impact: ~ 1 min]**
-- _V044__Add_reassignment_event_types.sql_: adds the `assign` and `unassign` labels to the `__event_type` enum. Metadata-only, no table is scanned or rewritten. **[Impact: Instantaneous]**
-- _V045__Rename_domain_id_to_synchronizer_id.sql_: renames the `domain_id` column of `__transactions` to `synchronizer_id`. Metadata-only, no table is scanned or rewritten. **[Impact: Instantaneous]**
-- _V046__Add_multisync_contract_columns.sql_ **[Impact: ~2 min/10M contracts]**:
-  - Add the multi-sync columns (`assigned_at_ix`, `unassigned_at_ix`, `reassignment_counter`, `synchronizer_id`) to the `__contracts` table and `contract` type.
-  - **Full __contracts rewrite:** Redefine the `life_ix` column to take `assigned_at_ix` and `unassigned_at_ix` into account.
-  - **Rebuild GiST index on __contracts.**
+- [V044__Add_reassignment_event_types.sql](https://github.com/digital-asset/participant-query-store/blob/main/modules/postgres/document/resources/db/migration/V044__Add_reassignment_event_types.sql):a dds the `assign` and `unassign` labels to the `__event_type` enum. Metadata-only, no table is scanned or rewritten. **[Impact: Instantaneous]**
+- [V045__Rename_domain_id_to_synchronizer_id.sql](https://github.com/digital-asset/participant-query-store/blob/main/modules/postgres/document/resources/db/migration/V045__Rename_domain_id_to_synchronizer_id.sql): renames the `domain_id` column of `__transactions` to `synchronizer_id`. Metadata-only, no table is scanned or rewritten. **[Impact: Instantaneous]**
+- [V046__Add_multisync_contract_columns.sql](https://github.com/digital-asset/participant-query-store/blob/main/modules/postgres/document/resources/db/migration/V046__Add_multisync_contract_columns.sql) **[Impact: Instantaneous]**:
+  - Define the `activation_type` and `deactivation_type` enums for the new `activation_type` and `deactivation_type` columns in the `__contracts` table.
+  - Rename column `created_at_ix` to `activated_at_ix`, and `archived_at_ix` to `deactivated_at_ix`, in the `__contracts` table.
+  - Add the multi-sync columns `reassignment_counter`, `synchronizer_id` in the `__contracts` table.
   - Drop the internal `__archives` view.
   - Drop the `__tmp_archived_contracts` and replace with `__tmp_deactivated_contracts` for internal use by the PQS pipeline.
-- _V047__Create_reassignments_table.sql_: creates the `__reassignment_type` enum and the list-partitioned `__reassignments` table, then creates one partition per row already present in `__contract_tpe`. **[Impact: Instantaneous /< 1 min]**
-- _V048__Prunning_reassignments.sql_: drops `prune_archived_to_offset` and `prune_archived_to_offset_dry_run` so that they can be re-created with the new `deleted_reassignments` result column. **[Impact: Instantaneous]**
-- _V049__Store_record_time.sql_: adds the `record_time` column to `__transactions`, which is metadata-only, and a BRIN index on it, which reads `__transactions` once. **[Impact: < 1 min/10M transactions]**
+- [V047__Create_reassignments_table.sql](https://github.com/digital-asset/participant-query-store/blob/main/modules/postgres/document/resources/db/migration/V047__Create_reassignments_table.sql): creates the `__reassignment_type` enum and the list-partitioned `__reassignments` table, then creates one partition per row already present in `__contract_tpe`. **[Impact: Instantaneous /< 1 min]**
+- [V048__Prunning_reassignments.sql](https://github.com/digital-asset/participant-query-store/blob/main/modules/postgres/document/resources/db/migration/V048__Prunning_reassignments.sql): drops `prune_archived_to_offset` and `prune_archived_to_offset_dry_run` so that they can be re-created with the new `deleted_reassignments` result column. **[Impact: Instantaneous]**
+- [V049__Store_record_time.sql](https://github.com/digital-asset/participant-query-store/blob/main/modules/postgres/document/resources/db/migration/V049__Store_record_time.sql): adds the `record_time` column to `__transactions`, which is metadata-only, and a BRIN index on it, which reads `__transactions` once. **[Impact: < 1 min/10M transactions]**
 
 ## What's New
 
@@ -31,9 +30,9 @@ This release includes the following SQL migrations:
 - PQS now subscribes to reassignments in addition to transactions.
 - Every `Reassignment` received from the ledger is recorded in `__transactions`, and its `Assigned` and `Unassigned` events are recorded in `__events` with the new `assign` and `unassign` types.
 - Each `Assigned` and `Unassigned` event is also recorded in the new `__reassignments` table. The table is a standalone audit log of what the ledger reported about the reassignment itself.
-- An `Assigned` event creates a new row in the `__contracts` table. Instead of setting `created_at_ix` and `create_event_pk`, it sets `assigned_at_ix` and `assign_event_pk`.
-- An `Unassigned` event deactivates its corresponding row from the `__contracts` table. Instead of setting `archived_at_ix` and `archive_event_pk`, it sets `unassigned_at_ix` and `unassign_event_pk`.
-- `Created` and `Assigned` events from the ledger now set `reassignment_counter` and `synchronizer_id`. These columns are left empty in legacy rows (PQS 3.6 or older).
+- An `Assigned` event creates a new row in the `__contracts` table. It sets `activation_type='assign'`.
+- An `Unassigned` event deactivates its corresponding row from the `__contracts` table. It sets `deactivation_type='unassign'`.
+- `Created` and `Assigned` events from the ledger now set `reassignment_counter` and `synchronizer_id`. For legacy rows (PQS 3.6 or older), `synchronizer_id` is left empty and `reassignment_counter` defaults to `0`.
 - ACS import records contract that was reassigned onto its current synchronizer with an `assign` event.
 
 
@@ -41,17 +40,22 @@ This release includes the following SQL migrations:
 
 - The SQL `contract` type, describing the output of the `active`, `creates` and `archives` SQL functions, is modified with new columns:
 ```sql
-assign_event_pk bigint,
-assign_event_id event_id,
-assigned_at_ix bigint,
-assigned_at_offset bigint,
-unassign_event_pk bigint,
-unassign_event_id event_id,
-unassigned_at_ix bigint,
-unassigned_at_offset bigint,
+activate_event_pk bigint,
+activate_event_id event_id,
+activated_at_ix bigint,
+activated_at_offset bigint,
+activation_type activation_type,
+deactivate_event_pk bigint,
+deactivate_event_id event_id,
+deactivated_at_ix bigint,
+deactivated_at_offset bigint,
+deactivation_type deactivation_type,
 reassignment_counter bigint,
 synchronizer_id text;
 ```
+- Columns like `create_event_*`/`created_at_*` and `archive_event_*`/`archived_at_*` are generated from their respective `activate` or `deactivate` counterparts.
+  - The PostgreSQL planner cannot use indexes on these derived fields.
+  - Join or filter on the underlying `activate_event_pk`, `activated_at_ix`, `deactivate_event_pk` or `deactivated_at_ix` columns instead.
 - `active` and `lookup_contract` now return a single row per `(contract_id, template_fqn)`, keeping the row with the highest `reassignment_counter`.
 - `summary_active` counts each `contract_id` only once per `template_fqn`.
 - *BREAKING*: The `__transactions` column `domain_id` is renamed to `synchronizer_id`, to match Canton's current vocabulary. It is now populated for every update — every transaction and every reassignment. Rows written before this release keep `NULL` and are not getting backfilled.

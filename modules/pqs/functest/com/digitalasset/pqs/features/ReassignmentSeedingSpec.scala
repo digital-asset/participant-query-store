@@ -15,9 +15,10 @@ import scala.language.implicitConversions
 
 object ReassignmentSeedingSpec extends SharedMultiSyncLedgerSpec:
   private val multiSyncColumns = Seq(
-    "created_at_ix::text",
-    "assigned_at_ix::text",
-    "archived_at_ix::text",
+    "activated_at_ix::text",
+    "activation_type",
+    "deactivated_at_ix::text",
+    "deactivation_type",
     "synchronizer_id",
     "reassignment_counter"
   )
@@ -47,7 +48,7 @@ object ReassignmentSeedingSpec extends SharedMultiSyncLedgerSpec:
           .active(extraColumns = multiSyncColumns)
           .returns(
             table {
-              dar.get.packageId | s"${pingPong.name}:PingPong:Ping" | "template" | contractId | null | "0" | null | sync2.id | 1
+              dar.get.packageId | s"${pingPong.name}:PingPong:Ping" | "template" | contractId | "0" | "assign" | null | null | sync2.id | 1
             }
           )
       Expect:
@@ -91,7 +92,7 @@ object ReassignmentSeedingSpec extends SharedMultiSyncLedgerSpec:
           .archives(extraColumns = multiSyncColumns)
           .returns(
             table {
-              dar.get.packageId | s"${pingPong.name}:PingPong:Ping" | "template" | contractId | null | "0" | "1" | sync2.id | 1
+              dar.get.packageId | s"${pingPong.name}:PingPong:Ping" | "template" | contractId | "0" | "assign" | "1" | "archive" | sync2.id | 1
             }
           )
     }

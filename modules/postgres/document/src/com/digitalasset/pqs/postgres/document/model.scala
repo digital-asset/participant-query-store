@@ -27,9 +27,30 @@ import scala.language.implicitConversions
 
 enum EventType:
   case Create, Archive, Exercise, Assign, Unassign
+  override def toString = this match
+    case Create             => "create"
+    case Archive            => "archive"
+    case EventType.Exercise => "exercise"
+    case Assign             => "assign"
+    case Unassign           => "unassign"
 
 enum ReassignmentType:
   case Assign, Unassign
+  override def toString = this match
+    case Assign   => "assign"
+    case Unassign => "unassign"
+
+enum ActivationType:
+  case Create, Assign
+  override def toString = this match
+    case Create => "create"
+    case Assign => "assign"
+
+enum DeactivationType:
+  case Archive, Unassign
+  override def toString = this match
+    case Archive  => "archive"
+    case Unassign => "unassign"
 
 sealed trait Model:
   def eventLabels: Set[MetricLabel]    = Set.empty
@@ -208,10 +229,9 @@ object Event
 
 final class Contract(
     entityType: EntityTypePk,
-    createEventPk: Option[IdPlaceholder],
-    createdAtIx: Option[Long],
-    assignEventPk: Option[IdPlaceholder],
-    assignedAtIx: Option[Long],
+    activateEventPk: IdPlaceholder,
+    activatedAtIx: Long,
+    activationType: ActivationType,
     contractId: ContractId,
     synchronizerId: SynchronizerId,
     reassignmentCounter: Long,
@@ -230,10 +250,9 @@ final class Contract(
   def table = Contract
   val row = buildRow(
     entityType,
-    createEventPk,
-    createdAtIx,
-    assignEventPk,
-    assignedAtIx,
+    activateEventPk,
+    activatedAtIx,
+    activationType,
     contractId,
     synchronizerId,
     reassignmentCounter,
@@ -248,17 +267,16 @@ final class Contract(
     witnesses,
     !acsDelta
   )
-  override val contractLabels: Set[MetricLabel] = metrics.labels(if createdAtIx.isDefined then "create" else "assign")
+  override val contractLabels: Set[MetricLabel] = metrics.labels(activationType.toString)
 
 object Contract
     extends Table(
       "__contracts",
       Seq(
         "tpe_pk",
-        "create_event_pk",
-        "created_at_ix",
-        "assign_event_pk",
-        "assigned_at_ix",
+        "activate_event_pk",
+        "activated_at_ix",
+        "activation_type",
         "contract_id",
         "synchronizer_id",
         "reassignment_counter",
@@ -332,10 +350,9 @@ object Exercise
 final class DeactivatedContract(
     entityType: EntityTypePk,
     contractId: ContractId,
-    archiveEventPk: Option[IdPlaceholder],
-    archivedAtIx: Option[Long],
-    unassignEventPk: Option[IdPlaceholder],
-    unassignedAtIx: Option[Long],
+    deactivateEventPk: IdPlaceholder,
+    deactivatedAtIx: Long,
+    deactivationType: DeactivationType,
     synchronizerId: SynchronizerId,
     metrics: MetricsContext
 ) extends Copy:
@@ -343,14 +360,13 @@ final class DeactivatedContract(
   val row = buildRow(
     entityType,
     contractId,
-    archiveEventPk,
-    archivedAtIx,
-    unassignEventPk,
-    unassignedAtIx,
+    deactivateEventPk,
+    deactivatedAtIx,
+    deactivationType,
     synchronizerId
   )
   override val contractLabels: Set[MetricLabel] =
-    metrics.labels(if archiveEventPk.isDefined then "archive" else "unassign")
+    metrics.labels(deactivationType.toString)
 
 // As opposed to the other tables, __tmp_deactivated_contracts is a staging table
 // the underlying __contracts is updated sequentially by __update_watermark_fn SQL function
@@ -360,10 +376,9 @@ object DeactivatedContract
       Seq(
         "tpe_pk",
         "contract_id",
-        "archive_event_pk",
-        "archived_at_ix",
-        "unassign_event_pk",
-        "unassigned_at_ix",
+        "deactivate_event_pk",
+        "deactivated_at_ix",
+        "deactivation_type",
         "synchronizer_id"
       ),
       insertOrder = 4
@@ -401,9 +416,7 @@ final class Reassignment(
   )
   override val eventLabels: Set[MetricLabel] =
     val sourceAndTarget = l("source_synchronizer_id" -> source, "target_synchronizer_id" -> target)
-    reassignmentType match
-      case ReassignmentType.Assign   => metrics.labels("assign") ++ sourceAndTarget
-      case ReassignmentType.Unassign => metrics.labels("unassign") ++ sourceAndTarget
+    metrics.labels(reassignmentType.toString) ++ sourceAndTarget
 
 object Reassignment
     extends Table(
@@ -485,15 +498,9 @@ private object RowValue:
   given [A: Converter]: Converter[Seq[A]] =
     value => value.map(v => v: RowValue).mkString("{", ",", "}")
 
-  given Converter[EventType] =
-    case EventType.Create   => RowValue("create")
-    case EventType.Archive  => RowValue("archive")
-    case EventType.Exercise => RowValue("exercise")
-    case EventType.Assign   => RowValue("assign")
-    case EventType.Unassign => RowValue("unassign")
-
-  given Converter[ReassignmentType] =
-    case ReassignmentType.Assign   => RowValue("assign")
-    case ReassignmentType.Unassign => RowValue("unassign")
+  given Converter[EventType]        = tpe => RowValue(tpe.toString)
+  given Converter[ReassignmentType] = tpe => RowValue(tpe.toString)
+  given Converter[ActivationType]   = tpe => RowValue(tpe.toString)
+  given Converter[DeactivationType] = tpe => RowValue(tpe.toString)
 
 private def buildRow(values: RowValue*): String = values.mkString("\t")

@@ -6,7 +6,7 @@ package com.digitalasset.pqs.config
 import com.digitalasset.pqs.docker.{Docker, Service}
 import com.digitalasset.pqs.SharedLedgerAndPostgresTest
 import com.digitalasset.pqs.functest.matchers.*
-import com.digitalasset.pqs.services.daml.{CantonConf, Ledger}
+import com.digitalasset.pqs.services.daml.*
 import com.digitalasset.pqs.services.azure.{EntraAuthorityMock, EntraMock}
 import com.digitalasset.pqs.services.postgres.{Database, Postgres}
 import com.digitalasset.pqs.services.pqs.*
@@ -17,8 +17,9 @@ object AzurePostgresqlAuthenticationPluginSpec extends SharedLedgerAndPostgresTe
   private val pluginClassName = "com.azure.identity.extensions.jdbc.postgresql.AzurePostgresqlAuthenticationPlugin"
   def spec = suite("AzurePostgresqlAuthenticationPlugin")(
     funcTest("Acquire Postgres token from ManagedIdentityCredential") {
+      val alice = Party("alice")
       Given:
-        Postgres.database
+        Postgres.database >+> DamlSdk.parties(alice)
       When:
         EntraMock.instance("invalid-token")
           >>> runPqsWithIdentityCredential("--pipeline-ledger-stop=Latest")
@@ -38,8 +39,9 @@ object AzurePostgresqlAuthenticationPluginSpec extends SharedLedgerAndPostgresTe
         noClassLoadingErrors
     },
     funcTest("Acquire Postgres token from EnvironmentCredential") {
+      val alice = Party("alice")
       Given:
-        Postgres.database
+        Postgres.database >+> DamlSdk.parties(alice)
       When:
         EntraAuthorityMock.instance("login.microsoftonline.com", "invalid-token")
           >>> runPqsWithEnvironmentCredential("--pipeline-ledger-stop=Latest")
@@ -120,6 +122,7 @@ object AzurePostgresqlAuthenticationPluginSpec extends SharedLedgerAndPostgresTe
       pg                <- ZIO.service[Postgres]
       ledger            <- ZIO.service[Ledger]
       database          <- ZIO.service[Database]
+      parties           <- ZIO.service[Parties]
       ca                <- Docker.certificateAuthority
       clientCertificate <- ca.generate("pqs")
     yield
@@ -140,7 +143,7 @@ object AzurePostgresqlAuthenticationPluginSpec extends SharedLedgerAndPostgresTe
         "PQS_TARGET_POSTGRES_TLS_CERT"                                 -> "/tls/client.crt",
         "PQS_TARGET_POSTGRES_TLS_CAFILE"                               -> "/tls/root-ca.crt",
         "PQS_TARGET_POSTGRES_PROPERTIES_authenticationPluginClassName" -> pluginClassName
-      )
+      ) ++ Map("PQS_PIPELINE_FILTER_PARTIES" -> parties.get.map(_.id).mkString("|"))
       val tlsFiles = Seq(
         os.root / "tls" / "client.pem"  -> clientCertificate.certificate.pem,
         os.root / "tls" / "client.der"  -> clientCertificate.certificate.der,
