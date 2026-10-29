@@ -350,7 +350,7 @@ object Exercise
 final class DeactivatedContract(
     entityType: EntityTypePk,
     contractId: ContractId,
-    deactivateEventPK: IdPlaceholder,
+    deactivateEventPk: IdPlaceholder,
     deactivatedAtIx: Long,
     deactivationType: DeactivationType,
     synchronizerId: SynchronizerId,
@@ -360,7 +360,7 @@ final class DeactivatedContract(
   val row = buildRow(
     entityType,
     contractId,
-    deactivateEventPK,
+    deactivateEventPk,
     deactivatedAtIx,
     deactivationType,
     synchronizerId
