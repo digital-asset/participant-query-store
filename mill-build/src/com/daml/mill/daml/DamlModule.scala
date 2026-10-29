@@ -59,7 +59,7 @@ trait DamlModule extends Module with OfflineSupportModule {
   }
 
   private def dpmWorker = T.worker {
-    val worker = BackgroundWorker(env = Map("DPM_REGISTRY" -> "europe-docker.pkg.dev/da-images/public-unstable"))
+    val worker = BackgroundWorker(env = Map("DPM_REGISTRY" -> "europe-docker.pkg.dev/da-images/public-all"))
     os.write.over(
       T.dest / "daml.yaml",
       s"""|override-components:
