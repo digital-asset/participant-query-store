@@ -53,6 +53,9 @@ deactivation_type deactivation_type,
 reassignment_counter bigint,
 synchronizer_id text;
 ```
+- Columns like `create_event_*`/`created_at_*` and `archive_event_*`/`archived_at_*` are generated from their respective `activate` or `deactivate` counterparts.
+  - The PostgreSQL planner cannot use indexes on these derived fields.
+  - Join or filter on the underlying `activate_event_pk`, `activated_at_ix`, `deactivate_event_pk` or `deactivated_at_ix` columns instead.
 - `active` and `lookup_contract` now return a single row per `(contract_id, template_fqn)`, keeping the row with the highest `reassignment_counter`.
 - `summary_active` counts each `contract_id` only once per `template_fqn`.
 - *BREAKING*: The `__transactions` column `domain_id` is renamed to `synchronizer_id`, to match Canton's current vocabulary. It is now populated for every update — every transaction and every reassignment. Rows written before this release keep `NULL` and are not getting backfilled.
