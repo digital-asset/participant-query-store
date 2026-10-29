@@ -10,8 +10,8 @@ alter table __contracts rename column archive_event_pk to deactivate_event_pk;
 alter table __contracts rename column archived_at_ix to deactivated_at_ix;
 
 alter table __contracts
-  -- keep null values to not seq-scan rewrite the table
   add column activation_type activation_type not null default 'create',
+  -- keep null values in legacy archived rows to avoid the table rewrite
   add column deactivation_type deactivation_type,
   add column reassignment_counter bigint not null default 0,
   add column synchronizer_id text;
