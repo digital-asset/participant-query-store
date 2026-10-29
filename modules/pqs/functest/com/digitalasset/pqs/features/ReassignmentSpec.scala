@@ -11,7 +11,6 @@ import com.digitalasset.pqs.services.postgres.*
 import com.digitalasset.pqs.services.pqs.Pqs
 import com.digitalasset.pqs.functest.table.*
 import com.digitalasset.pqs.services.daml.*
-import com.digitalasset.pqs.services.daml.DamlSdk.onlyCantonVersion
 import com.digitalasset.pqs.specific.OffsetType
 import zio.jdbc.*
 
@@ -87,4 +86,4 @@ object ReassignmentSpec extends FuncTestStandalone:
             table(dar.get.packageId | s"${pingPong.name}:PingPong:Ping" | "template" | contractId | archivedAtOffset)
           )
     }
-  ) @@ onlyCantonVersion(">=3.5")
+  )

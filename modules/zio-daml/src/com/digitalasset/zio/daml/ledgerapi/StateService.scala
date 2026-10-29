@@ -40,7 +40,8 @@ case class StateService(
           GetActiveContractsRequest(
             activeAtOffset = activeAtOffset.toActiveAtLedgerOffset,
             eventFormat = Some(mkEventFormat(rights, damlSchema)),
-            streamContinuationToken = None
+            streamContinuationToken = None,
+            includeIncompleteReassignments = false
           )
         )
         .map(_.getActiveContract.createdEvent)

@@ -183,7 +183,7 @@ object Ledger:
 
   def reassign(contractId: String, submitter: Party, source: Synchronizer, target: Synchronizer) = svc {
     val unassignCommand = ReassignmentCommand.Command.UnassignCommand(
-      UnassignCommand(contractId, source.id, target.id)
+      UnassignCommand(contractId, source.id, target.id, None, None)
     )
     for
       unassignResp <- submitAndWaitForReassignment(submitter, unassignCommand)
