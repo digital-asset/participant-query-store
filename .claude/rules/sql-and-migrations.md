@@ -70,7 +70,7 @@ change, and never call a change performance-neutral without numbers.
 - Since multi-sync (V045) a contract can have several `__contracts` rows, and "deactivated" means
   archived or unassigned. Audit every use of `archived_*` columns and every query that assumes one row
   per contract.
-- `reassignment_counter` is NULL on rows written before 3.7, and Postgres sorts NULLs first in `desc`
+- `reassignment_counter` is NULL on rows written before 3.8, and Postgres sorts NULLs first in `desc`
   order: write `desc nulls last`.
 - The SQL API (the `contract` type, read functions, prune results) is public: append new columns at
   the end, never insert or reorder, and mark breaking changes `*BREAKING*` in `UNRELEASED.md`.
