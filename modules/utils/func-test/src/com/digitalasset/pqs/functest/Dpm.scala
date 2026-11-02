@@ -46,7 +46,13 @@ object Dpm:
       "dpm",
       (Seq("script") ++ ledgerArgs ++ scriptArgs ++ inputOutputArgs ++ certificateArgs ++ accessTokenFileArgs)*
     )
-      .copy(workingDirectory = Some(packageDir.toIO))
+      .copy(
+        workingDirectory = Some(packageDir.toIO),
+        env = Map(
+          // TODO #199 Bump damlc and remove
+          "CANTON_AUTOMATIC_PROTOCOL_VERSION" -> "true"
+        )
+      )
       .successOrLogError
 
   private def installSdk: ZIO[FTEnv, Throwable, Dpm] =
