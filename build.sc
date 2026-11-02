@@ -169,6 +169,7 @@ object `package` extends RootModule { root =>
         "class org.postgresql.** extends java.lang.Enum { *; } ",
         "class com.fasterxml.** extends java.lang.Enum { *; } ",
         "class io.netty.util.concurrent.ConcurrentSkipListIntObjMultimap { *; }",
+        "class io.grpc.netty.shaded.io.netty.util.concurrent.ConcurrentSkipListIntObjMultimap { *; }",
         "class tools.jackson.databind.** extends java.lang.Enum { *; }",
         // Loaded reflectively by AzurePostgresqlAuthenticationPlugin        
         "class com.azure.identity.extensions.jdbc.postgresql.AzurePostgresqlAuthenticationPlugin { *; }",
