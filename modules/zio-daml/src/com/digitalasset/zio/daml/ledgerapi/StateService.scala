@@ -36,7 +36,8 @@ case class StateService(
           GetActiveContractsRequest(
             activeAtOffset = activeAtOffset.toLong,
             eventFormat = Some(mkEventFormat(rights, damlSchema)),
-            streamContinuationToken = None
+            streamContinuationToken = None,
+            includeIncompleteReassignments = false
           )
         )
         .map(_.contractEntry.activeContract)

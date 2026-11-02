@@ -14,11 +14,11 @@ package object millbuild {
 
     // Latest snapshot: https://console.cloud.google.com/artifacts/docker/da-images/europe/public-unstable/components%2Fdamlc
     // Latest stable: https://console.cloud.google.com/artifacts/docker/da-images/europe/public/components%2Fdamlc
-    val damlc = "3.7.0-snapshot.20261009.14869.0.vbf965b99"
+    val damlc = "3.8.0-snapshot.20261029.14905.0.v13b36f00"
 
     // Latest snapshot: https://console.cloud.google.com/artifacts/docker/da-images/europe/public-unstable/docker%2Fcanton-base
     // Latest stable: https://console.cloud.google.com/artifacts/docker/da-images/europe/public/docker%2Fcanton-base
-    val canton = "3.7.0-snapshot.20261013.20756.0.v37accecc"
+    val canton = "3.8.0-snapshot.20261029.21038.0.v135bb7c3"
 
     val bouncyCastle = "1.86"
     val dockerClient = "3.4.0"
