@@ -36,9 +36,13 @@ package object millbuild {
     // Force specific version to address vulnerabilities
     val jackson2 = "2.22.4"
 
+    // Pulled transitively by STTP okhttp-backend
+    // Force specific version to address vulnerabilities
+    val kotlin = "2.4.20"
+
     // Pulled transitively by ZIO HTTP and azure-identity
     // Force specific version to address vulnerabilities
-    val nettyVersion = "4.2.18.Final"
+    val netty = "4.2.18.Final"
 
     // Pulled transitively by azure-identity
     // Force specific version to address vulnerabilities
@@ -75,7 +79,7 @@ package object millbuild {
       "netty-resolver-dns",
       "netty-transport-native-epoll",
       "netty-transport-native-kqueue"
-    ).map(name => ivy"io.netty:$name:${V.nettyVersion}")
+    ).map(name => ivy"io.netty:$name:${V.netty}")
 
     // transitive dependency of azure-identity-extensions
     object reactorNetty {
@@ -166,7 +170,10 @@ package object millbuild {
     object sttp {
       val zio    = ivy"com.softwaremill.sttp.client4::zio:${V.sttpClient}"
       val okhttp = ivy"com.softwaremill.sttp.client4::okhttp-backend:${V.sttpClient}"
+        .excludeOrg("org.jetbrains.kotlin")
     }
+
+    val kotlinStdLib = ivy"org.jetbrains.kotlin:kotlin-stdlib:${V.kotlin}"
 
     val sbtTestInterface = ivy"org.scala-sbt:test-interface:1.0"
 

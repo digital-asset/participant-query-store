@@ -633,7 +633,9 @@ object `package` extends RootModule { root =>
       L.sttp.zio,
       L.sttp.okhttp,
       L.ujson,
-      L.zio.streams
+      L.zio.streams,
+      // bump transitive deps to address vulnerabilities
+      L.kotlinStdLib
     )
 
     override def moduleDeps = Seq(
