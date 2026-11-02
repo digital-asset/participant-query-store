@@ -161,5 +161,3 @@ jobs:
           chart: charts/participant-query-store
           registry: europe-docker.pkg.dev/da-images/public-unstable/charts
           version: ${{ steps.gen-version.outputs.version }}
-          username: oauth2accesstoken
-          password: ${{ steps.auth.outputs.access_token }}

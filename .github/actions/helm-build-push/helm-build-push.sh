@@ -17,8 +17,6 @@ inputs=(
   CHART
   REGISTRY
   VERSION
-  USERNAME
-  PASSWORD
 )
 
 failed=false
@@ -54,7 +52,7 @@ package="${temp}/${name}-${VERSION}.tgz"
 } >>"${GITHUB_STEP_SUMMARY}"
 
 # Check that the release doesn't already exist
-if helm show chart --username "${USERNAME}" --password "${PASSWORD}" "oci://${REGISTRY}/${name}:${VERSION}" >/dev/null 2>&1; then
+if helm show chart "oci://${REGISTRY}/${name}:${VERSION}" >/dev/null 2>&1; then
   echo "Package ${name}:${VERSION} already exists in ${REGISTRY}, skipping."
   exit 0
 fi
@@ -67,7 +65,7 @@ helm package "${CHART}" --version "${VERSION}" --destination "${temp}"
   echo '```yaml'
 } >>"${GITHUB_STEP_SUMMARY}"
 
-helm push --username "${USERNAME}" --password "${PASSWORD}" "${package}" "oci://${REGISTRY}" 2>&1 | tee -a "${GITHUB_STEP_SUMMARY}"
+helm push "${package}" "oci://${REGISTRY}" 2>&1 | tee -a "${GITHUB_STEP_SUMMARY}"
 
 echo '```' >>"${GITHUB_STEP_SUMMARY}"
 
