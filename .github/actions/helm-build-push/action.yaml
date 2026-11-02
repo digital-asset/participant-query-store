@@ -12,6 +12,12 @@ inputs:
   registry:
     description: The registry path
     required: true
+  username:
+    description: The registry username
+    required: true
+  password:
+    description: The registry password
+    required: true
   version:
     description: The chart version
     required: true
@@ -30,6 +36,8 @@ runs:
         CHART: ${{ inputs.chart }}
         REGISTRY: ${{ inputs.registry }}
         VERSION: ${{ inputs.version }}
+        USERNAME: ${{ inputs.username }}
+        PASSWORD: ${{ inputs.password }}
       shell: nix-shell ${{ github.action_path }}/shell.nix --run "exec bash -euo pipefail {0}"
       run: ${{ github.action_path }}/helm-build-push.sh
     - name: Upload Chart
