@@ -11,7 +11,7 @@ defaults:
     shell: bash -euo pipefail -c "source nix.source && exec bash -euo pipefail {0}"
 
 permissions:
-  contents: write
+  contents: read
   id-token: write
 
 jobs:
