@@ -203,12 +203,14 @@ object Postgres:
             from __transactions t
             where t.ix = ${txIndices.head - 1};""".update
     } *> query {
-      sql"delete from __contracts where created_at_ix in (${txIndices.toList})".delete *>
-        sql"update __contracts set archived_at_ix = null, archive_event_pk = null where archived_at_ix in (${txIndices.toList})".update *>
-        sql"delete from __exercises where exercised_at_ix in (${txIndices.toList})".delete *>
-        sql"delete from __reassignments where reassigned_at_ix in (${txIndices.toList})".delete *>
-        sql"delete from __events where tx_ix in (${txIndices.toList})".delete *>
-        sql"delete from __transactions where ix in (${txIndices.toList})".delete
+      sql"delete from __contracts where activated_at_ix in (${txIndices.toList})".delete *>
+        sql"""update __contracts
+              set deactivated_at_ix = null, deactivate_event_pk = null, deactivation_type = null
+              where deactivated_at_ix in (${txIndices.toList})""".update
+        *> sql"delete from __exercises where exercised_at_ix in (${txIndices.toList})".delete
+        *> sql"delete from __reassignments where reassigned_at_ix in (${txIndices.toList})".delete
+        *> sql"delete from __events where tx_ix in (${txIndices.toList})".delete
+        *> sql"delete from __transactions where ix in (${txIndices.toList})".delete
     }
 
   /** Simulates non-contiguous offsets by shifting all offsets from the given transaction index onward. This models the

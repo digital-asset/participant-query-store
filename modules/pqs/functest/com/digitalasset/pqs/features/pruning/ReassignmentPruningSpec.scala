@@ -80,13 +80,15 @@ object ReassignmentPruningSpec extends SharedMultiSyncLedgerSpec:
             .returns(table("assign" | reassignedAssigned))
         And:
           Postgres
-            .query(sql"""select contract_id, created_at_offset, assigned_at_offset
-                         from active()
-                         order by assigned_at_offset nulls last""")
+            .query(
+              sql"""select contract_id, activated_at_offset, activation_type
+                    from active()
+                    order by activated_at_offset"""
+            )
             .returns(
               table {
-                reassignedCid | 0             | reassignedAssigned
-                activeCid     | activeCreated | 0
+                reassignedCid | reassignedAssigned | "assign"
+                activeCid     | activeCreated      | "create"
               }
             )
       },
@@ -150,13 +152,15 @@ object ReassignmentPruningSpec extends SharedMultiSyncLedgerSpec:
             .returns(table("assign" | activeCreated))
         And:
           Postgres
-            .query(sql"""select contract_id, created_at_offset, assigned_at_offset
-                         from active()
-                         order by assigned_at_offset nulls last""")
+            .query(
+              sql"""select contract_id, activated_at_offset, activation_type
+                    from active()
+                    order by activation_type"""
+            )
             .returns(
               table {
-                reassignedCid | 0             | activeCreated
-                activeCid     | activeCreated | 0
+                activeCid     | activeCreated | "create"
+                reassignedCid | activeCreated | "assign"
               }
             )
       }

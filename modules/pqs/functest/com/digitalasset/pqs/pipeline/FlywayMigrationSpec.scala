@@ -228,12 +228,14 @@ object FlywayMigrationSpec extends FuncTestStandalone:
       Expect:
         // The second reassignment deactivates the initial row and creates a new one
         Database
-          .__contracts(extraColumns = Seq("unassigned_at_ix", "reassignment_counter", "synchronizer_id"))
+          .__contracts(extraColumns =
+            Seq("deactivation_type", "deactivated_at_ix::text", "reassignment_counter", "synchronizer_id")
+          )
           .returns(
             table {
-              anything | anything | contractId1 | "[1,3)" | 3 | 0 | null
-              anything | anything | contractId2 | "[2,)"  | 0 | 0 | null
-              anything | anything | contractId1 | "[4,)"  | 0 | 2 | sync1.id
+              anything | anything | contractId1 | "[1,3)" | "unassign" | "3"  | 0 | null
+              anything | anything | contractId2 | "[2,)"  | null       | null | 0 | null
+              anything | anything | contractId1 | "[4,)"  | null       | null | 2 | sync1.id
             }
           )
       Expect:

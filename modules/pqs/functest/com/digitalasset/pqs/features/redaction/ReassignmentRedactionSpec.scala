@@ -182,8 +182,7 @@ object ReassignmentRedactionSpec extends SharedMultiSyncLedgerSpec:
         Expect:
           Postgres
             .query(
-              sql"""select payload, redaction_id from __contracts where contract_id=${contractId.get}
-                   order by coalesce(created_at_ix, assigned_at_ix)"""
+              sql"select payload, redaction_id from __contracts where contract_id=${contractId.get} order by activated_at_ix"
             )
             .returns(
               table {

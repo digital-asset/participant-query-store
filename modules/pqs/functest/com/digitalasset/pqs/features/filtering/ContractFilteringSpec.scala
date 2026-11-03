@@ -167,7 +167,7 @@ object ContractFilteringSpec extends SharedLedgerAndPostgresTest:
     sql"""select substring(template_fqn from position(':' in template_fqn) + 1), payload->>'firstName', payload->>'lastName', payload->>'name'
           from active()
           where template_fqn like $templateMatcher
-          order by created_at_ix, template_fqn"""
+          order by activated_at_ix, template_fqn"""
 
   private def querySummaryExercises() = Postgres `query`
     sql"""select substring(choice_fqn from position(':' in choice_fqn) + 1) as ch_fqn, count
