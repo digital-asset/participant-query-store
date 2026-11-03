@@ -142,19 +142,11 @@ object ReassignmentSpec extends SharedMultiSyncLedgerSpec:
           )
 
       Expect:
-        // A cutoff that falls between the unassign and the assign: later than the create's
-        // effective time, earlier than the archive's, so the only rows at or before it are the
-        // create and the two reassignments. The reassignments carry a null effective_at, so this
-        // function cannot see them — its max() ignores them rather than being poisoned by them,
-        // and the answer is the create rather than the newer unassign. A boundary falling in a
-        // reassignment-only stretch of history is therefore not targetable, which is what
-        // https://github.com/digital-asset/participant-query-store/issues/74 will revisit.
         Postgres
-          .query(sql"""select nearest_offset(
-                         (select min(effective_at) + (max(effective_at) - min(effective_at)) / 2
-                          from __transactions)
-                       )""")
-          .returns(table(createdAtOffset))
+          .query(
+            sql"""select nearest_offset(record_time) from __transactions where "offset" = ${unassignedAtOffset.get}"""
+          )
+          .returns(table(unassignedAtOffset))
     },
     funcTest("Non-causal stream: archived before created") {
       val alice      = Party("Alice")

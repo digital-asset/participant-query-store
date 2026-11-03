@@ -455,7 +455,10 @@ declare
     result bigint;
 begin
     raise info 'Finding closest offset prior to cut-off timestamp: % (UTC)', cutoff_ts;
-    select max(tx."offset") into result from __transactions tx, __watermark wm where tx.effective_at <= cutoff_ts and tx."offset" <= wm."offset";
+    -- rows ingested before record_time was stored fall back to effective_at
+    select max(tx."offset") into result from __transactions tx, __watermark wm
+    where (tx.record_time <= cutoff_ts or (tx.record_time is null and tx.effective_at <= cutoff_ts))
+      and tx."offset" <= wm."offset";
     raise info 'Determined closest offset: %', result;
     return result;
 end;
