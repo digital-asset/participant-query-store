@@ -71,19 +71,7 @@ jobs:
       - uses: actions/checkout@v5
       - uses: ./.github/actions/nix
       - uses: ./.github/actions/gen-version
-      - name: Authenticate to Google Cloud
-        id: auth
-        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 #v3.0.0
-        with:
-          token_format: access_token
-          workload_identity_provider: projects/794775982379/locations/global/workloadIdentityPools/github-actions/providers/da-provider
-          service_account: gh-da-pqs@da-images.iam.gserviceaccount.com
-      - name: Login to GAR
-        uses: docker/login-action@v3
-        with:
-          registry: europe-docker.pkg.dev
-          username: oauth2accesstoken
-          password: ${{ steps.auth.outputs.access_token }}
+      - uses: ./.github/actions/gar-login
       - name: Restore dist
         uses: actions/download-artifact@v8
         with:
@@ -112,19 +100,7 @@ jobs:
       - uses: actions/checkout@v5
       - uses: ./.github/actions/nix
       - uses: ./.github/actions/gen-version
-      - name: Authenticate to Google Cloud
-        id: auth
-        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 #v3.0.0
-        with:
-          token_format: access_token
-          workload_identity_provider: projects/794775982379/locations/global/workloadIdentityPools/github-actions/providers/da-provider
-          service_account: gh-da-pqs@da-images.iam.gserviceaccount.com
-      - name: Login to GAR
-        uses: docker/login-action@v3
-        with:
-          registry: europe-docker.pkg.dev
-          username: oauth2accesstoken
-          password: ${{ steps.auth.outputs.access_token }}
+      - uses: ./.github/actions/gar-login
       - name: Restore dist
         uses: actions/download-artifact@v8
         with:
@@ -141,19 +117,8 @@ jobs:
     needs: ship-docker
     steps:
       - uses: actions/checkout@v5
-      - name: Authenticate to Google Cloud
-        id: auth
-        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 #v3.0.0
-        with:
-          token_format: access_token
-          workload_identity_provider: projects/794775982379/locations/global/workloadIdentityPools/github-actions/providers/da-provider
-          service_account: gh-da-pqs@da-images.iam.gserviceaccount.com
-      - name: Login to GAR
-        uses: docker/login-action@v3
-        with:
-          registry: europe-docker.pkg.dev
-          username: oauth2accesstoken
-          password: ${{ steps.auth.outputs.access_token }}
+      - uses: ./.github/actions/gar-login
+        id: gar-login
       - name: Helm Build and Publish (Stable)
         uses: ./.github/actions/helm-build-push
         with:
@@ -161,4 +126,4 @@ jobs:
           registry: europe-docker.pkg.dev/da-images/public/charts
           version: ${{ github.ref_name }}
           username: oauth2accesstoken
-          password: ${{ steps.auth.outputs.access_token }}
+          password: ${{ steps.gar-login.outputs.access_token }}
