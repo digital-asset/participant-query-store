@@ -127,7 +127,11 @@ select tpe.template_fqn,
        unassign_t."offset",
        c.reassignment_counter,
        c.synchronizer_id,
-       c.tpe_pk
+       c.tpe_pk,
+       ct.record_time,
+       at.record_time,
+       assign_t.record_time,
+       unassign_t.record_time
 from __contracts c
          left join __contract_tpe tpe on tpe.pk = c.tpe_pk
          left join __transactions ct on c.created_at_ix = ct.ix
@@ -168,7 +172,8 @@ select tpe.template_fqn,
        e.controllers,
        e.last_descendant_node_id,
        e.witnesses,
-       t.synchronizer_id
+       t.synchronizer_id,
+       t.record_time
 from __exercises e
          left join __contracts c on c.contract_id = e.contract_id and c.tpe_pk = e.contract_tpe_pk
          left join __exercise_tpe tpe on tpe.pk = e.tpe_pk
@@ -1355,7 +1360,11 @@ select c.template_fqn,
        c.unassigned_at_offset, 
        c.reassignment_counter,
        c.synchronizer_id,
-       c.tpe_pk
+       c.tpe_pk,
+       c.created_record_time,
+       c.archived_record_time,
+       c.assigned_record_time,
+       c.unassigned_record_time
 from __contracts(qname) c
 where c.archived_at_ix between (select __nearest_ix_ceil(from_offset)) and (select __nearest_ix_floor(to_offset))
 $$ language sql stable
