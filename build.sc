@@ -169,6 +169,7 @@ object `package` extends RootModule { root =>
         "class org.postgresql.** extends java.lang.Enum { *; } ",
         "class com.fasterxml.** extends java.lang.Enum { *; } ",
         "class io.netty.util.concurrent.ConcurrentSkipListIntObjMultimap { *; }",
+        "class io.grpc.netty.shaded.io.netty.util.concurrent.ConcurrentSkipListIntObjMultimap { *; }",
         "class tools.jackson.databind.** extends java.lang.Enum { *; }",
         // Loaded reflectively by AzurePostgresqlAuthenticationPlugin        
         "class com.azure.identity.extensions.jdbc.postgresql.AzurePostgresqlAuthenticationPlugin { *; }",
@@ -639,7 +640,9 @@ object `package` extends RootModule { root =>
       L.sttp.zio,
       L.sttp.okhttp,
       L.ujson,
-      L.zio.streams
+      L.zio.streams,
+      // bump transitive deps to address vulnerabilities
+      L.kotlinStdLib
     )
 
     override def moduleDeps = Seq(

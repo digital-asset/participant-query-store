@@ -32,7 +32,7 @@ This release includes the following SQL migrations:
 - Each `Assigned` and `Unassigned` event is also recorded in the new `__reassignments` table. The table is a standalone audit log of what the ledger reported about the reassignment itself.
 - An `Assigned` event creates a new row in the `__contracts` table. It sets `activation_type='assign'`.
 - An `Unassigned` event deactivates its corresponding row from the `__contracts` table. It sets `deactivation_type='unassign'`.
-- `Created` and `Assigned` events from the ledger now set `reassignment_counter` and `synchronizer_id`. For legacy rows (PQS 3.6 or older), `synchronizer_id` is left empty and `reassignment_counter` defaults to `0`.
+- `Created` and `Assigned` events from the ledger now set `reassignment_counter` and `synchronizer_id`. For legacy rows (PQS 3.7 or older), `synchronizer_id` is left empty and `reassignment_counter` defaults to `0`.
 - ACS import records contract that was reassigned onto its current synchronizer with an `assign` event.
 
 

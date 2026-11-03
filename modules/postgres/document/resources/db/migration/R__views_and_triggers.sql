@@ -57,7 +57,7 @@ begin
                     and c2.contract_id = d.contract_id
                     and c2.deactivated_at_ix is null
                     and c2.activated_at_ix <= d.deactivated_at_ix
-                    -- synchronizer_id may be null on rows written by PQS 3.6 or older
+                    -- synchronizer_id may be null on rows written by PQS 3.7 or older
                     and (c2.synchronizer_id is null or c2.synchronizer_id = d.synchronizer_id)
                 order by c2.activated_at_ix desc
                 limit 1
