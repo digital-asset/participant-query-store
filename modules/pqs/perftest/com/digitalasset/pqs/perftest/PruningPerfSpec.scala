@@ -22,21 +22,16 @@ object PruningPerfSpec extends SharedHydratedLedgerTest:
       val baselineStats = Capture[Seq[PruningStats]]
       Given:
         Postgres.database
-          >+> Pqs36.runPipeline(
+          >+> Pqs37.runPipeline(
             "--pipeline-ledger-start=Genesis",
             "--pipeline-ledger-stop=Latest",
             "--logger-level=Warning"
           )
-      Expect:
+      Expect(2.minutes):
         runBenchmark.is(baselineStats.capture)
 
       When:
-        Postgres.database
-          >+> Pqs.runPipeline(
-            "--pipeline-ledger-start=Genesis",
-            "--pipeline-ledger-stop=Latest",
-            "--logger-level=Warning"
-          )
+        Pqs.applySchema // schema migration
       Expect(2.minutes):
         for
           stats <- runBenchmark
@@ -54,7 +49,10 @@ object PruningPerfSpec extends SharedHydratedLedgerTest:
             val diff                = (candidateDurationMs.toDouble - baselineDurationMs) / baselineDurationMs
             assert(stats.output)(Assertion.equalTo(baseline.output))
             && assertTrue(diff < 0.3).label(
-              s"Pruning by ${stats.step.percent} (${stats.duration}) is ${diff.percent} slower than baseline (${baseline.duration})"
+              s"Pruning by ${stats.step.percent} (${stats.duration.render}) is ${diff.percent} slower than baseline (${baseline.duration.render})"
+            )
+            && assertTrue(diff > -0.3).label(
+              s"Pruning by ${stats.step.percent} (${stats.duration.render}) is ${(-diff).percent} faster than baseline (${baseline.duration.render})"
             )
           }
           TestResult.allSuccesses(results)
@@ -69,6 +67,7 @@ object PruningPerfSpec extends SharedHydratedLedgerTest:
 
   private def runBenchmark =
     for
+      _      <- Postgres.call(sql"analyze")
       lastIx <- getLastIx
       stats <- ZIO.foreach(steps) { step =>
         ZIO.logInfo(s"Benchmark pruning by ${step.percent}")

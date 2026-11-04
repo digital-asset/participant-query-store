@@ -181,7 +181,7 @@ object FlywayMigrationSpec extends FuncTestStandalone:
             }
           )
     } @@ DamlSdk.onlyDamlLfVersion("=2.3"),
-    funcTest("Migrate from 3.6 to main: add support for reassignment") {
+    funcTest("Migrate from 3.7 to main: add support for reassignment") {
       val alice = Party("Alice")
       val sync1 = Synchronizer("sync1")
       val sync2 = Synchronizer("sync2")
@@ -201,14 +201,14 @@ object FlywayMigrationSpec extends FuncTestStandalone:
         // create another contract to force watermark advancement
           *> createContract(alice, sync2).is(contractId2.capture)
       And:
-        Pqs36.runPipeline(
+        Pqs37.runPipeline(
           "--pipeline-datasource=TransactionStream",
           "--pipeline-ledger-start=Genesis",
           "--pipeline-ledger-stop=Latest"
         )
 
       Expect:
-        // PQS 36 does not ingest reassignment events
+        // PQS 3.7 does not ingest reassignment events
         legacyActive(s"${pingPong.name}:PingPong:Ping")("contract_id", "life_ix").returns(
           table {
             contractId1 | "[1,)"
