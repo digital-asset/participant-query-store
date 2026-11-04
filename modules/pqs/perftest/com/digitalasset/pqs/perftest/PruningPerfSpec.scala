@@ -14,7 +14,7 @@ import scala.language.implicitConversions
 import zio.Duration
 
 object PruningPerfSpec extends SharedHydratedLedgerTest:
-  private val steps = Seq(0.005, 0.01, 0.05, 0.10)
+  private val steps = Seq(0.005, 0.01, 0.05, 0.10, 0.25, 0.5)
 
   def spec = suite("PruningPerfSpec")(
     funcTest("pruning perf") {
@@ -72,7 +72,7 @@ object PruningPerfSpec extends SharedHydratedLedgerTest:
       stats <- ZIO.foreach(steps) { step =>
         ZIO.logInfo(s"Benchmark pruning by ${step.percent}")
           *> getOffset((lastIx * step).toLong)
-            .flatMap(prune(_).repeatN(9).timed)
+            .flatMap(prune(_).repeatN(4).timed)
             .map((duration, output) => PruningStats(step, duration, output))
       }
     yield stats
