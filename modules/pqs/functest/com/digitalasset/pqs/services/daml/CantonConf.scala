@@ -45,7 +45,8 @@ final case class CantonConf(version: String, protocolVersion: Int):
   def oneParticipant(
       hostname: String,
       enableTrafficControl: Boolean = true,
-      usingPostgres: Option[(String, Int)] = None
+      usingPostgres: Option[(String, Int)] = None,
+      bootstrap: Boolean = true
   ) =
     def storage(name: String) = if usingPostgres.isDefined then Storage.Postgres(name) else Storage.Memory
     for (oauth, collectorInstance, certFiles) <- commonSetup(hostname, usingPostgres = usingPostgres.isDefined)
@@ -109,7 +110,19 @@ final case class CantonConf(version: String, protocolVersion: Int):
              |  )""".stripMargin
         else ""
 
-      val bootstrap =
+      val synchronizerId =
+        if bootstrap then
+          """|bootstrap.synchronizer(
+             |  synchronizerName = "synchronizer1",
+             |  sequencers = Seq(sequencer1),
+             |  mediators = Seq(mediator1),
+             |  synchronizerOwners = Seq(sequencer1),
+             |  synchronizerThreshold = PositiveInt.one,
+             |  staticSynchronizerParameters = StaticSynchronizerParameters.defaultsWithoutKMS(ProtocolVersion.forSynchronizer)
+             |)""".stripMargin
+        else """participant1.synchronizers.physical_id_of("synchronizer1")"""
+
+      val bootstrapScript =
         s"""|import com.digitalasset.canton.console.LocalInstanceReference
             |import com.digitalasset.canton.synchronizer.config.SynchronizerParametersConfig
             |import com.digitalasset.canton.version.ProtocolVersion
@@ -119,14 +132,7 @@ final case class CantonConf(version: String, protocolVersion: Int):
             |def main() = {
             |  nodes.local.start()
             |
-            |  val synchronizerId = bootstrap.synchronizer(
-            |    synchronizerName = "synchronizer1",
-            |    sequencers = Seq(sequencer1),
-            |    mediators = Seq(mediator1),
-            |    synchronizerOwners = Seq(sequencer1),
-            |    synchronizerThreshold = PositiveInt.one,
-            |    staticSynchronizerParameters = StaticSynchronizerParameters.defaultsWithoutKMS(ProtocolVersion.forSynchronizer)
-            |  )
+            |  val synchronizerId = $synchronizerId
             |
             |  val initialReconciliationInterval = config.PositiveDurationSeconds.ofSeconds(1)
             |  sequencer1.topology.synchronizer_parameters.propose_update(
@@ -152,7 +158,7 @@ final case class CantonConf(version: String, protocolVersion: Int):
             |  logger.info("=== finishing participant bootstrap ===")
             |}
             |""".stripMargin
-      certFiles ++ Seq(os.root / "app" / "app.conf" -> config, os.root / "app" / "bootstrap.sc" -> bootstrap)
+      certFiles ++ Seq(os.root / "app" / "app.conf" -> config, os.root / "app" / "bootstrap.sc" -> bootstrapScript)
 
   def twoParticipantsConfigOnly(pgHost: String, pgPort: Int, dbP1: String, dbP2: String): String =
     s"""|${postgresConfig(pgHost, pgPort)}

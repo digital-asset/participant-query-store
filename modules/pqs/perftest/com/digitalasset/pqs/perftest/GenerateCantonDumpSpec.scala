@@ -29,7 +29,7 @@ object GenerateCantonDumpSpec extends FuncTestStandalone:
         // Run in its own scope so the Ledger is stopped before we generate the dumps
         // TODO Closing the scope is slow because Canton participant node fails to close gracefully
         ZIO.scoped {
-          val layer = Ledger.instanceWithPgStorage
+          val layer = Ledger.instanceWithPgStorage(bootstrap = true)
             >+> DamlSdk.deploy(Dars.seedAndBlobs)
             >+> DamlSdk.parties(alice)
             // create 20K tx and 1M contracts, including ~250K active blobs
