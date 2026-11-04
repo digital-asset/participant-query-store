@@ -46,10 +46,15 @@ jobs:
         run: blackduck_scan -p "${GITHUB_REPOSITORY_OWNER}_${GITHUB_REPOSITORY#*/}" -b "${{ matrix.branch }}" -c MAJOR,CRITICAL,BLOCKER
         env:
           BLACKDUCK_HUBDETECT_TOKEN: ${{ secrets.DA_BLACKDUCK }}
+      - name: Sanitize branch name
+        id: sanitize
+        run: echo "name=${BRANCH//\//-}" >> "$GITHUB_OUTPUT"
+        env:
+          BRANCH: ${{ matrix.branch }}
       - name: Store Blackduck Scan
         uses: actions/upload-artifact@v7
         with:
-          name: blackduck-report-${{ replace(matrix.branch, '/', '-') }}
+          name: blackduck-report-${{ steps.sanitize.outputs.name }}
           path: /home/runner/blackduck/runs/
           include-hidden-files: true
           if-no-files-found: error
