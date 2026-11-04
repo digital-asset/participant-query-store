@@ -163,7 +163,7 @@ jobs:
           name: dist
           path: .dist
       - name: Populate dpm component
-        run: make populate-component-yaml
+        run: make apps/populate-component-yaml
       - run: ls -alhR .dist/
       - name: Push dpm component
         run: make apps/publish-component ASSISTANT_ARGS="oci://europe-docker.pkg.dev/${{ env.GAR_REPOSITORY }}/components"
@@ -178,7 +178,7 @@ jobs:
 
   ship-helm-unstable:
     runs-on: digital-asset-participant-query-store
-    needs: 
+    needs:
       - helm-unittest
     steps:
       - uses: actions/checkout@v5
@@ -204,4 +204,4 @@ jobs:
       - name: Validate matrix workflow
         run: make -s apps/compatibility/validate-matrix-workflow
       - name: Matrix tests dryrun
-        run: make -s apps/compatibility/matrix-test MATRIX_TEST_ARGS="dryrun all
+        run: make -s apps/compatibility/matrix-test MATRIX_TEST_ARGS="dryrun all"
