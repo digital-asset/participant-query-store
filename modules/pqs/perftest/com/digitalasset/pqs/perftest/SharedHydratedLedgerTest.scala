@@ -17,7 +17,7 @@ object SharedHydratedLedgerTest:
     */
   val shared =
     Postgres.restore(CantonDumps.all, limits = ContainerLimits(cpus = 4.0, memoryGiB = 2.0))
-      >+> Ledger.instanceWithPgStorage
+      >+> Ledger.instanceWithPgStorage(bootstrap = false)
       >+> DamlSdk.allocatedParties(alice)
 
 trait SharedHydratedLedgerTest extends FuncTest[Ledger & Postgres & Parties]:

@@ -56,7 +56,7 @@ object Ledger:
     yield svc
   )
 
-  val instanceWithPgStorage: RLayer[FTEnv & Docker & Postgres, Ledger] = ZLayer.scoped(
+  def instanceWithPgStorage(bootstrap: Boolean): RLayer[FTEnv & Docker & Postgres, Ledger] = ZLayer.scoped(
     for
       conf     <- CantonConf.load()
       pg       <- ZIO.service[Postgres]
@@ -64,7 +64,8 @@ object Ledger:
       files <- conf.oneParticipant(
         hostname,
         enableTrafficControl = false, // disabled because GenerateCantonDumpSpec generates a lot of traffic
-        usingPostgres = Some(pg.container.hostName, Postgres.port)
+        usingPostgres = Some(pg.container.hostName, Postgres.port),
+        bootstrap = bootstrap
       )
       svc <- canton(hostname, conf.cantonDockerImage, files)
     yield svc
