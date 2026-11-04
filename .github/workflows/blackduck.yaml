@@ -22,7 +22,7 @@ jobs:
         shell: bash
         run: |
           if [ "$GITHUB_EVENT_NAME" = "schedule" ]; then
-            echo 'branches=["main", "release-line-3.6", "release-line-3.7"]' >> "$GITHUB_OUTPUT"
+            echo 'branches=["main", "release-line-3.7"]' >> "$GITHUB_OUTPUT"
           else
             echo "branches=[\"$GITHUB_REF_NAME\"]" >> "$GITHUB_OUTPUT"
           fi
