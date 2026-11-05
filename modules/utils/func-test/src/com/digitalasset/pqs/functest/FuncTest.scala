@@ -34,7 +34,7 @@ object FuncTest:
 
 @SuppressWarnings(Array("org.wartremover.warts.AsInstanceOf"))
 abstract class FuncTest[FR: EnvironmentTag] extends ZIOSpec[FTEnv & Dpm & Docker & FR]:
-  private type Instruction[R] = ZIO[R & Scope & FR & Docker, Throwable, TestResult]
+  private type Instruction[-R] = ZIO[R & Scope & FR & Docker, Throwable, TestResult]
 
   def shared: ZLayer[FTEnv & Dpm & Docker, Throwable, FR]
   val sharedTag = summon[EnvironmentTag[FR]]

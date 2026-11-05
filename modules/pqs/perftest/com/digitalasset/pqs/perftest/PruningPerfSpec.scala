@@ -11,14 +11,17 @@ import zio.jdbc.{ZConnection, sqlInterpolator}
 import zio.test.*
 
 import scala.language.implicitConversions
-import zio.Duration
 
 object PruningPerfSpec extends SharedHydratedLedgerTest:
   private val steps = Seq(0.005, 0.01, 0.05, 0.10, 0.25, 0.5)
 
   def spec = suite("PruningPerfSpec")(
-    funcTest("pruning perf") {
+    pruningPerfTest("fresh statistics")(withAnalyze = true),
+    pruningPerfTest("stale statistics")(withAnalyze = false)
+  )
 
+  def pruningPerfTest(name: String)(withAnalyze: Boolean) =
+    funcTest(name) {
       val baselineStats = Capture[Seq[PruningStats]]
       Given:
         Postgres.database
@@ -28,13 +31,13 @@ object PruningPerfSpec extends SharedHydratedLedgerTest:
             "--logger-level=Warning"
           )
       Expect(2.minutes):
-        runBenchmark.is(baselineStats.capture)
+        runBenchmark(withAnalyze).is(baselineStats.capture)
 
       When:
         Pqs.applySchema // schema migration
       Expect(2.minutes):
         for
-          stats <- runBenchmark
+          stats <- runBenchmark(withAnalyze)
           _ <- ZIO.logInfo(
             s"""|Baseline stats:
                 |  - ${baselineStats.get.mkString("\n  - ")}
@@ -57,7 +60,6 @@ object PruningPerfSpec extends SharedHydratedLedgerTest:
           }
           TestResult.allSuccesses(results)
     }
-  )
 
   private final case class PruningOutput(contracts: Long, exercises: Long, events: Long, transactions: Long)
   private final case class PruningStats(step: Double, duration: Duration, output: PruningOutput):
@@ -65,9 +67,9 @@ object PruningPerfSpec extends SharedHydratedLedgerTest:
       import output.*
       s"Pruning ${step.percent} ($duration): $contracts contracts, $exercises exercises, $events events, $transactions transactions"
 
-  private def runBenchmark =
+  private def runBenchmark(withAnalyze: Boolean) =
     for
-      _      <- Postgres.call(sql"analyze")
+      _      <- ZIO.whenDiscard(withAnalyze)(Postgres.call(sql"analyze"))
       lastIx <- getLastIx
       stats <- ZIO.foreach(steps) { step =>
         ZIO.logInfo(s"Benchmark pruning by ${step.percent}")
