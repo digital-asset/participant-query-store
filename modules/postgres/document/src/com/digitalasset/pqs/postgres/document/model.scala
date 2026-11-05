@@ -8,6 +8,8 @@ import com.digitalasset.canonical.{EventId, NodeId}
 import com.digitalasset.transcode.schema.ChoiceName
 import com.digitalasset.pqs.o11y.traces
 import com.digitalasset.pqs.o11y.traces.{DetachedSpan, given}
+import com.digitalasset.pqs.postgres.document.DeactivationType.Archive
+import com.digitalasset.pqs.utils.safeequals.===
 import io.opentelemetry.api.trace.SpanContext
 import org.apache.commons.text.translate.LookupTranslator
 import org.postgresql.PGConnection
@@ -15,13 +17,12 @@ import zio.ZIO.logTrace
 import zio.jdbc.{JdbcDecoder, ZConnection}
 import zio.jdbc.shims.postgres.PGRestorableConnection
 import zio.metrics.{Metric, MetricLabel}
-import zio.{Chunk, ChunkBuilder, ZIO}
+import zio.{Chunk, ZIO}
 
 import java.io.StringReader
 import java.lang.System.lineSeparator
 import java.time.format.DateTimeFormatter
 import java.time.{Instant, ZoneOffset}
-import scala.collection.mutable
 import scala.jdk.CollectionConverters.*
 import scala.language.implicitConversions
 
@@ -94,19 +95,16 @@ object Model {
 
   def prepareStatement(all: Iterable[Model]): ZIO[ZConnection, Throwable, Chunk[Watermark]] = {
 
-    val copies                  = mutable.LinkedHashMap.empty[Table, mutable.ListBuffer[String]]
-    val watermarks              = ChunkBuilder.make[Watermark]()
     val txs                     = all.onlyTransactions()
     val rowsToCopy              = mergeInBatchArchives(all)
     val batchContents           = rowsToCopy.groupMapReduce(_.table.name)(_ => 1L)(_ + _)
     def statAttribute(t: Table) = s"pqs.${t.name}.rows_count" -> batchContents.getOrElse(t.name, 0L)
-    rowsToCopy.foreach(c => copies.getOrElseUpdate(c.table, mutable.ListBuffer.empty).addOne(c.row))
-    all.foreach {
-      case _: Copy      => ()
-      case w: Watermark => watermarks.addOne(w.copy(txSpans = txs.find(_.ix == w.ix).flatMap(_.span).toList))
-    }
+    val copies                  = rowsToCopy.groupMap(_.table)(_.row)
+    val watermarks = all.collect({
+      case w: Watermark => w.copy(txSpans = txs.find(_.ix == w.ix).flatMap(_.span).toList)
+    })
 
-    val forcedCopies = copies.view
+    val forcedCopies = copies
       .map { (table, rows) => (table, rows.view.mkString(lineSeparator())) }
       .toSeq
       .sortBy(_._1.insertOrder)
@@ -141,21 +139,14 @@ object Model {
         s.linkToCurrentSpan("target" -> "↧ persist to datastore") *>
           s.addEvent("flushed transaction model SQL to datastore")
       } *>
-      traces.currentSpan().map { s => watermarks.result().map(_.copy(persistSpans = Seq(s.getSpanContext))) }
+      traces.currentSpan().map { s => Chunk.fromIterable(watermarks.map(_.copy(persistSpans = Seq(s.getSpanContext)))) }
   }
 
-  /** The rows to COPY for a batch. An archive whose create is in the same batch is written into that create's
-    * `__contracts` row instead of being staged, so the watermark trigger has no UPDATE to make for it. The pair is the
-    * one the trigger would match: same `tpe_pk`, contract and synchronizer, and the create is the archive's latest
-    * activation at or before it. A batch is a contiguous range of `ix`, so no activation outside the batch can come
-    * between them. Canton emits a contract's events on one synchronizer alternating between activation and
-    * deactivation, so no other deactivation can lie between them either.
-    */
   def mergeInBatchArchives(all: Iterable[Model]): Chunk[Copy] =
     val activations = all.collect { case c: Contract => c }.groupBy(_.key)
     val createOf: Map[DeactivatedContract, Contract] =
       (for
-        d <- all.collect { case d: DeactivatedContract if d.isArchive => d }
+        d <- all.collect { case d: DeactivatedContract if d.deactivationType === Archive => d }
         a <- activations.getOrElse(d.key, Nil).filter(_.activatedAtIx <= d.deactivatedAtIx).maxByOption(_.activatedAtIx)
         if a.isCreate
       yield d -> a).toMap
@@ -383,7 +374,7 @@ final class DeactivatedContract(
     contractId: ContractId,
     deactivateEventPk: IdPlaceholder,
     val deactivatedAtIx: Long,
-    deactivationType: DeactivationType,
+    val deactivationType: DeactivationType,
     synchronizerId: SynchronizerId,
     metrics: MetricsContext
 ) extends Copy:
@@ -398,10 +389,7 @@ final class DeactivatedContract(
   )
   override val contractLabels: Set[MetricLabel] =
     metrics.labels(deactivationType.toString)
-  def key: ContractKey = (entityType, contractId, synchronizerId)
-  def isArchive: Boolean = deactivationType match
-    case DeactivationType.Archive  => true
-    case DeactivationType.Unassign => false
+  def key: ContractKey        = (entityType, contractId, synchronizerId)
   def deactivationRow: String = buildRow(deactivateEventPk, deactivatedAtIx, deactivationType)
 
 // As opposed to the other tables, __tmp_deactivated_contracts is a staging table
