@@ -1,0 +1,23 @@
+
+name: Auth and Log into GAR
+description: Authenticates to Google Cloud and then logs into GAR using docker login
+outputs:
+  access_token: 
+    description: Access token from workload identity auth
+    value: ${{ steps.auth.outputs.access_token }}
+runs:
+  using: composite
+  steps:
+    - name: Authenticate to Google Cloud
+      id: auth
+      uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 #v3.0.0
+      with:
+        token_format: access_token
+        workload_identity_provider: projects/794775982379/locations/global/workloadIdentityPools/github-actions/providers/da-provider
+        service_account: gh-da-pqs@da-images.iam.gserviceaccount.com
+    - name: Login to GAR
+      uses: docker/login-action@v3
+      with:
+        registry: europe-docker.pkg.dev
+        username: oauth2accesstoken
+        password: ${{ steps.auth.outputs.access_token }}
