@@ -49,10 +49,10 @@ object IngestionPerfSpec extends SharedHydratedLedgerTest:
 
           val diff = (candidateDurationMs.toDouble - baselineDurationMs) / baselineDurationMs
           assertTrue(diff < 0.6).label(
-            s"Candidate (${candidateRun.duration.render}) is ${diff.percent}% slower than baseline (${baselineRun.get.duration.render})"
+            s"Candidate (${candidateRun.duration.render}) is ${diff.percent} slower than baseline (${baselineRun.get.duration.render})"
           )
           && assertTrue(diff > 0.0).label(
-            s"Candidate (${candidateRun.duration.render}) is ${(-diff).percent}% faster than baseline (${baselineRun.get.duration.render})"
+            s"Candidate (${candidateRun.duration.render}) is ${(-diff).percent} faster than baseline (${baselineRun.get.duration.render})"
           )
         }
     }
