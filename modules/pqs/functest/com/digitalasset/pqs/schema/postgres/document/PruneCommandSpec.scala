@@ -171,29 +171,29 @@ object PruneCommandSpec extends SharedLedgerAndPostgresTest:
         )
     ,
     funcTest("force run with timestamp"):
-      val oneCreated             = Capture[OffsetType]
-      val oneArchived            = Capture[OffsetType]
-      val twoCreated             = Capture[OffsetType]
-      val oneArchivedEffectiveAt = Capture[String]
+      val oneCreated            = Capture[OffsetType]
+      val oneArchived           = Capture[OffsetType]
+      val twoCreated            = Capture[OffsetType]
+      val oneArchivedRecordTime = Capture[String]
       Given:
         context
       And:
         Postgres query {
-          sql"""select "offset", "effective_at" from __transactions order by ix LIMIT 3"""
+          sql"""select "offset", record_time from __transactions order by ix LIMIT 3"""
         } `returns` table {
           oneCreated.capture  | anything
-          oneArchived.capture | oneArchivedEffectiveAt.capture
+          oneArchived.capture | oneArchivedRecordTime.capture
           twoCreated.capture  | anything
         }
       When:
-        // parse the effective_at timestamp to a format that can be used by the ledger prune command...
+        // parse the record_time timestamp to a format that can be used by the ledger prune command...
         val formatter = new DateTimeFormatterBuilder()
           .appendPattern("yyyy-MM-dd HH:mm:ss")
           .appendFraction(java.time.temporal.ChronoField.NANO_OF_SECOND, 0, 6, true)
           .appendPattern("X")
           .toFormatter()
         val timestamp = OffsetDateTime
-          .parse(oneArchivedEffectiveAt.get, formatter)
+          .parse(oneArchivedRecordTime.get, formatter)
           .toString
         Pqs.runPrune("--prune-target", timestamp, "--prune-mode", "Force")
       Expect:
@@ -268,7 +268,7 @@ object PruneCommandSpec extends SharedLedgerAndPostgresTest:
         Postgres `query`
           sql"""
             update __transactions
-            set effective_at = effective_at - interval '3 hours'
+            set record_time = record_time - interval '3 hours'
             where "offset" <= ${oneArchived.get}
          """.update `returns` anything
       When:
