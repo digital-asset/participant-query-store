@@ -26,3 +26,10 @@ jobs:
         run: make build package
       - name: Perf tests
         run: make perf-test
+      - name: Send slack notification
+        if: failure() && github.event_name == 'schedule'
+        uses: ./.github/actions/slack-notify
+        with:
+          webhook: ${{ secrets.SLACK_WEBHOOK_URL }}
+          title: ":snail: Performance tests failed"
+          branch: ${{ github.ref_name }}
