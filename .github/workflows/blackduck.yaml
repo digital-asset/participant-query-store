@@ -65,5 +65,5 @@ jobs:
         uses: ./.github/actions/slack-notify
         with:
           webhook: ${{ secrets.SLACK_WEBHOOK_URL }}
-          title: ":rotating_light: Blackduck scan failed"
+          title: ":ducky: Blackduck scan failed"
           branch: ${{ matrix.branch }}
