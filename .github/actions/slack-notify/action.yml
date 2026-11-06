@@ -1,0 +1,43 @@
+name: Slack notify
+description: Post a failure notification to Slack via an incoming webhook
+
+inputs:
+  webhook:
+    description: Slack incoming webhook URL
+    required: true
+  title:
+    description: Headline text shown above the attachment
+    required: true
+  branch:
+    description: Branch name to display in the message
+    required: true
+  color:
+    description: Attachment colour bar
+    required: false
+    default: "#FF0000"
+
+runs:
+  using: composite
+  steps:
+    - uses: slackapi/slack-github-action@v4.0.0
+      with:
+        webhook: ${{ inputs.webhook }}
+        webhook-type: incoming-webhook
+        payload: |
+          text: "${{ inputs.title }}"
+          attachments:
+            - color: "${{ inputs.color }}"
+              blocks:
+                - type: section
+                  fields:
+                    - type: mrkdwn
+                      text: "*Repository:*\n${{ github.repository }}"
+                    - type: mrkdwn
+                      text: "*Branch:*\n${{ inputs.branch }}"
+                - type: actions
+                  elements:
+                    - type: button
+                      text:
+                        type: plain_text
+                        text: "Visit job"
+                      url: "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
