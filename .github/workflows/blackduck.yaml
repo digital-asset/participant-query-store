@@ -53,6 +53,7 @@ jobs:
           BRANCH: ${{ matrix.branch }}
       - name: Store Blackduck Scan
         uses: actions/upload-artifact@v7
+        if: always() # store blackduck scan even if failing the policy check
         with:
           name: blackduck-report-${{ steps.sanitize.outputs.name }}
           path: /home/runner/blackduck/runs/
