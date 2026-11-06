@@ -31,5 +31,5 @@ jobs:
         uses: ./.github/actions/slack-notify
         with:
           webhook: ${{ secrets.SLACK_WEBHOOK_URL }}
-          title: ":rotating_light: Performance tests failed"
+          title: ":snail: Performance tests failed"
           branch: ${{ github.ref_name }}

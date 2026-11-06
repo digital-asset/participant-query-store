@@ -60,5 +60,5 @@ jobs:
         uses: ./.github/actions/slack-notify
         with:
           webhook: ${{ secrets.SLACK_WEBHOOK_URL }}
-          title: ":rotating_light: Matrix compatibility tests failed"
+          title: ":bug: Matrix compatibility tests failed"
           branch: ${{ github.ref_name }}

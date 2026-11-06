@@ -184,3 +184,24 @@ jobs:
         run: make -s validate-matrix-workflow
       - name: Matrix tests dryrun
         run: make -s matrix-test MATRIX_TEST_ARGS="dryrun all"
+
+  notify:
+    name: Notify on failure
+    needs:
+      - build
+      - func-tests
+      - ship-docker-unstable
+      - ship-component-unstable
+      - helm-unittest
+      - ship-helm-unstable
+      - validate-matrix-test
+    if: failure() && github.event_name == 'push'
+    runs-on: digital-asset-participant-query-store
+    steps:
+      - uses: actions/checkout@v5
+      - name: Send slack notification
+        uses: ./.github/actions/slack-notify
+        with:
+          webhook: ${{ secrets.SLACK_WEBHOOK_URL }}
+          title: ":this-is-fine-fire: CI failed"
+          branch: ${{ github.ref_name }}
