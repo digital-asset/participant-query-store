@@ -15,13 +15,12 @@ import zio.ZIO.logTrace
 import zio.jdbc.{JdbcDecoder, ZConnection}
 import zio.jdbc.shims.postgres.PGRestorableConnection
 import zio.metrics.{Metric, MetricLabel}
-import zio.{Chunk, ChunkBuilder, ZIO}
+import zio.{Chunk, ZIO}
 
 import java.io.StringReader
 import java.lang.System.lineSeparator
 import java.time.format.DateTimeFormatter
 import java.time.{Instant, ZoneOffset}
-import scala.collection.mutable
 import scala.jdk.CollectionConverters.*
 import scala.language.implicitConversions
 
@@ -94,17 +93,16 @@ object Model {
 
   def prepareStatement(all: Iterable[Model]): ZIO[ZConnection, Throwable, Chunk[Watermark]] = {
 
-    val copies                  = mutable.LinkedHashMap.empty[Table, mutable.ListBuffer[String]]
-    val watermarks              = ChunkBuilder.make[Watermark]()
     val txs                     = all.onlyTransactions()
-    val batchContents           = all.onlyCopies().groupMapReduce(_.table)(_ => 1L)(_ + _)
+    val rowsToCopy              = mergeInBatchDeactivations(all)
+    val batchContents           = rowsToCopy.groupMapReduce(_.table)(_ => 1L)(_ + _)
     def statAttribute(t: Table) = s"pqs.${t.name}.rows_count" -> batchContents.getOrElse(t, 0L)
-    all.foreach {
-      case c: Copy      => copies.getOrElseUpdate(c.table, mutable.ListBuffer.empty).addOne(c.row)
-      case w: Watermark => watermarks.addOne(w.copy(txSpans = txs.find(_.ix == w.ix).flatMap(_.span).toList))
+    val copies                  = rowsToCopy.groupMap(_.table)(_.row)
+    val watermarks = all.collect {
+      case w: Watermark => w.copy(txSpans = txs.find(_.ix == w.ix).flatMap(_.span).toList)
     }
 
-    val forcedCopies = copies.view
+    val forcedCopies = copies
       .map { (table, rows) => (table, rows.view.mkString(lineSeparator())) }
       .toSeq
       .sortBy(_._1.insertOrder)
@@ -139,9 +137,26 @@ object Model {
         s.linkToCurrentSpan("target" -> "↧ persist to datastore") *>
           s.addEvent("flushed transaction model SQL to datastore")
       } *>
-      traces.currentSpan().map { s => watermarks.result().map(_.copy(persistSpans = Seq(s.getSpanContext))) }
+      traces.currentSpan().map { s => Chunk.fromIterable(watermarks.map(_.copy(persistSpans = Seq(s.getSpanContext)))) }
   }
+
+  def mergeInBatchDeactivations(all: Iterable[Model]): Chunk[Copy] =
+    val activations = all.collect { case c: Contract => c }.groupBy(_.key)
+    val activationOf: Map[DeactivatedContract, Contract] =
+      (for
+        d <- all.collect { case d: DeactivatedContract => d }
+        a <- activations.getOrElse(d.key, Nil).filter(_.activatedAtIx <= d.deactivatedAtIx).maxByOption(_.activatedAtIx)
+      yield d -> a).toMap
+    val deactivationOf = activationOf.map(_.swap)
+    Chunk.fromIterable(all.view.flatMap {
+      case c: Contract            => Some(deactivationOf.get(c).fold(c)(c.deactivatedBy))
+      case d: DeactivatedContract => Option.unless(activationOf.contains(d))(d)
+      case c: Copy                => Some(c)
+      case _: Watermark           => None
+    })
 }
+
+private type ContractKey = (EntityTypePk, ContractId, SynchronizerId)
 
 opaque type EntityTypePk <: Long = Long
 object EntityTypePk:
@@ -230,7 +245,7 @@ object Event
 final class Contract(
     entityType: EntityTypePk,
     activateEventPk: IdPlaceholder,
-    activatedAtIx: Long,
+    val activatedAtIx: Long,
     activationType: ActivationType,
     contractId: ContractId,
     synchronizerId: SynchronizerId,
@@ -245,7 +260,8 @@ final class Contract(
     acsDelta: Boolean,
     packagePk: PackagePk,
     creationPackageId: Option[String],
-    metrics: MetricsContext
+    metrics: MetricsContext,
+    deactivation: Option[DeactivatedContract] = None
 ) extends Copy:
   def table = Contract
   val row = buildRow(
@@ -265,9 +281,34 @@ final class Contract(
     signatories,
     observers,
     witnesses,
-    !acsDelta
+    !acsDelta,
+    deactivation.map(_.deactivateEventPk),
+    deactivation.map(_.deactivatedAtIx),
+    deactivation.map(_.deactivationType)
   )
   override val contractLabels: Set[MetricLabel] = metrics.labels(activationType.toString)
+  def key: ContractKey                          = (entityType, contractId, synchronizerId)
+  def deactivatedBy(d: DeactivatedContract): Contract = Contract(
+    entityType,
+    activateEventPk,
+    activatedAtIx,
+    activationType,
+    contractId,
+    synchronizerId,
+    reassignmentCounter,
+    signatories,
+    observers,
+    witnesses,
+    payload,
+    contractKey,
+    contractKeyHash,
+    metadata,
+    acsDelta,
+    packagePk,
+    creationPackageId,
+    metrics,
+    Some(d)
+  )
 
 object Contract
     extends Table(
@@ -289,7 +330,10 @@ object Contract
         "signatories",
         "observers",
         "witnesses",
-        "divulged_only"
+        "divulged_only",
+        "deactivate_event_pk",
+        "deactivated_at_ix",
+        "deactivation_type"
       ),
       insertOrder = 2
     )
@@ -350,9 +394,9 @@ object Exercise
 final class DeactivatedContract(
     entityType: EntityTypePk,
     contractId: ContractId,
-    deactivateEventPk: IdPlaceholder,
-    deactivatedAtIx: Long,
-    deactivationType: DeactivationType,
+    val deactivateEventPk: IdPlaceholder,
+    val deactivatedAtIx: Long,
+    val deactivationType: DeactivationType,
     synchronizerId: SynchronizerId,
     metrics: MetricsContext
 ) extends Copy:
@@ -367,6 +411,7 @@ final class DeactivatedContract(
   )
   override val contractLabels: Set[MetricLabel] =
     metrics.labels(deactivationType.toString)
+  def key: ContractKey = (entityType, contractId, synchronizerId)
 
 // As opposed to the other tables, __tmp_deactivated_contracts is a staging table
 // the underlying __contracts is updated sequentially by __update_watermark_fn SQL function
@@ -440,7 +485,6 @@ object Reassignment
 
 extension (models: Iterable[Model])
   def onlyTransactions(): Iterable[Transaction] = models.view.collect { case t: Transaction => t }
-  def onlyCopies(): Iterable[Copy]              = models.view.collect { case t: Copy => t }
 
 extension (tx: Transaction)
   def ifTraced[R, E, A](zio: DetachedSpan => ZIO[R, E, A]) = ZIO.whenCase(tx.span) { case Some(s) => zio(s) }
