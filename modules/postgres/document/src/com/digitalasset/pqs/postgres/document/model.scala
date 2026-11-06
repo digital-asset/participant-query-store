@@ -8,8 +8,6 @@ import com.digitalasset.canonical.{EventId, NodeId}
 import com.digitalasset.transcode.schema.ChoiceName
 import com.digitalasset.pqs.o11y.traces
 import com.digitalasset.pqs.o11y.traces.{DetachedSpan, given}
-import com.digitalasset.pqs.postgres.document.DeactivationType.Archive
-import com.digitalasset.pqs.utils.safeequals.===
 import io.opentelemetry.api.trace.SpanContext
 import org.apache.commons.text.translate.LookupTranslator
 import org.postgresql.PGConnection
@@ -96,9 +94,9 @@ object Model {
   def prepareStatement(all: Iterable[Model]): ZIO[ZConnection, Throwable, Chunk[Watermark]] = {
 
     val txs                     = all.onlyTransactions()
-    val rowsToCopy              = mergeInBatchArchives(all)
-    val batchContents           = rowsToCopy.groupMapReduce(_.table.name)(_ => 1L)(_ + _)
-    def statAttribute(t: Table) = s"pqs.${t.name}.rows_count" -> batchContents.getOrElse(t.name, 0L)
+    val rowsToCopy              = mergeInBatchDeactivations(all)
+    val batchContents           = rowsToCopy.groupMapReduce(_.table)(_ => 1L)(_ + _)
+    def statAttribute(t: Table) = s"pqs.${t.name}.rows_count" -> batchContents.getOrElse(t, 0L)
     val copies                  = rowsToCopy.groupMap(_.table)(_.row)
     val watermarks = all.collect {
       case w: Watermark => w.copy(txSpans = txs.find(_.ix == w.ix).flatMap(_.span).toList)
@@ -142,17 +140,17 @@ object Model {
       traces.currentSpan().map { s => Chunk.fromIterable(watermarks.map(_.copy(persistSpans = Seq(s.getSpanContext)))) }
   }
 
-  def mergeInBatchArchives(all: Iterable[Model]): Chunk[Copy] =
-    val activations = all.collect { case c: Contract if c.activationType === ActivationType.Create => c }.groupBy(_.key)
-    val createOf: Map[DeactivatedContract, Contract] =
+  def mergeInBatchDeactivations(all: Iterable[Model]): Chunk[Copy] =
+    val activations = all.collect { case c: Contract => c }.groupBy(_.key)
+    val activationOf: Map[DeactivatedContract, Contract] =
       (for
-        d <- all.collect { case d: DeactivatedContract if d.deactivationType === DeactivationType.Archive => d }
+        d <- all.collect { case d: DeactivatedContract => d }
         a <- activations.getOrElse(d.key, Nil).filter(_.activatedAtIx <= d.deactivatedAtIx).maxByOption(_.activatedAtIx)
       yield d -> a).toMap
-    val archiveOf = createOf.map(_.swap)
+    val deactivationOf = activationOf.map(_.swap)
     Chunk.fromIterable(all.view.flatMap {
-      case c: Contract            => Some(archiveOf.get(c).fold[Copy](c)(ArchivedContract(c, _)))
-      case d: DeactivatedContract => Option.unless(createOf.contains(d))(d)
+      case c: Contract            => Some(deactivationOf.get(c).fold(c)(c.deactivatedBy))
+      case d: DeactivatedContract => Option.unless(activationOf.contains(d))(d)
       case c: Copy                => Some(c)
       case _: Watermark           => None
     })
@@ -167,7 +165,7 @@ object EntityTypePk:
 
 type PackagePk = Long
 
-sealed trait Table(val name: String, val columns: Seq[String], val insertOrder: Int):
+sealed trait Table(val name: String, columns: Seq[String], val insertOrder: Int):
   val copyQuery = s"copy $name (${columns.mkString(", ")}) from stdin"
 
 final class Transaction(
@@ -248,7 +246,7 @@ final class Contract(
     entityType: EntityTypePk,
     activateEventPk: IdPlaceholder,
     val activatedAtIx: Long,
-    val activationType: ActivationType,
+    activationType: ActivationType,
     contractId: ContractId,
     synchronizerId: SynchronizerId,
     reassignmentCounter: Long,
@@ -262,7 +260,8 @@ final class Contract(
     acsDelta: Boolean,
     packagePk: PackagePk,
     creationPackageId: Option[String],
-    metrics: MetricsContext
+    metrics: MetricsContext,
+    deactivation: Option[DeactivatedContract] = None
 ) extends Copy:
   def table = Contract
   val row = buildRow(
@@ -282,10 +281,34 @@ final class Contract(
     signatories,
     observers,
     witnesses,
-    !acsDelta
+    !acsDelta,
+    deactivation.map(_.deactivateEventPk),
+    deactivation.map(_.deactivatedAtIx),
+    deactivation.map(_.deactivationType)
   )
   override val contractLabels: Set[MetricLabel] = metrics.labels(activationType.toString)
   def key: ContractKey                          = (entityType, contractId, synchronizerId)
+  def deactivatedBy(d: DeactivatedContract): Contract = Contract(
+    entityType,
+    activateEventPk,
+    activatedAtIx,
+    activationType,
+    contractId,
+    synchronizerId,
+    reassignmentCounter,
+    signatories,
+    observers,
+    witnesses,
+    payload,
+    contractKey,
+    contractKeyHash,
+    metadata,
+    acsDelta,
+    packagePk,
+    creationPackageId,
+    metrics,
+    Some(d)
+  )
 
 object Contract
     extends Table(
@@ -307,7 +330,10 @@ object Contract
         "signatories",
         "observers",
         "witnesses",
-        "divulged_only"
+        "divulged_only",
+        "deactivate_event_pk",
+        "deactivated_at_ix",
+        "deactivation_type"
       ),
       insertOrder = 2
     )
@@ -368,7 +394,7 @@ object Exercise
 final class DeactivatedContract(
     entityType: EntityTypePk,
     contractId: ContractId,
-    deactivateEventPk: IdPlaceholder,
+    val deactivateEventPk: IdPlaceholder,
     val deactivatedAtIx: Long,
     val deactivationType: DeactivationType,
     synchronizerId: SynchronizerId,
@@ -385,8 +411,7 @@ final class DeactivatedContract(
   )
   override val contractLabels: Set[MetricLabel] =
     metrics.labels(deactivationType.toString)
-  def key: ContractKey        = (entityType, contractId, synchronizerId)
-  def deactivationRow: String = buildRow(deactivateEventPk, deactivatedAtIx, deactivationType)
+  def key: ContractKey = (entityType, contractId, synchronizerId)
 
 // As opposed to the other tables, __tmp_deactivated_contracts is a staging table
 // the underlying __contracts is updated sequentially by __update_watermark_fn SQL function
@@ -402,19 +427,6 @@ object DeactivatedContract
         "synchronizer_id"
       ),
       insertOrder = 4
-    )
-
-// A __contracts row written already archived, when its create and archive are in the same batch.
-// Its archive is not staged in __tmp_deactivated_contracts. See Model.mergeInBatchArchives.
-final class ArchivedContract(contract: Contract, archive: DeactivatedContract) extends Copy:
-  def table = ArchivedContract
-  val row   = s"${contract.row}\t${archive.deactivationRow}"
-
-object ArchivedContract
-    extends Table(
-      Contract.name,
-      Contract.columns ++ Seq("deactivate_event_pk", "deactivated_at_ix", "deactivation_type"),
-      insertOrder = Contract.insertOrder
     )
 
 final class Reassignment(

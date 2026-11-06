@@ -7,7 +7,7 @@ import com.digitalasset.canonical.{ContractId, Offset, SynchronizerId}
 import zio.Chunk
 import zio.test.*
 
-object InBatchArchiveMergeSpec extends ZIOSpecDefault:
+object InBatchDeactivationMergeSpec extends ZIOSpecDefault:
   private val ids    = IdPlaceholder.factory(100)
   private val sync1  = SynchronizerId("sync1")
   private val sync2  = SynchronizerId("sync2")
@@ -54,36 +54,37 @@ object InBatchArchiveMergeSpec extends ZIOSpecDefault:
   ) =
     DeactivatedContract(tpe, contractId, ids.mk, ix, tpeOf, sync, metric)
 
-  private def archived(c: Contract, d: DeactivatedContract) = ArchivedContract(c, d)
+  private def merged(c: Contract, d: DeactivatedContract) = c.deactivatedBy(d)
 
-  private def rows(copies: Iterable[Copy]) = copies.map(c => (c.table.name, c.table.columns, c.row)).toList
+  private def rows(copies: Iterable[Copy]) = copies.map(c => (c.table.copyQuery, c.row)).toList
 
   private def mergesTo(batch: Model*)(expected: Copy*) =
-    assertTrue(rows(Model.mergeInBatchArchives(batch)) == rows(expected))
+    assertTrue(rows(Model.mergeInBatchDeactivations(batch)) == rows(expected))
 
-  override def spec = suite("in-batch archive merge")(
-    test("an archive whose create is in the batch is written into the create's row and not staged") {
+  override def spec = suite("in-batch deactivation merge")(
+    test("a deactivation whose activation is in the batch is written into the activation's row and not staged") {
       val c = activate(1)
       val d = deactivate(3)
-      mergesTo(c, d)(archived(c, d))
+      mergesTo(c, d)(merged(c, d))
     },
-    test("the merged row is the create's row followed by the archive's deactivation columns") {
-      val c   = activate(1)
-      val d   = deactivate(3)
-      val row = Model.mergeInBatchArchives(Seq(c, d)).map(_.row)
+    test("the merged row is the activation's row with the deactivation columns filled in") {
+      val c      = activate(1)
+      val d      = deactivate(3)
+      val fields = (row: String) => row.split('\t').toList
+      val result = Model.mergeInBatchDeactivations(Seq(c, d)).map(r => fields(r.row))
       assertTrue(
-        row == Chunk(s"${c.row}\t${d.deactivationRow}"),
-        d.deactivationRow.split('\t').toList.drop(1) == List("3", "archive"),
-        ArchivedContract.name == "__contracts",
-        ArchivedContract.columns.takeRight(3) == Seq("deactivate_event_pk", "deactivated_at_ix", "deactivation_type")
+        Contract.copyQuery.endsWith("deactivate_event_pk, deactivated_at_ix, deactivation_type) from stdin"),
+        fields(c.row).takeRight(3) == List("\\N", "\\N", "\\N"),
+        result.map(_.dropRight(3)) == Chunk(fields(c.row).dropRight(3)),
+        result.map(_.takeRight(2)) == Chunk(List("3", "archive"))
       )
     },
-    test("a create and archive in the same transaction are merged") {
+    test("an activation and deactivation in the same transaction are merged") {
       val c = activate(5)
       val d = deactivate(5)
-      mergesTo(c, d)(archived(c, d))
+      mergesTo(c, d)(merged(c, d))
     },
-    test("an archive whose create is in an earlier batch is staged") {
+    test("a deactivation whose activation is in an earlier batch is staged") {
       val d = deactivate(3)
       mergesTo(d)(d)
     },
@@ -92,64 +93,73 @@ object InBatchArchiveMergeSpec extends ZIOSpecDefault:
       val c  = activate(1)
       val d  = deactivate(1)
       val wm = Watermark(1, Offset.Absolute(10), Seq.empty)
-      mergesTo(t, c, d, wm)(t, archived(c, d))
+      mergesTo(t, c, d, wm)(t, merged(c, d))
     },
-    test("each interface view row is merged with the archive row of its own tpe_pk") {
+    test("each interface view row is merged with the deactivation row of its own tpe_pk") {
       val ct = activate(1, tpe = tpl)
       val ci = activate(1, tpe = iface)
       val dt = deactivate(2, tpe = tpl)
       val di = deactivate(2, tpe = iface)
-      mergesTo(ct, ci, di, dt)(archived(ct, dt), archived(ci, di))
+      mergesTo(ct, ci, di, dt)(merged(ct, dt), merged(ci, di))
     },
-    test("an archive row for an interface view the create did not write is staged") {
+    test("a deactivation row for an interface view the activation did not write is staged") {
       val ct = activate(1, tpe = tpl)
       val dt = deactivate(2, tpe = tpl)
       val di = deactivate(2, tpe = iface)
-      mergesTo(ct, di, dt)(archived(ct, dt), di)
+      mergesTo(ct, di, dt)(merged(ct, dt), di)
     },
-    test("an archive on another synchronizer is not merged") {
+    test("a deactivation on another synchronizer is not merged") {
       val c = activate(1, sync = sync1)
       val d = deactivate(3, sync = sync2)
       mergesTo(c, d)(c, d)
     },
-    test("an archive of another contract is not merged") {
+    test("a deactivation of another contract is not merged") {
       val c = activate(1)
       val d = deactivate(3, contractId = other)
       mergesTo(c, d)(c, d)
     },
-    test("an archive before the create is not merged") {
+    test("a deactivation before the activation is not merged") {
       val c = activate(4)
       val d = deactivate(3)
       mergesTo(c, d)(c, d)
     },
-    test("an unassign is never merged") {
+    test("an unassign is merged into its create's row") {
       val c = activate(1)
       val u = deactivate(2, tpeOf = DeactivationType.Unassign)
-      mergesTo(c, u)(c, u)
+      mergesTo(c, u)(merged(c, u))
     },
-    test("an archive whose latest activation is an assign is not merged") {
+    test("an archive is merged into its assign's row") {
       val a = activate(1, tpeOf = ActivationType.Assign)
       val d = deactivate(2)
-      mergesTo(a, d)(a, d)
+      mergesTo(a, d)(merged(a, d))
     },
-    test("an archive after an unassign and an assign back is matched to the assign, so it is not merged") {
+    test("after an unassign and an assign back, each deactivation is merged into its own activation's row") {
       val c = activate(1)
       val u = deactivate(2, tpeOf = DeactivationType.Unassign)
       val a = activate(3, tpeOf = ActivationType.Assign)
       val d = deactivate(4)
-      mergesTo(c, u, a, d)(c, u, a, d)
+      mergesTo(c, u, a, d)(merged(c, u), merged(a, d))
     },
-    test("an archive on the target synchronizer of a reassignment is not merged with the source's create") {
+    test("a reassignment between synchronizers is merged on each synchronizer separately") {
       val c = activate(1, sync = sync1)
       val u = deactivate(2, sync = sync1, tpeOf = DeactivationType.Unassign)
       val a = activate(3, sync = sync2, tpeOf = ActivationType.Assign)
       val d = deactivate(4, sync = sync2)
-      mergesTo(c, u, a, d)(c, u, a, d)
+      mergesTo(c, u, a, d)(merged(c, u), merged(a, d))
     },
-    test("only the contracts created in the batch are merged") {
+    test("a contract moved S1 -> S2 -> S1 has each deactivation merged into the activation it closes") {
+      val c  = activate(1, sync = sync1)
+      val u1 = deactivate(2, sync = sync1, tpeOf = DeactivationType.Unassign)
+      val a2 = activate(3, sync = sync2, tpeOf = ActivationType.Assign)
+      val u2 = deactivate(4, sync = sync2, tpeOf = DeactivationType.Unassign)
+      val a1 = activate(5, sync = sync1, tpeOf = ActivationType.Assign)
+      val d  = deactivate(6, sync = sync1)
+      mergesTo(c, u1, a2, u2, a1, d)(merged(c, u1), merged(a2, u2), merged(a1, d))
+    },
+    test("only the contracts activated in the batch are merged") {
       val c  = activate(1)
       val d  = deactivate(2)
       val d2 = deactivate(2, contractId = other)
-      mergesTo(c, d2, d)(archived(c, d), d2)
+      mergesTo(c, d2, d)(merged(c, d), d2)
     }
   )
