@@ -127,3 +127,21 @@ jobs:
           version: ${{ github.ref_name }}
           username: oauth2accesstoken
           password: ${{ steps.gar-login.outputs.access_token }}
+
+  notify:
+    name: Notify on failure
+    needs:
+      - build
+      - ship-docker
+      - ship-component
+      - ship-helm
+    if: failure()
+    runs-on: digital-asset-participant-query-store
+    steps:
+      - uses: actions/checkout@v5
+      - name: Send slack notification
+        uses: ./.github/actions/slack-notify
+        with:
+          webhook: ${{ secrets.SLACK_WEBHOOK_URL }}
+          title: ":rotating_light: Tagged release failed"
+          branch: ${{ github.ref_name }}
