@@ -26,3 +26,27 @@ jobs:
         run: make build package
       - name: Perf tests
         run: make perf-test
+      - name: Send slack notification
+        if: failure() && github.event_name == 'schedule'
+        uses: slackapi/slack-github-action@v4.0.0
+        with:
+          webhook: ${{ secrets.SLACK_WEBHOOK_URL }}
+          webhook-type: incoming-webhook
+          payload: |
+            text: ":rotating_light: Performance tests failed"
+            attachments:
+              - color: "#FF0000"
+                blocks:
+                  - type: section
+                    fields:
+                      - type: mrkdwn
+                        text: "*Repository:*\n${{ github.repository }}"
+                      - type: mrkdwn
+                        text: "*Branch:*\n${{ matrix.branch }}"
+                  - type: actions
+                    elements:
+                      - type: button
+                        text:
+                          type: plain_text
+                          text: "Visit job"
+                        url: "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
