@@ -44,12 +44,11 @@ object ExercisesPerfSpec extends SharedHydratedLedgerTest:
             val baselineDurationMs  = baseline.duration.toMillis
             val candidateDurationMs = stats.duration.toMillis
             val diff                = (candidateDurationMs.toDouble - baselineDurationMs) / baselineDurationMs
+            // No lower bound: since #197 the candidate is about 3x faster than the 3.7.0 baseline on bulk reads,
+            // and the equal-output assertion already catches a candidate that skips the `__contracts` join
             assert(stats.output)(Assertion.equalTo(baseline.output))
             && assertTrue(diff < 0.3).label(
               s"${stats.name} (${stats.duration.render}) is ${diff.percent} slower than baseline (${baseline.duration.render})"
-            )
-            && assertTrue(diff > -0.3).label(
-              s"${stats.name} (${stats.duration.render}) is ${(-diff).percent} faster than baseline (${baseline.duration.render})"
             )
           }
           TestResult.allSuccesses(results)
