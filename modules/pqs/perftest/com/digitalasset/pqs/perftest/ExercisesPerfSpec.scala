@@ -73,22 +73,18 @@ object ExercisesPerfSpec extends SharedHydratedLedgerTest:
       // Fast calls are repeated more so that each benchmark runs for about a second, well above timer noise
       benchmarks = Seq(
         ("exercises()", 5, sql"exercises()"),
-        ("exercises(CreateMany)", 100, sql"exercises('Blob:Seed:CreateMany')"),
+        ("exercises(CreateMany)", 200, sql"exercises('Blob:Seed:CreateMany')"),
         ("exercises() in 40-60% range", 5, sql"exercises(null, $from, $to)"),
-        ("lookup_exercises(seed)", 200, sql"lookup_exercises($seedId)"),
-        ("lookup_exercises(seed, ArchiveMany)", 500, sql"lookup_exercises($seedId, 'Blob:Seed:ArchiveMany')")
+        ("lookup_exercises(seed)", 400, sql"lookup_exercises($seedId)"),
+        ("lookup_exercises(seed, ArchiveMany)", 1000, sql"lookup_exercises($seedId, 'Blob:Seed:ArchiveMany')")
       )
+      // Untimed warm-up first: cold caches, plans and JIT otherwise skew the fast calls by up to 25%
       stats <- ZIO.foreach(benchmarks) { (name, runs, call) =>
         ZIO.logInfo(s"Benchmark $name")
+          *> summarize(call).repeatN(runs - 1)
           *> summarize(call).repeatN(runs - 1).timed.map((duration, output) => ExercisesStats(name, duration, output))
       }
     yield stats
-
-  private def getLastIx =
-    Postgres.get[Long](sql"select ix from __transactions order by ix desc limit 1")
-
-  private def getOffset(ix: Long) =
-    Postgres.get[Long](sql"""select "offset" from __transactions where ix=$ix""")
 
   // Consumes `signatories` so the `__contracts` join runs, without shipping the jsonb payloads to the client
   private def summarize(call: SqlFragment) =

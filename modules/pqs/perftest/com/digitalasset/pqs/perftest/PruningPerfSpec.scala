@@ -79,12 +79,6 @@ object PruningPerfSpec extends SharedHydratedLedgerTest:
       }
     yield stats
 
-  private def getLastIx =
-    Postgres.get[Long](sql"select ix from __transactions order by ix desc limit 1")
-
-  private def getOffset(ix: Long) =
-    Postgres.get[Long](sql"""select "offset" from __transactions where ix=$ix""")
-
   private def prune(offset: Long) =
     Postgres
       .query {
