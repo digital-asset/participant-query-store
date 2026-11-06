@@ -59,11 +59,6 @@ For example, to update the base version from 3.6 to 3.7, create a PR with the fo
 -BASE_VERSION=3.6
 +BASE_VERSION=3.7
 ```
-- update the chart version in [VERSION](VERSION)
-```diff
--3.6.0-pre
-+3.7.0-pre
-```
 - update the dpm component tag in [Makefile](Makefile)
 ```diff
 -    --extra-tags 3.6 \
@@ -78,5 +73,8 @@ For example, to update the base version from 3.6 to 3.7, create a PR with the fo
 +    val canton = "3.7.0-snapshot.20261020.14344.0.vac465d36"
 ```
 - update the `PQS_DAMLSDKVERSION` and `PQS_CANTONVERSION` versions in the [matrix compatibility tests](modules/compatibility/parameters.csv)
-- Add `Daml36` config in [modules/pqs/functest/com/digitalasset/pqs/services/daml/CantonConf.scala](modules/pqs/functest/com/digitalasset/pqs/services/daml/CantonConf.scala)
-
+- register the new release branch in [.github/workflows/blackduck.yaml](.github/workflows/blackduck.yaml)
+```diff
+- echo 'branches=["main", "release-line-3.5", "release-line-3.6"]' >> "$GITHUB_OUTPUT"
++ echo 'branches=["main", "release-line-3.6", "release-line-3.7"]' >> "$GITHUB_OUTPUT"
+```
