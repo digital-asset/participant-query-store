@@ -100,9 +100,9 @@ object Model {
     val batchContents           = rowsToCopy.groupMapReduce(_.table.name)(_ => 1L)(_ + _)
     def statAttribute(t: Table) = s"pqs.${t.name}.rows_count" -> batchContents.getOrElse(t.name, 0L)
     val copies                  = rowsToCopy.groupMap(_.table)(_.row)
-    val watermarks = all.collect({
+    val watermarks = all.collect {
       case w: Watermark => w.copy(txSpans = txs.find(_.ix == w.ix).flatMap(_.span).toList)
-    })
+    }
 
     val forcedCopies = copies
       .map { (table, rows) => (table, rows.view.mkString(lineSeparator())) }
@@ -143,12 +143,11 @@ object Model {
   }
 
   def mergeInBatchArchives(all: Iterable[Model]): Chunk[Copy] =
-    val activations = all.collect { case c: Contract => c }.groupBy(_.key)
+    val activations = all.collect { case c: Contract if c.activationType === ActivationType.Create => c }.groupBy(_.key)
     val createOf: Map[DeactivatedContract, Contract] =
       (for
-        d <- all.collect { case d: DeactivatedContract if d.deactivationType === Archive => d }
+        d <- all.collect { case d: DeactivatedContract if d.deactivationType === DeactivationType.Archive => d }
         a <- activations.getOrElse(d.key, Nil).filter(_.activatedAtIx <= d.deactivatedAtIx).maxByOption(_.activatedAtIx)
-        if a.isCreate
       yield d -> a).toMap
     val archiveOf = createOf.map(_.swap)
     Chunk.fromIterable(all.view.flatMap {
@@ -249,7 +248,7 @@ final class Contract(
     entityType: EntityTypePk,
     activateEventPk: IdPlaceholder,
     val activatedAtIx: Long,
-    activationType: ActivationType,
+    val activationType: ActivationType,
     contractId: ContractId,
     synchronizerId: SynchronizerId,
     reassignmentCounter: Long,
@@ -287,9 +286,6 @@ final class Contract(
   )
   override val contractLabels: Set[MetricLabel] = metrics.labels(activationType.toString)
   def key: ContractKey                          = (entityType, contractId, synchronizerId)
-  def isCreate: Boolean = activationType match
-    case ActivationType.Create => true
-    case ActivationType.Assign => false
 
 object Contract
     extends Table(
