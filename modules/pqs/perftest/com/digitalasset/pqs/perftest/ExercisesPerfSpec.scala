@@ -15,6 +15,7 @@ import scala.language.implicitConversions
 object ExercisesPerfSpec extends SharedHydratedLedgerTest:
   def spec = suite("ExercisesPerfSpec")(
     funcTest("exercises and lookup_exercises") {
+      val benchmarks    = Capture[Seq[Benchmark]]
       val baselineStats = Capture[Seq[ExercisesStats]]
       Given:
         Postgres.database
@@ -24,14 +25,16 @@ object ExercisesPerfSpec extends SharedHydratedLedgerTest:
             "--pipeline-ledger-stop=Latest",
             "--logger-level=Warning"
           )
+      Then:
+        prepareBenchmarks.is(benchmarks.capture)
       Expect(5.minutes):
-        runBenchmark.is(baselineStats.capture)
+        runBenchmarks(benchmarks.get).is(baselineStats.capture)
 
       When:
         Pqs.applySchema
       Expect(5.minutes):
         for
-          stats <- runBenchmark
+          stats <- runBenchmarks(benchmarks.get)
           _ <- ZIO.logInfo(
             s"""|Baseline stats:
                 |  - ${baselineStats.get.mkString("\n  - ")}
@@ -62,34 +65,32 @@ object ExercisesPerfSpec extends SharedHydratedLedgerTest:
       import output.*
       s"$name ($duration): $rows rows, $withSignatories with signatories, offset checksum $checksum"
 
-  private def runBenchmark =
+  private final case class Benchmark(name: String, runs: Int, call: SqlFragment)
+
+  private def prepareBenchmarks =
     for
-      _      <- settle()
       lastIx <- getLastIx
       from   <- getOffset((lastIx * 0.4).toLong)
       to     <- getOffset((lastIx * 0.6).toLong)
       seedId <- Postgres.get[String](sql"select contract_id from creates('Blob:Seed') order by contract_id limit 1")
-      benchmarks = Seq(
-        ("exercises()", 5, summarize(sql"exercises()")),
-        ("exercises() all columns", 5, summarize(sql"exercises() e where length(e::text) > 0")),
-        ("exercises(CreateMany)", 200, summarize(sql"exercises('Blob:Seed:CreateMany')")),
-        ("exercises() in 40-60% range", 5, summarize(sql"exercises(null, $from, $to)")),
-        ("lookup_exercises(seed)", 400, summarize(sql"lookup_exercises($seedId)")),
-        (
-          "lookup_exercises(seed, ArchiveMany)",
-          1000,
-          summarize(sql"lookup_exercises($seedId, 'Blob:Seed:ArchiveMany')")
-        )
-      )
-      stats <- ZIO.foreach(benchmarks) { (name, runs, call) =>
-        ZIO.logInfo(s"Benchmark $name")
-          *> call.repeatN(runs - 1)
-          *> call
-            .repeatN(runs - 1)
-            .timed
-            .map((duration, output) => ExercisesStats(name, duration, output))
-      }
-    yield stats
+    yield Seq(
+      Benchmark("exercises()", 5, sql"exercises()"),
+      Benchmark("exercises() all columns", 5, sql"exercises() e where length(e::text) > 0"),
+      Benchmark("exercises(CreateMany)", 200, sql"exercises('Blob:Seed:CreateMany')"),
+      Benchmark("exercises() in 40-60% range", 5, sql"exercises(null, $from, $to)"),
+      Benchmark("lookup_exercises(seed)", 400, sql"lookup_exercises($seedId)"),
+      Benchmark("lookup_exercises(seed, ArchiveMany)", 1000, sql"lookup_exercises($seedId, 'Blob:Seed:ArchiveMany')")
+    )
+
+  private def runBenchmarks(benchmarks: Seq[Benchmark]) =
+    settle() *> ZIO.foreach(benchmarks) { benchmark =>
+      ZIO.logInfo(s"Benchmark ${benchmark.name}")
+        *> summarize(benchmark.call).repeatN(benchmark.runs - 1)
+        *> summarize(benchmark.call)
+          .repeatN(benchmark.runs - 1)
+          .timed
+          .map((duration, output) => ExercisesStats(benchmark.name, duration, output))
+    }
 
   private def summarize(call: SqlFragment) =
     Postgres
