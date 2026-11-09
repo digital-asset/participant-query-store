@@ -468,7 +468,7 @@ select tpe.template_fqn,
        e.controllers,
        e.last_descendant_node_id,
        e.witnesses,
-       t.synchronizer_id
+       e.synchronizer_id
 from __exercises e
          left join __contracts c on c.contract_id = e.contract_id and c.tpe_pk = e.contract_tpe_pk
              and c.activated_at_ix <= e.exercised_at_ix
