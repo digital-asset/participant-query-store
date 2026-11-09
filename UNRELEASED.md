@@ -63,7 +63,7 @@ synchronizer_id text;
 - The `synchronizer_id text` column is added to the `transactions` SQL view.
 - The `synchronizer_id text` column is added to the output of the `exercises` and `lookup_exercise` SQL functions.
 - The `summary_reassignments` SQL function returns the number of assign and unassign events per Daml fully qualified name and per source and target synchronizer in the `[from_offset, to_offset]` range. It leaves out the assigns recorded by the ACS import.
-- `exercises()` and `lookup_exercises()` join the `__contracts` row that was active at the exercise, so an exercise on a reassigned contract is returned once (#197).
+- `exercises()` and `lookup_exercises()` join the `__contracts` row that was active at the exercise, so an exercise on a reassigned contract is returned once.
 
 
 #### Pruning, Reset to offset and Redaction

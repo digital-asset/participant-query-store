@@ -483,7 +483,6 @@ object ReassignmentSpec extends SharedMultiSyncLedgerSpec:
           .map(_.getTransaction.events(0).getCreated.contractId)
           .is(contractId.capture)
       When:
-        // Each create or assign starts a new __contracts row; each exercise falls within one of them
         Ledger.exercise("Asset:Asset", contractId.get, "Touch", alice, sync1)
           *> Ledger.reassign(contractId.get, alice, sync1, sync2)
           *> Ledger.exercise("Asset:Asset", contractId.get, "Touch", alice, sync2)
@@ -497,7 +496,6 @@ object ReassignmentSpec extends SharedMultiSyncLedgerSpec:
           )
 
       Expect:
-        // signatories come from the joined __contracts row
         Postgres
           .query(sql"""select choice, consuming, synchronizer_id, signatories
                        from exercises() order by exercised_at_ix""")

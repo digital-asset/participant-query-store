@@ -28,7 +28,7 @@ object ExercisesPerfSpec extends SharedHydratedLedgerTest:
         runBenchmark.is(baselineStats.capture)
 
       When:
-        Pqs.applySchema // schema migration
+        Pqs.applySchema
       Expect(5.minutes):
         for
           stats <- runBenchmark
@@ -44,8 +44,6 @@ object ExercisesPerfSpec extends SharedHydratedLedgerTest:
             val baselineDurationMs  = baseline.duration.toMillis
             val candidateDurationMs = stats.duration.toMillis
             val diff                = (candidateDurationMs.toDouble - baselineDurationMs) / baselineDurationMs
-            // No lower bound: since #197 the candidate is about 3x faster than the 3.7.0 baseline on bulk reads,
-            // and the equal-output assertion already catches a candidate that skips the `__contracts` join
             assert(stats.output)(Assertion.equalTo(baseline.output))
             && assertTrue(diff < 0.3).label(
               s"${stats.name} (${stats.duration.render}) is ${diff.percent} slower than baseline (${baseline.duration.render})"
@@ -69,7 +67,6 @@ object ExercisesPerfSpec extends SharedHydratedLedgerTest:
       from   <- getOffset((lastIx * 0.4).toLong)
       to     <- getOffset((lastIx * 0.6).toLong)
       seedId <- Postgres.get[String](sql"select contract_id from creates('Blob:Seed') order by contract_id limit 1")
-      // Fast calls are repeated more so that each benchmark runs for about a second, well above timer noise
       benchmarks = Seq(
         ("exercises()", 5, sql"exercises()"),
         ("exercises(CreateMany)", 200, sql"exercises('Blob:Seed:CreateMany')"),
@@ -77,7 +74,6 @@ object ExercisesPerfSpec extends SharedHydratedLedgerTest:
         ("lookup_exercises(seed)", 400, sql"lookup_exercises($seedId)"),
         ("lookup_exercises(seed, ArchiveMany)", 1000, sql"lookup_exercises($seedId, 'Blob:Seed:ArchiveMany')")
       )
-      // Untimed warm-up first: cold caches, plans and JIT otherwise skew the fast calls by up to 25%
       stats <- ZIO.foreach(benchmarks) { (name, runs, call) =>
         ZIO.logInfo(s"Benchmark $name")
           *> summarize(call).repeatN(runs - 1)
@@ -85,7 +81,6 @@ object ExercisesPerfSpec extends SharedHydratedLedgerTest:
       }
     yield stats
 
-  // Consumes `signatories` so the `__contracts` join runs, without shipping the jsonb payloads to the client
   private def summarize(call: SqlFragment) =
     Postgres
       .get[(Long, Long, Long)](

@@ -168,8 +168,6 @@ select tpe.template_fqn,
        e.witnesses,
        t.synchronizer_id
 from __exercises e
-         -- a contract has a row per create or assign: join the one active at the exercise,
-         -- inclusive at both ends because a consuming exercise happens at deactivated_at_ix
          left join __contracts c on c.contract_id = e.contract_id and c.tpe_pk = e.contract_tpe_pk
              and c.activated_at_ix <= e.exercised_at_ix
              and (c.deactivated_at_ix is null or e.exercised_at_ix <= c.deactivated_at_ix)
