@@ -29,7 +29,6 @@ spec:
     spec:
       serviceAccount: {{ include "pqs.serviceAccountName" . }}
       securityContext:
-        readOnlyRootFilesystem: false
         runAsGroup: 65532
         runAsNonRoot: true
         runAsUser: 65532
@@ -58,6 +57,8 @@ spec:
             {{- end }}
             - name: JDK_JAVA_OPTIONS
               value: {{ join " " (concat .Values.containers.jvm.options .Values.containers.jvm.extraOptions) | quote }}
+          securityContext:
+            readOnlyRootFilesystem: false
           resources:
             {{- toYaml .Values.containers.resources | nindent 12 }}
           readinessProbe:
