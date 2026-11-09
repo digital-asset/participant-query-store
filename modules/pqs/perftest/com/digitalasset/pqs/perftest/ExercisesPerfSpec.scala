@@ -53,7 +53,6 @@ object ExercisesPerfSpec extends SharedHydratedLedgerTest:
     }
   )
 
-  /** Row count, rows with signatories from the joined `__contracts` row, and a checksum over the exercised rows */
   private final case class ExercisesOutput(rows: Long, withSignatories: Long, ixSum: Long)
   private final case class ExercisesStats(name: String, duration: Duration, output: ExercisesOutput):
     override def toString =
