@@ -97,4 +97,3 @@ object ExercisesPerfSpec extends SharedHydratedLedgerTest:
         sql"select count(*), count(signatories), coalesce(sum(exercised_at_ix), 0)::int8 from " ++ call
       )
       .map(ExercisesOutput.apply.tupled)
-
