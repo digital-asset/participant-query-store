@@ -96,3 +96,4 @@ synchronizer_id text;
 ### Helm Chart
 
 - Allow for managing JVM `JDK_JAVA_OPTIONS` env var via values file.  Default to assigning max of 75% of available container memory to the JVM process.  Allow for the entire `JDK_JAVA_OPTIONS` to be configured via `values.yaml` - `options` to override or `extraOptions` to append an additional value.
+- Removed `readOnlyRootFilesystem: false` from the pod-level `securityContext`, where it is not a valid field and had no effect.
