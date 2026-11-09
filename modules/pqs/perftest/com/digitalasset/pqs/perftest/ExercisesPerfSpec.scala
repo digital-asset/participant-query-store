@@ -64,7 +64,7 @@ object ExercisesPerfSpec extends SharedHydratedLedgerTest:
 
   private def runBenchmark =
     for
-      _      <- Postgres.call(sql"analyze")
+      _      <- settle()
       lastIx <- getLastIx
       from   <- getOffset((lastIx * 0.4).toLong)
       to     <- getOffset((lastIx * 0.6).toLong)
