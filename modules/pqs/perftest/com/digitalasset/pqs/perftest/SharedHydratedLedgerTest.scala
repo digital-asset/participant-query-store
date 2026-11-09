@@ -17,7 +17,7 @@ object SharedHydratedLedgerTest:
     * stable repeatable benchmarks.
     */
   val shared =
-    Postgres.restore(CantonDumps.all, limits = ContainerLimits(cpus = 4.0, memoryGiB = 2.0))
+    Postgres.restore(CantonDumps.all, limits = ContainerLimits(cpus = 4.0, memoryGiB = 2.0, shmGiB = 0.5))
       >+> Ledger.instanceWithPgStorage(bootstrap = false)
       >+> DamlSdk.allocatedParties(alice)
 
