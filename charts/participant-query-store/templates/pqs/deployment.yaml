@@ -57,8 +57,6 @@ spec:
             {{- end }}
             - name: JDK_JAVA_OPTIONS
               value: {{ join " " (concat .Values.containers.jvm.options .Values.containers.jvm.extraOptions) | quote }}
-          securityContext:
-            readOnlyRootFilesystem: false
           resources:
             {{- toYaml .Values.containers.resources | nindent 12 }}
           readinessProbe:
