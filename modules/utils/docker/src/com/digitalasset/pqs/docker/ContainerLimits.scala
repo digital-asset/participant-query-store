@@ -24,9 +24,9 @@ object ContainerLimits:
   def apply(cpus: Double, memoryGiB: Double): ContainerLimits =
     new ContainerLimits(
       cpus = Some(cpus),
-      memoryBytes = Some((memoryGiB * 1024 * 1024 * 1024).toLong),
+      memoryBytes = Some((memoryGiB * 1024 * 1024 * 1024).toLong)
     )
-  
+
   def apply(cpus: Double, memoryGiB: Double, shmGiB: Double): ContainerLimits =
     new ContainerLimits(
       Some(cpus),

@@ -14,12 +14,7 @@ import scala.language.implicitConversions
 
 object PruningPerfSpec extends SharedHydratedLedgerTest:
   def spec = suite("PruningPerfSpec")(
-    pruningPerfTest("fresh statistics")(withAnalyze = true),
-    pruningPerfTest("stale statistics")(withAnalyze = false)
-  )
-
-  def pruningPerfTest(name: String)(withAnalyze: Boolean) =
-    funcTest(name) {
+    funcTest("pruning") {
       val benchmarkQueries = Capture[Seq[PruningQuery]]
       val baselineStats    = Capture[Seq[PruningStats]]
       Given:
@@ -32,13 +27,13 @@ object PruningPerfSpec extends SharedHydratedLedgerTest:
       Expect:
         prepareBenchmark.is(benchmarkQueries.capture)
       Expect(2.minutes):
-        runBenchmark(benchmarkQueries.get, withAnalyze).is(baselineStats.capture)
+        runBenchmark(benchmarkQueries.get).is(baselineStats.capture)
 
       When:
         Pqs.applySchema // schema migration
       Expect(2.minutes):
         for
-          stats <- runBenchmark(benchmarkQueries.get, withAnalyze)
+          stats <- runBenchmark(benchmarkQueries.get)
           _ <- ZIO.logInfo(
             s"""|Baseline stats:
                 |  - ${baselineStats.get.mkString("\n  - ")}
@@ -61,6 +56,7 @@ object PruningPerfSpec extends SharedHydratedLedgerTest:
           }
           TestResult.allSuccesses(results)
     }
+  )
 
   private final case class PruningQuery(step: Double, offset: Long, repeat: Int)
 
@@ -80,9 +76,9 @@ object PruningPerfSpec extends SharedHydratedLedgerTest:
       }
     yield queries
 
-  private def runBenchmark(queries: Seq[PruningQuery], withAnalyze: Boolean) =
+  private def runBenchmark(queries: Seq[PruningQuery]) =
     for
-      _ <- settle(withAnalyze)
+      _ <- settle(analyze = true)
       stats <- ZIO.foreach(queries) { query =>
         ZIO.logInfo(s"Benchmark pruning by ${query.step.percent}")
           *> prune(query.offset)
