@@ -20,6 +20,7 @@ This release includes the following SQL migrations:
 - [V047__Create_reassignments_table.sql](https://github.com/digital-asset/participant-query-store/blob/main/modules/postgres/document/resources/db/migration/V047__Create_reassignments_table.sql): creates the `__reassignment_type` enum and the list-partitioned `__reassignments` table, then creates one partition per row already present in `__contract_tpe`. **[Impact: Instantaneous /< 1 min]**
 - [V048__Prunning_reassignments.sql](https://github.com/digital-asset/participant-query-store/blob/main/modules/postgres/document/resources/db/migration/V048__Prunning_reassignments.sql): drops `prune_archived_to_offset` and `prune_archived_to_offset_dry_run` so that they can be re-created with the new `deleted_reassignments` result column. **[Impact: Instantaneous]**
 - [V049__Store_record_time.sql](https://github.com/digital-asset/participant-query-store/blob/main/modules/postgres/document/resources/db/migration/V049__Store_record_time.sql): adds the `record_time` column to `__transactions`, which is metadata-only, and a BRIN index on it, which reads `__transactions` once. **[Impact: < 1 min/10M transactions]**
+- [V050__Store_exercise_synchronizer_id.sql](https://github.com/digital-asset/participant-query-store/blob/main/modules/postgres/document/resources/db/migration/V050__Store_exercise_synchronizer_id.sql): adds the `synchronizer_id` column to `__exercises`. Metadata-only, no table is scanned or rewritten. **[Impact: Instantaneous]**
 
 ## What's New
 
@@ -63,7 +64,7 @@ synchronizer_id text;
 - The `synchronizer_id text` column is added to the `transactions` SQL view.
 - The `synchronizer_id text` column is added to the output of the `exercises` and `lookup_exercise` SQL functions.
 - The `summary_reassignments` SQL function returns the number of assign and unassign events per Daml fully qualified name and per source and target synchronizer in the `[from_offset, to_offset]` range. It leaves out the assigns recorded by the ACS import.
-- `exercises()` and `lookup_exercises()` join the `__contracts` row that was active at the exercise, so an exercise on a reassigned contract is returned once.
+- `exercises()` and `lookup_exercises()` join the `__contracts` row that was active at the exercise on its synchronizer, so an exercise on a reassigned contract is returned once.
 
 
 #### Pruning, Reset to offset and Redaction

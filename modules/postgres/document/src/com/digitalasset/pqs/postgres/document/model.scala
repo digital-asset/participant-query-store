@@ -307,6 +307,7 @@ final class Exercise(
     witnesses: Seq[Party],
     lastDescendant: NodeId,
     packagePk: PackagePk,
+    synchronizerId: SynchronizerId,
     metrics: MetricsContext
 ) extends Copy:
   def table = Exercise
@@ -321,7 +322,8 @@ final class Exercise(
     controllers,
     witnesses,
     lastDescendant,
-    packagePk
+    packagePk,
+    synchronizerId
   )
   // A consuming exercise counts once, as the archive it is: TransactionTreeStream reports archives only this way
   override val eventLabels: Set[MetricLabel] =
@@ -341,7 +343,8 @@ object Exercise
         "controllers",
         "witnesses",
         "last_descendant_node_id",
-        "package_pk"
+        "package_pk",
+        "synchronizer_id"
       ),
       insertOrder = 3
     )
