@@ -76,7 +76,7 @@ object InBatchDeactivationMergeSpec extends ZIOSpecDefault:
         Contract.copyQuery.endsWith("deactivate_event_pk, deactivated_at_ix, deactivation_type) from stdin"),
         fields(c.row).takeRight(3) == List("\\N", "\\N", "\\N"),
         result.map(_.dropRight(3)) == Chunk(fields(c.row).dropRight(3)),
-        result.map(_.takeRight(2)) == Chunk(List("3", "archive"))
+        result.map(_.takeRight(3)) == Chunk(List(d.deactivateEventPk.id.toString, "3", "archive"))
       )
     },
     test("an activation and deactivation in the same transaction are merged") {

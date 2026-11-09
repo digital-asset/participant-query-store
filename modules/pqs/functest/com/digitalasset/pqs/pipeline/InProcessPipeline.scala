@@ -24,14 +24,18 @@ object InProcessPipeline:
     ZLayer.succeed(schemaConfig) ++ Database.config ++ Database.connectionPool ++ Database.instanceId
       >>> DocumentPostgres.live
 
+  /** `skippedIx` leaves that many ix before the transactions unwritten, as if an earlier batch were still in flight, so
+    * the watermark cannot advance over them.
+    */
   def processTransactions(
-      transactions: Chunk[Transaction[Event | TreeEvent | ReassignmentEvent]]
+      transactions: Chunk[Transaction[Event | TreeEvent | ReassignmentEvent]],
+      skippedIx: Long = 0
   ): ZIO[Datastore, Throwable, Unit] =
     for
       datastore    <- ZIO.service[Datastore]
       (offset, ix) <- datastore.getLastCheckpoint
       _ <- ZStream
         .from(transactions)
-        .mapAccum(ix + 1)((index, a) => (index + 1, (a, index)))
+        .mapAccum(ix + 1 + skippedIx)((index, a) => (index + 1, (a, index)))
         .run(datastore.processTransactions(0L))
     yield ()
