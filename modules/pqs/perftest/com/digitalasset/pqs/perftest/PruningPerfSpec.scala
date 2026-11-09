@@ -82,7 +82,7 @@ object PruningPerfSpec extends SharedHydratedLedgerTest:
 
   private def runBenchmark(queries: Seq[PruningQuery], withAnalyze: Boolean) =
     for
-      _ <- ZIO.whenDiscard(withAnalyze)(Postgres.call(sql"analyze"))
+      _ <- settle(withAnalyze)
       stats <- ZIO.foreach(queries) { query =>
         ZIO.logInfo(s"Benchmark pruning by ${query.step.percent}")
           *> prune(query.offset)

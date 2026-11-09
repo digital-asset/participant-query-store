@@ -8,7 +8,7 @@ import com.digitalasset.pqs.functest.FuncTest
 import com.digitalasset.pqs.services.daml.{DamlSdk, Party, Ledger}
 import com.digitalasset.pqs.services.postgres.Postgres
 import com.digitalasset.pqs.services.daml.Parties
-import zio.jdbc.sqlInterpolator
+import zio.jdbc.*
 
 object SharedHydratedLedgerTest:
   val alice = Party("alice_1")
