@@ -44,20 +44,23 @@ object ExercisesPerfSpec extends SharedHydratedLedgerTest:
             val baselineDurationMs  = baseline.duration.toMillis
             val candidateDurationMs = stats.duration.toMillis
             val diff                = (candidateDurationMs.toDouble - baselineDurationMs) / baselineDurationMs
-            assert(stats.output)(Assertion.equalTo(baseline.output))
+            assert(stats.output)(Assertion.equalTo(baseline.output)).label(s"${stats.name} output")
             && assertTrue(diff < 0.3).label(
               s"${stats.name} (${stats.duration.render}) is ${diff.percent} slower than baseline (${baseline.duration.render})"
+            )
+            && assertTrue(diff > -0.9).label(
+              s"${stats.name} (${stats.duration.render}) is ${(-diff).percent} faster than baseline (${baseline.duration.render})"
             )
           }
           TestResult.allSuccesses(results)
     }
   )
 
-  private final case class ExercisesOutput(rows: Long, withSignatories: Long, ixSum: Long)
+  private final case class ExercisesOutput(rows: Long, withSignatories: Long, checksum: Long)
   private final case class ExercisesStats(name: String, duration: Duration, output: ExercisesOutput):
     override def toString =
       import output.*
-      s"$name ($duration): $rows rows, $withSignatories with signatories, ix checksum $ixSum"
+      s"$name ($duration): $rows rows, $withSignatories with signatories, ix checksum $checksum"
 
   private def runBenchmark =
     for
@@ -67,16 +70,24 @@ object ExercisesPerfSpec extends SharedHydratedLedgerTest:
       to     <- getOffset((lastIx * 0.6).toLong)
       seedId <- Postgres.get[String](sql"select contract_id from creates('Blob:Seed') order by contract_id limit 1")
       benchmarks = Seq(
-        ("exercises()", 5, sql"exercises()"),
-        ("exercises(CreateMany)", 200, sql"exercises('Blob:Seed:CreateMany')"),
-        ("exercises() in 40-60% range", 5, sql"exercises(null, $from, $to)"),
-        ("lookup_exercises(seed)", 400, sql"lookup_exercises($seedId)"),
-        ("lookup_exercises(seed, ArchiveMany)", 1000, sql"lookup_exercises($seedId, 'Blob:Seed:ArchiveMany')")
+        ("exercises()", 5, summarize(sql"exercises()")),
+        ("exercises() all columns", 5, summarize(sql"exercises() e where length(e::text) > 0")),
+        ("exercises(CreateMany)", 200, summarize(sql"exercises('Blob:Seed:CreateMany')")),
+        ("exercises() in 40-60% range", 5, summarize(sql"exercises(null, $from, $to)")),
+        ("lookup_exercises(seed)", 400, summarize(sql"lookup_exercises($seedId)")),
+        (
+          "lookup_exercises(seed, ArchiveMany)",
+          1000,
+          summarize(sql"lookup_exercises($seedId, 'Blob:Seed:ArchiveMany')")
+        )
       )
       stats <- ZIO.foreach(benchmarks) { (name, runs, call) =>
         ZIO.logInfo(s"Benchmark $name")
-          *> summarize(call).repeatN(runs - 1)
-          *> summarize(call).repeatN(runs - 1).timed.map((duration, output) => ExercisesStats(name, duration, output))
+          *> call.repeatN(runs - 1)
+          *> call
+            .repeatN(runs - 1)
+            .timed
+            .map((duration, output) => ExercisesStats(name, duration, output))
       }
     yield stats
 
@@ -86,3 +97,4 @@ object ExercisesPerfSpec extends SharedHydratedLedgerTest:
         sql"select count(*), count(signatories), coalesce(sum(exercised_at_ix), 0)::int8 from " ++ call
       )
       .map(ExercisesOutput.apply.tupled)
+
