@@ -60,7 +60,7 @@ object ExercisesPerfSpec extends SharedHydratedLedgerTest:
   private final case class ExercisesStats(name: String, duration: Duration, output: ExercisesOutput):
     override def toString =
       import output.*
-      s"$name ($duration): $rows rows, $withSignatories with signatories, ix checksum $checksum"
+      s"$name ($duration): $rows rows, $withSignatories with signatories, offset checksum $checksum"
 
   private def runBenchmark =
     for
@@ -94,6 +94,6 @@ object ExercisesPerfSpec extends SharedHydratedLedgerTest:
   private def summarize(call: SqlFragment) =
     Postgres
       .get[(Long, Long, Long)](
-        sql"select count(*), count(signatories), coalesce(sum(exercised_at_ix), 0)::int8 from " ++ call
+        sql"select count(*), count(signatories), coalesce(sum(exercised_at_offset), 0)::int8 from " ++ call
       )
       .map(ExercisesOutput.apply.tupled)

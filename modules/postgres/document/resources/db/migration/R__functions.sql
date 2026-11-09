@@ -168,11 +168,12 @@ select tpe.template_fqn,
        e.witnesses,
        t.synchronizer_id
 from __exercises e
+         left join __transactions t on t.ix = e.exercised_at_ix
          left join __contracts c on c.contract_id = e.contract_id and c.tpe_pk = e.contract_tpe_pk
              and c.activated_at_ix <= e.exercised_at_ix
              and (c.deactivated_at_ix is null or e.exercised_at_ix <= c.deactivated_at_ix)
+             and (c.divulged_only or c.synchronizer_id is null or c.synchronizer_id = t.synchronizer_id)
          left join __exercise_tpe tpe on tpe.pk = e.tpe_pk
-         left join __transactions t on t.ix = e.exercised_at_ix
          left join __events ee on ee.pk = e.exercise_event_pk
          left join __packages p on e.package_pk = p.pk
 where qname is null
