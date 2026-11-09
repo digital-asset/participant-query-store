@@ -306,29 +306,24 @@ object Ledger:
     Docker & Ledger & Parties & UpdateService & StateService,
     Throwable,
     Chunk[Transaction[Event]]
-  ] = client {
-    for
-      parties       <- ZIO.service[Parties]
-      updateService <- ZIO.service[UpdateService]
-      stateService  <- ZIO.service[StateService]
-      startOffset   <- stateService.getLedgerStart(parties.userRight)
-      endOffset     <- stateService.getLedgerEnd
-      transactions  <- updateService.getTransactions(parties.userRight, startOffset, endOffset).runCollect
-    yield transactions
-  }
+  ] = recordStream((updateService, parties, from, to) => updateService.getTransactions(parties.userRight, from, to))
 
   def recordTransactionTreeStream: ZIO[
     Docker & Ledger & Parties & UpdateService & StateService,
     Throwable,
     Chunk[Transaction[Event]]
-  ] = client {
+  ] = recordStream((updateService, parties, from, to) => updateService.getTransactionTrees(parties.userRight, from, to))
+
+  private def recordStream(
+      stream: (UpdateService, Parties, Offset, Offset) => zio.stream.Stream[Throwable, Transaction[Event]]
+  ): ZIO[Docker & Ledger & Parties & UpdateService & StateService, Throwable, Chunk[Transaction[Event]]] = client {
     for
       parties       <- ZIO.service[Parties]
       updateService <- ZIO.service[UpdateService]
       stateService  <- ZIO.service[StateService]
       startOffset   <- stateService.getLedgerStart(parties.userRight)
       endOffset     <- stateService.getLedgerEnd
-      transactions  <- updateService.getTransactionTrees(parties.userRight, startOffset, endOffset).runCollect
+      transactions  <- stream(updateService, parties, startOffset, endOffset).runCollect
     yield transactions
   }
 
