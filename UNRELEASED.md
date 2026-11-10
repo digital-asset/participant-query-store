@@ -11,3 +11,6 @@ _Write summary of release_
 ## What's New
 
 ### Minor Improvements
+
+### Helm Chart
+- Removed `readOnlyRootFilesystem: false` from the pod-level `securityContext`, where it is not a valid field and had no effect.
