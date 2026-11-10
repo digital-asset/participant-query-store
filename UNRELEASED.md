@@ -15,3 +15,6 @@ _Write summary of release_
 ### Minor Improvements
 
 - Added support for `AzurePostgresqlAuthenticationPlugin` by bundling `com.azure:azure-identity-extensions:1.2.2` into assembly JAR and Docker image.
+
+### Helm Chart
+- Removed `readOnlyRootFilesystem: false` from the pod-level `securityContext`, where it is not a valid field and had no effect.
