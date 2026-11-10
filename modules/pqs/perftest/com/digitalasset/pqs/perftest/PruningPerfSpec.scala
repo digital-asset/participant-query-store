@@ -69,7 +69,7 @@ object PruningPerfSpec extends SharedHydratedLedgerTest:
 
   private def runBenchmark(withAnalyze: Boolean) =
     for
-      _      <- ZIO.whenDiscard(withAnalyze)(Postgres.call(sql"analyze"))
+      _      <- settle(withAnalyze)
       lastIx <- getLastIx
       stats <- ZIO.foreach(steps) { step =>
         ZIO.logInfo(s"Benchmark pruning by ${step.percent}")
@@ -78,12 +78,6 @@ object PruningPerfSpec extends SharedHydratedLedgerTest:
             .map((duration, output) => PruningStats(step, duration, output))
       }
     yield stats
-
-  private def getLastIx =
-    Postgres.get[Long](sql"select ix from __transactions order by ix desc limit 1")
-
-  private def getOffset(ix: Long) =
-    Postgres.get[Long](sql"""select "offset" from __transactions where ix=$ix""")
 
   private def prune(offset: Long) =
     Postgres

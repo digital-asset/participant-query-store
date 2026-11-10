@@ -405,6 +405,7 @@ final case class DocumentPostgres(
           witnesses = e.witnesses,
           lastDescendant = e.lastDescendant,
           packagePk = packageMap(e.templateId.packageId),
+          synchronizerId = e.synchronizerId,
           metrics = metrics
         )
         val archives =
