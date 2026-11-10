@@ -7,7 +7,7 @@ import com.digitalasset.pqs.functest.matchers.*
 import com.digitalasset.pqs.docker.ContainerLimits
 import com.digitalasset.pqs.services.postgres.{Database, Postgres}
 import com.digitalasset.pqs.services.pqs.*
-import zio.ZIO
+import zio.*
 import zio.jdbc.*
 import zio.test.*
 
@@ -20,8 +20,8 @@ object IngestionPerfSpec extends SharedHydratedLedgerTest:
       val baselineRun     = Capture[CliRun]
       Given:
         Postgres.database
-          >+> Pqs36.applySchema // apply schema and warm the cache
-          >+> Pqs36.runPipeline(limits)(
+          >+> Pqs37.applySchema // apply schema and warm the cache
+          >+> Pqs37.runPipeline(limits)(
             "--pipeline-ledger-start=Genesis",
             "--pipeline-ledger-stop=Latest",
             "--logger-level=Warning"
@@ -49,7 +49,10 @@ object IngestionPerfSpec extends SharedHydratedLedgerTest:
 
           val diff = (candidateDurationMs.toDouble - baselineDurationMs) / baselineDurationMs
           assertTrue(diff < 0.6).label(
-            s"Candidate (${candidateRun.duration}) is ${(diff * 100).toInt}% slower than baseline (${baselineRun.get.duration})"
+            s"Candidate (${candidateRun.duration.render}) is ${diff.percent} slower than baseline (${baselineRun.get.duration.render})"
+          )
+          && assertTrue(diff > 0.0).label(
+            s"Candidate (${candidateRun.duration.render}) is ${(-diff).percent} faster than baseline (${baselineRun.get.duration.render})"
           )
         }
     }

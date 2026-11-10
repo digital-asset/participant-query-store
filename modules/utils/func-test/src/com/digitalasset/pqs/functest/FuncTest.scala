@@ -34,7 +34,7 @@ object FuncTest:
 
 @SuppressWarnings(Array("org.wartremover.warts.AsInstanceOf"))
 abstract class FuncTest[FR: EnvironmentTag] extends ZIOSpec[FTEnv & Dpm & Docker & FR]:
-  private type Instruction[R] = ZIO[R & Scope & FR & Docker, Throwable, TestResult]
+  private type Instruction[-R] = ZIO[R & Scope & FR & Docker, Throwable, TestResult]
 
   def shared: ZLayer[FTEnv & Dpm & Docker, Throwable, FR]
   val sharedTag = summon[EnvironmentTag[FR]]
@@ -134,8 +134,10 @@ abstract class FuncTest[FR: EnvironmentTag] extends ZIOSpec[FTEnv & Dpm & Docker
     interactWithoutAssertion(io, timeout)
 
   def Expect[R](io: => ZIO[R, Throwable, TestResult])(implicit ctx: Ctx[?, ? <: R], trace: Trace) = assert(io)
-  def Then[R](io: => ZIO[R, Throwable, TestResult])(implicit ctx: Ctx[?, ? <: R], trace: Trace)   = assert(io)
-  def And[R](io: => ZIO[R, Throwable, TestResult])(implicit ctx: Ctx[?, ? <: R], trace: Trace)    = assert(io)
+  def Expect[R](timeout: Duration)(io: => ZIO[R, Throwable, TestResult])(implicit ctx: Ctx[?, ? <: R], trace: Trace) =
+    assert(io, timeout)
+  def Then[R](io: => ZIO[R, Throwable, TestResult])(implicit ctx: Ctx[?, ? <: R], trace: Trace) = assert(io)
+  def And[R](io: => ZIO[R, Throwable, TestResult])(implicit ctx: Ctx[?, ? <: R], trace: Trace)  = assert(io)
 
   class Ctx[RProv, RReq]:
     private[FuncTest] var runtime: zio.Runtime[RProv] = uninitialized

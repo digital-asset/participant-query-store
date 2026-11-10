@@ -3,6 +3,7 @@
 
 package com.digitalasset.pqs.features
 
+import com.daml.ledger.api.v2.value.{Record, RecordField, Value}
 import com.digitalasset.canonical.{Event, Offset, Transaction}
 import com.digitalasset.pqs.functest.matchers.*
 import com.digitalasset.pqs.functest.table.*
@@ -22,6 +23,21 @@ import java.time.Instant
 import scala.language.implicitConversions
 
 object ReassignmentSpec extends SharedMultiSyncLedgerSpec:
+  private val asset = DamlSource(
+    "Asset" -> """module Asset where
+                 |
+                 |template Asset
+                 |  with
+                 |    owner: Party
+                 |  where
+                 |    signatory owner
+                 |
+                 |    nonconsuming choice Touch : ()
+                 |      controller owner
+                 |      do pure ()
+                 |""".stripMargin
+  )
+
   def spec = suite("Multi-Sync")(
     funcTest("Contract is created, reassigned and archived") {
       val alice      = Party("Alice")
@@ -452,6 +468,120 @@ object ReassignmentSpec extends SharedMultiSyncLedgerSpec:
           .returns(
             table {
               dar.get.packageId | s"${pingPong.name}:PingPong:Ping" | "template" | contractId | sync1.id | 4
+            }
+          )
+    },
+    funcTest("Non-causal stream: exercises between an assign and its late unassign are returned once") {
+      val alice      = Party("Alice")
+      val contractId = Capture[String]
+      Given:
+        DamlSdk.allocateParties(alice -> Seq(sync1, sync2)) ++ DamlSdk.uploadAndVetDar(asset)(sync1, sync2)
+      Then:
+        val owner = Record.defaultInstance.addFields(RecordField("owner", Some(Value(Value.Sum.Party(alice.id)))))
+        Ledger
+          .create("Asset:Asset", owner, alice, sync1)
+          .map(_.getTransaction.events(0).getCreated.contractId)
+          .is(contractId.capture)
+      When:
+        Ledger.exercise("Asset:Asset", contractId.get, "Touch", alice, sync1)
+          *> Ledger.reassign(contractId.get, alice, sync1, sync2)
+          *> Ledger.exercise("Asset:Asset", contractId.get, "Touch", alice, sync2)
+          *> Ledger.archive("Asset:Asset", contractId.get, alice, sync2)
+      And:
+        Ledger.damlSchema()
+          >+> DamlSchema.protobufCodecs
+          >+> Ledger.updateService ++ Ledger.stateService
+
+      val transactions = Capture[Chunk[Transaction[Event]]]
+
+      // Only the order within a synchronizer is guaranteed: both exercises arrive after the assign and before the unassign
+      def createTx   = transactions.get(0).copy(offset = Offset.Absolute(1))
+      def assignTx   = transactions.get(3).copy(offset = Offset.Absolute(2))
+      def touchSync1 = transactions.get(1).copy(offset = Offset.Absolute(3))
+      def touchSync2 = transactions.get(4).copy(offset = Offset.Absolute(4))
+      def unassignTx = transactions.get(2).copy(offset = Offset.Absolute(5))
+      def archiveTx  = transactions.get(5).copy(offset = Offset.Absolute(6))
+
+      Then:
+        Ledger.recordTransactionTreeStream.is(hasSize(equalTo(6)) && transactions.capture)
+
+      When:
+        Postgres.database
+          >+> DamlSchema.produce(JsonCodec())
+          >+> DamlSchema.produce(SqlSchema)
+          >+> InProcessPipeline.destinationLayer()
+      When:
+        InProcessPipeline.processTransactions(
+          Chunk(createTx, assignTx, touchSync1, touchSync2, unassignTx, archiveTx)
+        )
+
+      Expect:
+        Postgres
+          .query(sql"""select choice, consuming, synchronizer_id, signatories
+                       from exercises() order by exercised_at_ix""")
+          .returns(
+            table {
+              "Touch"   | false | sync1.id | s"{${alice.id}}"
+              "Touch"   | false | sync2.id | s"{${alice.id}}"
+              "Archive" | true  | sync2.id | s"{${alice.id}}"
+            }
+          )
+      Expect:
+        Postgres
+          .query(sql"""select choice, consuming, synchronizer_id, signatories
+                       from lookup_exercises(${contractId.get}) order by exercised_at_ix""")
+          .returns(
+            table {
+              "Touch"   | false | sync1.id | s"{${alice.id}}"
+              "Touch"   | false | sync2.id | s"{${alice.id}}"
+              "Archive" | true  | sync2.id | s"{${alice.id}}"
+            }
+          )
+    },
+    funcTest("Exercise on a reassigned contract is returned once") {
+      val alice      = Party("Alice")
+      val contractId = Capture[String]
+      Given:
+        DamlSdk.allocateParties(alice -> Seq(sync1, sync2)) ++ DamlSdk.uploadAndVetDar(asset)(sync1, sync2)
+      Then:
+        val owner = Record.defaultInstance.addFields(RecordField("owner", Some(Value(Value.Sum.Party(alice.id)))))
+        Ledger
+          .create("Asset:Asset", owner, alice, sync1)
+          .map(_.getTransaction.events(0).getCreated.contractId)
+          .is(contractId.capture)
+      When:
+        Ledger.exercise("Asset:Asset", contractId.get, "Touch", alice, sync1)
+          *> Ledger.reassign(contractId.get, alice, sync1, sync2)
+          *> Ledger.exercise("Asset:Asset", contractId.get, "Touch", alice, sync2)
+          *> Ledger.archive("Asset:Asset", contractId.get, alice, sync2)
+      When:
+        Postgres.database
+          >+> Pqs.runPipeline(
+            "--pipeline-datasource=TransactionTreeStream",
+            "--pipeline-ledger-start=Genesis",
+            "--pipeline-ledger-stop=Latest"
+          )
+
+      Expect:
+        Postgres
+          .query(sql"""select choice, consuming, synchronizer_id, signatories
+                       from exercises() order by exercised_at_ix""")
+          .returns(
+            table {
+              "Touch"   | false | sync1.id | s"{${alice.id}}"
+              "Touch"   | false | sync2.id | s"{${alice.id}}"
+              "Archive" | true  | sync2.id | s"{${alice.id}}"
+            }
+          )
+      Expect:
+        Postgres
+          .query(sql"""select choice, consuming, synchronizer_id, signatories
+                       from lookup_exercises(${contractId.get}) order by exercised_at_ix""")
+          .returns(
+            table {
+              "Touch"   | false | sync1.id | s"{${alice.id}}"
+              "Touch"   | false | sync2.id | s"{${alice.id}}"
+              "Archive" | true  | sync2.id | s"{${alice.id}}"
             }
           )
     }

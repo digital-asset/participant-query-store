@@ -468,9 +468,12 @@ select tpe.template_fqn,
        e.controllers,
        e.last_descendant_node_id,
        e.witnesses,
-       t.synchronizer_id
+       e.synchronizer_id
 from __exercises e
          left join __contracts c on c.contract_id = e.contract_id and c.tpe_pk = e.contract_tpe_pk
+             and c.activated_at_ix <= e.exercised_at_ix
+             and (c.deactivated_at_ix is null or e.exercised_at_ix <= c.deactivated_at_ix)
+             and (c.synchronizer_id is null or c.synchronizer_id = e.synchronizer_id)
          left join __exercise_tpe tpe on tpe.pk = e.tpe_pk
          left join __transactions t on t.ix = e.exercised_at_ix
          left join __events ee on ee.pk = e.exercise_event_pk
@@ -1968,7 +1971,8 @@ CREATE TABLE public.__exercises (
     package_pk bigint DEFAULT 0 NOT NULL,
     controllers text[] DEFAULT '{}'::text[] NOT NULL,
     last_descendant_node_id integer DEFAULT '-1'::integer NOT NULL,
-    witnesses text[] DEFAULT '{}'::text[] NOT NULL
+    witnesses text[] DEFAULT '{}'::text[] NOT NULL,
+    synchronizer_id text
 )
 PARTITION BY LIST (tpe_pk);
 
@@ -1989,7 +1993,8 @@ CREATE TABLE public.__exercises_1 (
     package_pk bigint DEFAULT 0 NOT NULL,
     controllers text[] DEFAULT '{}'::text[] NOT NULL,
     last_descendant_node_id integer DEFAULT '-1'::integer NOT NULL,
-    witnesses text[] DEFAULT '{}'::text[] NOT NULL
+    witnesses text[] DEFAULT '{}'::text[] NOT NULL,
+    synchronizer_id text
 );
 
 
