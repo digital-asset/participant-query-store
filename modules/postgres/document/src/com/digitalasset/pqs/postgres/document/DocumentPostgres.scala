@@ -82,7 +82,7 @@ final case class DocumentPostgres(
       >>> ZSink.drain
   ).provideEnvironment(env)
 
-  override def processTransactions(initialIx: Long) = (
+  override def processTransactions(initialIx: Long, insertWatermark: Boolean) = (
     waitPoint("pipeline_wp_events", poolConfig.bufferSize, 1024 min poolConfig.bufferSize)
       >>> convertTransactionEventsToStatements(8)
       >>> waitPoint("pipeline_wp_statements", poolConfig.bufferSize, 1024 min poolConfig.bufferSize)
@@ -93,7 +93,7 @@ final case class DocumentPostgres(
       >>> executeParUnordered(poolConfig.maxConnections)
       >>> waitPoint("pipeline_wp_watermarks", 1024)
       >>> reorderCheckpoints
-      >>> handleWatermarks(initialIx)
+      >>> (if insertWatermark then handleWatermarks(initialIx) else ZPipeline.map[Watermark, Unit](_ => ()))
       >>> ZSink.drain
   ).provideEnvironment(env)
 

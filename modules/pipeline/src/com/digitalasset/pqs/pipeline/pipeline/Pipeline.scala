@@ -104,7 +104,7 @@ private case class Impl(
         case TransactionApi.TransactionTreeStream => ledger.getTransactionTrees
       _ <- datasource(rights, continueFromOffset, actualEnd)
         .mapAccum(continueFromIx + 1)((index, a) => (index + 1, (a, index)))
-        .run(datastore.processTransactions(continueFromIx))
+        .run(datastore.processTransactions(continueFromIx, insertWatermark = true))
     yield {}).ensuring(Pipeline.streamUpGauge.set(0))
 
   private def getNormalizedOffsetsFromConfig(ledgerStart: Offset, ledgerEnd: Offset, dbEnd: Offset) = {

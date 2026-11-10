@@ -47,15 +47,15 @@ object InBatchMergeSpec extends SharedLedgerAndPostgresTest:
           >+> DamlSchema.produce(SqlSchema)
           >+> InProcessPipeline.destinationLayer()
       When:
-        // ix 1 is never written, so the watermark stays below the batch and its trigger applies nothing
-        InProcessPipeline.processTransactions(Chunk(createAndArchive(transactions.get)), skippedIx = 1)
+        // The watermark stays below the batch, so its trigger applies nothing
+        InProcessPipeline.processTransactions(Chunk(createAndArchive(transactions.get)), insertWatermark = false)
       Expect:
         Postgres
           .query(
             sql"""select deactivation_type::text, activated_at_ix, deactivated_at_ix
                   from __contracts where contract_id = ${contractId.get}"""
           )
-          .returns(table("archive" | 2 | 2))
+          .returns(table("archive" | 1 | 1))
       And:
         Postgres.query(sql"select count(*) from __tmp_deactivated_contracts").returns(table(0))
     },
@@ -82,8 +82,8 @@ object InBatchMergeSpec extends SharedLedgerAndPostgresTest:
           >+> DamlSchema.produce(SqlSchema)
           >+> InProcessPipeline.destinationLayer()
       When:
-        // ix 1 is never written, as if an earlier batch were still in flight, so the watermark stays below the batch
-        InProcessPipeline.processTransactions(Chunk(createAndArchive(transactions.get)), skippedIx = 1)
+        // The watermark stays below the batch, as if an earlier batch were still in flight
+        InProcessPipeline.processTransactions(Chunk(createAndArchive(transactions.get)), insertWatermark = false)
       Expect:
         Postgres
           .query(sql"select redact_contract(${contractId.get}, 'reason')")
