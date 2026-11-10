@@ -61,10 +61,9 @@ synchronizer_id text;
 - `summary_active` counts each `contract_id` only once per `template_fqn`.
 - *BREAKING*: The `__transactions` column `domain_id` is renamed to `synchronizer_id`, to match Canton's current vocabulary. It is now populated for every update — every transaction and every reassignment. Rows written before this release keep `NULL` and are not getting backfilled.
 - The new `__transactions` column `record_time` holds the time at which the update was recorded by its synchronizer. It is populated for every update. Rows written before this release keep `NULL` and are not getting backfilled.
-- The `synchronizer_id text` column is added to the `transactions` SQL view.
-- The `synchronizer_id text` column is added to the output of the `exercises` and `lookup_exercises` SQL functions. It is the synchronizer stored with the exercise; for exercises ingested by PQS 3.7 or older it is left empty.
+- The `synchronizer_id text` column is added to the `transactions` SQL view. It returns `NULL` for rows written by PQS 3.7 or older.
+- The `synchronizer_id text` column is added to the output of the `exercises` and `lookup_exercises` SQL functions. They return `NULL` for rows written by PQS 3.7 or older.
 - The `summary_reassignments` SQL function returns the number of assign and unassign events per Daml fully qualified name and per source and target synchronizer in the `[from_offset, to_offset]` range. It leaves out the assigns recorded by the ACS import.
-- `exercises()` and `lookup_exercises()` join the `__contracts` row that was active at the exercise on its synchronizer, so an exercise on a reassigned contract is returned once.
 
 
 #### Pruning, Reset to offset and Redaction

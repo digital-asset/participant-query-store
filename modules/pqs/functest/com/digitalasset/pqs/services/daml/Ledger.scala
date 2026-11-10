@@ -29,6 +29,7 @@ import com.digitalasset.canonical.{ContractFilter, Event, MetadataFilter, Offset
 import com.digitalasset.pqs.docker.{Docker, Service}
 import com.digitalasset.pqs.functest.FTEnv
 import com.digitalasset.pqs.grpc.{ZClientInterceptor, ZManagedChannel}
+import com.digitalasset.pqs.pipeline.pipeline.Config.TransactionApi
 import com.digitalasset.pqs.services.inspectMaybe
 import com.digitalasset.pqs.services.postgres.Postgres
 import com.digitalasset.pqs.utils.safeequals.*
@@ -306,16 +307,16 @@ object Ledger:
     Docker & Ledger & Parties & UpdateService & StateService,
     Throwable,
     Chunk[Transaction[Event]]
-  ] = recordStream((updateService, parties, from, to) => updateService.getTransactions(parties.userRight, from, to))
+  ] = recordStream(TransactionApi.TransactionStream)
 
   def recordTransactionTreeStream: ZIO[
     Docker & Ledger & Parties & UpdateService & StateService,
     Throwable,
     Chunk[Transaction[Event]]
-  ] = recordStream((updateService, parties, from, to) => updateService.getTransactionTrees(parties.userRight, from, to))
+  ] = recordStream(TransactionApi.TransactionTreeStream)
 
   private def recordStream(
-      stream: (UpdateService, Parties, Offset, Offset) => zio.stream.Stream[Throwable, Transaction[Event]]
+      source: TransactionApi
   ): ZIO[Docker & Ledger & Parties & UpdateService & StateService, Throwable, Chunk[Transaction[Event]]] = client {
     for
       parties       <- ZIO.service[Parties]
@@ -323,7 +324,12 @@ object Ledger:
       stateService  <- ZIO.service[StateService]
       startOffset   <- stateService.getLedgerStart(parties.userRight)
       endOffset     <- stateService.getLedgerEnd
-      transactions  <- stream(updateService, parties, startOffset, endOffset).runCollect
+      stream = source match
+        case TransactionApi.TransactionStream =>
+          updateService.getTransactions(parties.userRight, startOffset, endOffset)
+        case TransactionApi.TransactionTreeStream =>
+          updateService.getTransactionTrees(parties.userRight, startOffset, endOffset)
+      transactions <- stream.runCollect
     yield transactions
   }
 
