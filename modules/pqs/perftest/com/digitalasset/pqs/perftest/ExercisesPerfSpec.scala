@@ -4,7 +4,7 @@
 package com.digitalasset.pqs.perftest
 
 import com.digitalasset.pqs.functest.matchers.*
-import com.digitalasset.pqs.services.postgres.Postgres
+import com.digitalasset.pqs.services.postgres.{Database, Postgres}
 import com.digitalasset.pqs.services.pqs.*
 import zio.*
 import zio.jdbc.{SqlFragment, sqlInterpolator}
@@ -69,9 +69,9 @@ object ExercisesPerfSpec extends SharedHydratedLedgerTest:
 
   private def prepareBenchmarks =
     for
-      lastIx <- getLastIx
-      from   <- getOffset((lastIx * 0.4).toLong)
-      to     <- getOffset((lastIx * 0.6).toLong)
+      lastIx <- Database.getLastIx
+      from   <- Database.getOffset((lastIx * 0.4).toLong)
+      to     <- Database.getOffset((lastIx * 0.6).toLong)
       seedId <- Postgres.get[String](sql"select contract_id from creates('Blob:Seed') order by contract_id limit 1")
     yield Seq(
       Benchmark("exercises()", 5, sql"exercises()"),
@@ -83,7 +83,7 @@ object ExercisesPerfSpec extends SharedHydratedLedgerTest:
     )
 
   private def runBenchmarks(benchmarks: Seq[Benchmark]) =
-    settle() *> ZIO.foreach(benchmarks) { benchmark =>
+    Database.settle *> ZIO.foreach(benchmarks) { benchmark =>
       ZIO.logInfo(s"Benchmark ${benchmark.name}")
         *> summarize(benchmark.call).repeatN(benchmark.runs - 1)
         *> summarize(benchmark.call)

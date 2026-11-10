@@ -4,7 +4,7 @@
 package com.digitalasset.pqs.perftest
 
 import com.digitalasset.pqs.functest.matchers.*
-import com.digitalasset.pqs.services.postgres.Postgres
+import com.digitalasset.pqs.services.postgres.{Database, Postgres}
 import com.digitalasset.pqs.services.pqs.*
 import zio.*
 import zio.jdbc.{ZConnection, sqlInterpolator}
@@ -68,17 +68,17 @@ object PruningPerfSpec extends SharedHydratedLedgerTest:
 
   private def prepareBenchmark =
     for
-      _      <- settle(withAnalyze)
-      lastIx <- getLastIx
+      _      <- Database.settle
+      lastIx <- Database.getLastIx
       queries <- ZIO.foreach(Seq((0.005, 128), (0.01, 64), (0.05, 16), (0.10, 8), (0.25, 4), (0.5, 2))) {
         (step, repeat) =>
-          getOffset((lastIx * step).toLong).map(offset => PruningQuery(step, offset, repeat))
+          Database.getOffset((lastIx * step).toLong).map(offset => PruningQuery(step, offset, repeat))
       }
     yield queries
 
   private def runBenchmark(queries: Seq[PruningQuery]) =
     for
-      _ <- settle(analyze = true)
+      _ <- Database.settle
       stats <- ZIO.foreach(queries) { query =>
         ZIO.logInfo(s"Benchmark pruning by ${query.step.percent}")
           *> prune(query.offset)
