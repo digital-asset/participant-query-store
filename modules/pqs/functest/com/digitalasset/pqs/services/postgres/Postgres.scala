@@ -48,7 +48,9 @@ object Postgres:
         postgres  <- ZIO.service[Postgres]
         dbCounter <- Docker.share("db_cnt")(Ref.Synchronized.make(0)).flatMap(_.updateAndGet(_ + 1))
         dbName = s"ft_db_$dbCounter"
-        _ <- createDatabase(dbName)
+        _ <- acquireRelease(createDatabase(dbName))(_ =>
+          dropDatabase(dbName).catchAllCause(ZIO.logWarningCause(s"Failed to drop database [$dbName]", _))
+        )
         _ <- logDebug(s"Using database [$dbName]")
       yield initDatabase(dbName, postgres.service)
     )
@@ -388,6 +390,12 @@ object Postgres:
 
   private def createDatabase(name: String): ZIO[Postgres, Throwable, Unit] =
     ZIO.service[Postgres].flatMap(_.adminDatabase.autoCommit(sql"""create database "${Syntax(name)}"""".execute))
+
+  // `force` terminates connections still open, e.g. from a PQS container
+  private def dropDatabase(name: String): ZIO[Postgres, Throwable, Unit] =
+    ZIO
+      .service[Postgres]
+      .flatMap(_.adminDatabase.autoCommit(sql"""drop database if exists "${Syntax(name)}" with (force)""".execute))
 
   private def initDatabase(dbName: String, svc: Service[?]): ZLayer[Docker, Throwable, Database] =
     ZLayer
