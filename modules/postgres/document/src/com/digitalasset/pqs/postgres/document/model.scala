@@ -142,15 +142,15 @@ object Model {
 
   def mergeInBatchDeactivations(all: Iterable[Model]): Chunk[Copy] =
     val activations = all.collect { case c: Contract => c }.groupBy(_.key)
-    val activationOf: Map[DeactivatedContract, Contract] =
+    val deactivationOf: Map[Contract, DeactivatedContract] =
       (for
         d <- all.collect { case d: DeactivatedContract => d }
         a <- activations.getOrElse(d.key, Nil).filter(_.activatedAtIx <= d.deactivatedAtIx).maxByOption(_.activatedAtIx)
-      yield d -> a).toMap
-    val deactivationOf = activationOf.map(_.swap)
+      yield a -> d).toMap
+    val mergedDeactivations = deactivationOf.values.toSet
     Chunk.fromIterable(all.view.flatMap {
       case c: Contract            => Some(deactivationOf.get(c).fold(c)(c.deactivatedBy))
-      case d: DeactivatedContract => Option.unless(activationOf.contains(d))(d)
+      case d: DeactivatedContract => Option.unless(mergedDeactivations.contains(d))(d)
       case c: Copy                => Some(c)
       case _: Watermark           => None
     })
