@@ -2515,13 +2515,6 @@ CREATE UNIQUE INDEX __transactions_offset_ix_idx ON public.__transactions USING 
 
 
 --
--- Name: __transactions_record_time_idx; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX __transactions_record_time_idx ON public.__transactions USING brin (record_time);
-
-
---
 -- Name: __transactions_transaction_effective_at_idx; Type: INDEX; Schema: public; Owner: -
 --
 
