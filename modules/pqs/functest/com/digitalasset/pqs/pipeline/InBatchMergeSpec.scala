@@ -59,7 +59,7 @@ object InBatchMergeSpec extends SharedLedgerAndPostgresTest:
       And:
         Postgres.query(sql"select count(*) from __tmp_deactivated_contracts").returns(table(0))
     },
-    funcTest("a contract archived in a batch above the watermark can be redacted, and cleanup undoes the redaction") {
+    funcTest("refuses to redact a contract archived above the watermark until the watermark passes it") {
       val alice        = Party("Alice")
       val contractId   = Capture[String]
       val transactions = Capture[Chunk[Transaction[Event]]]
@@ -85,17 +85,22 @@ object InBatchMergeSpec extends SharedLedgerAndPostgresTest:
         // ix 1 is never written, as if an earlier batch were still in flight, so the watermark stays below the batch
         InProcessPipeline.processTransactions(Chunk(createAndArchive(transactions.get)), skippedIx = 1)
       Expect:
-        // The merged row is already archived. Staged, the archive would wait for the watermark and this would raise
-        // "because it is active".
-        Postgres.query(sql"select redact_contract(${contractId.get}, 'reason')").returns(table(1))
+        Postgres
+          .query(sql"select redact_contract(${contractId.get}, 'reason')")
+          .exit
+          .map(
+            assert(_)(
+              fails(
+                hasMessage(startsWithString(s"ERROR: Cannot redact contract ${contractId.get} because it is active"))
+              )
+            )
+          )
       When:
         // A restart after a crash deletes everything above the watermark, then ingests it again
         ZIO.serviceWithZIO[Datastore](_.registerActiveWriterAndCleanupTransactions)
           *> InProcessPipeline.processTransactions(Chunk(createAndArchive(transactions.get)))
       Expect:
-        Postgres
-          .query(sql"select payload, redaction_id from __contracts where contract_id = ${contractId.get}")
-          .returns(table(not(isNull) | isNull))
+        Postgres.query(sql"select redact_contract(${contractId.get}, 'reason')").returns(table(1))
     }
   )
 

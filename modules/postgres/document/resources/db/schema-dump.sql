@@ -804,7 +804,8 @@ declare
     unredacted_count integer;
     total_count integer;
 begin
-    select count(*) filter (where c.deactivated_at_ix is null) as active_count,
+    select count(*) filter (where c.deactivated_at_ix is null
+                               or c.deactivated_at_ix > coalesce((select ix from latest_checkpoint()), -1)) as active_count,
            count(*) filter (where c.redaction_id is null) as unredacted_count,
            count(*) as total_count
         into active_count, unredacted_count, total_count
