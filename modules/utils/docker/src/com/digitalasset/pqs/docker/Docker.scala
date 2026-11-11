@@ -429,7 +429,7 @@ object Docker:
         .withBinds(volumes.map((source, target) => new Bind(source.toString, Volume(target.toString)))*)
 
       _ = limits.cpus.foreach(c => hostConfig.withNanoCPUs(Math.round(c * 1e9)))
-      _ = limits.memoryBytes.foreach(hostConfig.withMemory(_))
+      _ = limits.memoryBytes.foreach(m => hostConfig.withMemory(m).withMemorySwap(m))
       _ = limits.shmBytes.foreach(hostConfig.withShmSize(_))
 
       createCmd = client

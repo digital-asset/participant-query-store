@@ -69,10 +69,15 @@ object Postgres:
     */
   def restore(
       dumps: Seq[Dump],
+      workMemoryMb: Long,
       limits: ContainerLimits = ContainerLimits.unlimited
   ): ZLayer[FTEnv & Docker, Throwable, Postgres] =
     Postgres
-      .startInstance(extraVolumes = dumps.map(dump => dump.file -> dump.containerPath), limits = limits)
+      .startInstance(
+        extraVolumes = dumps.map(dump => dump.file -> dump.containerPath),
+        workMemoryMb = Some(workMemoryMb),
+        limits = limits
+      )
       .tap { env =>
         ZIO.foreachDiscard(dumps) { dump =>
           createDatabase(dump.databaseName).provideEnvironment(env)
@@ -100,6 +105,7 @@ object Postgres:
 
   private def startInstance(
       extraVolumes: Seq[(os.Path, os.Path)] = Seq.empty,
+      workMemoryMb: Option[Long] = None,
       limits: ContainerLimits = ContainerLimits.unlimited
   ): ZLayer[FTEnv & Docker, Throwable, Postgres] = ZLayer
     .fromZIO(
@@ -152,7 +158,8 @@ object Postgres:
           "-c",
           "tcp_keepalives_interval=5",
           "-c",
-          "tcp_keepalives_count=2"
+          "tcp_keepalives_count=2",
+          workMemoryMb.fold(Seq.empty)(workMem => Seq("-c", s"work_mem=${workMem}MB"))
         )
         .tap(_.get.blockUntilStdErr(_.contains("database system is ready to accept connections")))
     )
@@ -169,6 +176,9 @@ object Postgres:
 
   def get[A: JdbcDecoder](sql: SqlFragment): ZIO[Database, Throwable, A] =
     Database.transaction(sql.query[A].selectOne).someOrFailException
+
+  def getAll[A: JdbcDecoder](sql: SqlFragment): ZIO[Database, Throwable, Chunk[A]] =
+    Database.transaction(sql.query[A].selectAll)
 
   def query(sql: SqlFragment): ZIO[Database, Throwable, Table] =
     Database.transaction(sql.query[Row].selectAll).map(Table.apply)
