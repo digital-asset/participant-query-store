@@ -68,7 +68,6 @@ object PruningPerfSpec extends SharedHydratedLedgerTest:
 
   private def prepareBenchmark =
     for
-      _      <- Database.settle
       lastIx <- Database.getLastIx
       queries <- ZIO.foreach(Seq((0.005, 128), (0.01, 64), (0.05, 16), (0.10, 8), (0.25, 4), (0.5, 2))) {
         (step, repeat) =>
