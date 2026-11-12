@@ -4,7 +4,7 @@
 package com.digitalasset.pqs.services.postgres
 
 import com.digitalasset.pqs.configuration.Secret
-import com.digitalasset.pqs.docker.{ContainerLimits, Docker, Service}
+import com.digitalasset.pqs.docker.*
 import com.digitalasset.pqs.functest.FTEnv
 import com.digitalasset.pqs.functest.table.{Cell, Row, Table}
 import com.digitalasset.pqs.postgres.backend
@@ -48,7 +48,9 @@ object Postgres:
         postgres  <- ZIO.service[Postgres]
         dbCounter <- Docker.share("db_cnt")(Ref.Synchronized.make(0)).flatMap(_.updateAndGet(_ + 1))
         dbName = s"ft_db_$dbCounter"
-        _ <- createDatabase(dbName)
+        _ <- acquireRelease(createDatabase(dbName))(_ =>
+          dropDatabase(dbName).catchAllCause(ZIO.logWarningCause(s"Failed to drop database [$dbName]", _))
+        )
         _ <- logDebug(s"Using database [$dbName]")
       yield initDatabase(dbName, postgres.service)
     )
@@ -92,6 +94,9 @@ object Postgres:
               }
         }
       }
+
+  def vacuumAnalyzeAll: ZIO[Postgres, Throwable, ExecResult] =
+    ZIO.service[Postgres].flatMap(_.exec("vacuumdb", "--username=postgres", "--all", "--analyze", "--jobs", "4"))
 
   private def startInstance(
       extraVolumes: Seq[(os.Path, os.Path)] = Seq.empty,
@@ -388,6 +393,12 @@ object Postgres:
 
   private def createDatabase(name: String): ZIO[Postgres, Throwable, Unit] =
     ZIO.service[Postgres].flatMap(_.adminDatabase.autoCommit(sql"""create database "${Syntax(name)}"""".execute))
+
+  // `force` terminates connections still open, e.g. from a PQS container
+  private def dropDatabase(name: String): ZIO[Postgres, Throwable, Unit] =
+    ZIO
+      .service[Postgres]
+      .flatMap(_.adminDatabase.autoCommit(sql"""drop database if exists "${Syntax(name)}" with (force)""".execute))
 
   private def initDatabase(dbName: String, svc: Service[?]): ZLayer[Docker, Throwable, Database] =
     ZLayer

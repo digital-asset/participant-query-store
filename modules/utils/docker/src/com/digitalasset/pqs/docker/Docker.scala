@@ -430,6 +430,7 @@ object Docker:
 
       _ = limits.cpus.foreach(c => hostConfig.withNanoCPUs(Math.round(c * 1e9)))
       _ = limits.memoryBytes.foreach(hostConfig.withMemory(_))
+      _ = limits.shmBytes.foreach(hostConfig.withShmSize(_))
 
       createCmd = client
         .createContainerCmd(image)

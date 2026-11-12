@@ -85,8 +85,16 @@ object Database:
 
   def summaryActiveAtOffset(offset: Long) = Postgres.query(sql"select * from summary_active($offset)")
 
+  def getLastIx =
+    Postgres.get[Long](sql"select ix from __transactions order by ix desc limit 1")
+
+  def getOffset(ix: Long) =
+    Postgres.get[Long](sql"""select "offset" from __transactions where ix=$ix""")
+
   def transactionCount() =
     Postgres.query(sql"select count(*) from __transactions".query[Long].selectOne).someOrElse(0L)
+
+  def checkpoint = Postgres.call(sql"checkpoint")
 
   private def selectContracts(table: SqlFragment, extraColumns: Seq[String]) =
     val select = SqlFragment.select((Seq("package_id", "template_fqn", "payload_type", "contract_id") ++ extraColumns)*)
