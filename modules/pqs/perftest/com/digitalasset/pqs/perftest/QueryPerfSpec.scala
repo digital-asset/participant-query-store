@@ -39,7 +39,7 @@ trait QueryPerfSpec[T] extends FuncTest[Ledger & Postgres & Parties]:
       When:
         Database.freshConnectionPool >+> Pqs.applySchema
       Expect(4.minutes):
-        benchmark.get.runAndVerify(name, baseline.get)
+        benchmark.get.runAndCompare(name, baseline.get)
     }
 
   final case class Stats(query: Query, duration: Duration, output: T):
@@ -51,10 +51,10 @@ trait QueryPerfSpec[T] extends FuncTest[Ledger & Postgres & Parties]:
   final case class Query(tag: String, sql: SqlFragment, repeat: Int, expectedDiff: Double = 0)
 
   final class Benchmark(queries: Query*):
-    def run: ZIO[Database, Throwable, Seq[Stats]] =
-      for
-        _ <- Database.settle
-        stats <- ZIO.foreach(queries) { query =>
+    def run: ZIO[Postgres & Database, Throwable, Seq[Stats]] =
+      Postgres.vacuumAnalyzeAll
+        *> Database.checkpoint
+        *> ZIO.foreach(queries) { query =>
           ZIO.logInfo(s"Running query ${query.tag}")
             *> executeQuery(query.sql) // warm-up
             // Uncomment to debug query plans
@@ -64,9 +64,8 @@ trait QueryPerfSpec[T] extends FuncTest[Ledger & Postgres & Parties]:
             *> executeQuery(query.sql).timed
               .map((duration, output) => Stats(query, duration, output))
         }
-      yield stats
 
-    def runAndVerify(name: String, baseline: Seq[Stats]): ZIO[Database, Throwable, TestResult] =
+    def runAndCompare(name: String, baseline: Seq[Stats]): ZIO[Postgres & Database, Throwable, TestResult] =
       for
         candidate   <- run
         _           <- Datadog.submit(gauges(name, candidate, baseline))
