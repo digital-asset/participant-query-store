@@ -37,13 +37,27 @@ object ContractQueriesPerfSpec extends SharedHydratedLedgerTest:
       Expect(4.minutes):
         for
           stats <- runBenchmark(benchmarkQueries.get)
+          gauges = baselineStats.get.zip(stats).flatMap { (baseline, stats) =>
+            Seq(
+              Gauge(
+                "pqs.perf.active.duration_ms",
+                stats.avgDuration.toMillis.toDouble,
+                Seq("variant:candidate", s"query:${stats.query.tag}")
+              ),
+              Gauge(
+                "pqs.perf.active.duration_ms",
+                baseline.avgDuration.toMillis.toDouble,
+                Seq("variant:baseline", s"query:${stats.query.tag}")
+              ),
+              Gauge("pqs.perf.active.diff_ratio", stats.diffRatio(baseline), Seq(s"query:${stats.query.tag}"))
+            )
+          }
+          _ <- Datadog.submit(gauges)
           testResults <- ZIO.foreach(baselineStats.get.zip(stats)) { (baseline, stats) =>
-            val baselineDurationMs  = baseline.duration.toMillis
-            val candidateDurationMs = stats.duration.toMillis
-            val diff                = (candidateDurationMs.toDouble - baselineDurationMs) / baselineDurationMs
+            val diff = stats.diffRatio(baseline)
             val message = s"Active query ${stats.query.step} (${stats.rowCount} rows) " +
-              s"| Candidate: ${stats.duration.dividedBy(stats.query.repeat).render} " +
-              s"| Baseline: ${baseline.duration.dividedBy(stats.query.repeat).render} " +
+              s"| Candidate: ${stats.avgDuration.render} " +
+              s"| Baseline: ${baseline.avgDuration.render} " +
               s"| Diff: ${diff.percent}"
             ZIO
               .logInfo(message)
@@ -64,7 +78,8 @@ object ContractQueriesPerfSpec extends SharedHydratedLedgerTest:
       qname: Option[String] = None,
       filter: Option[String] = None,
       repeat: Int,
-      expectedDiff: Double
+      expectedDiff: Double,
+      tag: String
   ):
     val sql: SqlFragment =
       val table     = qname.fold(sql"active(null, $offset)")(qname => sql"active($qname, $offset)")
@@ -74,7 +89,11 @@ object ContractQueriesPerfSpec extends SharedHydratedLedgerTest:
     override def toString: String = s"Query $step: $sql"
   end ActiveQuery
 
-  private final case class ActiveStats(query: ActiveQuery, duration: Duration, rowCount: Int)
+  private final case class ActiveStats(query: ActiveQuery, duration: Duration, rowCount: Int):
+    def avgDuration: Duration = duration.dividedBy(query.repeat)
+    def diffRatio(baseline: ActiveStats): Double =
+      val baselineDurationMs = baseline.duration.toMillis
+      (duration.toMillis.toDouble - baselineDurationMs) / baselineDurationMs
 
   private def prepareBenchmark =
     for
@@ -116,34 +135,71 @@ object ContractQueriesPerfSpec extends SharedHydratedLedgerTest:
     Seq(
       // The dedup anti-join adds a extra scan of active contracts
       // and activates JIT, a fixed cost that dominates at small offsets.
-      ActiveQuery(nextStep, offset100, repeat = 2, expectedDiff = 0.48),
-      ActiveQuery(nextStep, offset50, repeat = 2, expectedDiff = 0.45),
-      ActiveQuery(nextStep, offset10, repeat = 8, expectedDiff = 0.75),
+      ActiveQuery(nextStep, offset100, repeat = 2, expectedDiff = 0.48, tag = "select_star_from_all_at_offset100"),
+      ActiveQuery(nextStep, offset50, repeat = 2, expectedDiff = 0.45, tag = "select_star_from_all_at_offset50"),
+      ActiveQuery(nextStep, offset10, repeat = 8, expectedDiff = 0.75, tag = "select_star_from_all_at_offset10"),
 
       // Nested loop anti-join: one extra scan of the active contracts, no JIT.
-      ActiveQuery(nextStep, offset100, qname = Some(blobA), repeat = 4, expectedDiff = 0.26),
-      ActiveQuery(nextStep, offset50, qname = Some(blobA), repeat = 4, expectedDiff = 0.24),
-      ActiveQuery(nextStep, offset10, qname = Some(blobA), repeat = 16, expectedDiff = 0.12),
+      ActiveQuery(
+        nextStep,
+        offset100,
+        qname = Some(blobA),
+        repeat = 4,
+        expectedDiff = 0.26,
+        tag = "select_star_from_bloba_at_offset100"
+      ),
+      ActiveQuery(
+        nextStep,
+        offset50,
+        qname = Some(blobA),
+        repeat = 4,
+        expectedDiff = 0.24,
+        tag = "select_star_from_bloba_at_offset50"
+      ),
+      ActiveQuery(
+        nextStep,
+        offset10,
+        qname = Some(blobA),
+        repeat = 16,
+        expectedDiff = 0.12,
+        tag = "select_star_from_bloba_at_offset10"
+      ),
 
       // Baseline is a bare scan with no joins, so the anti-join weighs more
-      ActiveQuery(nextStep, offset100, columns = Seq("contract_id", "payload"), repeat = 2, expectedDiff = 0.73),
+      ActiveQuery(
+        nextStep,
+        offset100,
+        columns = Seq("contract_id", "payload"),
+        repeat = 2,
+        expectedDiff = 0.73,
+        tag = "select_cid_payload_from_all_at_offset100"
+      ),
       ActiveQuery(
         nextStep,
         offset100,
         columns = Seq("contract_id", "payload"),
         qname = Some(blobA),
         repeat = 4,
-        expectedDiff = 0.47
+        expectedDiff = 0.47,
+        tag = "select_cid_payload_from_bloba_at_offset100"
       ),
 
       // Candidate filters in a parallel scan (baseline is serial)
-      ActiveQuery(nextStep, offset100, filter = Some("payload ->> 'value' = '42'"), repeat = 4, expectedDiff = -0.58),
+      ActiveQuery(
+        nextStep,
+        offset100,
+        filter = Some("payload ->> 'value' = '42'"),
+        repeat = 4,
+        expectedDiff = -0.50,
+        tag = "select_star_from_all_at_offset100_filter_on_payload"
+      ),
       ActiveQuery(
         nextStep,
         offset100,
         qname = Some(blobA),
         filter = Some("payload ->> 'value' = '42'"),
         repeat = 8,
-        expectedDiff = -0.02
+        expectedDiff = -0.02,
+        tag = "select_star_from_bloba_at_offset100_filter_on_payload"
       )
     )
