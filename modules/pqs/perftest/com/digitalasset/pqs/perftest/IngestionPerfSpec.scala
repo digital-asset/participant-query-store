@@ -19,26 +19,30 @@ object IngestionPerfSpec extends SharedHydratedLedgerTest:
       val baselineSummary = Capture[DatabaseSummary]
       val baselineRun     = Capture[CliRun]
       Given:
-        Postgres.database
-          >+> Pqs37.applySchema // apply schema and warm the cache
-          >+> Pqs37.runPipeline(limits)(
-            "--pipeline-ledger-start=Genesis",
-            "--pipeline-ledger-stop=Latest",
-            "--logger-level=Warning"
-          )
+        Postgres.database >+> Pqs37.applySchema // apply schema and warm the cache
+      When:
+        Postgres.vacuumAnalyzeAll
+      And:
+        Pqs37.runPipeline(limits)(
+          "--pipeline-ledger-start=Genesis",
+          "--pipeline-ledger-stop=Latest",
+          "--logger-level=Warning"
+        )
       Expect:
         getDatabaseSummary.is(baselineSummary.capture)
       And:
         baselineRun.captureFromService
 
       When:
-        Postgres.database
-          >+> Pqs.applySchema // apply schema and warm the cache
-          >+> Pqs.runPipeline(limits)(
-            "--pipeline-ledger-start=Genesis",
-            "--pipeline-ledger-stop=Latest",
-            "--logger-level=Warning"
-          )
+        Postgres.database >+> Pqs.applySchema // apply schema and warm the cache
+      When:
+        Postgres.vacuumAnalyzeAll
+      And:
+        Pqs.runPipeline(limits)(
+          "--pipeline-ledger-start=Genesis",
+          "--pipeline-ledger-stop=Latest",
+          "--logger-level=Warning"
+        )
       Expect:
         getDatabaseSummary.is(baselineSummary.get)
 

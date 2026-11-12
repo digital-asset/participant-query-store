@@ -83,14 +83,16 @@ object ExercisesPerfSpec extends SharedHydratedLedgerTest:
     )
 
   private def runBenchmarks(benchmarks: Seq[Benchmark]) =
-    Database.settle *> ZIO.foreach(benchmarks) { benchmark =>
-      ZIO.logInfo(s"Benchmark ${benchmark.name}")
-        *> summarize(benchmark.call).repeatN(benchmark.runs - 1)
-        *> summarize(benchmark.call)
-          .repeatN(benchmark.runs - 1)
-          .timed
-          .map((duration, output) => ExercisesStats(benchmark.name, duration, output))
-    }
+    Postgres.vacuumAnalyzeAll
+      *> Database.checkpoint
+      *> ZIO.foreach(benchmarks) { benchmark =>
+        ZIO.logInfo(s"Benchmark ${benchmark.name}")
+          *> summarize(benchmark.call).repeatN(benchmark.runs - 1)
+          *> summarize(benchmark.call)
+            .repeatN(benchmark.runs - 1)
+            .timed
+            .map((duration, output) => ExercisesStats(benchmark.name, duration, output))
+      }
 
   private def summarize(call: SqlFragment) =
     Postgres

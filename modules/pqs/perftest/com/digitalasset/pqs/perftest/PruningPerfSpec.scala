@@ -76,16 +76,15 @@ object PruningPerfSpec extends SharedHydratedLedgerTest:
     yield queries
 
   private def runBenchmark(queries: Seq[PruningQuery]) =
-    for
-      _ <- Database.settle
-      stats <- ZIO.foreach(queries) { query =>
+    Postgres.vacuumAnalyzeAll
+      *> Database.checkpoint
+      *> ZIO.foreach(queries) { query =>
         ZIO.logInfo(s"Benchmark pruning by ${query.step.percent}")
           *> prune(query.offset)
             .repeatN(query.repeat - 1)
             .timed
             .map((duration, output) => PruningStats(query, duration, output))
       }
-    yield stats
 
   private def prune(offset: Long) =
     Postgres

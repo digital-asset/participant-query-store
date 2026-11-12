@@ -4,7 +4,7 @@
 package com.digitalasset.pqs.services.postgres
 
 import com.digitalasset.pqs.configuration.Secret
-import com.digitalasset.pqs.docker.{ContainerLimits, Docker, Service}
+import com.digitalasset.pqs.docker.*
 import com.digitalasset.pqs.functest.FTEnv
 import com.digitalasset.pqs.functest.table.{Cell, Row, Table}
 import com.digitalasset.pqs.postgres.backend
@@ -94,6 +94,9 @@ object Postgres:
               }
         }
       }
+
+  def vacuumAnalyzeAll: ZIO[Postgres, Throwable, ExecResult] =
+    ZIO.service[Postgres].flatMap(_.exec("vacuumdb", "--username=postgres", "--all", "--analyze", "--jobs", "4"))
 
   private def startInstance(
       extraVolumes: Seq[(os.Path, os.Path)] = Seq.empty,

@@ -94,9 +94,7 @@ object Database:
   def transactionCount() =
     Postgres.query(sql"select count(*) from __transactions".query[Long].selectOne).someOrElse(0L)
 
-  /** Flushes the ingest and leaves nothing for autovacuum, so the baseline and candidate passes measure the same state
-    */
-  def settle = Postgres.call(sql"vacuum analyze") *> Postgres.call(sql"checkpoint")
+  def checkpoint = Postgres.call(sql"checkpoint")
 
   private def selectContracts(table: SqlFragment, extraColumns: Seq[String]) =
     val select = SqlFragment.select((Seq("package_id", "template_fqn", "payload_type", "contract_id") ++ extraColumns)*)
