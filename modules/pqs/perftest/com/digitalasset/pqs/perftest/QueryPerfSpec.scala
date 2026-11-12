@@ -13,11 +13,13 @@ import zio.test.*
 
 import zio.jdbc.SqlFragment
 
-trait PerfBenchmarkSpec extends FuncTest[Ledger & Postgres & Parties]:
-  def perfTest(name: String)(prepareBenchmark: ZIO[Database, Throwable, PerfBenchmark]) =
+trait QueryPerfSpec[T] extends FuncTest[Ledger & Postgres & Parties]:
+  protected def executeQuery(sql: SqlFragment): ZIO[Database, Throwable, T]
+
+  def perfTest(name: String)(prepareBenchmark: ZIO[Database, Throwable, Benchmark]) =
     funcTest(name) {
-      val benchmark = Capture[PerfBenchmark]
-      val baseline  = Capture[Seq[PerfStats]]
+      val benchmark = Capture[Benchmark]
+      val baseline  = Capture[Seq[Stats]]
       Given:
         Postgres.database
           >+> Pqs37.runPipeline(
@@ -36,68 +38,66 @@ trait PerfBenchmarkSpec extends FuncTest[Ledger & Postgres & Parties]:
         benchmark.get.runAndVerify(name, baseline.get)
     }
 
-  final case class PerfStats(query: PerfQuery, duration: Duration, rowCount: Long):
+  final case class Stats(query: Query, duration: Duration, output: T):
     def avgDuration = duration.dividedBy(query.repeat)
-    def diffRatio(baseline: PerfStats): Double =
+    def diffRatio(baseline: Stats): Double =
       val baselineDurationMs = baseline.duration.toMillis
       (duration.toMillis.toDouble - baselineDurationMs) / baselineDurationMs
 
-  final case class PerfQuery(tag: String, sql: SqlFragment, repeat: Int, expectedDiff: Double = 0)
+  final case class Query(tag: String, sql: SqlFragment, repeat: Int, expectedDiff: Double = 0)
 
-  final class PerfBenchmark(queries: PerfQuery*):
-    def run: ZIO[Database, Throwable, Seq[PerfStats]] =
+  final class Benchmark(queries: Query*):
+    def run: ZIO[Database, Throwable, Seq[Stats]] =
       for
         _ <- Database.settle
         stats <- ZIO.foreach(queries) { query =>
           ZIO.logInfo(s"Running query ${query.tag}")
-            *> Postgres.query(query.sql) // warm-up
+            *> executeQuery(query.sql) // warm-up
             // Uncomment to debug query plans
             // *> Postgres
             //   .getAll[String](sql"EXPLAIN ANALYZE ${query.sql}")
-            //   .flatMap(plan => ZIO.logInfo(s"Query ${query.step}:\n${plan.mkString("\n")}"))
-            *> Postgres
-              .query(query.sql)
-              .repeatN(query.repeat - 1)
-              .timed
-              .map((duration, output) => PerfStats(query, duration, output.rows.size))
+            //   .flatMap(plan => ZIO.logInfo(s"${query.tag}:\n${plan.mkString("\n")}"))
+            *> executeQuery(query.sql).timed
+              .map((duration, output) => Stats(query, duration, output))
         }
       yield stats
 
-    def runAndVerify(name: String, baseline: Seq[PerfStats]): ZIO[Database, Throwable, TestResult] =
+    def runAndVerify(name: String, baseline: Seq[Stats]): ZIO[Database, Throwable, TestResult] =
       for
         candidate   <- run
         _           <- Datadog.submit(gauges(name, candidate, baseline))
         testResults <- testResults(candidate, baseline)
       yield TestResult.allSuccesses(testResults)
 
-  private def gauges(name: String, candidate: Seq[PerfStats], baseline: Seq[PerfStats]): Seq[Gauge] =
+  private def gauges(name: String, candidate: Seq[Stats], baseline: Seq[Stats]): Seq[Gauge] =
     baseline.zip(candidate).flatMap { (baseline, candidate) =>
       Seq(
         Gauge(
           s"pqs.perf.$name.duration_ms",
-          candidate.avgDuration.toMillis.toDouble,
+          candidate.avgDuration.toNanos.toDouble / 1000_000,
           Seq("variant:candidate", s"query:${candidate.query.tag}")
         ),
         Gauge(
           s"pqs.perf.$name.duration_ms",
-          baseline.avgDuration.toMillis.toDouble,
+          baseline.avgDuration.toNanos.toDouble / 1000_000,
           Seq("variant:baseline", s"query:${baseline.query.tag}")
         ),
-        Gauge("pqs.perf.active.diff_ratio", candidate.diffRatio(baseline), Seq(s"query:${candidate.query.tag}"))
+        Gauge(s"pqs.perf.$name.diff_ratio", candidate.diffRatio(baseline), Seq(s"query:${candidate.query.tag}"))
       )
     }
 
-  private def testResults(candidate: Seq[PerfStats], baseline: Seq[PerfStats]) =
+  private def testResults(candidate: Seq[Stats], baseline: Seq[Stats]) =
     ZIO.foreach(baseline.zip(candidate)) { (baseline, candidate) =>
       val diff = candidate.diffRatio(baseline)
-      val message = s"${candidate.query.tag} (${candidate.rowCount} rows) " +
+      val message = candidate.query.tag +
         s"| Candidate: ${candidate.avgDuration.render} " +
         s"| Baseline: ${baseline.avgDuration.render} " +
-        s"| Diff: ${diff.percent}"
+        s"| Diff: ${diff.percent}" +
+        s"| Output: ${candidate.output}"
       ZIO
         .logInfo(message)
         .as(
-          assert(candidate.rowCount)(Assertion.equalTo(baseline.rowCount))
+          assert(candidate.output)(Assertion.equalTo(baseline.output))
             && assertTrue(diff < candidate.query.expectedDiff + 0.3).label(message)
             && assertTrue(diff > candidate.query.expectedDiff - 0.3).label(message)
         )

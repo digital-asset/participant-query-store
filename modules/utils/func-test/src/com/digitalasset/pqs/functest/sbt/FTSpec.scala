@@ -241,7 +241,7 @@ object FTSpec extends ZIOSpecDefault:
               .map((_, env) => env)
           )
         )
-      ) @@ oomGuard @@ FTLogging.silentTest
+      ) @@ oomGuard // @@ FTLogging.silentTest
   end flattenSpec
 
   @SuppressWarnings(Array("org.wartremover.warts.AsInstanceOf"))
