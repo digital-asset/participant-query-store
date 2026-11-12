@@ -91,9 +91,9 @@ object ContractQueriesPerfSpec extends SharedHydratedLedgerTest:
     yield queries
 
   private def runBenchmark(queries: Seq[ActiveQuery]) =
-    for
-      _ <- Database.settle
-      stats <- ZIO.foreach(queries) { query =>
+    Postgres.vacuumAnalyzeAll
+      *> Database.checkpoint
+      *> ZIO.foreach(queries) { query =>
         ZIO.logInfo(s"Running active query ${query.step}")
           *> Postgres.query(query.sql) // warm-up
           // Uncomment to debug query plans
@@ -106,7 +106,6 @@ object ContractQueriesPerfSpec extends SharedHydratedLedgerTest:
             .timed
             .map((duration, output) => ActiveStats(query, duration, output.rows.size))
       }
-    yield stats
 
   private def buildQueries(offset100: Long, offset50: Long, offset10: Long): Seq[ActiveQuery] =
     val blobA = "Blob:BlobA"
