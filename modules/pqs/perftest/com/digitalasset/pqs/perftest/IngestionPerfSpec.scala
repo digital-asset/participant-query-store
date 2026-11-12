@@ -16,8 +16,9 @@ object IngestionPerfSpec extends SharedHydratedLedgerTest:
 
   def spec = suite("IngestionPerfSpec")(
     funcTest("Ingestion perf") {
-      val baselineSummary = Capture[DatabaseSummary]
-      val baselineRun     = Capture[CliRun]
+      val baselineSummary  = Capture[DatabaseSummary]
+      val candidateSummary = Capture[DatabaseSummary]
+      val baselineRun      = Capture[CliRun]
       Given:
         Postgres.database >+> Pqs37.applySchema // apply schema and warm the cache
       When:
@@ -44,21 +45,35 @@ object IngestionPerfSpec extends SharedHydratedLedgerTest:
           "--logger-level=Warning"
         )
       Expect:
-        getDatabaseSummary.is(baselineSummary.get)
+        getDatabaseSummary.is(candidateSummary.capture)
 
       Expect:
-        ZIO.service[CliRun].map { candidateRun =>
-          val baselineDurationMs  = baselineRun.get.duration.toMillis
-          val candidateDurationMs = candidateRun.duration.toMillis
-
-          val diff = (candidateDurationMs.toDouble - baselineDurationMs) / baselineDurationMs
-          assertTrue(diff < 0.5).label(
-            s"Candidate (${candidateRun.duration.render}) is ${diff.percent} slower than baseline (${baselineRun.get.duration.render})"
+        for
+          candidateRun <- ZIO.service[CliRun]
+          baselineDurationMs = baselineRun.get.duration.toMillis
+          diff               = (candidateRun.duration.toMillis.toDouble - baselineDurationMs) / baselineDurationMs
+          gauges = Seq(
+            Gauge(
+              s"pqs.perf.ingestion.duration_s",
+              candidateRun.duration.toSeconds.toDouble,
+              Seq("variant:candidate")
+            ),
+            Gauge(
+              s"pqs.perf.ingestion.duration_s",
+              baselineRun.get.duration.toSeconds.toDouble,
+              Seq("variant:baseline")
+            ),
+            Gauge(s"pqs.perf.ingestion.diff_ratio", diff, Seq.empty)
           )
-          && assertTrue(diff > -0.1).label(
-            s"Candidate (${candidateRun.duration.render}) is ${(-diff).percent} faster than baseline (${baselineRun.get.duration.render})"
-          )
-        }
+          _ <- Datadog.submit(gauges)
+        yield
+          val message = s"Candidate: ${candidateRun.duration.render}" +
+            s" | Baseline: ${baselineRun.get.duration.render}" +
+            s" | Diff: ${diff.percent}" +
+            s" | Output: ${candidateSummary.get}"
+          assert(candidateSummary.get)(Assertion.equalTo(baselineSummary.get))
+          && assertTrue(diff < 0.5).label(message)
+          && assertTrue(diff > -0.1).label(message)
     }
   )
 
