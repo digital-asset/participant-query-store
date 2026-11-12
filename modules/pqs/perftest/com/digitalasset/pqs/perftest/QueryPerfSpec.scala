@@ -5,6 +5,7 @@ package com.digitalasset.pqs.perftest
 
 import com.digitalasset.pqs.functest.FuncTest
 import com.digitalasset.pqs.functest.matchers.*
+import com.digitalasset.pqs.pipeline.pipeline.Config.Datasource
 import com.digitalasset.pqs.services.daml.{Ledger, Parties}
 import com.digitalasset.pqs.services.postgres.{Database, Postgres}
 import com.digitalasset.pqs.services.pqs.{Pqs, Pqs37}
@@ -16,13 +17,16 @@ import zio.jdbc.SqlFragment
 trait QueryPerfSpec[T] extends FuncTest[Ledger & Postgres & Parties]:
   protected def executeQuery(sql: SqlFragment): ZIO[Database, Throwable, T]
 
-  def perfTest(name: String)(prepareBenchmark: ZIO[Database, Throwable, Benchmark]) =
+  def perfTest(name: String, source: Datasource = Datasource.TransactionStream)(
+      prepareBenchmark: ZIO[Database, Throwable, Benchmark]
+  ) =
     funcTest(name) {
       val benchmark = Capture[Benchmark]
       val baseline  = Capture[Seq[Stats]]
       Given:
         Postgres.database
           >+> Pqs37.runPipeline(
+            s"--pipeline-datasource=$source",
             "--pipeline-ledger-start=Genesis",
             "--pipeline-ledger-stop=Latest",
             "--logger-level=Warning"
@@ -90,10 +94,10 @@ trait QueryPerfSpec[T] extends FuncTest[Ledger & Postgres & Parties]:
     ZIO.foreach(baseline.zip(candidate)) { (baseline, candidate) =>
       val diff = candidate.diffRatio(baseline)
       val message = candidate.query.tag +
-        s"| Candidate: ${candidate.avgDuration.render} " +
-        s"| Baseline: ${baseline.avgDuration.render} " +
-        s"| Diff: ${diff.percent}" +
-        s"| Output: ${candidate.output}"
+        s" | Candidate: ${candidate.avgDuration.render}" +
+        s" | Baseline: ${baseline.avgDuration.render}" +
+        s" | Diff: ${diff.percent}" +
+        s" | Output: ${candidate.output}"
       ZIO
         .logInfo(message)
         .as(
