@@ -40,9 +40,10 @@ trait Datastore:
     */
   def processAcs: ProcessingSink[AcsContract | Offset]
 
-  /** Process the remaining transactions */
+  /** Process the remaining transactions. Without `insertWatermark` the watermark never advances (tests only). */
   def processTransactions(
-      initialIx: Long
+      initialIx: Long,
+      insertWatermark: Boolean
   ): ProcessingSink[(Transaction[Event | TreeEvent | ReassignmentEvent], Datastore.TransactionIndex)]
 end Datastore
 

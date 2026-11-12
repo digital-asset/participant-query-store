@@ -25,7 +25,8 @@ object InProcessPipeline:
       >>> DocumentPostgres.live
 
   def processTransactions(
-      transactions: Chunk[Transaction[Event | TreeEvent | ReassignmentEvent]]
+      transactions: Chunk[Transaction[Event | TreeEvent | ReassignmentEvent]],
+      insertWatermark: Boolean = true
   ): ZIO[Datastore, Throwable, Unit] =
     for
       datastore    <- ZIO.service[Datastore]
@@ -33,5 +34,5 @@ object InProcessPipeline:
       _ <- ZStream
         .from(transactions)
         .mapAccum(ix + 1)((index, a) => (index + 1, (a, index)))
-        .run(datastore.processTransactions(0L))
+        .run(datastore.processTransactions(0L, insertWatermark))
     yield ()
