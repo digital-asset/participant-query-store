@@ -3,6 +3,7 @@
 
 package com.digitalasset.pqs.services.postgres
 
+import com.digitalasset.pqs.postgres.backend
 import com.digitalasset.pqs.postgres.backend.{InstanceId, PostgresConfig}
 import zio.*
 import zio.jdbc.*
@@ -24,6 +25,16 @@ final case class Database(
     )
 
 object Database:
+  /** Replaces the connection pool of the `Database` with a new one, with the same config and a new instance id. Use it
+    * after a schema migration to discard all server-side prepared statements whose result type may have changed.
+    */
+  def freshConnectionPool: ZLayer[Database, Throwable, Database] =
+    config ++ backend.instanceId
+      >+> backend.connectionPool
+      >>> ZLayer.fromFunction((db: Database, instanceId: InstanceId, pool: ZConnectionPool) =>
+        db.copy(instanceId = instanceId, connectionPool = pool)
+      )
+
   val config         = ZLayer.fromFunction((d: Database) => d.config)
   val connectionPool = ZLayer.fromFunction((d: Database) => d.connectionPool)
   val instanceId     = ZLayer.fromFunction((d: Database) => d.instanceId)

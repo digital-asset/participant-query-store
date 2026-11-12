@@ -1219,18 +1219,19 @@ where c.life_ix @> (select __nearest_ix_floor("offset"))
         select 1
         from __contracts newer
         where newer.tpe_pk = c.tpe_pk
-          and newer.contract_id = c.contract_id
-          and newer.life_ix @> (select __nearest_ix_floor("offset"))
-          and not newer.divulged_only
-          and (
-                newer.reassignment_counter > c.reassignment_counter
-                -- tie on reassignment_counter:
-                -- the PN does not guarantee that reassignment_counter is unique per contract
-                or (
-                    newer.reassignment_counter = c.reassignment_counter
-                    and newer.activated_at_ix > c.activated_at_ix
+            and newer.life_ix @> (select __nearest_ix_floor("offset"))
+            and newer.activation_type = 'assign' -- optim: reduce dedup impact for dsync
+            and newer.contract_id = c.contract_id
+            and not newer.divulged_only
+            and (
+                    newer.reassignment_counter > c.reassignment_counter
+                    -- tie on reassignment_counter:
+                    -- the PN does not guarantee that reassignment_counter is unique per contract
+                    or (
+                        newer.reassignment_counter = c.reassignment_counter
+                        and newer.activated_at_ix > c.activated_at_ix
+                    )
                 )
-              )
     )
 $$ language sql stable
                 parallel safe;

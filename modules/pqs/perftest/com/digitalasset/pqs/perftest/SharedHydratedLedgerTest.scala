@@ -13,10 +13,14 @@ object SharedHydratedLedgerTest:
   val alice = Party("alice_1")
 
   /** Load the checked-in Postgres dumps to rehydrate the Canton ledger. Postgres has fixed CPU/memory budgets for
-    * stable repeatable benchmarks.
+    * stable repeatable benchmarks, and large work_mem to avoid spilling data to disk.
     */
   val shared =
-    Postgres.restore(CantonDumps.all, limits = ContainerLimits(cpus = 4.0, memoryGiB = 2.0, shmGiB = 0.5))
+    Postgres.restore(
+      CantonDumps.all,
+      workMemoryMb = 128,
+      limits = ContainerLimits(cpus = 4.0, memoryGiB = 4.0, shmGiB = 2.0)
+    )
       >+> Ledger.instanceWithPgStorage(bootstrap = false)
       >+> DamlSdk.allocatedParties(alice)
 
