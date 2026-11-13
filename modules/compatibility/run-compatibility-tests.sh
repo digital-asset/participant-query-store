@@ -102,6 +102,20 @@ jobs:
       - uses: ./.github/actions/matrix-compatibility-test
         with:
           test-number: \${{ matrix.test-number }}
+
+  notify:
+    name: Notify on failure
+    needs: matrix-test
+    if: failure()
+    runs-on: digital-asset-participant-query-store
+    steps:
+      - uses: actions/checkout@v5
+      - name: Send slack notification
+        uses: ./.github/actions/slack-notify
+        with:
+          webhook: \${{ secrets.SLACK_WEBHOOK_URL }}
+          title: ":bug: Matrix compatibility tests failed"
+          branch: \${{ github.ref_name }}
 EOF
 }
 
