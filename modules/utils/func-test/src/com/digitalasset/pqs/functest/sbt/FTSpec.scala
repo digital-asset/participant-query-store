@@ -15,8 +15,8 @@ import java.nio.file.{Files, Path, Paths}
 object FTSpec extends ZIOSpecDefault:
   var tasks: Array[TaskDef] = Array()
 
-  var forceResourcePools: Option[Int] = Option.empty[Int]
-  var forcePoolLanes: Option[Int]     = Option.empty[Int]
+  private val forceResourcePools: Option[Int] = positiveIntEnv("PQS_FT_POOLS")
+  private val forcePoolLanes: Option[Int]     = positiveIntEnv("PQS_FT_LANES")
 
   private val maxGroupSize = 50
 
@@ -81,8 +81,8 @@ object FTSpec extends ZIOSpecDefault:
   private val LaneCostGb = 0.8 // Per-lane: Pqs/DamlSdk containers + GC/fragmentation overhead
 
   /** Compute pool and lane counts jointly to maximize total parallelism (pools × lanes) while staying within Docker
-    * memory and CPU limits. When one or both dimensions are forced via CLI, the other is optimized within the remaining
-    * budget.
+    * memory and CPU limits. When one or both dimensions are forced via `PQS_FT_POOLS`/`PQS_FT_LANES`, the other is
+    * optimized within the remaining budget.
     *
     * Memory model (from benchmarks at 10 CPUs across 4–16GB Docker): memoryNeeded = 2.5GB overhead + pools × (2.0GB
     * base + lanes × 0.8GB) CPU constraint: at least 2 cores per pool. Lanes capped at 4.
@@ -255,3 +255,10 @@ object FTSpec extends ZIOSpecDefault:
       .loadModule()
       .asInstanceOf[FuncTest[Any]]
   end toSpec
+
+  private def positiveIntEnv(name: String): Option[Int] =
+    sys.env
+      .get(name)
+      .map { v =>
+        v.toIntOption.filter(_ >= 0).getOrElse(sys.error(s"$name must be a positive integer, got '$v'"))
+      }

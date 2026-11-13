@@ -74,7 +74,10 @@ jobs:
       - name: Unit tests
         run: make test
       - name: Functional tests
-        run: make func-test FUNC_TEST_CONTROLS="--pools 3 --lanes 4"
+        run: make func-test
+        env:
+          PQS_FT_POOLS: 3
+          PQS_FT_LANES: 4
       - name: Consolidate test results
         if: always()
         run: make consolidate-test-results

@@ -163,7 +163,7 @@ kill_mill() {
 run_test() {
   local pools=$1 lanes=$2 logfile=$3
   cd "$REPO_DIR"
-  make func-test FUNC_TEST_CONTROLS="--pools $pools --lanes $lanes" > "$logfile" 2>&1
+  make func-test PQS_FT_POOLS=$pools PQS_FT_LANES=$lanes > "$logfile" 2>&1
   return $?
 }
 
@@ -259,7 +259,7 @@ main() {
     local start_time=$SECONDS
     local exit_code=0
 
-    log "Starting: make func-test --pools $pools --lanes $lanes"
+    log "Starting: make func-test PQS_FT_POOLS=$pools PQS_FT_LANES=$lanes"
     log "Log: $logfile"
 
     run_test "$pools" "$lanes" "$logfile" || exit_code=$?

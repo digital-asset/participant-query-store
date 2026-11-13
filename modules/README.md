@@ -68,8 +68,8 @@ The tests use custom test runner FTFramework. This test runner splits tests into
  - all the tests from the group are run on this environment.
  
 Tests are run in parallel, there are two parameters:
- - pools -- a number of groups (as defined above) of the tests that are ran concurently,
- - lanes -- a number of tests that are run in parallel within a group.
+ - `PQS_FT_POOLS` -- a number of groups (as defined above) of the tests that are ran concurrently,
+ - `PQS_FT_LANES` -- a number of tests that are run in parallel within a group.
  
 It looks like the initial idea was that number of pools controls the memory usage as most tests set up some docker containers within the shared context.
 The number of lanes intended to control CPU usage without much impact on memory. 
@@ -77,11 +77,10 @@ This is not true though, as there are tests that set up ad-hoc docker containers
 
 To specify those parameters for the tests
 
-- `mill pqs.functest.test --pools 2 --lanes 2`
-- `mill pqs.functest.testOnly com.digitalasset.pqs.features.filtering.ContractFilteringSpec  -- --pools 1 --lanes 2`
+- `PQS_FT_POOLS=2 PQS_FT_LANES=4 mill pqs.functest.test`
+- `PQS_FT_POOLS=2 PQS_FT_LANES=4 mill pqs.functest.testOnly com.digitalasset.pqs.features.filtering.ContractFilteringSpec`
 
-Please note the double dash in the testOnly command.
-The defaults are here: `src/com/digitalasset/pqs/functest/sbt/FTSpec.scala`.
+The defaults are computed from Docker's CPUs and memory. See [utils/func-test/src/com/digitalasset/pqs/functest/sbt/FTSpec.scala](utils/func-test/src/com/digitalasset/pqs/functest/sbt/FTSpec.scala).
 
 ### Debugging Functional Tests FAQ
 

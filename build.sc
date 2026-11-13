@@ -307,20 +307,25 @@ object `package` extends RootModule { root =>
           "PQS_IMAGE_TAG_SUFFIX" -> localImageSuffix(),
         )
 
-        ftConfig ++ dockerImage ++ envInput() ++ super.forkEnv()
+        super.forkEnv() ++ ftConfig ++ dockerImage ++ envInput()
       }
 
       override def ivyDeps = T { super.ivyDeps() ++ Agg(L.sourceCode) }
       override def moduleDeps = { super.moduleDeps ++ Seq(utils.`func-test`) }
     }
 
-    /** Control parallelism by passing in pools and lanes parameters, e.g. --pools 2 --lanes 4 */
+    /** Control parallelism using PQS_FT_POOLS and PQS_FT_LANES env vars */
     object functest extends FuncTests
 
     /** The perftest module reuses the functest service infrastructure (Postgres / Daml / Canton) */
     object perftest extends FuncTests {
       override def moduleDeps = {
         super.moduleDeps ++ Seq(functest)
+      }
+
+      override def forkEnv = T {
+        // no parallelism
+        super.forkEnv() ++ Map("PQS_FT_POOLS" -> "1", "PQS_FT_LANES" -> "1")
       }
     }
   }

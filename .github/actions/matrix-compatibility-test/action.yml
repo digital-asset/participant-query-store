@@ -13,7 +13,10 @@ runs:
       uses: actions/download-artifact@v8
       with:
         path: out
-    - run: make matrix-test MATRIX_TEST_ARGS="-d ${{ inputs.test-number }} --pools 3 --lanes 4"
+    - run: make matrix-test MATRIX_TEST_ARGS="-d ${{ inputs.test-number }}"
       shell: bash -euo pipefail -c "source nix.source && exec bash -euo pipefail {0}"
-    - run: make matrix-test MATRIX_TEST_ARGS="${{ inputs.test-number }} --pools 3 --lanes 4"
+    - run: make matrix-test MATRIX_TEST_ARGS="${{ inputs.test-number }}"
       shell: bash -euo pipefail -c "source nix.source && exec bash -euo pipefail {0}"
+      env:
+        PQS_FT_POOLS: 3
+        PQS_FT_LANES: 4
