@@ -57,15 +57,19 @@ and scalafmt. Functional tests need Docker.
 Functional tests (`modules/pqs/functest`, framework in `modules/utils/func-test`):
 
 - `-t` matches a substring of the suite or test label, so a single test's label runs just that test.
-  Never put `--` between `test` and `-t`: Mill forwards it, the argument pairs shift, and the filter
-  (like `--pools`/`--lanes`) is silently ignored, so the whole suite runs. With `testOnly`, framework
-  arguments go after `--`: `mill pqs.functest.testOnly <FQCN> -- --pools 1 --lanes 2`.
+  Never put `--` between `test` and `-t`: Mill forwards the --, the argument pairs shift, and the filter is silently ignored, so the whole suite runs.
 - Each run first builds the local `pqs-<hash>` Docker image from the ProGuard-shrunk jar. Versions
   default to `functest.forkEnv` in `build.sc` (Postgres 17, Canton protocol 36, LF 2.4); override them
   with `PQS_POSTGRESVERSION`, `PQS_DAMLSDKVERSION`, `PQS_CANTONVERSION`, `PQS_CANTONPROTOCOLVERSION` and
   `PQS_DAMLLFTARGET`.
+- Parallelism is computed from Docker's CPUs and memory (`FTSpec`); force it with `PQS_FT_POOLS`
+  (shared environments run concurrently) and `PQS_FT_LANES` (tests run in parallel within one), e.g.
+  `PQS_FT_POOLS=1 PQS_FT_LANES=2 mill pqs.functest.test -t "<label substring>"`. `perftest` pins both
+  to 1.
 - A test whose version gate doesn't match is reported as ignored: check that your test actually ran.
-- `FT_KEEP_TEMP=true` keeps the temp directory; `FT_CANTON_LOG=true` shows Canton's logs.
+- `PQS_FT_KEEP_TEMP=true` keeps the temp directory; `PQS_FT_CANTON_LOG=true` shows Canton's logs;
+  `PQS_FT_SHOW_LOGS=true` prints test logs as they happen instead of only for failed tests (always the
+  case when a single spec runs, e.g. with `testOnly`).
 - Compile errors in `pqs.functest` that move around between runs are stale incremental state:
   `mill clean pqs.functest`.
 

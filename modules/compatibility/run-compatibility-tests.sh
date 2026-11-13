@@ -11,7 +11,6 @@ HEADER='PQS Matrix Test Runner v2'
 PARAMS_CSV="${REPO_ROOT}/modules/compatibility/parameters.csv"
 LOG_DIR="${REPO_ROOT}/modules/compatibility/log"
 WORKFLOW_FILE="${REPO_ROOT}/.github/workflows/matrix-compatibility-test.yml"
-declare -a FUNC_TEST_CONTROLS='()'
 
 ## Get total number of entries in param csv file:
 line_count=$(tail -n+2 "${PARAMS_CSV}" | grep -v '^#'| wc -l)
@@ -35,12 +34,6 @@ function render_help() {
 
   print_help_item "-d|dryrun" \
     "execute script in dryrun mode, will not run matrix tests"
-
-  print_help_item "-l|lanes" \
-    "control the number of lanes the func-test runner will use [optional]"
-
-  print_help_item "-p|pools" \
-    "control the number of pools the func-test runner will use [optional]"
 
   print_help_item "-h|help" \
     "you are reading it"
@@ -111,14 +104,6 @@ while [[ $# -gt 0 ]]; do
         -d|dryrun|--dryrun)
             DRYRUN=true
             shift
-            ;;
-        -l|lanes|--lanes)
-            FUNC_TEST_CONTROLS+=('--lanes' "${2}")
-            shift 2
-            ;;
-        -p|pools|--pools)
-            FUNC_TEST_CONTROLS+=('--pools' "${2}")
-            shift 2
             ;;
         all)
             for line in $(seq 1 ${line_count}); do
@@ -231,7 +216,7 @@ for line in "${lines[@]}"; do
 
     echo ""
     pushd ${REPO_ROOT} 1> /dev/null
-    _cmd make func-test FUNC_TEST_CONTROLS="${FUNC_TEST_CONTROLS[*]}"
+    _cmd make func-test
     rc="${?}"
     popd 1> /dev/null
 

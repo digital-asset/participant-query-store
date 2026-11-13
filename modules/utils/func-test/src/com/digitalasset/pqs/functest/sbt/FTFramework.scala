@@ -11,8 +11,6 @@ final class FTFramework extends Framework:
   def fingerprints(): Array[Fingerprint] = Array(FTFingerprint)
   def runner(args: Array[String], remoteArgs: Array[String], testClassLoader: ClassLoader): Runner =
     val zRunner = new ZTestRunner(args, remoteArgs, testClassLoader)
-    args.sliding(2, 2).collectFirst { case Array("--pools", v) => Some(v.toInt) }.foreach(FTSpec.forceResourcePools = _)
-    args.sliding(2, 2).collectFirst { case Array("--lanes", v) => Some(v.toInt) }.foreach(FTSpec.forcePoolLanes = _)
     new Runner:
       def done(): String              = zRunner.done()
       def remoteArgs(): Array[String] = zRunner.remoteArgs()

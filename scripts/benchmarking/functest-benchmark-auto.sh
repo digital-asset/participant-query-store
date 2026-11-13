@@ -10,7 +10,7 @@ set -euo pipefail
 #
 # Tests the automatic pool/lane formula across different Docker memory levels.
 # CPUs are fixed at 10. For each memory value, sets Docker resources via the
-# backend API, then runs `make func-test` with NO --pools/--lanes overrides,
+# backend API, then runs `make func-test` with NO PQS_FT_POOLS/PQS_FT_LANES overrides,
 # letting the formula pick automatically. Records timing, OOM status, and the
 # pools×lanes the formula chose.
 #
@@ -162,7 +162,7 @@ extract_pools_lanes() {
 run_test() {
   local logfile=$1
   cd "$REPO_DIR"
-  # No --pools/--lanes: let the formula decide
+  # No PQS_FT_POOLS/PQS_FT_LANES: let the formula decide
   make func-test > "$logfile" 2>&1
   return $?
 }

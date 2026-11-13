@@ -22,7 +22,6 @@ ALL_DOCUMENTED_TARGETS := $(shell for dir in ${NESTED_MAKEFILE_DIRS}; do for i i
 
 ## Mill
 MILL_OPTS ?=
-FUNC_TEST_CONTROLS ?=
 
 ## Disable Mill server in CI:
 ifeq ($(CI),true)
@@ -181,11 +180,11 @@ test: auth.test ## Unit test all modules
 
 .PHONY: func-test
 func-test: ## Run all (expensive) functional tests
-	mill ${MILL_OPTS} -k -j 1 pqs.functest.test ${FUNC_TEST_CONTROLS}
+	mill ${MILL_OPTS} -k -j 1 pqs.functest.test
 
 .PHONY: perf-test
 perf-test: ## Run performance tests
-	mill ${MILL_OPTS} -k -j 1 pqs.perftest.test --pools 1 --lanes 1
+	mill ${MILL_OPTS} -k -j 1 pqs.perftest.test
 
 .PHONY: consolidate-test-results
 consolidate-test-results: ## Consolidate all test results in one folder
