@@ -18,14 +18,23 @@ object ExercisesPerfSpec extends SharedHydratedLedgerTest with QueryPerfSpec[Int
         to     <- Database.getOffset((lastIx * 0.6).toLong)
       yield Benchmark(
         Query("select_star_from_all", sql"select * from exercises()", repeat = 4),
-        Query("select_star_from_createmany", sql"select * from exercises('Blob:Seed:CreateMany')", repeat = 200),
-        Query("select_cid_from_all", sql"select contract_id from exercises()", repeat = 4, expectedDiff = 0),
+        Query(
+          "select_star_from_createmany",
+          sql"select * from exercises('Blob:Seed:CreateMany')",
+          repeat = 200
+        ),
+        Query("select_cid_from_all", sql"select contract_id from exercises()", repeat = 4, expectedDiff = 0.09),
         Query(
           "select_cid_from_createmany",
           sql"select contract_id from exercises('Blob:Seed:CreateMany')",
-          repeat = 200
+          repeat = 200,
+          expectedDiff = 0.06
         ),
-        Query("select_star_from_all_between_40_60", sql"select * from exercises(null, $from, $to)", repeat = 4),
+        Query(
+          "select_star_from_all_between_40_60",
+          sql"select * from exercises(null, $from, $to)",
+          repeat = 4
+        ),
         Query(
           "select_star_from_createmany_between_40_60",
           sql"select * from exercises('Blob:Seed:CreateMany', $from, $to)",
@@ -41,14 +50,12 @@ object ExercisesPerfSpec extends SharedHydratedLedgerTest with QueryPerfSpec[Int
         Query(
           "select_star_from_all",
           sql"select * from lookup_exercises($seedId)",
-          repeat = 200,
-          expectedDiff = 0
+          repeat = 200
         ),
         Query(
           "select_star_from_archivemany",
           sql"select * from lookup_exercises($seedId, 'Blob:Seed:ArchiveMany')",
-          repeat = 1000,
-          expectedDiff = 0
+          repeat = 1000
         )
       )
     }

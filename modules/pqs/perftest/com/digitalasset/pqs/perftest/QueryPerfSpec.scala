@@ -48,7 +48,7 @@ trait QueryPerfSpec[T] extends FuncTest[Ledger & Postgres & Parties]:
       val baselineDurationMs = baseline.duration.toMillis
       (duration.toMillis.toDouble - baselineDurationMs) / baselineDurationMs
 
-  final case class Query(tag: String, sql: SqlFragment, repeat: Int, expectedDiff: Double = 0)
+  final case class Query(tag: String, sql: SqlFragment, repeat: Int, expectedDiff: Double = 0, tolerance: Double = 0.3)
 
   final class Benchmark(queries: Query*):
     def run: ZIO[Postgres & Database, Throwable, Seq[Stats]] =
@@ -61,7 +61,9 @@ trait QueryPerfSpec[T] extends FuncTest[Ledger & Postgres & Parties]:
             // *> Postgres
             //   .getAll[String](sql"EXPLAIN ANALYZE ${query.sql}")
             //   .flatMap(plan => ZIO.logInfo(s"${query.tag}:\n${plan.mkString("\n")}"))
-            *> executeQuery(query.sql).timed
+            *> executeQuery(query.sql)
+              .repeatN(query.repeat - 1)
+              .timed
               .map((duration, output) => Stats(query, duration, output))
         }
 
@@ -91,8 +93,9 @@ trait QueryPerfSpec[T] extends FuncTest[Ledger & Postgres & Parties]:
 
   private def testResults(candidate: Seq[Stats], baseline: Seq[Stats]) =
     ZIO.foreach(baseline.zip(candidate)) { (baseline, candidate) =>
-      val diff = candidate.diffRatio(baseline)
-      val message = candidate.query.tag +
+      val query = candidate.query
+      val diff  = candidate.diffRatio(baseline)
+      val message = query.tag +
         s" | Candidate: ${candidate.avgDuration.render}" +
         s" | Baseline: ${baseline.avgDuration.render}" +
         s" | Diff: ${diff.percent}" +
@@ -101,7 +104,7 @@ trait QueryPerfSpec[T] extends FuncTest[Ledger & Postgres & Parties]:
         .logInfo(message)
         .as(
           assert(candidate.output)(Assertion.equalTo(baseline.output))
-            && assertTrue(diff < candidate.query.expectedDiff + 0.3).label(message)
-            && assertTrue(diff > candidate.query.expectedDiff - 0.3).label(message)
+            && assertTrue(diff < query.expectedDiff + query.tolerance).label(message)
+            && assertTrue(diff > query.expectedDiff - query.tolerance).label(message)
         )
     }
