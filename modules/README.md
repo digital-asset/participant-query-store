@@ -86,12 +86,12 @@ The defaults are computed from Docker's CPUs and memory. See [utils/func-test/sr
 
 #### Q: How do I inspect the temp directory?
 
-Set the `FT_KEEP_TEMP=true` env var before running tests. This prevents the temp directory from being deleted after the test run, allowing you to inspect its contents.
+Set the `PQS_FT_KEEP_TEMP=true` env var before running tests. This prevents the temp directory from being deleted after the test run, allowing you to inspect its contents.
 
 #### Q: How do I enable Canton logging for functional tests?
 
 By default, functional tests do not output Canton container logs.
-Set `FT_CANTON_LOG=true` to enable Canton log output in the console.
+Set `PQS_FT_CANTON_LOG=true` to enable Canton log output in the console.
 
 #### Q: How do I see the logs of tests that pass?
 

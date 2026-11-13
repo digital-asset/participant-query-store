@@ -35,8 +35,8 @@ object FTEnv:
   val layer: ZLayer[Any, Throwable, FTEnv] = FTConfig.layer >>> ZLayer.scoped {
     for
       config         <- ZIO.service[FTConfig]
-      showCantonLogs <- System.env("FT_CANTON_LOG").map(_.contains("true"))
-      keepTemp       <- System.env("FT_KEEP_TEMP").map(_.contains("true"))
+      showCantonLogs <- System.env("PQS_FT_CANTON_LOG").map(_.contains("true"))
+      keepTemp       <- System.env("PQS_FT_KEEP_TEMP").map(_.contains("true"))
       tempDir        <- createTempDir(keepTemp)
       cacheDir       <- makeDir(tempDir / "cache")
       fileCache      <- FileCache(cacheDir)
