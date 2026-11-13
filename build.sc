@@ -324,12 +324,12 @@ object `package` extends RootModule { root =>
       }
 
       override def forkEnv = T {
-        
+        // Added after super.forkEnv() so they override the caller's environment
         super.forkEnv() ++ Map(
-          // no parallelism
+          // Run tests one at a time so they don't skew each other's timings
           "PQS_FT_POOLS" -> "1",
           "PQS_FT_LANES" -> "1",
-          // show all logs
+          // Force showing logs to print the results of passing tests, which are otherwise hidden
           "PQS_FT_SHOW_LOGS" -> "true"
         )
       }

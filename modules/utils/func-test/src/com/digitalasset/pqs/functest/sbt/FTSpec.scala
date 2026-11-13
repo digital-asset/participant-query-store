@@ -242,8 +242,12 @@ object FTSpec extends ZIOSpecDefault:
               .map((_, env) => env)
           )
         )
-      ) @@ oomGuard @@ (if showLogs || tasks.size == 1 then TestAspect.identity else FTLogging.silentTest)
+      ) @@ oomGuard @@ logAspect
   end flattenSpec
+
+  // Show logs as they happen when running a single spec, e.g. with `testOnly`, to ease debugging
+  private def logAspect =
+    if showLogs || tasks.size == 1 then TestAspect.identity else FTLogging.silentTest
 
   @SuppressWarnings(Array("org.wartremover.warts.AsInstanceOf"))
   private def toSpec(taskDef: TaskDef) =
@@ -261,5 +265,5 @@ object FTSpec extends ZIOSpecDefault:
     sys.env
       .get(name)
       .map { v =>
-        v.toIntOption.filter(_ >= 0).getOrElse(sys.error(s"$name must be a positive integer, got '$v'"))
+        v.toIntOption.filter(_ >= 1).getOrElse(sys.error(s"$name must be a positive integer, got '$v'"))
       }

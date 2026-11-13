@@ -68,7 +68,8 @@ Functional tests (`modules/pqs/functest`, framework in `modules/utils/func-test`
   to 1.
 - A test whose version gate doesn't match is reported as ignored: check that your test actually ran.
 - `PQS_FT_KEEP_TEMP=true` keeps the temp directory; `PQS_FT_CANTON_LOG=true` shows Canton's logs;
-  `PQS_FT_SHOW_LOGS=true` prints test logs as they happen instead of only for failed tests.
+  `PQS_FT_SHOW_LOGS=true` prints test logs as they happen instead of only for failed tests (always the
+  case when a single spec runs, e.g. with `testOnly`).
 - Compile errors in `pqs.functest` that move around between runs are stale incremental state:
   `mill clean pqs.functest`.
 

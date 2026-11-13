@@ -97,6 +97,7 @@ Set `PQS_FT_CANTON_LOG=true` to enable Canton log output in the console.
 
 By default, a test's logs are buffered and printed only if it fails.
 Set `PQS_FT_SHOW_LOGS=true` to print them as they happen.
+This is the default when a single spec runs, e.g. with `testOnly`.
 
 #### Q: How do I observe the full gRPC error messages within a ZIO layer?
 
