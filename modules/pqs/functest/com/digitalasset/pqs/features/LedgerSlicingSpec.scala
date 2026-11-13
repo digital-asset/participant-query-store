@@ -8,9 +8,8 @@ import com.digitalasset.pqs.SharedLedgerAndPostgresTest
 import com.digitalasset.pqs.docker.Service
 import com.digitalasset.pqs.functest.FuncTest
 import com.digitalasset.pqs.functest.matchers.*
-import com.digitalasset.pqs.services.postgres.Table
 import com.digitalasset.pqs.services.daml.*
-import com.digitalasset.pqs.services.postgres.Postgres
+import com.digitalasset.pqs.services.postgres.*
 import com.digitalasset.pqs.services.pqs.Pqs
 import com.digitalasset.pqs.OffsetType
 import zio.jdbc.sqlInterpolator
@@ -121,4 +120,4 @@ object LedgerSlicingSpec extends SharedLedgerAndPostgresTest:
         )
   )
 
-  private val checkpointsQuery = Postgres `query` sql"select f.*, l.* from oldest_checkpoint() f, latest_checkpoint() l"
+  private val checkpointsQuery = Database `query` sql"select f.*, l.* from oldest_checkpoint() f, latest_checkpoint() l"

@@ -6,7 +6,6 @@ package com.digitalasset.pqs.o11y
 import com.digitalasset.pqs.Dars
 import com.digitalasset.pqs.SharedLedgerAndPostgresTest
 import com.digitalasset.pqs.functest.matchers.*
-import com.digitalasset.pqs.services.postgres.Table
 import com.digitalasset.pqs.services.daml.{DamlSdk, Party}
 import com.digitalasset.pqs.services.o11y.*
 import com.digitalasset.pqs.services.postgres.*
@@ -258,7 +257,7 @@ object GrafanaSetupSpec extends SharedLedgerAndPostgresTest:
               .fold(throw new Exception("Should've found link to original Daml transaction"))(identity)
           }
           .flatMap { traceCtxPattern =>
-            Postgres query { sql"""select (trace_context).trace_parent from __transactions;""" } `returns` Table {
+            Database query { sql"""select (trace_context).trace_parent from __transactions;""" } `returns` Table {
               stringMatching(traceCtxPattern)
             }
           }

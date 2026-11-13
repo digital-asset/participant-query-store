@@ -46,9 +46,7 @@ object Table:
 
   /** Table DSL. Usage example:
     * {{{
-    * import com.digitalasset.pqs.services.postgres.Table
-    * //
-    * table {
+    * Table {
     *   "column1" | "column2" | "column3"
     *   ---       | ---       | ---
     *   "value 1" | true      | 123

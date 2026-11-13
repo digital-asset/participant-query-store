@@ -5,10 +5,9 @@ package com.digitalasset.pqs.features.upgrades
 
 import com.digitalasset.pqs.SharedLedgerAndPostgresTest
 import com.digitalasset.pqs.functest.matchers.*
-import com.digitalasset.pqs.services.postgres.Table
 import com.digitalasset.pqs.services.daml.*
 import com.digitalasset.pqs.services.postgres.Database.__contracts
-import com.digitalasset.pqs.services.postgres.Postgres
+import com.digitalasset.pqs.services.postgres.*
 import com.digitalasset.pqs.services.pqs.Pqs
 import com.digitalasset.transcode.schema.PackageName
 import zio.jdbc.sqlInterpolator
@@ -128,9 +127,9 @@ object UpgradeAddingTemplateSpec extends SharedLedgerAndPostgresTest:
   )
 
   private def __packages(name: PackageName) =
-    Postgres.query(sql"select pk, name, version, id from __packages where name=${name.toString} order by version")
+    Database.query(sql"select pk, name, version, id from __packages where name=${name.toString} order by version")
 
   private def __contract_tpe(name: PackageName) =
-    Postgres.query(
+    Database.query(
       sql"select pk, template_fqn, payload_type, aliases from __contract_tpe where package_name=${name.toString} order by template_fqn"
     )

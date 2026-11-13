@@ -6,8 +6,7 @@ package com.digitalasset.pqs.features.filtering
 import com.digitalasset.pqs.SharedLedgerAndPostgresTest
 import com.digitalasset.pqs.functest.matchers.*
 import com.digitalasset.pqs.services.daml.*
-import com.digitalasset.pqs.services.postgres.Postgres
-import com.digitalasset.pqs.services.postgres.Table
+import com.digitalasset.pqs.services.postgres.*
 import com.digitalasset.pqs.services.pqs.Pqs
 import zio.ZLayer
 import zio.jdbc.sqlInterpolator
@@ -163,13 +162,13 @@ object ContractFilteringSpec extends SharedLedgerAndPostgresTest:
       s"--pipeline-filter-contracts=$filter"
     )
 
-  private def queryActive() = Postgres `query`
+  private def queryActive() = Database `query`
     sql"""select substring(template_fqn from position(':' in template_fqn) + 1), payload->>'firstName', payload->>'lastName', payload->>'name'
           from active()
           where template_fqn like $templateMatcher
           order by activated_at_ix, template_fqn"""
 
-  private def querySummaryExercises() = Postgres `query`
+  private def querySummaryExercises() = Database `query`
     sql"""select substring(choice_fqn from position(':' in choice_fqn) + 1) as ch_fqn, count
           from summary_exercises()
           where choice_fqn like $templateMatcher

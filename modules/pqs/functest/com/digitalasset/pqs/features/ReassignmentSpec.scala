@@ -6,7 +6,6 @@ package com.digitalasset.pqs.features
 import com.daml.ledger.api.v2.value.{Record, RecordField, Value}
 import com.digitalasset.canonical.{Event, Offset, Transaction}
 import com.digitalasset.pqs.functest.matchers.*
-import com.digitalasset.pqs.services.postgres.Table
 import com.digitalasset.pqs.pipeline.InProcessPipeline
 import com.digitalasset.pqs.postgres.document.SqlSchema
 import com.digitalasset.pqs.services.daml.*
@@ -70,7 +69,7 @@ object ReassignmentSpec extends SharedMultiSyncLedgerSpec:
         // but every update has a record time.
         // Every update now carries a synchronizer_id; for a reassignment it is the synchronizer
         // that synchronized it — the source synchronizer for the unassign, the target for the assign.
-        Postgres
+        Database
           .query(sql"""select "offset", synchronizer_id, effective_at is null, record_time is null
                        from __transactions order by "offset"""")
           .returns(
@@ -110,7 +109,7 @@ object ReassignmentSpec extends SharedMultiSyncLedgerSpec:
           )
 
       Expect:
-        Postgres
+        Database
           .query(sql"""select e."type"::text, e.event_id::text
                        from __events e join __transactions t on e.tx_ix = t.ix
                        order by t."offset"""")
@@ -136,11 +135,11 @@ object ReassignmentSpec extends SharedMultiSyncLedgerSpec:
           )
       Expect:
         // The assign branch has no assignment_exclusivity field of its own and must store none.
-        Postgres
+        Database
           .query(sql"""select assignment_exclusivity from __reassignments where "type" = 'assign'""")
           .returns(Table(isNull))
       Expect:
-        Postgres
+        Database
           .query(sql"select * from summary_reassignments() order by type")
           .returns(
             Table {
@@ -149,7 +148,7 @@ object ReassignmentSpec extends SharedMultiSyncLedgerSpec:
             }
           )
       Expect:
-        Postgres
+        Database
           .query(sql"select * from summary_reassignments(${unassignedAtOffset.get}, ${unassignedAtOffset.get})")
           .returns(
             Table {
@@ -165,7 +164,7 @@ object ReassignmentSpec extends SharedMultiSyncLedgerSpec:
         // and the answer is the create rather than the newer unassign. A boundary falling in a
         // reassignment-only stretch of history is therefore not targetable, which is what
         // https://github.com/digital-asset/participant-query-store/issues/74 will revisit.
-        Postgres
+        Database
           .query(sql"""select nearest_offset(
                          (select min(effective_at) + (max(effective_at) - min(effective_at)) / 2
                           from __transactions)
@@ -215,7 +214,7 @@ object ReassignmentSpec extends SharedMultiSyncLedgerSpec:
           InProcessPipeline.processTransactions(Chunk(createTx, unassignTx))
 
       Expect:
-        Postgres
+        Database
           .query(
             sql"""select "offset", synchronizer_id, record_time from __transactions order by "offset""""
               .query[(Long, String, Instant)]
@@ -332,7 +331,7 @@ object ReassignmentSpec extends SharedMultiSyncLedgerSpec:
         InProcessPipeline.processTransactions(Chunk(createTx, assignTx, unassignTx, archiveTx))
 
       Expect:
-        Postgres
+        Database
           .query(sql"""select "offset", synchronizer_id from __transactions order by "offset"""")
           .returns(
             Table {
@@ -516,7 +515,7 @@ object ReassignmentSpec extends SharedMultiSyncLedgerSpec:
         )
 
       Expect:
-        Postgres
+        Database
           .query(sql"""select choice, consuming, synchronizer_id, signatories
                        from exercises() order by exercised_at_ix""")
           .returns(
@@ -527,7 +526,7 @@ object ReassignmentSpec extends SharedMultiSyncLedgerSpec:
             }
           )
       Expect:
-        Postgres
+        Database
           .query(sql"""select choice, consuming, synchronizer_id, signatories
                        from lookup_exercises(${contractId.get}) order by exercised_at_ix""")
           .returns(
@@ -563,7 +562,7 @@ object ReassignmentSpec extends SharedMultiSyncLedgerSpec:
           )
 
       Expect:
-        Postgres
+        Database
           .query(sql"""select choice, consuming, synchronizer_id, signatories
                        from exercises() order by exercised_at_ix""")
           .returns(
@@ -574,7 +573,7 @@ object ReassignmentSpec extends SharedMultiSyncLedgerSpec:
             }
           )
       Expect:
-        Postgres
+        Database
           .query(sql"""select choice, consuming, synchronizer_id, signatories
                        from lookup_exercises(${contractId.get}) order by exercised_at_ix""")
           .returns(

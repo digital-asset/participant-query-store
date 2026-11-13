@@ -6,7 +6,6 @@ package com.digitalasset.pqs.features.upgrades
 import com.digitalasset.pqs.docker.{Docker, Service}
 import com.digitalasset.pqs.functest.{FTEnv, FuncTestStandalone}
 import com.digitalasset.pqs.functest.matchers.*
-import com.digitalasset.pqs.services.postgres.Table
 import com.digitalasset.pqs.services.daml.*
 import com.digitalasset.pqs.services.postgres.*
 import com.digitalasset.pqs.services.pqs.{Pipeline, Pqs}
@@ -200,7 +199,7 @@ object RpidTwoParticipantSpec extends FuncTestStandalone:
     )
     cantonLayer >+> DamlSdk.allocatedParties(alice) ++ ZLayer.succeed(v2Dar)
 
-  private def storageContracts() = Postgres `query`
+  private def storageContracts() = Database `query`
     sql"""SELECT
             p.id as representative_package_id,
             c.creation_package_id,
@@ -209,21 +208,21 @@ object RpidTwoParticipantSpec extends FuncTestStandalone:
           JOIN __packages p ON c.package_pk = p.pk
           ORDER BY activated_at_ix"""
 
-  private def apiActive() = Postgres `query`
+  private def apiActive() = Database `query`
     sql"""SELECT
             package_id,
             creation_package_id
           FROM active()
           ORDER BY activated_at_ix"""
 
-  private def apiCreates() = Postgres `query`
+  private def apiCreates() = Database `query`
     sql"""SELECT
             package_id,
             creation_package_id
           FROM creates()
           ORDER BY activated_at_ix"""
 
-  private def apiArchives() = Postgres `query`
+  private def apiArchives() = Database `query`
     sql"""SELECT
             package_id,
             creation_package_id

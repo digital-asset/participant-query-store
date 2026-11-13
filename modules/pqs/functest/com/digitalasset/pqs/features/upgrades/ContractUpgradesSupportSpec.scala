@@ -5,10 +5,9 @@ package com.digitalasset.pqs.features.upgrades
 
 import com.digitalasset.pqs.SharedLedgerAndPostgresTest
 import com.digitalasset.pqs.functest.matchers.*
-import com.digitalasset.pqs.services.postgres.Table
 import com.digitalasset.pqs.services.daml.*
 import com.digitalasset.pqs.services.postgres.Database.*
-import com.digitalasset.pqs.services.postgres.Postgres
+import com.digitalasset.pqs.services.postgres.*
 import com.digitalasset.pqs.services.pqs.{Pipeline, Pqs}
 import com.digitalasset.transcode.schema.PackageName
 import zio.jdbc.sqlInterpolator
@@ -388,16 +387,16 @@ object ContractUpgradesSupportSpec extends SharedLedgerAndPostgresTest:
   )
 
   private def __packages(name: PackageName) =
-    Postgres.query(sql"select pk, name, version, id from __packages where name=${name.toString} order by pk")
+    Database.query(sql"select pk, name, version, id from __packages where name=${name.toString} order by pk")
 
   private def __contract_tpe(packageNames: PackageName*) =
     val filter = packageNames.map(packageName => sql"package_name=${packageName.toString}").mkFragment(sql" or ")
-    Postgres.query(
+    Database.query(
       sql"select pk, template_fqn, payload_type, aliases from __contract_tpe where $filter order by pk"
     )
 
   private def __exercise_tpe(packageNames: PackageName*) =
     val filter = packageNames.map(packageName => sql"package_name=${packageName.toString}").mkFragment(sql" or ")
-    Postgres.query(
+    Database.query(
       sql"select pk, template_fqn, choice_fqn, choice, consuming, aliases from __exercise_tpe where $filter order by pk"
     )

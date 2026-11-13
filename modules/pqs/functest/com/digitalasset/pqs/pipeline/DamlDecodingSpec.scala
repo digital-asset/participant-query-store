@@ -5,9 +5,8 @@ package com.digitalasset.pqs.pipeline
 
 import com.digitalasset.pqs.SharedLedgerAndPostgresTest
 import com.digitalasset.pqs.functest.matchers.*
-import com.digitalasset.pqs.services.postgres.Table
 import com.digitalasset.pqs.services.daml.*
-import com.digitalasset.pqs.services.postgres.{Database, Postgres}
+import com.digitalasset.pqs.services.postgres.*
 import com.digitalasset.pqs.services.pqs.Pqs
 import zio.test.Assertion.*
 import scala.language.implicitConversions

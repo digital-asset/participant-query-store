@@ -8,9 +8,8 @@ import com.digitalasset.pqs.SharedLedgerAndPostgresTest
 import com.digitalasset.pqs.{OffsetType, biggestOffset, smallestOffset}
 import com.digitalasset.pqs.functest.FuncTest
 import com.digitalasset.pqs.functest.matchers.*
-import com.digitalasset.pqs.services.postgres.Table
 import com.digitalasset.pqs.services.daml.*
-import com.digitalasset.pqs.services.postgres.Postgres
+import com.digitalasset.pqs.services.postgres.*
 import com.digitalasset.pqs.services.pqs.Pqs
 import zio.ZLayer
 import zio.jdbc.sqlInterpolator
@@ -50,7 +49,7 @@ object LegacyDatastorePruningSpec extends SharedLedgerAndPostgresTest:
         Given:
           context
         And:
-          Postgres query {
+          Database query {
             sql"""select "offset" from __transactions order by ix"""
           } `returns` Table {
             oneCreated.capture |
@@ -62,27 +61,27 @@ object LegacyDatastorePruningSpec extends SharedLedgerAndPostgresTest:
           }.transpose
         Expect:
           // dry run
-          Postgres
+          Database
             .query(
               sql"select affected_transactions, squash_inclusive, new_oldest from validate_pruning_offset(${twoArchived.get})"
             )
             .returns(Table(4 | twoArchived | threeCreated))
         And:
           // actual pruning
-          Postgres
+          Database
             .query(
               sql"select affected_transactions, squash_inclusive, new_oldest from prune_to_offset(${twoArchived.get})"
             )
             .returns(Table(4 | twoArchived | threeCreated))
         And:
           // another dry run on already-pruned offset is a no-op (returns empty set)
-          Postgres
+          Database
             .query(
               sql"select count(*) from validate_pruning_offset(${twoArchived.get})"
             )
             .returns(Table(0))
         And:
-          Postgres query {
+          Database query {
             sql"""select payload->>'label', created_at_offset from active($templateRef) order by created_at_offset"""
           } `returns` Table {
             "one updated"   | threeCreated
@@ -90,11 +89,11 @@ object LegacyDatastorePruningSpec extends SharedLedgerAndPostgresTest:
           }
         And:
           // archived contracts created before the pruning offset should be deleted
-          Postgres query {
+          Database query {
             sql"""select payload->>'label', created_at_offset, archived_at_offset from archives($templateRef)"""
           } `returns` Table { "three" | threeCreated | threeUpdated }
         And:
-          Postgres query {
+          Database query {
             sql"""select argument->>'newLabel' from exercises($choiceRef)"""
           } `returns` Table { "three updated" }
       },
@@ -105,21 +104,21 @@ object LegacyDatastorePruningSpec extends SharedLedgerAndPostgresTest:
         Given:
           context
         And:
-          Postgres query {
+          Database query {
             sql"""select "offset" from oldest_checkpoint()"""
           } `returns` Table { firstOffset.capture }
         And:
-          Postgres query {
+          Database query {
             // the second offset is the exercise transaction, which archives contract "one" and creates contract "one updated"
             sql"""select "offset" from __transactions where ix=2"""
           } `returns` Table { secondOffset.capture }
         And:
-          Postgres query {
+          Database query {
             sql"""select "offset" from latest_checkpoint()"""
           } `returns` Table { latestOffset.capture }
         Expect:
           // latest offset is illegal
-          Postgres
+          Database
             .query(sql"select affected_transactions from prune_to_offset(${latestOffset.get})")
             .exit
             .map {
@@ -135,7 +134,7 @@ object LegacyDatastorePruningSpec extends SharedLedgerAndPostgresTest:
             }
         And:
           // out of upper bounds
-          Postgres
+          Database
             .query(sql"select affected_transactions from prune_to_offset($biggestOffset)")
             .exit
             .map {
@@ -151,7 +150,7 @@ object LegacyDatastorePruningSpec extends SharedLedgerAndPostgresTest:
             }
         And:
           // out of lower bounds
-          Postgres
+          Database
             .query(sql"select affected_transactions from prune_to_offset($smallestOffset)")
             .exit
             .map {
@@ -169,10 +168,10 @@ object LegacyDatastorePruningSpec extends SharedLedgerAndPostgresTest:
           // pruning to second offset:
           // - deletes the first transaction, because contract "one" is archived and pruned
           // - keeps the second transaction, because contract "one updated" is still active
-          Postgres.query(sql"select affected_transactions from prune_to_offset(${secondOffset.get})")
+          Database.query(sql"select affected_transactions from prune_to_offset(${secondOffset.get})")
         Expect:
           // pruning below already-pruned offset is a no-op (zeroed stats)
-          Postgres
+          Database
             .query(sql"select affected_transactions from prune_to_offset(${firstOffset.get})")
             .returns(Table(0))
       },
@@ -183,20 +182,20 @@ object LegacyDatastorePruningSpec extends SharedLedgerAndPostgresTest:
         Given:
           context
         And:
-          Postgres query {
+          Database query {
             sql"""select "offset" from __transactions order by ix"""
           } `returns` Table {
             anything | anything | anything | twoArchived.capture | threeCreated.capture | threeUpdated.capture
           }.transpose
         When:
-          Postgres
+          Database
             .query(
               sql"select affected_transactions, squash_inclusive, new_oldest from prune_to_offset(${twoArchived.get})"
             )
             .returns(Table(4 | twoArchived | threeCreated))
         Then:
           // After the first prune, the next surviving offset should still be a legal prune target.
-          Postgres
+          Database
             .query(
               sql"select affected_transactions, squash_inclusive, new_oldest from prune_to_offset(${threeCreated.get})"
             )
@@ -207,17 +206,17 @@ object LegacyDatastorePruningSpec extends SharedLedgerAndPostgresTest:
         Given:
           context
         And:
-          Postgres query {
+          Database query {
             sql"""select "offset" from __transactions order by ix limit 1 offset 2"""
           } `returns` Table {
             thirdOffset.capture
           }
         And:
           // delete second transaction offset
-          Postgres `makeGap` (2 to 2) `returns` 1
+          Database `makeGap` (2 to 2) `returns` 1
         Expect:
           // out of contiguous range
-          Postgres
+          Database
             .query(sql"select affected_transactions from prune_to_offset(${thirdOffset.get})")
             .exit
             .map {
@@ -237,14 +236,14 @@ object LegacyDatastorePruningSpec extends SharedLedgerAndPostgresTest:
         Given:
           context
         And:
-          Postgres query {
+          Database query {
             sql"""select "offset" from oldest_checkpoint()"""
           } `returns` Table { firstOffset.capture }
         And:
-          Postgres.query(sql"select affected_transactions from prune_to_offset(null)").returns(anything)
+          Database.query(sql"select affected_transactions from prune_to_offset(null)").returns(anything)
         Expect:
           // nothing should be pruned
-          Postgres query {
+          Database query {
             sql"""select "offset" from oldest_checkpoint()"""
           } `returns` Table { firstOffset }
       }
@@ -265,7 +264,7 @@ object LegacyDatastorePruningSpec extends SharedLedgerAndPostgresTest:
         Given:
           context
         And:
-          Postgres query {
+          Database query {
             sql"""select "offset" from __transactions order by ix"""
           } `returns` Table {
             oneCreated.capture |
@@ -276,7 +275,7 @@ object LegacyDatastorePruningSpec extends SharedLedgerAndPostgresTest:
               threeUpdated.capture
           }.transpose
         And:
-          Postgres `query`
+          Database `query`
             sql"""
                  update __transactions
                  set effective_at = $resetTime :: timestamp with time zone
@@ -284,18 +283,18 @@ object LegacyDatastorePruningSpec extends SharedLedgerAndPostgresTest:
               """.update `returns` anything
         Expect:
           // expected deletion of two transactions
-          Postgres
+          Database
             .query(sql"select affected_transactions from prune_to_offset($offsetFunction)")
             .returns(Table(4))
         And:
-          Postgres query {
+          Database query {
             sql"""select payload->>'label', created_at_offset from active($templateRef) order by created_at_offset"""
           } `returns` Table {
             "one updated"   | threeCreated
             "three updated" | threeUpdated
           }
         And:
-          Postgres query {
+          Database query {
             sql"""select payload->>'label', created_at_offset, archived_at_offset from archives($templateRef)"""
           } `returns` Table { "three" | threeCreated | threeUpdated }
       })*

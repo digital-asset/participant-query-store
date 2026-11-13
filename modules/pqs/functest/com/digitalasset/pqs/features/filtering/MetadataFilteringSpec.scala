@@ -6,9 +6,8 @@ package com.digitalasset.pqs.features.filtering
 import com.digitalasset.pqs.SharedLedgerAndPostgresTest
 import com.digitalasset.pqs.functest.FuncTest
 import com.digitalasset.pqs.functest.matchers.*
-import com.digitalasset.pqs.services.postgres.Table
 import com.digitalasset.pqs.services.daml.*
-import com.digitalasset.pqs.services.postgres.Postgres
+import com.digitalasset.pqs.services.postgres.*
 import com.digitalasset.pqs.services.pqs.Pqs
 import zio.ZLayer
 import zio.jdbc.sqlInterpolator
@@ -71,7 +70,7 @@ object MetadataFilteringSpec extends SharedLedgerAndPostgresTest:
     DamlSdk.parties(alice) ++ Postgres.database
       >+> DamlSdk.deploy(sample) >+> DamlSdk.runScript("Sample:setup", alice.id)
 
-  private val metadataQuery = Postgres `query`
+  private val metadataQuery = Database `query`
     sql"""select tp.template_fqn, count(c.*)
           from __contracts c join __contract_tpe tp on c.tpe_pk = tp.pk
           where c.metadata is not null

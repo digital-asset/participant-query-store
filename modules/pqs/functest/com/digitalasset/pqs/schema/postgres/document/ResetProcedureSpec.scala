@@ -5,9 +5,8 @@ package com.digitalasset.pqs.schema.postgres.document
 
 import com.digitalasset.pqs.SharedLedgerAndPostgresTest
 import com.digitalasset.pqs.functest.matchers.*
-import com.digitalasset.pqs.services.postgres.Table
 import com.digitalasset.pqs.services.daml.*
-import com.digitalasset.pqs.services.postgres.Postgres
+import com.digitalasset.pqs.services.postgres.*
 import com.digitalasset.pqs.services.pqs.Pqs
 import com.digitalasset.pqs.{OffsetType, biggestOffset, smallestOffset}
 import zio.ZLayer
@@ -64,11 +63,11 @@ object ResetProcedureSpec extends SharedLedgerAndPostgresTest:
       Given:
         context
       And:
-        Postgres
+        Database
           .query(sql"""select "offset" from __transactions order by ix""")
           .returns(Table(anything | target.capture | anything | anything).transpose)
       Expect:
-        Postgres
+        Database
           .query(sql"select new_latest, affected_transactions from validate_reset_offset(${target.get})")
           .returns(Table(target | 2))
     ,
@@ -78,23 +77,23 @@ object ResetProcedureSpec extends SharedLedgerAndPostgresTest:
       Given:
         context
       And:
-        Postgres
+        Database
           .query(sql"select instance_id from __watermark")
           .returns(Table(pipelineId.capture))
       And:
-        Postgres
+        Database
           .query(sql"""select "offset" from __transactions order by ix""")
           .returns(Table(anything | target.capture | anything | anything).transpose)
       And:
-        Postgres
+        Database
           .query(sql"select new_latest, affected_transactions from reset_to_offset(${target.get})")
           .returns(Table(target | 2))
       Expect:
-        Postgres
+        Database
           .query(sql"""select "offset" from latest_checkpoint()""")
           .returns(Table(target))
       And:
-        Postgres
+        Database
           .query(sql"select instance_id from __watermark")
           .returns(Table(not(equalTo(pipelineId.get))))
     ,
@@ -104,27 +103,27 @@ object ResetProcedureSpec extends SharedLedgerAndPostgresTest:
       Given:
         context
       And:
-        Postgres
+        Database
           .query(sql"""select "offset" from __transactions order by ix""")
           .returns(Table(anything | target.capture | anything | anything).transpose)
       And:
-        Postgres.reverseWatermark(2) `returns` 1
+        Database.reverseWatermark(2) `returns` 1
       And:
-        Postgres
+        Database
           .query(sql"select instance_id from __watermark")
           .returns(Table(staleWriter.capture))
       Expect:
-        Postgres call {
+        Database call {
           sql"call __cleanup_transactions_after_watermark()"
         } `returns` ()
       And:
-        Postgres
+        Database
           .query(sql"""select "offset" from __transactions order by ix""")
           .returns(Table(anything | target).transpose)
       And:
-        Postgres.query(sql"select count(*) from __contracts").returns(Table(2))
+        Database.query(sql"select count(*) from __contracts").returns(Table(2))
       And:
-        Postgres
+        Database
           .query(sql"select instance_id from __watermark")
           .returns(Table(not(equalTo(staleWriter.get))))
     ,
@@ -132,7 +131,7 @@ object ResetProcedureSpec extends SharedLedgerAndPostgresTest:
       Given:
         context
       Then:
-        Postgres
+        Database
           .query(sql"select new_latest, affected_transactions from reset_to_offset($smallestOffset)")
           .exit
           .map(
@@ -151,7 +150,7 @@ object ResetProcedureSpec extends SharedLedgerAndPostgresTest:
       Given:
         context
       Then:
-        Postgres
+        Database
           .query(sql"select new_latest, affected_transactions from reset_to_offset($biggestOffset)")
           .exit
           .map(

@@ -6,9 +6,8 @@ package com.digitalasset.pqs.features.filtering
 import com.digitalasset.pqs.Dars
 import com.digitalasset.pqs.functest.FuncTestStandalone
 import com.digitalasset.pqs.functest.matchers.*
-import com.digitalasset.pqs.services.postgres.Table
 import com.digitalasset.pqs.services.daml.*
-import com.digitalasset.pqs.services.postgres.Postgres
+import com.digitalasset.pqs.services.postgres.*
 import com.digitalasset.pqs.services.pqs.Pqs
 import zio.jdbc.sqlInterpolator
 import zio.{ExitCode, ZLayer}
@@ -78,9 +77,9 @@ object PartyFilteringSpec extends FuncTestStandalone:
           alice.id | bob.id | charlie.id
         }.transpose
       And:
-        Postgres `query` sql"""select count(*) from active('PingPong:Ping')""" `returns` Table { 3 }
+        Database `query` sql"""select count(*) from active('PingPong:Ping')""" `returns` Table { 3 }
     }
   )
 
   private val partiesQuery =
-    Postgres `query` sql"select distinct unnest(array_cat(signatories, observers)) from __contracts order by 1"
+    Database `query` sql"select distinct unnest(array_cat(signatories, observers)) from __contracts order by 1"

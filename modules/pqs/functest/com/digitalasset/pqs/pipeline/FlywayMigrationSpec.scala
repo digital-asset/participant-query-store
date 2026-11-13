@@ -7,9 +7,8 @@ import com.daml.ledger.api.v2.value.*
 import com.digitalasset.pqs.Dars
 import com.digitalasset.pqs.functest.FuncTestStandalone
 import com.digitalasset.pqs.functest.matchers.*
-import com.digitalasset.pqs.services.postgres.Table
 import com.digitalasset.pqs.services.daml.*
-import com.digitalasset.pqs.services.postgres.{Database, Postgres}
+import com.digitalasset.pqs.services.postgres.*
 import com.digitalasset.pqs.services.pqs.*
 import scala.language.implicitConversions
 import zio.jdbc.*
@@ -77,7 +76,7 @@ object FlywayMigrationSpec extends FuncTestStandalone:
         )
       Expect:
         // There was a bug in PQS 3.4 where the instance_id was only inserted on the second run.
-        Postgres
+        Database
           .query(sql"select instance_id from __watermark")
           .returns(Table(isNull))
       And:
@@ -88,7 +87,7 @@ object FlywayMigrationSpec extends FuncTestStandalone:
           "--pipeline-ledger-stop=Latest"
         )
       Expect:
-        Postgres
+        Database
           .query(sql"select instance_id from __watermark")
           .returns(Table(not(isNull) && instanceId.capture))
       And:
@@ -110,7 +109,7 @@ object FlywayMigrationSpec extends FuncTestStandalone:
             }
           )
       Expect:
-        Postgres
+        Database
           .query(sql"select instance_id from __watermark")
           .returns(Table(not(isNull) && not(equalTo(instanceId.get))))
     } @@ DamlSdk.onlyDamlLfVersion("<=2.2"),
@@ -266,7 +265,7 @@ object FlywayMigrationSpec extends FuncTestStandalone:
 
   private def legacyActive(fqn: String)(columns: String*) =
     val select = SqlFragment.select(columns*)
-    Postgres.query(sql"$select from active($fqn) order by created_at_ix")
+    Database.query(sql"$select from active($fqn) order by created_at_ix")
 
   private def createContract(party: Party, sync: Synchronizer) =
     val args = Record.defaultInstance.addFields(RecordField("sender", Some(Value(Value.Sum.Party(party.id)))))

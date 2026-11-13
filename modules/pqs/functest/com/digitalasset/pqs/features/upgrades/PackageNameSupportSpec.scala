@@ -6,10 +6,9 @@ package com.digitalasset.pqs.features.upgrades
 import com.digitalasset.pqs.Dars
 import com.digitalasset.pqs.functest.FuncTestStandalone
 import com.digitalasset.pqs.functest.matchers.*
-import com.digitalasset.pqs.services.postgres.Table
 import com.digitalasset.pqs.services.daml.*
 import com.digitalasset.pqs.services.postgres.Database.*
-import com.digitalasset.pqs.services.postgres.Postgres
+import com.digitalasset.pqs.services.postgres.*
 import com.digitalasset.pqs.services.pqs.{Pipeline, Pqs}
 import zio.jdbc.sqlInterpolator
 import zio.test.Assertion.anything

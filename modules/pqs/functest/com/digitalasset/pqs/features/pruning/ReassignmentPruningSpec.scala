@@ -5,7 +5,6 @@ package com.digitalasset.pqs.features.pruning
 
 import com.digitalasset.pqs.{OffsetType, SharedMultiSyncLedgerSpec}
 import com.digitalasset.pqs.functest.matchers.*
-import com.digitalasset.pqs.services.postgres.Table
 import com.digitalasset.pqs.services.daml.*
 import com.digitalasset.pqs.services.postgres.*
 import com.digitalasset.pqs.services.pqs.Pqs
@@ -48,22 +47,22 @@ object ReassignmentPruningSpec extends SharedMultiSyncLedgerSpec:
 
         And:
           // created, unassigned, assigned, created, archived, created
-          Postgres query {
+          Database query {
             sql"""select "offset" from __transactions order by ix"""
           } `returns` Table {
             anything | anything | reassignedAssigned.capture | anything | archivedArchived.capture | activeCreated.capture
           }.transpose
         Expect:
-          Postgres
+          Database
             .query(sql"select * from prune_archived_to_offset_dry_run(${archivedArchived.get})")
             .returns(Table(activeCreated | 2 | 0 | 4 | 4 | 1))
         And:
-          Postgres
+          Database
             .query(sql"select * from prune_archived_to_offset(${archivedArchived.get})")
             .returns(Table(activeCreated | 2 | 0 | 4 | 4 | 1))
         And:
           // the assign of the still-active contract keeps its event and transaction
-          Postgres
+          Database
             .query(sql"""select e."type"::text, t."offset"
                          from __events e join __transactions t on e.tx_ix = t.ix
                          order by t."offset"""")
@@ -74,12 +73,12 @@ object ReassignmentPruningSpec extends SharedMultiSyncLedgerSpec:
               }
             )
         And:
-          Postgres
+          Database
             .query(sql"""select r."type"::text, t."offset"
                          from __reassignments r join __transactions t on r.reassigned_at_ix = t.ix""")
             .returns(Table("assign" | reassignedAssigned))
         And:
-          Postgres
+          Database
             .query(
               sql"""select contract_id, activated_at_offset, activation_type
                     from active()
@@ -121,21 +120,21 @@ object ReassignmentPruningSpec extends SharedMultiSyncLedgerSpec:
         val activeCreated    = Capture[OffsetType]
 
         And:
-          Postgres query {
+          Database query {
             sql"""select "offset" from __transactions order by ix """
           } `returns` Table {
             anything | anything | anything | anything | archivedArchived.capture | activeCreated.capture
           }.transpose
         Expect:
-          Postgres
+          Database
             .query(
               sql"select affected_transactions, squash_inclusive, new_oldest from prune_to_offset(${archivedArchived.get})"
             )
             .returns(Table(5 | archivedArchived | activeCreated))
         And:
-          Postgres.query(sql"""select "offset" from __transactions""").returns(Table(activeCreated))
+          Database.query(sql"""select "offset" from __transactions""").returns(Table(activeCreated))
         And:
-          Postgres
+          Database
             .query(sql"""select e."type"::text, t."offset"
                          from __events e join __transactions t on e.tx_ix = t.ix
                          order by e."type"::text""")
@@ -146,12 +145,12 @@ object ReassignmentPruningSpec extends SharedMultiSyncLedgerSpec:
               }
             )
         And:
-          Postgres
+          Database
             .query(sql"""select r."type"::text, t."offset"
                          from __reassignments r join __transactions t on r.reassigned_at_ix = t.ix""")
             .returns(Table("assign" | activeCreated))
         And:
-          Postgres
+          Database
             .query(
               sql"""select contract_id, activated_at_offset, activation_type
                     from active()

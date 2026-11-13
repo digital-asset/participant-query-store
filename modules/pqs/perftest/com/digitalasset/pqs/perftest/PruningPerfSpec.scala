@@ -87,7 +87,7 @@ object PruningPerfSpec extends SharedHydratedLedgerTest:
       }
 
   private def prune(offset: Long) =
-    Postgres
+    Database
       .query {
         for
           result <- sql"""select deleted_contracts, deleted_exercises, deleted_events, deleted_transactions

@@ -5,9 +5,8 @@ package com.digitalasset.pqs.querying.postgres.document
 
 import com.digitalasset.pqs.SharedLedgerAndPostgresTest
 import com.digitalasset.pqs.functest.matchers.*
-import com.digitalasset.pqs.services.postgres.Table
 import com.digitalasset.pqs.services.daml.{DamlSdk, DamlSource, Party}
-import com.digitalasset.pqs.services.postgres.Postgres
+import com.digitalasset.pqs.services.postgres.*
 import com.digitalasset.pqs.services.pqs.Pqs
 import zio.jdbc.sqlInterpolator
 import zio.{ExitCode, ZLayer}
@@ -65,7 +64,7 @@ object JsonEncodingsSpec extends SharedLedgerAndPostgresTest:
         Pqs.exitCode `is` ExitCode.success
 
       Then:
-        Postgres.`query` {
+        Database.`query` {
           sql"""select payload from active('PingPong:Ping') order by payload"""
         } `returns` Table {
           s"""{"text": null, "int64": null, "party": "${alice.id}", "numeric": null}""" |
@@ -91,7 +90,7 @@ object JsonEncodingsSpec extends SharedLedgerAndPostgresTest:
         Pqs.exitCode `is` ExitCode.success
 
       Then:
-        Postgres.`query` {
+        Database.`query` {
           sql"""select payload from active('PingPong:Ping') order by payload"""
         } `returns` Table {
           s"""{"text": null, "party": "${alice.id}"}""" |
@@ -112,7 +111,7 @@ object JsonEncodingsSpec extends SharedLedgerAndPostgresTest:
         Pqs.exitCode `is` ExitCode.success
 
       Then:
-        Postgres.`query` {
+        Database.`query` {
           sql"""select payload from active('PingPong:Ping') order by payload"""
         } `returns` Table {
           s"""{"text": "test", "int64": "1", "party": "${alice.id}", "numeric": 1}"""
@@ -132,7 +131,7 @@ object JsonEncodingsSpec extends SharedLedgerAndPostgresTest:
         Pqs.exitCode `is` ExitCode.success
 
       Then:
-        Postgres.`query` {
+        Database.`query` {
           sql"""select payload from active('PingPong:Ping') order by payload"""
         } `returns` Table {
           s"""{"text": "test", "int64": 1, "party": "${alice.id}", "numeric": "1.0000000000"}"""

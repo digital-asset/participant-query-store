@@ -95,12 +95,12 @@ object ContractQueriesPerfSpec extends SharedHydratedLedgerTest:
       *> Database.checkpoint
       *> ZIO.foreach(queries) { query =>
         ZIO.logInfo(s"Running active query ${query.step}")
-          *> Postgres.query(query.sql) // warm-up
+          *> Database.query(query.sql) // warm-up
           // Uncomment to debug query plans
-          // *> Postgres
+          // *> Database
           //   .getAll[String](sql"EXPLAIN ANALYZE ${query.sql}")
           //   .flatMap(plan => ZIO.logInfo(s"Query ${query.step}:\n${plan.mkString("\n")}"))
-          *> Postgres
+          *> Database
             .query(query.sql)
             .repeatN(query.repeat - 1)
             .timed

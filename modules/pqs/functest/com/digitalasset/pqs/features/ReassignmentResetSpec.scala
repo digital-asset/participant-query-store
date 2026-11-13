@@ -5,7 +5,6 @@ package com.digitalasset.pqs.features
 
 import com.digitalasset.pqs.{OffsetType, SharedMultiSyncLedgerSpec}
 import com.digitalasset.pqs.functest.matchers.*
-import com.digitalasset.pqs.services.postgres.Table
 import com.digitalasset.pqs.services.daml.*
 import com.digitalasset.pqs.services.postgres.*
 import com.digitalasset.pqs.services.pqs.Pqs
@@ -38,22 +37,22 @@ object ReassignmentResetSpec extends SharedMultiSyncLedgerSpec:
             )
 
         And:
-          Postgres
+          Database
             .query(sql"""select "offset" from __transactions order by ix""")
             .returns(Table(createdAtOffset.capture | anything | anything | anything).transpose)
         Expect:
-          Postgres
+          Database
             .query(sql"select new_latest, affected_transactions from reset_to_offset(${createdAtOffset.get})")
             .returns(Table(createdAtOffset | 3))
         And:
-          Postgres.query(sql"""select "offset" from __transactions""").returns(Table(createdAtOffset))
+          Database.query(sql"""select "offset" from __transactions""").returns(Table(createdAtOffset))
         And:
-          Postgres
+          Database
             .query(sql"""select e."type"::text, t."offset"
                          from __events e join __transactions t on e.tx_ix = t.ix""")
             .returns(Table("create" | createdAtOffset))
         And:
-          Postgres.query(sql"select count(*) from __reassignments").returns(Table(0))
+          Database.query(sql"select count(*) from __reassignments").returns(Table(0))
         And:
           // the assign-born row is gone and the unassigned one is open-ended again on its source synchronizer
           Database
@@ -82,19 +81,19 @@ object ReassignmentResetSpec extends SharedMultiSyncLedgerSpec:
             )
 
         And:
-          Postgres
+          Database
             .query(sql"""select "offset" from __transactions order by ix""")
             .returns(Table(createdAtOffset.capture | unassignedAtOffset.capture | anything | anything).transpose)
         Expect:
-          Postgres
+          Database
             .query(sql"select new_latest, affected_transactions from reset_to_offset(${unassignedAtOffset.get})")
             .returns(Table(unassignedAtOffset | 2))
         And:
-          Postgres
+          Database
             .query(sql"""select "offset" from __transactions order by ix""")
             .returns(Table(createdAtOffset | unassignedAtOffset).transpose)
         And:
-          Postgres
+          Database
             .query(sql"""select e."type"::text, t."offset"
                          from __events e join __transactions t on e.tx_ix = t.ix
                          order by t."offset"""")
@@ -106,7 +105,7 @@ object ReassignmentResetSpec extends SharedMultiSyncLedgerSpec:
             )
         And:
           // the unassign half is at the cutoff, not after it, so it survives
-          Postgres.query(sql"select count(*) from __reassignments").returns(Table(1))
+          Database.query(sql"select count(*) from __reassignments").returns(Table(1))
         And:
           // the assign-born row is gone and the source-synchronizer row stays unassigned
           Database
@@ -134,24 +133,24 @@ object ReassignmentResetSpec extends SharedMultiSyncLedgerSpec:
             )
 
         And:
-          Postgres
+          Database
             .query(sql"""select "offset" from __transactions order by ix""")
             .returns(Table(createdAtOffset.capture | anything | anything | anything).transpose)
         And:
-          Postgres.reverseWatermark(1) `returns` 1
+          Database.reverseWatermark(1) `returns` 1
         Expect:
-          Postgres call {
+          Database call {
             sql"call __cleanup_transactions_after_watermark()"
           } `returns` ()
         And:
-          Postgres.query(sql"""select "offset" from __transactions""").returns(Table(createdAtOffset))
+          Database.query(sql"""select "offset" from __transactions""").returns(Table(createdAtOffset))
         And:
-          Postgres
+          Database
             .query(sql"""select e."type"::text, t."offset"
                          from __events e join __transactions t on e.tx_ix = t.ix""")
             .returns(Table("create" | createdAtOffset))
         And:
-          Postgres.query(sql"select count(*) from __reassignments").returns(Table(0))
+          Database.query(sql"select count(*) from __reassignments").returns(Table(0))
         And:
           Database
             .__contracts(extraColumns = Seq("synchronizer_id"))

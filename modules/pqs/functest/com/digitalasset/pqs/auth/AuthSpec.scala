@@ -6,7 +6,6 @@ package com.digitalasset.pqs.auth
 import com.digitalasset.pqs.Dars
 import com.digitalasset.pqs.SharedLedgerAndPostgresAndAuthTest
 import com.digitalasset.pqs.functest.matchers.*
-import com.digitalasset.pqs.services.postgres.Table
 import com.digitalasset.pqs.services.daml.*
 import com.digitalasset.pqs.services.oauth.OAuth
 import com.digitalasset.pqs.services.postgres.*
@@ -306,7 +305,7 @@ object AuthSpec extends SharedLedgerAndPostgresAndAuthTest:
           alice.id | bob.id | charlie.id
         }.transpose
       And:
-        Postgres `query` sql"""select count(*) from active('PingPong:Ping')""" `returns` Table { 3 }
+        Database `query` sql"""select count(*) from active('PingPong:Ping')""" `returns` Table { 3 }
     },
     funcTest("static access token can read all parties when user rights is set as any party (sdk 3+)") {
       val alice   = Party("Alice")
@@ -340,9 +339,9 @@ object AuthSpec extends SharedLedgerAndPostgresAndAuthTest:
           alice.id | bob.id | charlie.id
         }.transpose
       And:
-        Postgres `query` sql"""select count(*) from active('PingPong:Ping')""" `returns` Table { 3 }
+        Database `query` sql"""select count(*) from active('PingPong:Ping')""" `returns` Table { 3 }
     }
   )
 
   private val partiesQuery =
-    Postgres `query` sql"select distinct unnest(array_cat(signatories, observers)) from __contracts order by 1"
+    Database `query` sql"select distinct unnest(array_cat(signatories, observers)) from __contracts order by 1"

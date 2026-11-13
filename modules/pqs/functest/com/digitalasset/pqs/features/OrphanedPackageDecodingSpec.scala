@@ -8,7 +8,6 @@ import com.digitalasset.pqs.Dars
 import com.digitalasset.pqs.SharedLedgerAndPostgresTest
 import com.digitalasset.pqs.docker.Docker
 import com.digitalasset.pqs.functest.matchers.*
-import com.digitalasset.pqs.services.postgres.Table
 import com.digitalasset.pqs.services.postgres.*
 import com.digitalasset.pqs.services.pqs.{CliRun, Pqs}
 import com.digitalasset.pqs.functest.FuncTest

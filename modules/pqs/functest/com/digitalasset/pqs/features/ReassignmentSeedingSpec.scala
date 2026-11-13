@@ -5,7 +5,6 @@ package com.digitalasset.pqs.features
 
 import com.digitalasset.pqs.SharedMultiSyncLedgerSpec
 import com.digitalasset.pqs.functest.matchers.*
-import com.digitalasset.pqs.services.postgres.Table
 import com.digitalasset.pqs.services.daml.*
 import com.digitalasset.pqs.services.postgres.*
 import com.digitalasset.pqs.services.pqs.Pqs
@@ -54,7 +53,7 @@ object ReassignmentSeedingSpec extends SharedMultiSyncLedgerSpec:
       Expect:
         Database.creates().returns(Table.empty)
       Expect:
-        Postgres
+        Database
           .query(sql"""select "type"::text from __events""")
           .returns(Table("assign"))
     },

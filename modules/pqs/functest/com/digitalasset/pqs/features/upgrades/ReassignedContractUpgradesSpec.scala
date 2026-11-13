@@ -5,9 +5,8 @@ package com.digitalasset.pqs.features.upgrades
 
 import com.daml.ledger.api.v2.value.*
 import com.digitalasset.pqs.functest.matchers.*
-import com.digitalasset.pqs.services.postgres.Table
 import com.digitalasset.pqs.services.daml.*
-import com.digitalasset.pqs.services.postgres.{Database, Postgres}
+import com.digitalasset.pqs.services.postgres.*
 import com.digitalasset.pqs.services.pqs.Pqs
 import com.digitalasset.pqs.SharedMultiSyncLedgerSpec
 

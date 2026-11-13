@@ -6,9 +6,8 @@ package com.digitalasset.pqs.schema.postgres.document
 import com.digitalasset.pqs.Dars
 import com.digitalasset.pqs.SharedLedgerAndPostgresTest
 import com.digitalasset.pqs.functest.matchers.*
-import com.digitalasset.pqs.services.postgres.Table
 import com.digitalasset.pqs.services.daml.*
-import com.digitalasset.pqs.services.postgres.Postgres
+import com.digitalasset.pqs.services.postgres.*
 import com.digitalasset.pqs.services.pqs.Pqs
 import zio.jdbc.sqlInterpolator
 import zio.test.Assertion.*
@@ -35,16 +34,16 @@ object PipelineSpec extends SharedLedgerAndPostgresTest:
       When:
         Pqs.runPipeline("--pipeline-ledger-stop=Latest")
       And:
-        Postgres.hasTable("__transactions")
+        Database.hasTable("__transactions")
       And:
-        Postgres.query(sql"select ix from latest_checkpoint()").returns(Table(0L))
+        Database.query(sql"select ix from latest_checkpoint()").returns(Table(0L))
       And:
-        Postgres.query(sql"select ix from __watermark").returns(Table(0L))
+        Database.query(sql"select ix from __watermark").returns(Table(0L))
       And:
-        Postgres.query(sql"select instance_id from __watermark").returns(Table(not(isNull)))
+        Database.query(sql"select instance_id from __watermark").returns(Table(not(isNull)))
 
       Then:
-        Postgres
+        Database
           .query(sql"""select payload from active($templateRef)""".query[String].selectOne)
           .returns(Some(s"""{"text": "test", "sender": "${alice.id}", "receiver": "${bob.id}"}"""))
     ,
@@ -62,7 +61,7 @@ object PipelineSpec extends SharedLedgerAndPostgresTest:
       Expect:
         Pqs.exitCode `is` ExitCode.success
       And:
-        Postgres `query`
+        Database `query`
           sql"""select payload from active($templateRef)"""
             .query[String]
             .selectOne
@@ -88,11 +87,11 @@ object PipelineSpec extends SharedLedgerAndPostgresTest:
       And:
         for
           packageId <- ZIO.service[DarFile].map(_.packageId)
-          txId <- Postgres `query` sql"select transaction_id from __transactions"
+          txId <- Database `query` sql"select transaction_id from __transactions"
             .query[String]
             .selectAll
             .collect(Throwable("single transaction id not found")) { case Chunk(ex) => ex }
-          storedMetadata <- Postgres `query` sql"""select metadata from __contracts"""
+          storedMetadata <- Database `query` sql"""select metadata from __contracts"""
             .query[Array[Byte]]
             .selectOne
             .someOrFail(Throwable("no payload"))
@@ -109,7 +108,7 @@ object PipelineSpec extends SharedLedgerAndPostgresTest:
       When:
         Pqs.runPipeline("--pipeline-ledger-stop=Latest")
       Expect:
-        Postgres query {
+        Database query {
           sql"""select count(*) from __contracts where activated_at_ix is not null"""
         } `returns` Table {
           1
@@ -131,9 +130,9 @@ object PipelineSpec extends SharedLedgerAndPostgresTest:
       Expect:
         Pqs.exitCode `is` ExitCode.success
       And:
-        Postgres `query` sql"""select count(*) from active($templateRef)""" `returns` Table { 0 }
+        Database `query` sql"""select count(*) from active($templateRef)""" `returns` Table { 0 }
       And:
-        Postgres `query` sql"""select count(*) from exercises($archiveRef)""" `returns` Table { 1 }
+        Database `query` sql"""select count(*) from exercises($archiveRef)""" `returns` Table { 1 }
       And:
         for
           synchronizers <- Ledger.getAllSynchronizers
@@ -141,7 +140,7 @@ object PipelineSpec extends SharedLedgerAndPostgresTest:
             case Seq(single) => ZIO.succeed(single.synchronizerId)
             case other =>
               ZIO.fail(Throwable(s"expected exactly one connected synchronizer, found ${other.size}"))
-          synchronizerIds <- Postgres `query` sql"select synchronizer_id from __transactions"
+          synchronizerIds <- Database `query` sql"select synchronizer_id from __transactions"
             .query[String]
             .selectAll
         yield zio.test.assert(synchronizerIds)(hasSize(equalTo(2)) && forall(equalTo(synchronizerId)))
@@ -154,7 +153,7 @@ object PipelineSpec extends SharedLedgerAndPostgresTest:
       When:
         Pqs.runPipeline("--pipeline-ledger-start=Genesis", "--pipeline-ledger-stop=Latest")
       Expect:
-        Postgres query {
+        Database query {
           sql"""select paid_traffic_cost from __transactions where transaction_id is not null limit 1"""
             .query[Long]
             .selectOne
@@ -175,7 +174,7 @@ object PipelineSpec extends SharedLedgerAndPostgresTest:
       Expect:
         Pqs.exitCode `is` ExitCode.success
       And:
-        Postgres.hasTable("__transactions", "custom_schema")
+        Database.hasTable("__transactions", "custom_schema")
       And:
-        Postgres.lacksTable("__transactions", "public")
+        Database.lacksTable("__transactions", "public")
   )
