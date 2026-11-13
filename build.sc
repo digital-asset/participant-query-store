@@ -324,8 +324,14 @@ object `package` extends RootModule { root =>
       }
 
       override def forkEnv = T {
-        // no parallelism
-        super.forkEnv() ++ Map("PQS_FT_POOLS" -> "1", "PQS_FT_LANES" -> "1")
+        
+        super.forkEnv() ++ Map(
+          // no parallelism
+          "PQS_FT_POOLS" -> "1",
+          "PQS_FT_LANES" -> "1",
+          // show all logs
+          "PQS_FT_SHOW_LOGS" -> "true"
+        )
       }
     }
   }

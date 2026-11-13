@@ -93,6 +93,11 @@ Set the `FT_KEEP_TEMP=true` env var before running tests. This prevents the temp
 By default, functional tests do not output Canton container logs.
 Set `FT_CANTON_LOG=true` to enable Canton log output in the console.
 
+#### Q: How do I see the logs of tests that pass?
+
+By default, a test's logs are buffered and printed only if it fails.
+Set `PQS_FT_SHOW_LOGS=true` to print them as they happen.
+
 #### Q: How do I observe the full gRPC error messages within a ZIO layer?
 
 ```shell

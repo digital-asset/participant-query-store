@@ -17,6 +17,7 @@ object FTSpec extends ZIOSpecDefault:
 
   private val forceResourcePools: Option[Int] = positiveIntEnv("PQS_FT_POOLS")
   private val forcePoolLanes: Option[Int]     = positiveIntEnv("PQS_FT_LANES")
+  private val showLogs: Boolean               = sys.env.get("PQS_FT_SHOW_LOGS").contains("true")
 
   private val maxGroupSize = 50
 
@@ -241,7 +242,7 @@ object FTSpec extends ZIOSpecDefault:
               .map((_, env) => env)
           )
         )
-      ) @@ oomGuard @@ FTLogging.silentTest
+      ) @@ oomGuard @@ (if showLogs || tasks.size == 1 then TestAspect.identity else FTLogging.silentTest)
   end flattenSpec
 
   @SuppressWarnings(Array("org.wartremover.warts.AsInstanceOf"))
