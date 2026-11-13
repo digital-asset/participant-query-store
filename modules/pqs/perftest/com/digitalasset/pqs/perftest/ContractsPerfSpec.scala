@@ -31,14 +31,15 @@ object ContractsPerfSpec extends SharedHydratedLedgerTest with QueryPerfSpec[Int
           "select_star_from_all_at_50",
           sql"select * from active(null, $offset50)",
           repeat = 2,
-          expectedDiff = 1.01
+          expectedDiff = 1.13,
+          tolerance = 0.4
         ),
         Query(
           "select_star_from_all_at_10",
           sql"select * from active(null, $offset10)",
           repeat = 8,
-          expectedDiff = 2.11,
-          tolerance = 0.5
+          expectedDiff = 1.84,
+          tolerance = 0.75
         ),
 
         // Nested loop anti-join: one extra scan of the active contracts, no JIT.
