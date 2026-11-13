@@ -6,7 +6,7 @@ package com.digitalasset.pqs.schema.postgres.document
 import com.digitalasset.pqs.Dars
 import com.digitalasset.pqs.SharedLedgerAndPostgresTest
 import com.digitalasset.pqs.functest.matchers.*
-import com.digitalasset.pqs.functest.table.*
+import com.digitalasset.pqs.services.postgres.Table
 import com.digitalasset.pqs.services.daml.{DamlSdk, DamlSource, Party}
 import com.digitalasset.pqs.services.postgres.Postgres
 import com.digitalasset.pqs.services.pqs.Pqs
@@ -67,7 +67,7 @@ object SchemaSpec extends SharedLedgerAndPostgresTest:
                                join pg_am am on i.relam = am.oid
                       where c.relname like '__contracts_%' and i.relname like ${"%" + indexName + "_idx"}
                       ;"""
-            } `returns` table {
+            } `returns` Table {
               s"__contracts_$tpe_pk" | s"__contracts_${tpe_pk}_${indexName}_idx" | indexType
             }
           yield result
@@ -115,7 +115,7 @@ object SchemaSpec extends SharedLedgerAndPostgresTest:
             sql"""select version, description, script
                       from flyway_schema_history
                       order by installed_rank
-                      limit 2""" `returns` table {
+                      limit 2""" `returns` Table {
               "001" | "Create initial schema" | "V001__Create_initial_schema.sql"
               "002" | "Make initializecontractimplements function idempotent" | "V002__Make_initializecontractimplements_function_idempotent.sql"
             }

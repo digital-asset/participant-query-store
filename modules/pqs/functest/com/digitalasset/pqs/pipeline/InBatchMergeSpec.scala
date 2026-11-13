@@ -8,7 +8,7 @@ import com.digitalasset.canonical.{Event, Transaction}
 import com.digitalasset.pqs.backend.Datastore
 import com.digitalasset.pqs.docker.Docker
 import com.digitalasset.pqs.functest.matchers.*
-import com.digitalasset.pqs.functest.table.*
+import com.digitalasset.pqs.services.postgres.Table
 import com.digitalasset.pqs.postgres.document.SqlSchema
 import com.digitalasset.pqs.services.daml.*
 import com.digitalasset.pqs.services.postgres.*
@@ -55,9 +55,9 @@ object InBatchMergeSpec extends SharedLedgerAndPostgresTest:
             sql"""select deactivation_type::text, activated_at_ix, deactivated_at_ix
                   from __contracts where contract_id = ${contractId.get}"""
           )
-          .returns(table("archive" | 1 | 1))
+          .returns(Table("archive" | 1 | 1))
       And:
-        Postgres.query(sql"select count(*) from __tmp_deactivated_contracts").returns(table(0))
+        Postgres.query(sql"select count(*) from __tmp_deactivated_contracts").returns(Table(0))
     },
     funcTest("refuses to redact a contract archived above the watermark until the watermark passes it") {
       val alice        = Party("Alice")
@@ -100,7 +100,7 @@ object InBatchMergeSpec extends SharedLedgerAndPostgresTest:
         ZIO.serviceWithZIO[Datastore](_.registerActiveWriterAndCleanupTransactions)
           *> InProcessPipeline.processTransactions(Chunk(createAndArchive(transactions.get)))
       Expect:
-        Postgres.query(sql"select redact_contract(${contractId.get}, 'reason')").returns(table(1))
+        Postgres.query(sql"select redact_contract(${contractId.get}, 'reason')").returns(Table(1))
     }
   )
 

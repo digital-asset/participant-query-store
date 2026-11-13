@@ -6,7 +6,7 @@ package com.digitalasset.pqs.features.upgrades
 import com.digitalasset.pqs.Dars
 import com.digitalasset.pqs.SharedLedgerAndPostgresTest
 import com.digitalasset.pqs.functest.matchers.*
-import com.digitalasset.pqs.functest.table.*
+import com.digitalasset.pqs.services.postgres.Table
 import com.digitalasset.pqs.services.daml.*
 import com.digitalasset.pqs.services.postgres.Database.*
 import com.digitalasset.pqs.services.postgres.Postgres
@@ -91,29 +91,29 @@ object InterfaceRowsUseTemplatePackageIdSpec extends SharedLedgerAndPostgresTest
       // Interface rows carry the *template's* package ID, NOT the interface's own package ID.
       // The interface is identified solely by its FQN.
       Expect:
-        creates(Some(interfaceQname)) `returns` table {
+        creates(Some(interfaceQname)) `returns` Table {
           pkgId | interfaceQname | "interface" | cId1.capture
           pkgId | interfaceQname | "interface" | cId2.capture
         }
       And:
-        creates(Some(templateQname)) `returns` table {
+        creates(Some(templateQname)) `returns` Table {
           pkgId | templateQname | "template" | cId1
           pkgId | templateQname | "template" | cId2
         }
       And:
-        archives(Some(interfaceQname)) `returns` table {
+        archives(Some(interfaceQname)) `returns` Table {
           pkgId | interfaceQname | "interface" | cId1
         }
       And:
-        archives(Some(templateQname)) `returns` table {
+        archives(Some(templateQname)) `returns` Table {
           pkgId | templateQname | "template" | cId1
         }
       And:
-        active(Some(interfaceQname)) `returns` table {
+        active(Some(interfaceQname)) `returns` Table {
           pkgId | interfaceQname | "interface" | cId2
         }
       And:
-        active(Some(templateQname)) `returns` table {
+        active(Some(templateQname)) `returns` Table {
           pkgId | templateQname | "template" | cId2
         }
     }

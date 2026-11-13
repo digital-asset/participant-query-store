@@ -6,7 +6,7 @@ package com.digitalasset.pqs.features
 import com.digitalasset.pqs.Dars
 import com.digitalasset.pqs.SharedLedgerAndPostgresTest
 import com.digitalasset.pqs.functest.matchers.*
-import com.digitalasset.pqs.functest.table.*
+import com.digitalasset.pqs.services.postgres.Table
 import com.digitalasset.pqs.services.daml.*
 import com.digitalasset.pqs.services.daml.DamlSdk.onlyDamlLfVersion
 import com.digitalasset.pqs.services.postgres.Postgres
@@ -69,7 +69,7 @@ object NuckSpec extends SharedLedgerAndPostgresTest:
       // Looking up contracts by key "(alice, 42)" returns A and B, but not C.
       Expect:
         lookupByKey(alice.id, 42).returns(
-          table {
+          Table {
             anything | contractKeyHash.capture | "A"
             anything | contractKeyHash.capture | "B"
           }
@@ -78,7 +78,7 @@ object NuckSpec extends SharedLedgerAndPostgresTest:
       // returns one row per contract.
       Expect:
         lookupByKeyHash(contractKeyHash.get).returns(
-          table {
+          Table {
             anything | "A"
             anything | "B"
           }
@@ -115,23 +115,19 @@ object NuckSpec extends SharedLedgerAndPostgresTest:
 
       Expect:
         keyColumnsOf(templateFqn).returns(
-          table {
-            "key owner" | "key k" | "key hash"  | "label"
-            ---         | ---     | ---         | ---
-            alice.id    | "42"    | not(isNull) | "A"
-            alice.id    | "43"    | not(isNull) | "C"
-            alice.id    | "42"    | not(isNull) | "B"
+          Table {
+            alice.id | "42" | not(isNull) | "A"
+            alice.id | "43" | not(isNull) | "C"
+            alice.id | "42" | not(isNull) | "B"
           }
         )
 
       Expect:
         keyColumnsOf(interfaceFqn).returns(
-          table {
-            "key owner" | "key k" | "key hash" | "label"
-            ---         | ---     | ---        | ---
-            isNull      | isNull  | isNull     | "A"
-            isNull      | isNull  | isNull     | "C"
-            isNull      | isNull  | isNull     | "B"
+          Table {
+            isNull | isNull | isNull | "A"
+            isNull | isNull | isNull | "C"
+            isNull | isNull | isNull | "B"
           }
         )
     }

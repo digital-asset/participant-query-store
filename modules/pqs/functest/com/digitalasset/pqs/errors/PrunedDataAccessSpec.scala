@@ -6,9 +6,9 @@ package com.digitalasset.pqs.errors
 import com.digitalasset.canonical.Offset
 import com.digitalasset.pqs.functest.FuncTestStandalone
 import com.digitalasset.pqs.functest.matchers.*
-import com.digitalasset.pqs.functest.table.*
 import com.digitalasset.pqs.services.daml.*
 import com.digitalasset.pqs.services.postgres.*
+import com.digitalasset.pqs.services.postgres.Table
 import com.digitalasset.pqs.services.pqs.Pqs
 import com.digitalasset.pqs.OffsetType
 import zio.jdbc.sqlInterpolator
@@ -63,7 +63,7 @@ object PrunedDataAccessSpec extends FuncTestStandalone:
       Expect:
         Pqs.exitCode `is` ExitCode.success
       And:
-        checkpointsQuery `is` table {
+        checkpointsQuery `is` Table {
           pruneUpTo.capture | 1L | anything | 5L
         }
       When:

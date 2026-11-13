@@ -6,7 +6,6 @@ package com.digitalasset.pqs.services.postgres
 import com.digitalasset.pqs.configuration.Secret
 import com.digitalasset.pqs.docker.*
 import com.digitalasset.pqs.functest.FTEnv
-import com.digitalasset.pqs.functest.table.{Cell, Row, Table}
 import com.digitalasset.pqs.postgres.backend
 import com.digitalasset.pqs.postgres.backend.{PostgresConfig, TlsConfig}
 import com.digitalasset.pqs.offsetSqlFragment
@@ -181,7 +180,7 @@ object Postgres:
     Database.transaction(sql.query[A].selectAll)
 
   def query(sql: SqlFragment): ZIO[Database, Throwable, Table] =
-    Database.transaction(sql.query[Row].selectAll).map(Table.apply)
+    Database.transaction(sql.query[Row].selectAll).map(Table.build)
 
   def query[A](sql: ZIO[ZConnection, Throwable, A]): ZIO[Database, Throwable, A] =
     Database.transaction(sql)
@@ -203,8 +202,8 @@ object Postgres:
   ): ZIO[Database, Throwable, TestResult] =
     tables.map(x => assertTrue(!x.contains((schema, tableName))))
 
-  /** Simulates a gap in the `__transactions` table by deleting the ones with the supplied indexes and adjusting the
-    * `__watermark` table appropriately. This is useful for simulation of concurrently writing transactions out of
+  /** Simulates a gap in the `__transactions` Table by deleting the ones with the supplied indexes and adjusting the
+    * `__watermark` Table appropriately. This is useful for simulation of concurrently writing transactions out of
     * order.
     * @param txIndices
     *   the indexes of the transactions to delete
@@ -376,7 +375,7 @@ object Postgres:
       * @param sql
       *   the SQL to execute
       * @return
-      *   the results table
+      *   the results Table
       */
     def query(sql: SqlFragment): ZIO[Database & Session, Throwable, Table] =
       queryVerbose(sql).map(_.lastOption.getOrElse(Table.empty))
@@ -386,7 +385,7 @@ object Postgres:
       * @param sql
       *   the SQL to execute
       * @return
-      *   the results table
+      *   the results Table
       */
     def queryVerbose(
         sql: SqlFragment
@@ -395,7 +394,7 @@ object Postgres:
         .transaction {
           ZIO.serviceWithZIO[Session](x => ZIO.foreach(x.statements.appended(sql))(_.query[Row].selectAll))
         }
-        .map(_.map(Table.apply))
+        .map(_.map(Table.build))
 
   ///////////////
   // Internals //

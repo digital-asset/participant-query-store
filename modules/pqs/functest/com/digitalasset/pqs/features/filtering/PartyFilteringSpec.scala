@@ -6,7 +6,7 @@ package com.digitalasset.pqs.features.filtering
 import com.digitalasset.pqs.Dars
 import com.digitalasset.pqs.functest.FuncTestStandalone
 import com.digitalasset.pqs.functest.matchers.*
-import com.digitalasset.pqs.functest.table.*
+import com.digitalasset.pqs.services.postgres.Table
 import com.digitalasset.pqs.services.daml.*
 import com.digitalasset.pqs.services.postgres.Postgres
 import com.digitalasset.pqs.services.pqs.Pqs
@@ -46,7 +46,7 @@ object PartyFilteringSpec extends FuncTestStandalone:
         Pqs.stdout `is` stringContaining(s"Starting pipeline on behalf of '${alice.id},${charlie.id}'")
 
       And:
-        partiesQuery `returns` table {
+        partiesQuery `returns` Table {
           alice.id | charlie.id
         }.transpose
 
@@ -74,11 +74,11 @@ object PartyFilteringSpec extends FuncTestStandalone:
       Expect:
         Pqs.exitCode `is` ExitCode.success
       And:
-        partiesQuery `returns` table {
+        partiesQuery `returns` Table {
           alice.id | bob.id | charlie.id
         }.transpose
       And:
-        Postgres `query` sql"""select count(*) from active('PingPong:Ping')""" `returns` table { 3 }
+        Postgres `query` sql"""select count(*) from active('PingPong:Ping')""" `returns` Table { 3 }
     }
   )
 

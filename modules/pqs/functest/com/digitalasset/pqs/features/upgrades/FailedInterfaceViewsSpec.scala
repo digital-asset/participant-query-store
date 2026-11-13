@@ -5,7 +5,7 @@ package com.digitalasset.pqs.features.upgrades
 
 import com.digitalasset.pqs.SharedLedgerAndPostgresTest
 import com.digitalasset.pqs.functest.matchers.*
-import com.digitalasset.pqs.functest.table.*
+import com.digitalasset.pqs.services.postgres.Table
 import com.digitalasset.pqs.services.daml.*
 import com.digitalasset.pqs.services.postgres.Database.*
 import com.digitalasset.pqs.services.postgres.Postgres
@@ -159,7 +159,7 @@ object FailedInterfaceViewsSpec extends SharedLedgerAndPostgresTest:
       val cid2_assetV2_payload = Capture[String]
       val cid2_token_payload   = Capture[String]
 
-      lazy val expectedPayloadsTbl = table {
+      lazy val expectedPayloadsTbl = Table {
         tokenPkgIdV1 | s"${assetV2.name}:InterfacesV2:AssetV2" | "interface" | contract1Cid.capture | cid1_assetV2_payload.capture
         tokenPkgIdV1 | s"${token.name}:Token:Token" | "template" | contract1Cid.capture | cid1_token_payload.capture
         tokenPkgIdV2 | s"${assetV2.name}:InterfacesV2:AssetV2" | "interface" | contract2Cid.capture | cid2_assetV2_payload.capture
@@ -172,7 +172,7 @@ object FailedInterfaceViewsSpec extends SharedLedgerAndPostgresTest:
         //       More generally this is due to the fact the created_at_ix, the creation offset and record time depend on how the events were ingested
         Expect:
           active(extraColumns = Seq("payload")).map { tbl =>
-            zio.test.assert(tbl.rows.toList)(matchesTableUnordered(expectedPayloadsTbl))
+            zio.test.assert(tbl.rows.toList)(Table.matchesUnordered(expectedPayloadsTbl))
           }
       else
         Expect:

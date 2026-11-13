@@ -8,7 +8,7 @@ import com.digitalasset.pqs.SharedLedgerAndPostgresTest
 import com.digitalasset.pqs.{OffsetType, biggestOffset, smallestOffset}
 import com.digitalasset.pqs.functest.FuncTest
 import com.digitalasset.pqs.functest.matchers.*
-import com.digitalasset.pqs.functest.table.*
+import com.digitalasset.pqs.services.postgres.Table
 import com.digitalasset.pqs.services.daml.*
 import com.digitalasset.pqs.services.postgres.Postgres
 import com.digitalasset.pqs.services.pqs.Pqs
@@ -56,7 +56,7 @@ object DatastorePruningSpec extends SharedLedgerAndPostgresTest:
         And:
           Postgres query {
             sql"""select "offset" from __transactions order by ix"""
-          } `returns` table {
+          } `returns` Table {
             oneCreated.capture |
               oneUpdated.capture |
               twoCreated.capture |
@@ -68,29 +68,29 @@ object DatastorePruningSpec extends SharedLedgerAndPostgresTest:
           // dry run
           Postgres
             .query(sql"select * from prune_archived_to_offset_dry_run(${twoArchived.get})")
-            .returns(table(threeCreated | 2 | 2 | 4 | 3 | 0))
+            .returns(Table(threeCreated | 2 | 2 | 4 | 3 | 0))
         And:
           // dry run should NOT persist pruned_offset
-          Postgres.query(sql"select pruned_offset() is null").returns(table(true))
+          Postgres.query(sql"select pruned_offset() is null").returns(Table(true))
         And:
           // actual pruning
           Postgres
             .query(sql"select * from prune_archived_to_offset(${twoArchived.get})")
-            .returns(table(threeCreated | 2 | 2 | 4 | 3 | 0))
+            .returns(Table(threeCreated | 2 | 2 | 4 | 3 | 0))
         And:
           // force run should persist pruned_offset
-          Postgres.query(sql"select pruned_offset()").returns(table(twoArchived))
+          Postgres.query(sql"select pruned_offset()").returns(Table(twoArchived))
         And:
           // another dry run with the same offset is a no-op (returns zeroed stats)
           Postgres
             .query(
               sql"select deleted_contracts from prune_archived_to_offset_dry_run(${twoArchived.get})"
             )
-            .returns(table(0))
+            .returns(Table(0))
         And:
           Postgres query {
             sql"""select payload->>'label', created_at_offset from active($templateRef) order by created_at_offset"""
-          } `returns` table {
+          } `returns` Table {
             "one updated"   | oneUpdated
             "three updated" | threeUpdated
           }
@@ -98,11 +98,11 @@ object DatastorePruningSpec extends SharedLedgerAndPostgresTest:
           // archived contracts created before the pruning offset should be deleted
           Postgres query {
             sql"""select payload->>'label', created_at_offset, archived_at_offset from archives($templateRef)"""
-          } `returns` table { "three" | threeCreated | threeUpdated }
+          } `returns` Table { "three" | threeCreated | threeUpdated }
         And:
           Postgres query {
             sql"""select argument->>'newLabel' from exercises($choiceRef)"""
-          } `returns` table { "three updated" }
+          } `returns` Table { "three updated" }
       },
       funcTest("prevent pruning at illegal offsets") {
         val firstOffset  = Capture[OffsetType]
@@ -113,16 +113,16 @@ object DatastorePruningSpec extends SharedLedgerAndPostgresTest:
         And:
           Postgres query {
             sql"""select "offset" from oldest_checkpoint()"""
-          } `returns` table { firstOffset.capture }
+          } `returns` Table { firstOffset.capture }
         And:
           Postgres query {
             // the second offset is the exercise transaction, which archives contract "one" and creates contract "one updated"
             sql"""select "offset" from __transactions where ix=2"""
-          } `returns` table { secondOffset.capture }
+          } `returns` Table { secondOffset.capture }
         And:
           Postgres query {
             sql"""select "offset" from latest_checkpoint()"""
-          } `returns` table { latestOffset.capture }
+          } `returns` Table { latestOffset.capture }
         Expect:
           // latest offset is illegal
           Postgres
@@ -150,15 +150,15 @@ object DatastorePruningSpec extends SharedLedgerAndPostgresTest:
           // - keeps the second transaction, because contract "one updated" is still active
           Postgres.query(sql"select deleted_transactions from prune_archived_to_offset(${secondOffset.get})")
         Expect:
-          Postgres.query(sql"select pruned_offset()").returns(table(secondOffset))
+          Postgres.query(sql"select pruned_offset()").returns(Table(secondOffset))
         And:
           // pruning below already-pruned offset is a no-op (zeroed stats)
           Postgres
             .query(sql"select deleted_transactions from prune_archived_to_offset(${firstOffset.get})")
-            .returns(table(0))
+            .returns(Table(0))
         And:
           // pruned_offset unchanged after no-op
-          Postgres.query(sql"select pruned_offset()").returns(table(secondOffset))
+          Postgres.query(sql"select pruned_offset()").returns(Table(secondOffset))
       },
       funcTest("deny pruning at non-contiguous offsets") {
         val thirdOffset = Capture[OffsetType]
@@ -167,7 +167,7 @@ object DatastorePruningSpec extends SharedLedgerAndPostgresTest:
         And:
           Postgres query {
             sql"""select "offset" from __transactions order by ix limit 1 offset 2"""
-          } `returns` table {
+          } `returns` Table {
             thirdOffset.capture
           }
         And:
@@ -190,24 +190,24 @@ object DatastorePruningSpec extends SharedLedgerAndPostgresTest:
         And:
           Postgres query {
             sql"""select "offset" from __transactions order by ix"""
-          } `returns` table {
+          } `returns` Table {
             anything | secondOffset.capture | anything | fourthOffset.capture | fifthOffset.capture | anything
           }.transpose
         When:
           // prune at fourth offset
           Postgres.query(sql"select * from prune_archived_to_offset(${fourthOffset.get})").returns(anything)
         Then:
-          Postgres.query(sql"select pruned_offset()").returns(table(fourthOffset))
+          Postgres.query(sql"select pruned_offset()").returns(Table(fourthOffset))
         And:
           // reset to fifth offset (above pruned) - pruned_offset should remain
           Postgres.query(sql"select * from reset_to_offset(${fifthOffset.get})").returns(anything)
         And:
-          Postgres.query(sql"select pruned_offset()").returns(table(fourthOffset))
+          Postgres.query(sql"select pruned_offset()").returns(Table(fourthOffset))
         And:
           // reset to second offset (below pruned) - pruned_offset should retreat to reset offset
           Postgres.query(sql"select * from reset_to_offset(${secondOffset.get})").returns(anything)
         And:
-          Postgres.query(sql"select pruned_offset()").returns(table(secondOffset))
+          Postgres.query(sql"select pruned_offset()").returns(Table(secondOffset))
       },
       funcTest("reset exactly to pruned offset preserves pruned_offset") {
         val secondOffset = Capture[OffsetType]
@@ -216,17 +216,17 @@ object DatastorePruningSpec extends SharedLedgerAndPostgresTest:
         And:
           Postgres query {
             sql"""select "offset" from __transactions where ix=2"""
-          } `returns` table { secondOffset.capture }
+          } `returns` Table { secondOffset.capture }
         When:
           // prune at second offset - its transaction survives (has active "one updated")
           Postgres.query(sql"select * from prune_archived_to_offset(${secondOffset.get})").returns(anything)
         Then:
-          Postgres.query(sql"select pruned_offset()").returns(table(secondOffset))
+          Postgres.query(sql"select pruned_offset()").returns(Table(secondOffset))
         And:
           // reset exactly to the pruned offset - pruned_offset should remain unchanged
           Postgres.query(sql"select * from reset_to_offset(${secondOffset.get})").returns(anything)
         And:
-          Postgres.query(sql"select pruned_offset()").returns(table(secondOffset))
+          Postgres.query(sql"select pruned_offset()").returns(Table(secondOffset))
       },
       funcTest("reset to pruned-away offset resolves to nearest surviving transaction") {
         val secondOffset = Capture[OffsetType]
@@ -236,23 +236,23 @@ object DatastorePruningSpec extends SharedLedgerAndPostgresTest:
         And:
           Postgres query {
             sql"""select "offset" from __transactions order by ix"""
-          } `returns` table {
+          } `returns` Table {
             anything | secondOffset.capture | anything | fourthOffset.capture | anything | anything
           }.transpose
         When:
           // prune at fourth offset - deletes orphaned transactions at ix 1, 3, 4
           Postgres.query(sql"select * from prune_archived_to_offset(${fourthOffset.get})").returns(anything)
         Then:
-          Postgres.query(sql"select pruned_offset()").returns(table(fourthOffset))
+          Postgres.query(sql"select pruned_offset()").returns(Table(fourthOffset))
         And:
           // reset to fourth offset whose transaction was pruned away;
           // should resolve to nearest surviving tx (secondOffset) and retreat pruned_offset
           Postgres.query(sql"select * from reset_to_offset(${fourthOffset.get})").returns(anything)
         And:
-          Postgres.query(sql"select pruned_offset()").returns(table(secondOffset))
+          Postgres.query(sql"select pruned_offset()").returns(Table(secondOffset))
         And:
           // watermark should point to the nearest surviving transaction
-          Postgres.query(sql"""select "offset" from latest_checkpoint()""").returns(table(secondOffset))
+          Postgres.query(sql"""select "offset" from latest_checkpoint()""").returns(Table(secondOffset))
       },
       funcTest("pruning with NULL argument offset does nothing") {
         val firstOffset = Capture[OffsetType]
@@ -261,14 +261,14 @@ object DatastorePruningSpec extends SharedLedgerAndPostgresTest:
         And:
           Postgres query {
             sql"""select "offset" from oldest_checkpoint()"""
-          } `returns` table { firstOffset.capture }
+          } `returns` Table { firstOffset.capture }
         And:
           Postgres.query(sql"select deleted_transactions from prune_archived_to_offset(null)").returns(anything)
         Expect:
           // nothing should be pruned
           Postgres query {
             sql"""select "offset" from oldest_checkpoint()"""
-          } `returns` table { firstOffset }
+          } `returns` Table { firstOffset }
       },
       funcTest("reset to pruned-away offset resolves to nearest surviving transaction") {
         val secondOffset = Capture[OffsetType]
@@ -278,7 +278,7 @@ object DatastorePruningSpec extends SharedLedgerAndPostgresTest:
         And:
           Postgres query {
             sql"""select "offset" from __transactions order by ix"""
-          } `returns` table {
+          } `returns` Table {
             anything | secondOffset.capture | anything | fourthOffset.capture | anything | anything
           }.transpose
         When:
@@ -290,7 +290,7 @@ object DatastorePruningSpec extends SharedLedgerAndPostgresTest:
           Postgres.query(sql"select * from reset_to_offset(${fourthOffset.get})").returns(anything)
         And:
           // watermark should point to the nearest surviving transaction
-          Postgres.query(sql"""select "offset" from latest_checkpoint()""").returns(table(secondOffset))
+          Postgres.query(sql"""select "offset" from latest_checkpoint()""").returns(Table(secondOffset))
       }
     ) + suite("time based pruning")(
       (for (testLabel, offsetFunction) <- List(
@@ -311,7 +311,7 @@ object DatastorePruningSpec extends SharedLedgerAndPostgresTest:
         And:
           Postgres query {
             sql"""select "offset" from __transactions order by ix"""
-          } `returns` table {
+          } `returns` Table {
             oneCreated.capture |
               oneUpdated.capture |
               twoCreated.capture |
@@ -330,18 +330,18 @@ object DatastorePruningSpec extends SharedLedgerAndPostgresTest:
           // expected deletion of two transactions
           Postgres
             .query(sql"select deleted_transactions from prune_archived_to_offset($offsetFunction)")
-            .returns(table(3))
+            .returns(Table(3))
         And:
           Postgres query {
             sql"""select payload->>'label', created_at_offset from active($templateRef) order by created_at_offset"""
-          } `returns` table {
+          } `returns` Table {
             "one updated"   | oneUpdated
             "three updated" | threeUpdated
           }
         And:
           Postgres query {
             sql"""select payload->>'label', created_at_offset, archived_at_offset from archives($templateRef)"""
-          } `returns` table { "three" | threeCreated | threeUpdated }
+          } `returns` Table { "three" | threeCreated | threeUpdated }
       })*
     ) + suite("pruning lock contention")(
       funcTest("concurrent prunes block each other via SHARE UPDATE EXCLUSIVE") {
@@ -354,7 +354,7 @@ object DatastorePruningSpec extends SharedLedgerAndPostgresTest:
         And:
           Postgres query {
             sql"""select "offset" from __transactions order by ix"""
-          } `returns` table {
+          } `returns` Table {
             anything | anything | anything | pruneTarget.capture | anything | anything
           }.transpose
         When:

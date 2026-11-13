@@ -6,7 +6,7 @@ package com.digitalasset.pqs.features.filtering
 import com.digitalasset.pqs.SharedLedgerAndPostgresTest
 import com.digitalasset.pqs.functest.FuncTest
 import com.digitalasset.pqs.functest.matchers.*
-import com.digitalasset.pqs.functest.table.*
+import com.digitalasset.pqs.services.postgres.Table
 import com.digitalasset.pqs.services.daml.*
 import com.digitalasset.pqs.services.postgres.Postgres
 import com.digitalasset.pqs.services.pqs.Pqs
@@ -100,7 +100,7 @@ object MetadataFilteringSpec extends SharedLedgerAndPostgresTest:
           "--pipeline-filter-metadata=Sample.TTemplate2"
         )
       Then:
-        metadataQuery `returns` table {
+        metadataQuery `returns` Table {
           s"${sample.name}:Sample:TTemplate2" | 1
         }
     ,
@@ -114,7 +114,7 @@ object MetadataFilteringSpec extends SharedLedgerAndPostgresTest:
           "--pipeline-filter-metadata=Interfaces.IInterface2"
         )
       Then:
-        metadataQuery `returns` table {
+        metadataQuery `returns` Table {
           s"${interfaces.name}:Interfaces:IInterface1" | 1
           s"${interfaces.name}:Interfaces:IInterface2" | 1
           s"${sample.name}:Sample:TTemplate1"          | 1
@@ -130,7 +130,7 @@ object MetadataFilteringSpec extends SharedLedgerAndPostgresTest:
           "--pipeline-filter-metadata=Interfaces.IInterface1 & !Interfaces.IInterface2"
         )
       Then:
-        metadataQuery `returns` table {
+        metadataQuery `returns` Table {
           s"${interfaces.name}:Interfaces:IInterface1" | 1
           s"${interfaces.name}:Interfaces:IInterface2" | 1
           s"${sample.name}:Sample:TTemplate1"          | 1
@@ -146,7 +146,7 @@ object MetadataFilteringSpec extends SharedLedgerAndPostgresTest:
           "--pipeline-filter-metadata=*"
         )
       Then:
-        metadataQuery `returns` table {
+        metadataQuery `returns` Table {
           s"${interfaces.name}:Interfaces:IInterface1" | 1
           s"${interfaces.name}:Interfaces:IInterface2" | 1
           s"${sample.name}:Sample:TTemplate1"          | 1
@@ -163,7 +163,7 @@ object MetadataFilteringSpec extends SharedLedgerAndPostgresTest:
           "--pipeline-filter-metadata=Sample.TTemplate2"
         )
       Then:
-        metadataQuery `returns` table {
+        metadataQuery `returns` Table {
           s"${sample.name}:Sample:TTemplate2" | 1
         }
   )

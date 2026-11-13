@@ -5,7 +5,7 @@ package com.digitalasset.pqs.pipeline
 
 import com.digitalasset.pqs.SharedLedgerAndPostgresTest
 import com.digitalasset.pqs.functest.matchers.*
-import com.digitalasset.pqs.functest.table.*
+import com.digitalasset.pqs.services.postgres.Table
 import com.digitalasset.pqs.services.daml.*
 import com.digitalasset.pqs.services.postgres.{Database, Postgres}
 import com.digitalasset.pqs.services.pqs.Pqs
@@ -64,7 +64,7 @@ object DamlDecodingSpec extends SharedLedgerAndPostgresTest:
         Database
           .active(Some(s"$packageName:Void:T1"))
           .returns(
-            table {
+            Table {
               anything | s"$packageName:Void:T1" | "template" | cid.capture
             }
           )
@@ -72,7 +72,7 @@ object DamlDecodingSpec extends SharedLedgerAndPostgresTest:
         Database
           .active(Some(s"$packageName:Void:T2"), extraColumns = Seq("payload->>'cid'"))
           .returns(
-            table {
+            Table {
               anything | s"$packageName:Void:T2" | "template" | anything | cid.get
             }
           )

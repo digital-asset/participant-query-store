@@ -8,7 +8,7 @@ import com.digitalasset.pqs.Dars
 import com.digitalasset.pqs.SharedLedgerAndPostgresTest
 import com.digitalasset.pqs.docker.{Docker, Service}
 import com.digitalasset.pqs.functest.matchers.*
-import com.digitalasset.pqs.functest.table.*
+import com.digitalasset.pqs.services.postgres.Table
 import com.digitalasset.pqs.pipeline.pipeline.ledger.CliStartOffset
 import com.digitalasset.pqs.services.daml.*
 import com.digitalasset.pqs.services.postgres.{Database, Postgres}
@@ -213,7 +213,7 @@ object SingleWriterSpec extends SharedLedgerAndPostgresTest:
   // Records each claim of the writer slot and each watermark advance with the app that made it
   private val startRecordingWriters: ZIO[Database, Throwable, Unit] =
     Postgres.call(
-      sql"""create table ft_watermark_audit (
+      sql"""create Table ft_watermark_audit (
               seq bigserial primary key,
               app text not null default current_setting('application_name'),
               kind text not null,

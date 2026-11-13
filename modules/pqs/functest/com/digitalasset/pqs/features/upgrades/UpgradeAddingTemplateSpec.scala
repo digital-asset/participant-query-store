@@ -5,7 +5,7 @@ package com.digitalasset.pqs.features.upgrades
 
 import com.digitalasset.pqs.SharedLedgerAndPostgresTest
 import com.digitalasset.pqs.functest.matchers.*
-import com.digitalasset.pqs.functest.table.*
+import com.digitalasset.pqs.services.postgres.Table
 import com.digitalasset.pqs.services.daml.*
 import com.digitalasset.pqs.services.postgres.Database.__contracts
 import com.digitalasset.pqs.services.postgres.Postgres
@@ -105,7 +105,7 @@ object UpgradeAddingTemplateSpec extends SharedLedgerAndPostgresTest:
       val pkgPk         = Capture[Int]
       val upgPkgPk      = Capture[Int]
       Expect:
-        __packages(ping.name) `returns` table {
+        __packages(ping.name) `returns` Table {
           pkgPk.capture    | ping.name | "0.0.0" | pkgId
           upgPkgPk.capture | ping.name | "0.0.1" | upgPkgId
         }
@@ -114,13 +114,13 @@ object UpgradeAddingTemplateSpec extends SharedLedgerAndPostgresTest:
       val pingCTpePk = Capture[Int]
       val pongCTpePk = Capture[Int]
       Expect:
-        __contract_tpe(ping.name) `returns` table {
+        __contract_tpe(ping.name) `returns` Table {
           pingCTpePk.capture | s"${ping.name}:Ping:Ping" | "template" | s"{${ping.name}:Ping:Ping,Ping:Ping,Ping}"
           pongCTpePk.capture | s"${ping.name}:Ping:Pong" | "template" | s"{${ping.name}:Ping:Pong,Ping:Pong,Pong}"
         }
 
       Expect:
-        __contracts() `returns` table {
+        __contracts() `returns` Table {
           pkgPk    | pingCTpePk | anything | anything
           upgPkgPk | pongCTpePk | anything | anything
         }

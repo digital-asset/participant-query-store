@@ -6,7 +6,7 @@ package com.digitalasset.pqs.pipeline
 import com.digitalasset.pqs.Dars
 import com.digitalasset.pqs.SharedLedgerAndPostgresTest
 import com.digitalasset.pqs.functest.matchers.*
-import com.digitalasset.pqs.functest.table.*
+import com.digitalasset.pqs.services.postgres.Table
 import com.digitalasset.pqs.services.daml.{DamlSdk, Party}
 import com.digitalasset.pqs.services.postgres.Postgres
 import com.digitalasset.pqs.services.pqs.Pqs
@@ -32,7 +32,7 @@ object PipelineUpdateSpec extends SharedLedgerAndPostgresTest:
       When:
         Pqs.runPipeline("--pipeline-ledger-stop=Latest")
       And:
-        Postgres.query(sql"""select count(*) from active($templateRef)""").returns(table(1))
+        Postgres.query(sql"""select count(*) from active($templateRef)""").returns(Table(1))
       And:
         Postgres.query {
           sql"""update __watermark set instance_id='another-instance' """.update.returns(1)
@@ -75,7 +75,7 @@ object PipelineUpdateSpec extends SharedLedgerAndPostgresTest:
       And:
         Pqs.stdout.is(!stringContaining("inserting watermark"))
       Expect:
-        Postgres.query(sql"""select count(*) from active($templateRef)""").returns(table(1))
+        Postgres.query(sql"""select count(*) from active($templateRef)""").returns(Table(1))
     },
     funcTest("pipeline cannot start while __watermark is updated") {
       val alice = Party("Alice")
@@ -90,7 +90,7 @@ object PipelineUpdateSpec extends SharedLedgerAndPostgresTest:
         // Run pipeline once to initialize the schema
         Pqs.runPipeline("--pipeline-ledger-stop=Latest").unit
       Expect:
-        Postgres.query(sql"select count(*) from __contracts").returns(table(0))
+        Postgres.query(sql"select count(*) from __contracts").returns(Table(0))
       When:
         DamlSdk.runScript("Message:createMessage", (alice.id, bob.id, "test"))
       When:
@@ -127,7 +127,7 @@ object PipelineUpdateSpec extends SharedLedgerAndPostgresTest:
       Expect:
         Pqs.exitCode.is(ExitCode.success).retryUntilTimeout
       Expect:
-        Postgres.query(sql"""select count(*) from active($templateRef)""").returns(table(1))
+        Postgres.query(sql"""select count(*) from active($templateRef)""").returns(Table(1))
     },
     funcTest("pipeline can start while __watermark is being read") {
       val alice = Party("Alice")
@@ -142,7 +142,7 @@ object PipelineUpdateSpec extends SharedLedgerAndPostgresTest:
         // Run pipeline once to initialize the schema
         Pqs.runPipeline("--pipeline-ledger-stop=Latest").unit
       Expect:
-        Postgres.query(sql"select count(*) from __contracts").returns(table(0))
+        Postgres.query(sql"select count(*) from __contracts").returns(Table(0))
       When:
         DamlSdk.runScript("Message:createMessage", (alice.id, bob.id, "test"))
       When:
@@ -171,6 +171,6 @@ object PipelineUpdateSpec extends SharedLedgerAndPostgresTest:
       Expect:
         Pqs.exitCode.is(ExitCode.success)
       Expect:
-        Postgres.query(sql"""select count(*) from active($templateRef)""").returns(table(1))
+        Postgres.query(sql"""select count(*) from active($templateRef)""").returns(Table(1))
     }
   )

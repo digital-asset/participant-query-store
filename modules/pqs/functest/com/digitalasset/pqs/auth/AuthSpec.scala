@@ -6,7 +6,7 @@ package com.digitalasset.pqs.auth
 import com.digitalasset.pqs.Dars
 import com.digitalasset.pqs.SharedLedgerAndPostgresAndAuthTest
 import com.digitalasset.pqs.functest.matchers.*
-import com.digitalasset.pqs.functest.table.*
+import com.digitalasset.pqs.services.postgres.Table
 import com.digitalasset.pqs.services.daml.*
 import com.digitalasset.pqs.services.oauth.OAuth
 import com.digitalasset.pqs.services.postgres.*
@@ -49,7 +49,7 @@ object AuthSpec extends SharedLedgerAndPostgresAndAuthTest:
         Pqs.stdout `is` stringContaining(s"Starting pipeline on behalf of '${alice.id},${bob.id}'")
 
       And:
-        partiesQuery `returns` table { alice.id | bob.id }.transpose
+        partiesQuery `returns` Table(alice.id | bob.id).transpose
 
       Expect:
         Pqs.exitCode `is` ExitCode.success
@@ -82,7 +82,7 @@ object AuthSpec extends SharedLedgerAndPostgresAndAuthTest:
         Pqs.stdout `is` stringContaining(s"Starting pipeline on behalf of '${alice.id},${charlie.id}'")
 
       And:
-        partiesQuery `returns` table {
+        partiesQuery `returns` Table {
           alice.id | charlie.id
         }.transpose
 
@@ -116,9 +116,7 @@ object AuthSpec extends SharedLedgerAndPostgresAndAuthTest:
         Pqs.stdout `is` stringContaining(s"Starting pipeline on behalf of '${alice.id}'")
 
       And:
-        partiesQuery `returns` table {
-          alice.id
-        }
+        partiesQuery `returns` Table(alice.id)
 
       Expect:
         Pqs.exitCode `is` ExitCode.success
@@ -150,7 +148,7 @@ object AuthSpec extends SharedLedgerAndPostgresAndAuthTest:
       And:
         Pqs.stdout `is` stringContaining(s"Starting pipeline on behalf of '${alice.id}'")
       And:
-        partiesQuery `returns` table { alice.id }
+        partiesQuery `returns` Table { alice.id }
     ,
     funcTest("scope based token - default scope"):
       val alice         = Party("Alice")
@@ -178,7 +176,7 @@ object AuthSpec extends SharedLedgerAndPostgresAndAuthTest:
       And:
         Pqs.stdout `is` stringContaining(s"Starting pipeline on behalf of '${alice.id}'")
       And:
-        partiesQuery `returns` table { alice.id }
+        partiesQuery `returns` Table { alice.id }
     ,
     funcTest("scope based token - custom scope"):
       val alice         = Party("Alice")
@@ -208,7 +206,7 @@ object AuthSpec extends SharedLedgerAndPostgresAndAuthTest:
       And:
         Pqs.stdout `is` stringContaining(s"Starting pipeline on behalf of '${alice.id}'")
       And:
-        partiesQuery `returns` table { alice.id }
+        partiesQuery `returns` Table { alice.id }
     ,
     funcTest("preempt expiry"):
       val alice = Party("Alice")
@@ -236,7 +234,7 @@ object AuthSpec extends SharedLedgerAndPostgresAndAuthTest:
         Pqs.stdout `is` stringContaining(s"Starting pipeline on behalf of '${alice.id},${bob.id}'")
 
       And:
-        partiesQuery `returns` table {
+        partiesQuery `returns` Table {
           alice.id | bob.id
         }.transpose
 
@@ -269,7 +267,7 @@ object AuthSpec extends SharedLedgerAndPostgresAndAuthTest:
         ZLayer.fromZIO(ZIO.sleep(OAuth.tokenExpiry.seconds + 60.seconds))
 
       And:
-        partiesQuery `returns` table {
+        partiesQuery `returns` Table {
           alice.id
         }
 
@@ -277,7 +275,7 @@ object AuthSpec extends SharedLedgerAndPostgresAndAuthTest:
         DamlSdk.runScript("PingPong:transact1", charlie.id)
 
       And:
-        partiesQuery `returns` table {
+        partiesQuery `returns` Table {
           alice.id | charlie.id
         }.transpose
     },
@@ -304,11 +302,11 @@ object AuthSpec extends SharedLedgerAndPostgresAndAuthTest:
       Expect:
         Pqs.exitCode `is` ExitCode.success
       And:
-        partiesQuery `returns` table {
+        partiesQuery `returns` Table {
           alice.id | bob.id | charlie.id
         }.transpose
       And:
-        Postgres `query` sql"""select count(*) from active('PingPong:Ping')""" `returns` table { 3 }
+        Postgres `query` sql"""select count(*) from active('PingPong:Ping')""" `returns` Table { 3 }
     },
     funcTest("static access token can read all parties when user rights is set as any party (sdk 3+)") {
       val alice   = Party("Alice")
@@ -338,11 +336,11 @@ object AuthSpec extends SharedLedgerAndPostgresAndAuthTest:
       Expect:
         Pqs.exitCode `is` ExitCode.success
       And:
-        partiesQuery `returns` table {
+        partiesQuery `returns` Table {
           alice.id | bob.id | charlie.id
         }.transpose
       And:
-        Postgres `query` sql"""select count(*) from active('PingPong:Ping')""" `returns` table { 3 }
+        Postgres `query` sql"""select count(*) from active('PingPong:Ping')""" `returns` Table { 3 }
     }
   )
 

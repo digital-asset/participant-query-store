@@ -6,7 +6,7 @@ package com.digitalasset.pqs.features.redaction
 import com.digitalasset.canonical.{Event, Offset, Transaction}
 import com.digitalasset.pqs.SharedMultiSyncLedgerSpec
 import com.digitalasset.pqs.functest.matchers.*
-import com.digitalasset.pqs.functest.table.*
+import com.digitalasset.pqs.services.postgres.Table
 import com.digitalasset.pqs.pipeline.InProcessPipeline
 import com.digitalasset.pqs.postgres.document.SqlSchema
 import com.digitalasset.pqs.services.daml.*
@@ -44,12 +44,12 @@ object ReassignmentRedactionSpec extends SharedMultiSyncLedgerSpec:
 
         Expect:
           // no interfaces, so one row per segment
-          Postgres.query(sql"select redact_contract(${cid.get}, 'reason')").returns(table(2))
+          Postgres.query(sql"select redact_contract(${cid.get}, 'reason')").returns(Table(2))
         And:
           Postgres
             .query(sql"select payload, redaction_id from __contracts where contract_id=${cid.get}")
             .returns(
-              table {
+              Table {
                 isNull | "reason"
                 isNull | "reason"
               }
@@ -126,11 +126,11 @@ object ReassignmentRedactionSpec extends SharedMultiSyncLedgerSpec:
           InProcessPipeline.processTransactions(Chunk(createTx, unassignTx))
 
         Expect:
-          Postgres.query(sql"select redact_contract(${contractId.get}, 'reason')").returns(table(1))
+          Postgres.query(sql"select redact_contract(${contractId.get}, 'reason')").returns(Table(1))
         And:
           Postgres
             .query(sql"select payload, redaction_id from __contracts where contract_id=${contractId.get}")
-            .returns(table(isNull | "reason"))
+            .returns(Table(isNull | "reason"))
       },
       funcTest("redacts rows inserted after a redaction on a second call") {
         val alice      = Party("Alice")
@@ -173,7 +173,7 @@ object ReassignmentRedactionSpec extends SharedMultiSyncLedgerSpec:
           // the assign->archive segment arrives and is redacted before create->unassign exists at all
           InProcessPipeline.processTransactions(Chunk(assignTx, archiveTx))
         Expect:
-          Postgres.query(sql"select redact_contract(${contractId.get}, 'reason')").returns(table(1))
+          Postgres.query(sql"select redact_contract(${contractId.get}, 'reason')").returns(Table(1))
 
         When:
           // the create->unassign segment lands afterwards, as a fresh, unredacted row
@@ -185,18 +185,18 @@ object ReassignmentRedactionSpec extends SharedMultiSyncLedgerSpec:
               sql"select payload, redaction_id from __contracts where contract_id=${contractId.get} order by activated_at_ix"
             )
             .returns(
-              table {
+              Table {
                 isNull      | "reason"
                 not(isNull) | isNull
               }
             )
         And:
-          Postgres.query(sql"select redact_contract(${contractId.get}, 'reason')").returns(table(1))
+          Postgres.query(sql"select redact_contract(${contractId.get}, 'reason')").returns(Table(1))
         And:
           Postgres
             .query(sql"select payload, redaction_id from __contracts where contract_id=${contractId.get}")
             .returns(
-              table {
+              Table {
                 isNull | "reason"
                 isNull | "reason"
               }

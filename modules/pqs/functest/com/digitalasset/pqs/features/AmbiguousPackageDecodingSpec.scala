@@ -8,7 +8,7 @@ import com.digitalasset.pqs.Dars
 import com.digitalasset.pqs.SharedLedgerAndPostgresTest
 import com.digitalasset.pqs.docker.Docker
 import com.digitalasset.pqs.functest.matchers.*
-import com.digitalasset.pqs.functest.table.*
+import com.digitalasset.pqs.services.postgres.Table
 import com.digitalasset.pqs.services.postgres.*
 import com.digitalasset.pqs.services.pqs.Pqs
 import com.digitalasset.pqs.services.daml.*
@@ -83,7 +83,7 @@ object AmbiguousPackageDecodingSpec extends SharedLedgerAndPostgresTest:
         .map(_.rows)
         .is(
           hasSameElements(
-            table {
+            Table {
               dar1.get.packageId | templateFqn | "template" | contractId1 | packageName | packageVersion | s"""{"sender": "${alice.id}"}"""
               dar2.get.packageId | templateFqn | "template" | contractId2 | packageName | packageVersion | s"""{"note": "hello", "sender": "${alice.id}"}"""
             }.rows

@@ -6,7 +6,7 @@ package com.digitalasset.pqs.schema.postgres.document
 import com.digitalasset.pqs.SharedLedgerAndPostgresTest
 import com.digitalasset.pqs.docker.Service
 import com.digitalasset.pqs.functest.matchers.*
-import com.digitalasset.pqs.functest.table.*
+import com.digitalasset.pqs.services.postgres.Table
 import com.digitalasset.pqs.services.daml.*
 import com.digitalasset.pqs.services.postgres.Postgres
 import com.digitalasset.pqs.services.pqs.Pqs
@@ -72,7 +72,7 @@ object PruneCommandSpec extends SharedLedgerAndPostgresTest:
       And:
         Postgres query {
           sql"""select "offset" from __transactions order by ix LIMIT 3"""
-        } `returns` table {
+        } `returns` Table {
           oneCreated.capture | oneArchived.capture | twoCreated.capture
         }.transpose
       When:
@@ -93,7 +93,7 @@ object PruneCommandSpec extends SharedLedgerAndPostgresTest:
         Pqs.stdout `is` stringContaining("Re-run with --prune-mode Force to execute the pruning operation.")
       And:
         // dry run should NOT persist pruned_offset
-        Postgres.query(sql"select pruned_offset() is null").returns(table(true))
+        Postgres.query(sql"select pruned_offset() is null").returns(Table(true))
     ,
     funcTest("force run with valid offset"):
       val oneCreated  = Capture[OffsetType]
@@ -104,7 +104,7 @@ object PruneCommandSpec extends SharedLedgerAndPostgresTest:
       And:
         Postgres query {
           sql"""select "offset" from __transactions order by ix LIMIT 3"""
-        } `returns` table {
+        } `returns` Table {
           oneCreated.capture | oneArchived.capture | twoCreated.capture
         }.transpose
       When:
@@ -122,12 +122,12 @@ object PruneCommandSpec extends SharedLedgerAndPostgresTest:
              |  Deleted transactions: 2""".stripMargin
         )
       And:
-        Postgres `query` sql"""select min("offset"), count(*) from __transactions""" `returns` table {
+        Postgres `query` sql"""select min("offset"), count(*) from __transactions""" `returns` Table {
           twoCreated | 2
         }
       And:
         // force run should persist pruned_offset
-        Postgres.query(sql"select pruned_offset()").returns(table(oneArchived))
+        Postgres.query(sql"select pruned_offset()").returns(Table(oneArchived))
     ,
     funcTest("dry run fails if using offset out of lower bounds"):
       Given:
@@ -148,7 +148,7 @@ object PruneCommandSpec extends SharedLedgerAndPostgresTest:
       And:
         Postgres query {
           sql"""select max("offset") from __transactions"""
-        } `returns` table { maxOffset.capture }
+        } `returns` Table { maxOffset.capture }
       When:
         Pqs.runPrune("--prune-target", maxOffset.get.toString)
       Expect:
@@ -180,7 +180,7 @@ object PruneCommandSpec extends SharedLedgerAndPostgresTest:
       And:
         Postgres query {
           sql"""select "offset", "effective_at" from __transactions order by ix LIMIT 3"""
-        } `returns` table {
+        } `returns` Table {
           oneCreated.capture  | anything
           oneArchived.capture | oneArchivedEffectiveAt.capture
           twoCreated.capture  | anything
@@ -209,7 +209,7 @@ object PruneCommandSpec extends SharedLedgerAndPostgresTest:
              |  Deleted transactions: 2""".stripMargin
         )
       And:
-        Postgres `query` sql"""select min("offset"), count(*) from __transactions""" `returns` table {
+        Postgres `query` sql"""select min("offset"), count(*) from __transactions""" `returns` Table {
           twoCreated | 2
         }
     ,
@@ -222,7 +222,7 @@ object PruneCommandSpec extends SharedLedgerAndPostgresTest:
       And:
         Postgres query {
           sql"""select "offset" from __transactions order by ix LIMIT 3"""
-        } `returns` table {
+        } `returns` Table {
           oneCreated.capture | oneArchived.capture | twoCreated.capture
         }.transpose
       When:
@@ -242,7 +242,7 @@ object PruneCommandSpec extends SharedLedgerAndPostgresTest:
       And:
         Postgres
           .query(sql"select nearest_offset('1970-01-01T00:00Z' :: timestamp with time zone) is null")
-          .returns(table(true))
+          .returns(Table(true))
       When:
         Pqs.runPrune("--prune-target", "1970-01-01T00:00Z")
       Expect:
@@ -261,7 +261,7 @@ object PruneCommandSpec extends SharedLedgerAndPostgresTest:
       And:
         Postgres query {
           sql"""select "offset" from __transactions order by ix LIMIT 3"""
-        } `returns` table {
+        } `returns` Table {
           oneCreated.capture | oneArchived.capture | twoCreated.capture
         }.transpose
       And:
@@ -286,7 +286,7 @@ object PruneCommandSpec extends SharedLedgerAndPostgresTest:
              |  Deleted transactions: 2""".stripMargin
         )
       And:
-        Postgres `query` sql"""select min("offset"), count(*) from __transactions""" `returns` table {
+        Postgres `query` sql"""select min("offset"), count(*) from __transactions""" `returns` Table {
           twoCreated | 2
         }
   )

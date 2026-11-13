@@ -6,7 +6,7 @@ package com.digitalasset.pqs.querying.postgres.document
 import com.digitalasset.pqs.SharedLedgerAndPostgresTest
 import com.digitalasset.pqs.functest.FuncTest
 import com.digitalasset.pqs.functest.matchers.*
-import com.digitalasset.pqs.functest.table.*
+import com.digitalasset.pqs.services.postgres.Table
 import com.digitalasset.pqs.querying.postgres.document.QueryingSpec.{funcTest}
 import com.digitalasset.pqs.services.daml.*
 import com.digitalasset.pqs.services.postgres.Postgres
@@ -137,9 +137,9 @@ object QueryingSpec extends SharedLedgerAndPostgresTest:
         When:
           Postgres `makeGap` (7 to 8) `returns` 2
         Then:
-          Postgres query { sql"""select min(ix), max(ix) from __transactions;""" } `returns` table { 1 <|> 10 }
+          Postgres query { sql"""select min(ix), max(ix) from __transactions;""" } `returns` Table { 1 <|> 10 }
         And:
-          Postgres query { historyBoundaries } `returns` table { 1 <|> 6 }
+          Postgres query { historyBoundaries } `returns` Table { 1 <|> 6 }
       ,
       funcTest("can set/reset a session's oldest/latest offset"):
         Given:
@@ -151,17 +151,17 @@ object QueryingSpec extends SharedLedgerAndPostgresTest:
         And:
           Postgres.Session `setOldest` 2
         Then:
-          Postgres.Session query { historyBoundaries } `returns` table { 2 <|> 6 }
+          Postgres.Session query { historyBoundaries } `returns` Table { 2 <|> 6 }
         When:
           Postgres.Session `setLatest` 5
         Then:
-          Postgres.Session query { historyBoundaries } `returns` table { 2 <|> 5 }
+          Postgres.Session query { historyBoundaries } `returns` Table { 2 <|> 5 }
         When:
           Postgres.Session `setOldest` null
         And:
           Postgres.Session `setLatest` null
         Then:
-          Postgres.Session query { historyBoundaries } `returns` table { 1 <|> 6 }
+          Postgres.Session query { historyBoundaries } `returns` Table { 1 <|> 6 }
       ,
       funcTest("can pin a session's latest offset even on an advancing ledger"):
         Given:
@@ -171,7 +171,7 @@ object QueryingSpec extends SharedLedgerAndPostgresTest:
         Then:
           Postgres query {
             sql"""select "offset" from __transactions where ix = 7;"""
-          } `returns` table { offsetAt7.capture }
+          } `returns` Table { offsetAt7.capture }
         And:
           Postgres `makeGap` (7 to 8) `returns` 2
 
@@ -188,9 +188,9 @@ object QueryingSpec extends SharedLedgerAndPostgresTest:
             sql"""update __watermark set ix = 7, "offset" = ${offsetAt7.get}, instance_id = 'advance-watermark';""".update
           } `returns` anything
         Then:
-          Postgres query { historyBoundaries } `returns` table { 1 <|> 7 }
+          Postgres query { historyBoundaries } `returns` Table { 1 <|> 7 }
         And:
-          Postgres.Session query { historyBoundaries } `returns` table { 1 <|> 6 }
+          Postgres.Session query { historyBoundaries } `returns` Table { 1 <|> 6 }
       ,
       funcTest("can pin a session's latest offset ensuring it is no less than supplied offset"):
         Given:
@@ -204,7 +204,7 @@ object QueryingSpec extends SharedLedgerAndPostgresTest:
             sql"""select (select "offset" from __transactions where ix = 4),
                              (select "offset" from __transactions where ix = 6),
                              (select "offset" from __transactions where ix = 7);"""
-          } `returns` table { offsetAt4.capture | offsetAt6.capture | offsetAt7.capture }
+          } `returns` Table { offsetAt4.capture | offsetAt6.capture | offsetAt7.capture }
         And:
           Postgres `makeGap` (7 to 8) `returns` 2
 
@@ -214,8 +214,8 @@ object QueryingSpec extends SharedLedgerAndPostgresTest:
           Postgres.Session `setLatest` offsetAt4.get
         Then:
           Postgres.Session queryVerbose { historyBoundaries } `returns` List(
-            table { offsetAt4.get },
-            table { 1 <|> 4 }
+            Table { offsetAt4.get },
+            Table { 1 <|> 4 }
           )
         When:
           Postgres.Session `setLatest` offsetAt7.get
@@ -249,7 +249,7 @@ object QueryingSpec extends SharedLedgerAndPostgresTest:
                         (select nearest_offset((select effective_at from __transactions where ix = 3))),
                         -- by interval (exact match)
                         (select nearest_offset(now() - (select effective_at from __transactions where ix = 5)));"""
-          } `returns` table {
+          } `returns` Table {
             offsetSlightlyPriorTo3.capture | offsetSlightlyPriorTo5.capture | offsetAt3.capture | offsetAt5.capture
           }
 
@@ -260,13 +260,13 @@ object QueryingSpec extends SharedLedgerAndPostgresTest:
         And:
           Postgres.Session `setLatest` offsetSlightlyPriorTo5.get
         Then:
-          Postgres.Session query { historyBoundaries } `returns` table { 2 <|> 4 }
+          Postgres.Session query { historyBoundaries } `returns` Table { 2 <|> 4 }
         And:
           Postgres.Session `setOldest` offsetAt3.get
         And:
           Postgres.Session `setLatest` offsetAt5.get
         Then:
-          Postgres.Session query { historyBoundaries } `returns` table { 3 <|> 5 }
+          Postgres.Session query { historyBoundaries } `returns` Table { 3 <|> 5 }
       ,
       funcTest("resolves valid offset when __watermark is behind latest transaction"):
         Given:
@@ -280,7 +280,7 @@ object QueryingSpec extends SharedLedgerAndPostgresTest:
                               (select nearest_offset((select effective_at from __transactions where ix = 5))),
                               (select nearest_offset((select effective_at from __transactions where ix = 10)));
                               """
-          } `returns` table {
+          } `returns` Table {
             txOffset.capture | txInFlight.capture
           }
         And:
@@ -290,7 +290,7 @@ object QueryingSpec extends SharedLedgerAndPostgresTest:
         Then:
           Postgres query {
             sql"select nearest_offset((select effective_at from __transactions where ix = 10))"
-          } `returns` table { txOffset.get }
+          } `returns` Table { txOffset.get }
     ),
     suite("read API")(
       funcTest("transactions queries"):
@@ -302,7 +302,7 @@ object QueryingSpec extends SharedLedgerAndPostgresTest:
           // Binds to `[oldest_offset(), latest_offset()]` range by default
           Postgres query {
             sql"""select count(*) from transactions;"""
-          } `returns` table { 6 }
+          } `returns` Table { 6 }
         When:
           Postgres.Session.init
         And:
@@ -313,7 +313,7 @@ object QueryingSpec extends SharedLedgerAndPostgresTest:
         Then:
           Postgres.Session query {
             sql"""select count(*) from transactions;"""
-          } `returns` table { 4 }
+          } `returns` Table { 4 }
       ,
       funcTest("state-based queries: ACS @ any offset"):
         Given:
@@ -326,7 +326,7 @@ object QueryingSpec extends SharedLedgerAndPostgresTest:
             sql"""select payload->>'user_id', payload->>'firstName', payload->>'lastName'
                       from active('NameRegistry:BirthCertificate')
                       order by created_at_offset;"""
-          } `returns` table {
+          } `returns` Table {
             "id-alice" | "Alice" | "Citizen"
             "id-bill"  | "Bill"  | "Taylor"
           }
@@ -336,7 +336,7 @@ object QueryingSpec extends SharedLedgerAndPostgresTest:
             sql"""select payload->>'user_id', payload->>'firstName', payload->>'lastName'
                       from active('NameRegistry:BirthCertificate', (select "offset" from __transactions where ix = 3))
                       order by created_at_offset;"""
-          } `returns` table {
+          } `returns` Table {
             "id-alice" | "Alice" | "Citizen"
             "id-joe"   | "Fred"  | "Bloggs"
           }
@@ -350,7 +350,7 @@ object QueryingSpec extends SharedLedgerAndPostgresTest:
             sql"""select payload->>'user_id', payload->>'firstName', payload->>'lastName'
                       from active('NameRegistry:BirthCertificate')
                       order by created_at_offset;"""
-          } `returns` table {
+          } `returns` Table {
             "id-alice" | "Alice" | "Citizen"
             "id-joe"   | "Fred"  | "Bloggs"
           }
@@ -366,7 +366,7 @@ object QueryingSpec extends SharedLedgerAndPostgresTest:
             sql"""select payload->>'user_id', payload->>'firstName', payload->>'lastName'
                     from creates('NameRegistry:BirthCertificate')
                     order by created_at_offset;"""
-          } `returns` table {
+          } `returns` Table {
             "id-alice" | "Alice" | "Citizen"
             "id-joe"   | "Joe"   | "Bloggs"
             "id-joe"   | "Fred"  | "Bloggs"
@@ -381,7 +381,7 @@ object QueryingSpec extends SharedLedgerAndPostgresTest:
                                  (select "offset" from __transactions where ix = 3),
                                  (select "offset" from __transactions where ix = 5))
                     order by created_at_offset;"""
-          } `returns` table {
+          } `returns` Table {
             "id-joe"  | "Fred" | "Bloggs"
             "id-bill" | "Bill" | "Myers"
           }
@@ -397,7 +397,7 @@ object QueryingSpec extends SharedLedgerAndPostgresTest:
             sql"""select payload->>'user_id', payload->>'firstName', payload->>'lastName'
                     from creates('NameRegistry:BirthCertificate')
                     order by created_at_offset;"""
-          } `returns` table {
+          } `returns` Table {
             "id-joe"  | "Fred" | "Bloggs"
             "id-bill" | "Bill" | "Myers"
           }
@@ -413,7 +413,7 @@ object QueryingSpec extends SharedLedgerAndPostgresTest:
             sql"""select payload->>'user_id', payload->>'firstName', payload->>'lastName'
                     from archives('NameRegistry:BirthCertificate')
                     order by created_at_offset;"""
-          } `returns` table {
+          } `returns` Table {
             "id-joe"  | "Joe"  | "Bloggs"
             "id-joe"  | "Fred" | "Bloggs"
             "id-bill" | "Bill" | "Myers"
@@ -426,7 +426,7 @@ object QueryingSpec extends SharedLedgerAndPostgresTest:
                                   (select "offset" from __transactions where ix = 3),
                                   (select "offset" from __transactions where ix = 5))
                     order by created_at_offset;"""
-          } `returns` table {
+          } `returns` Table {
             "id-joe" | "Joe"  | "Bloggs"
             "id-joe" | "Fred" | "Bloggs"
           }
@@ -442,7 +442,7 @@ object QueryingSpec extends SharedLedgerAndPostgresTest:
             sql"""select payload->>'user_id', payload->>'firstName', payload->>'lastName'
                     from archives('NameRegistry:BirthCertificate')
                     order by created_at_offset;"""
-          } `returns` table {
+          } `returns` Table {
             "id-joe" | "Joe"  | "Bloggs"
             "id-joe" | "Fred" | "Bloggs"
           }
@@ -458,7 +458,7 @@ object QueryingSpec extends SharedLedgerAndPostgresTest:
             sql"""select argument->>'newFirstName', argument->>'newLastName'
                     from exercises('BirthCertificate:BirthCertificateNameChange')
                     order by exercised_at_offset;"""
-          } `returns` table {
+          } `returns` Table {
             "Fred" | "Bloggs"
             "Bill" | "Taylor"
           }
@@ -470,7 +470,7 @@ object QueryingSpec extends SharedLedgerAndPostgresTest:
                                    (select "offset" from __transactions where ix = 3),
                                    (select "offset" from __transactions where ix = 5))
                     order by exercised_at_offset;"""
-          } `returns` table {
+          } `returns` Table {
             "Fred" | "Bloggs"
           }
         When:
@@ -485,7 +485,7 @@ object QueryingSpec extends SharedLedgerAndPostgresTest:
             sql"""select argument->>'newFirstName', argument->>'newLastName'
                     from exercises('BirthCertificate:BirthCertificateNameChange')
                     order by exercised_at_offset;"""
-          } `returns` table {
+          } `returns` Table {
             "Fred" | "Bloggs"
           }
       ,
@@ -495,7 +495,7 @@ object QueryingSpec extends SharedLedgerAndPostgresTest:
         Then:
           Postgres query {
             sql"""select exercise_event_id, choice_fqn, last_descendant_node_id from exercises() order by exercise_event_id;"""
-          } `returns` table {
+          } `returns` Table {
             stringContaining(
               ",0)"
             ) <|> s"${nameRegistry.name}:NameRegistry:BirthCertificate:BirthCertificateNameChange" <|> 2
@@ -524,7 +524,7 @@ object QueryingSpec extends SharedLedgerAndPostgresTest:
                       inner join archives('NameRegistry:BirthCertificate') c on a.payload->>'user_id' = c.payload->>'user_id'
                     ) t
                     group by user_id, current_name;"""
-          } `returns` table {
+          } `returns` Table {
             "id-bill" | "Bill Kirk" | "Bill Doe, Bill Myers, Bill Taylor"
           }
         And:
@@ -549,7 +549,7 @@ object QueryingSpec extends SharedLedgerAndPostgresTest:
                     ) t
                     group by t.user_id
                     order by t.user_id;"""
-          } `returns` table {
+          } `returns` Table {
             "id-bill" | "Bill Myers ~> Bill Taylor ~> Bill Doe ~> Bill Kirk"
             "id-joe"  | "Joe Bloggs ~> Fred Bloggs"
           }
@@ -562,7 +562,7 @@ object QueryingSpec extends SharedLedgerAndPostgresTest:
             sql"""select template_fqn, created_at_offset, created_effective_at, archived_effective_at, contract_id, create_event_id, payload->>'user_id'
                   from lookup_contract((select distinct contract_id from __contracts where activated_at_ix = 1))
                   order by template_fqn"""
-          } `returns` table {
+          } `returns` Table {
             s"${interfaces.name}:Interfaces:INameDocument" | anything | anything | anything | anything | anything | anything
             s"${nameRegistry.name}:NameRegistry:BirthCertificate" | anything | anything | anything | anything | anything | "id-alice"
           }
@@ -574,7 +574,7 @@ object QueryingSpec extends SharedLedgerAndPostgresTest:
           Postgres query {
             sql"""select template_fqn, choice_fqn, exercised_at_offset, exercised_effective_at, contract_id, exercise_event_id, argument->>'newLastName', result
                 from lookup_exercises((select distinct contract_id from __contracts where activated_at_ix = 2));"""
-          } `returns` table {
+          } `returns` Table {
             s"${nameRegistry.name}:NameRegistry:BirthCertificate" |
               s"${nameRegistry.name}:NameRegistry:BirthCertificate:BirthCertificateNameChange" |
               anything |
@@ -592,7 +592,7 @@ object QueryingSpec extends SharedLedgerAndPostgresTest:
           // Binds to `latest_offset()` value by default
           Postgres query {
             sql"""select * from summary_active();"""
-          } `returns` table {
+          } `returns` Table {
             s"${interfaces.name}:Interfaces:INameDocument"        | "interface" | 4
             s"${nameRegistry.name}:NameRegistry:BirthCertificate" | "template"  | 4
           }
@@ -600,7 +600,7 @@ object QueryingSpec extends SharedLedgerAndPostgresTest:
           // ... or, can supply an offset explicitly
           Postgres query {
             sql"""select * from summary_active((select "offset" from __transactions where ix = 3));"""
-          } `returns` table {
+          } `returns` Table {
             s"${interfaces.name}:Interfaces:INameDocument"        | "interface" | 2
             s"${nameRegistry.name}:NameRegistry:BirthCertificate" | "template"  | 2
           }
@@ -612,7 +612,7 @@ object QueryingSpec extends SharedLedgerAndPostgresTest:
         And:
           Postgres.Session query {
             sql"""select * from summary_active();"""
-          } `returns` table {
+          } `returns` Table {
             s"${interfaces.name}:Interfaces:INameDocument"        | "interface" | 2
             s"${nameRegistry.name}:NameRegistry:BirthCertificate" | "template"  | 2
           }
@@ -624,7 +624,7 @@ object QueryingSpec extends SharedLedgerAndPostgresTest:
           // Binds to `[oldest_offset(), latest_offset()]` range by default
           Postgres query {
             sql"""select * from summary_creates();"""
-          } `returns` table {
+          } `returns` Table {
             s"${interfaces.name}:Interfaces:INameDocument"        | "interface" | 9
             s"${nameRegistry.name}:NameRegistry:BirthCertificate" | "template"  | 9
           }
@@ -634,7 +634,7 @@ object QueryingSpec extends SharedLedgerAndPostgresTest:
             sql"""select * from summary_creates(
                         (select "offset" from __transactions where ix = 3),
                         (select "offset" from __transactions where ix = 7));"""
-          } `returns` table {
+          } `returns` Table {
             s"${interfaces.name}:Interfaces:INameDocument"        | "interface" | 4
             s"${nameRegistry.name}:NameRegistry:BirthCertificate" | "template"  | 4
           }
@@ -648,7 +648,7 @@ object QueryingSpec extends SharedLedgerAndPostgresTest:
         And:
           Postgres.Session query {
             sql"""select * from summary_creates();"""
-          } `returns` table {
+          } `returns` Table {
             s"${interfaces.name}:Interfaces:INameDocument"        | "interface" | 4
             s"${nameRegistry.name}:NameRegistry:BirthCertificate" | "template"  | 4
           }
@@ -660,7 +660,7 @@ object QueryingSpec extends SharedLedgerAndPostgresTest:
           // Binds to `[oldest_offset(), latest_offset()]` range by default
           Postgres query {
             sql"""select * from summary_archives();"""
-          } `returns` table {
+          } `returns` Table {
             s"${interfaces.name}:Interfaces:INameDocument"        | "interface" | 5
             s"${nameRegistry.name}:NameRegistry:BirthCertificate" | "template"  | 5
           }
@@ -670,7 +670,7 @@ object QueryingSpec extends SharedLedgerAndPostgresTest:
             sql"""select * from summary_archives(
                         (select "offset" from __transactions where ix = 3),
                         (select "offset" from __transactions where ix = 7));"""
-          } `returns` table {
+          } `returns` Table {
             s"${interfaces.name}:Interfaces:INameDocument"        | "interface" | 4
             s"${nameRegistry.name}:NameRegistry:BirthCertificate" | "template"  | 4
           }
@@ -684,7 +684,7 @@ object QueryingSpec extends SharedLedgerAndPostgresTest:
         And:
           Postgres.Session query {
             sql"""select * from summary_archives();"""
-          } `returns` table {
+          } `returns` Table {
             s"${interfaces.name}:Interfaces:INameDocument"        | "interface" | 4
             s"${nameRegistry.name}:NameRegistry:BirthCertificate" | "template"  | 4
           }
@@ -696,7 +696,7 @@ object QueryingSpec extends SharedLedgerAndPostgresTest:
           // Binds to `[oldest_offset(), latest_offset()]` range by default
           Postgres query {
             sql"""select * from summary_transients();"""
-          } `returns` table {
+          } `returns` Table {
             s"${interfaces.name}:Interfaces:INameDocument"        | "interface" | 5
             s"${nameRegistry.name}:NameRegistry:BirthCertificate" | "template"  | 5
           }
@@ -706,7 +706,7 @@ object QueryingSpec extends SharedLedgerAndPostgresTest:
             sql"""select * from summary_transients(
                       (select "offset" from __transactions where ix = 3),
                       (select "offset" from __transactions where ix = 7));"""
-          } `returns` table {
+          } `returns` Table {
             s"${interfaces.name}:Interfaces:INameDocument"        | "interface" | 3
             s"${nameRegistry.name}:NameRegistry:BirthCertificate" | "template"  | 3
           }
@@ -720,7 +720,7 @@ object QueryingSpec extends SharedLedgerAndPostgresTest:
         And:
           Postgres.Session query {
             sql"""select * from summary_transients();"""
-          } `returns` table {
+          } `returns` Table {
             s"${interfaces.name}:Interfaces:INameDocument"        | "interface" | 3
             s"${nameRegistry.name}:NameRegistry:BirthCertificate" | "template"  | 3
           }
@@ -732,7 +732,7 @@ object QueryingSpec extends SharedLedgerAndPostgresTest:
           // Binds to `[oldest_offset(), latest_offset()]` range by default
           Postgres query {
             sql"""select * from summary_exercises() order by template_fqn, choice_fqn;"""
-          } `returns` table {
+          } `returns` Table {
             s"${interfaces.name}:Interfaces:INameDocument" | s"${interfaces.name}:Interfaces:INameDocument:INameDocumentNameChange" | "INameDocumentNameChange" | true | 2
             s"${nameRegistry.name}:NameRegistry:BirthCertificate" | s"${nameRegistry.name}:NameRegistry:BirthCertificate:Archive" | "Archive" | true | 1
             s"${nameRegistry.name}:NameRegistry:BirthCertificate" | s"${nameRegistry.name}:NameRegistry:BirthCertificate:BirthCertificateNameChange" | "BirthCertificateNameChange" | true | 2
@@ -745,7 +745,7 @@ object QueryingSpec extends SharedLedgerAndPostgresTest:
                         (select "offset" from __transactions where ix = 3),
                         (select "offset" from __transactions where ix = 5))
                       order by template_fqn, choice_fqn;"""
-          } `returns` table {
+          } `returns` Table {
             s"${nameRegistry.name}:NameRegistry:BirthCertificate" | s"${nameRegistry.name}:NameRegistry:BirthCertificate:Archive" | "Archive" | true | 1
             s"${nameRegistry.name}:NameRegistry:BirthCertificate" | s"${nameRegistry.name}:NameRegistry:BirthCertificate:BirthCertificateNameChange" | "BirthCertificateNameChange" | true | 1
             s"${nameRegistry.name}:NameRegistry:BirthCertificate" | s"${nameRegistry.name}:NameRegistry:BirthCertificate:DoNothing" | "DoNothing" | false | 1
@@ -760,7 +760,7 @@ object QueryingSpec extends SharedLedgerAndPostgresTest:
         And:
           Postgres.Session query {
             sql"""select * from summary_exercises() order by template_fqn, choice_fqn;"""
-          } `returns` table {
+          } `returns` Table {
             s"${nameRegistry.name}:NameRegistry:BirthCertificate" | s"${nameRegistry.name}:NameRegistry:BirthCertificate:Archive" | "Archive" | true | 1
             s"${nameRegistry.name}:NameRegistry:BirthCertificate" | s"${nameRegistry.name}:NameRegistry:BirthCertificate:BirthCertificateNameChange" | "BirthCertificateNameChange" | true | 1
             s"${nameRegistry.name}:NameRegistry:BirthCertificate" | s"${nameRegistry.name}:NameRegistry:BirthCertificate:DoNothing" | "DoNothing" | false | 1
@@ -777,7 +777,7 @@ object QueryingSpec extends SharedLedgerAndPostgresTest:
           Postgres query {
             sql"""select (select "offset" from __transactions where ix = 5),
                          (select "offset" from __transactions where ix = 6);"""
-          } `returns` table { offsetAt5.capture | offsetAt6.capture }
+          } `returns` Table { offsetAt5.capture | offsetAt6.capture }
         When:
           // Create a gap between ix=5 and ix=6 by shifting offsets from ix=6 onwards
           Postgres `shiftOffsets` (6L, 10L) `returns` anything
@@ -789,7 +789,7 @@ object QueryingSpec extends SharedLedgerAndPostgresTest:
                                  ${offsetAt6.get + 10L},
                                  latest_offset())
                     order by created_at_offset;"""
-          } `returns` table {
+          } `returns` Table {
             "id-bill" | "Bill" | "Taylor"
             "id-bill" | "Bill" | "Doe"
             "id-jane" | "Jane" | "Smith"
@@ -805,7 +805,7 @@ object QueryingSpec extends SharedLedgerAndPostgresTest:
                                  ${offsetAt5.get + 1L},
                                  latest_offset())
                     order by created_at_offset;"""
-          } `returns` table {
+          } `returns` Table {
             "id-bill" | "Bill" | "Taylor"
             "id-bill" | "Bill" | "Doe"
             "id-jane" | "Jane" | "Smith"

@@ -6,7 +6,7 @@ package com.digitalasset.pqs.schema.postgres.document
 import com.digitalasset.pqs.Dars
 import com.digitalasset.pqs.SharedLedgerAndPostgresTest
 import com.digitalasset.pqs.functest.matchers.*
-import com.digitalasset.pqs.functest.table.*
+import com.digitalasset.pqs.services.postgres.Table
 import com.digitalasset.pqs.services.daml.*
 import com.digitalasset.pqs.services.postgres.Postgres
 import com.digitalasset.pqs.services.pqs.Pqs
@@ -37,11 +37,11 @@ object PipelineSpec extends SharedLedgerAndPostgresTest:
       And:
         Postgres.hasTable("__transactions")
       And:
-        Postgres.query(sql"select ix from latest_checkpoint()").returns(table(0L))
+        Postgres.query(sql"select ix from latest_checkpoint()").returns(Table(0L))
       And:
-        Postgres.query(sql"select ix from __watermark").returns(table(0L))
+        Postgres.query(sql"select ix from __watermark").returns(Table(0L))
       And:
-        Postgres.query(sql"select instance_id from __watermark").returns(table(not(isNull)))
+        Postgres.query(sql"select instance_id from __watermark").returns(Table(not(isNull)))
 
       Then:
         Postgres
@@ -111,7 +111,7 @@ object PipelineSpec extends SharedLedgerAndPostgresTest:
       Expect:
         Postgres query {
           sql"""select count(*) from __contracts where activated_at_ix is not null"""
-        } `returns` table {
+        } `returns` Table {
           1
         }
     ,
@@ -131,9 +131,9 @@ object PipelineSpec extends SharedLedgerAndPostgresTest:
       Expect:
         Pqs.exitCode `is` ExitCode.success
       And:
-        Postgres `query` sql"""select count(*) from active($templateRef)""" `returns` table { 0 }
+        Postgres `query` sql"""select count(*) from active($templateRef)""" `returns` Table { 0 }
       And:
-        Postgres `query` sql"""select count(*) from exercises($archiveRef)""" `returns` table { 1 }
+        Postgres `query` sql"""select count(*) from exercises($archiveRef)""" `returns` Table { 1 }
       And:
         for
           synchronizers <- Ledger.getAllSynchronizers

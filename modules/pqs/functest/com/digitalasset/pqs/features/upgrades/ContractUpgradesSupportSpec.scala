@@ -5,7 +5,7 @@ package com.digitalasset.pqs.features.upgrades
 
 import com.digitalasset.pqs.SharedLedgerAndPostgresTest
 import com.digitalasset.pqs.functest.matchers.*
-import com.digitalasset.pqs.functest.table.*
+import com.digitalasset.pqs.services.postgres.Table
 import com.digitalasset.pqs.services.daml.*
 import com.digitalasset.pqs.services.postgres.Database.*
 import com.digitalasset.pqs.services.postgres.Postgres
@@ -131,7 +131,7 @@ object ContractUpgradesSupportSpec extends SharedLedgerAndPostgresTest:
         val pkgPk         = Capture[Int]
         val upgPkgPk      = Capture[Int]
         Expect:
-          __packages(ping.name) `returns` table {
+          __packages(ping.name) `returns` Table {
             pkgPk.capture    | ping.name | "0.0.0" | pkgId
             upgPkgPk.capture | ping.name | "0.0.1" | upgPkgId
           }
@@ -139,7 +139,7 @@ object ContractUpgradesSupportSpec extends SharedLedgerAndPostgresTest:
         val pingCTpePk      = Capture[Int]
         val labelableCTpePk = Capture[Int]
         Expect:
-          __contract_tpe(ping.name, pingIface.name) `returns` table {
+          __contract_tpe(ping.name, pingIface.name) `returns` Table {
             pingCTpePk.capture | s"${ping.name}:Ping:Ping" | "template" | s"{${ping.name}:Ping:Ping,Ping:Ping,Ping}"
             labelableCTpePk.capture | s"${pingIface.name}:Interfaces:Labelable" | "interface" | s"{${pingIface.name}:Interfaces:Labelable,Interfaces:Labelable,Labelable}"
           }
@@ -149,7 +149,7 @@ object ContractUpgradesSupportSpec extends SharedLedgerAndPostgresTest:
         val cId3 = Capture[String]
         Expect:
           __contracts(extraColumns = Seq("payload ->> 'label'")).returns(
-            table {
+            Table {
               pkgPk    | pingCTpePk      | cId1.capture | "[1,)"  | null
               pkgPk    | labelableCTpePk | anything     | "[1,)"  | null
               upgPkgPk | pingCTpePk      | cId2.capture | "[2,3)" | "created upgraded contract"
@@ -161,7 +161,7 @@ object ContractUpgradesSupportSpec extends SharedLedgerAndPostgresTest:
 
         val setLabelChoiceETpePk = Capture[Int]
         Expect:
-          __exercise_tpe(ping.name, pingIface.name) `returns` table {
+          __exercise_tpe(ping.name, pingIface.name) `returns` Table {
             anything | s"${ping.name}:Ping:Ping" | s"${ping.name}:Ping:Ping:Archive" | "Archive" | true | s"{${ping.name}:Ping:Ping:Archive,Ping:Ping:Archive,Ping:Archive,Archive}"
             anything | s"${pingIface.name}:Interfaces:Labelable" | s"${pingIface.name}:Interfaces:Labelable:Archive" | "Archive" | true | s"{${pingIface.name}:Interfaces:Labelable:Archive,Interfaces:Labelable:Archive,Labelable:Archive,Archive}"
             setLabelChoiceETpePk.capture | s"${pingIface.name}:Interfaces:Labelable" | s"${pingIface.name}:Interfaces:Labelable:SetLabelChoice" | "SetLabelChoice" | true | s"{${pingIface.name}:Interfaces:Labelable:SetLabelChoice,Interfaces:Labelable:SetLabelChoice,Labelable:SetLabelChoice,SetLabelChoice}"
@@ -184,7 +184,7 @@ object ContractUpgradesSupportSpec extends SharedLedgerAndPostgresTest:
         val cId4 = Capture[String]
         Expect:
           __contracts(extraColumns = Seq("payload ->> 'label'")).returns(
-            table {
+            Table {
               pkgPk    | pingCTpePk      | cId1 | "[1,4)" | null
               pkgPk    | labelableCTpePk | cId1 | "[1,4)" | null
               upgPkgPk | pingCTpePk      | cId2 | "[2,3)" | "created upgraded contract"
@@ -202,33 +202,33 @@ object ContractUpgradesSupportSpec extends SharedLedgerAndPostgresTest:
         // Read API tests
         // active
         Expect:
-          active() `returns` table {
+          active() `returns` Table {
             upgPkgId | s"${pingIface.name}:Interfaces:Labelable" | "interface" | cId3
             upgPkgId | s"${ping.name}:Ping:Ping"                 | "template"  | cId3
             upgPkgId | s"${pingIface.name}:Interfaces:Labelable" | "interface" | cId4
             upgPkgId | s"${ping.name}:Ping:Ping"                 | "template"  | cId4
           }
         Expect:
-          active(Some(s"${ping.name}:Ping:Ping")) `returns` table {
+          active(Some(s"${ping.name}:Ping:Ping")) `returns` Table {
             upgPkgId | s"${ping.name}:Ping:Ping" | "template" | cId3
             upgPkgId | s"${ping.name}:Ping:Ping" | "template" | cId4
           }
         // archives
         Expect:
-          archives() `returns` table {
+          archives() `returns` Table {
             pkgId    | s"${pingIface.name}:Interfaces:Labelable" | "interface" | cId1
             pkgId    | s"${ping.name}:Ping:Ping"                 | "template"  | cId1
             upgPkgId | s"${pingIface.name}:Interfaces:Labelable" | "interface" | cId2
             upgPkgId | s"${ping.name}:Ping:Ping"                 | "template"  | cId2
           }
         Expect:
-          archives(Some(s"${ping.name}:Ping:Ping")) `returns` table {
+          archives(Some(s"${ping.name}:Ping:Ping")) `returns` Table {
             pkgId    | s"${ping.name}:Ping:Ping" | "template" | cId1
             upgPkgId | s"${ping.name}:Ping:Ping" | "template" | cId2
           }
         // creates
         Expect:
-          creates() `returns` table {
+          creates() `returns` Table {
             pkgId    | s"${pingIface.name}:Interfaces:Labelable" | "interface" | cId1
             pkgId    | s"${ping.name}:Ping:Ping"                 | "template"  | cId1
             upgPkgId | s"${pingIface.name}:Interfaces:Labelable" | "interface" | cId2
@@ -239,7 +239,7 @@ object ContractUpgradesSupportSpec extends SharedLedgerAndPostgresTest:
             upgPkgId | s"${ping.name}:Ping:Ping"                 | "template"  | cId4
           }
         Expect:
-          creates(Some(s"${ping.name}:Ping:Ping")) `returns` table {
+          creates(Some(s"${ping.name}:Ping:Ping")) `returns` Table {
             pkgId    | s"${ping.name}:Ping:Ping" | "template" | cId1
             upgPkgId | s"${ping.name}:Ping:Ping" | "template" | cId2
             upgPkgId | s"${ping.name}:Ping:Ping" | "template" | cId3
@@ -284,7 +284,7 @@ object ContractUpgradesSupportSpec extends SharedLedgerAndPostgresTest:
         val pkgPk         = Capture[Int]
         val upgPkgPk      = Capture[Int]
         Expect:
-          __packages(ping.name) `returns` table {
+          __packages(ping.name) `returns` Table {
             pkgPk.capture    | ping.name | "0.0.0" | pkgId
             upgPkgPk.capture | ping.name | "0.0.1" | upgPkgId
           }
@@ -292,7 +292,7 @@ object ContractUpgradesSupportSpec extends SharedLedgerAndPostgresTest:
         val pingCTpePk      = Capture[Int]
         val labelableCTpePk = Capture[Int]
         Expect:
-          __contract_tpe(ping.name, pingIface.name) `returns` table {
+          __contract_tpe(ping.name, pingIface.name) `returns` Table {
             pingCTpePk.capture | s"${ping.name}:Ping:Ping" | "template" | s"{${ping.name}:Ping:Ping,Ping:Ping,Ping}"
             labelableCTpePk.capture | s"${pingIface.name}:Interfaces:Labelable" | "interface" | s"{${pingIface.name}:Interfaces:Labelable,Interfaces:Labelable,Labelable}"
           }
@@ -302,7 +302,7 @@ object ContractUpgradesSupportSpec extends SharedLedgerAndPostgresTest:
         val cId3 = Capture[String]
         Expect:
           __contracts(extraColumns = Seq("payload ->> 'label'")).returns(
-            table {
+            Table {
               pkgPk    | pingCTpePk      | cId1.capture | "[1,)"  | null
               pkgPk    | labelableCTpePk | cId1.capture | "[1,)"  | null
               upgPkgPk | pingCTpePk      | cId2.capture | "[2,3)" | "created upgraded contract"
@@ -314,14 +314,14 @@ object ContractUpgradesSupportSpec extends SharedLedgerAndPostgresTest:
 
         val setLabelChoiceETpePk = Capture[Int]
         Expect:
-          __exercise_tpe(ping.name, pingIface.name) `returns` table {
+          __exercise_tpe(ping.name, pingIface.name) `returns` Table {
             anything | s"${ping.name}:Ping:Ping" | s"${ping.name}:Ping:Ping:Archive" | "Archive" | true | s"{${ping.name}:Ping:Ping:Archive,Ping:Ping:Archive,Ping:Archive,Archive}"
             anything | s"${pingIface.name}:Interfaces:Labelable" | s"${pingIface.name}:Interfaces:Labelable:Archive" | "Archive" | true | s"{${pingIface.name}:Interfaces:Labelable:Archive,Interfaces:Labelable:Archive,Labelable:Archive,Archive}"
             setLabelChoiceETpePk.capture | s"${pingIface.name}:Interfaces:Labelable" | s"${pingIface.name}:Interfaces:Labelable:SetLabelChoice" | "SetLabelChoice" | true | s"{${pingIface.name}:Interfaces:Labelable:SetLabelChoice,Interfaces:Labelable:SetLabelChoice,Labelable:SetLabelChoice,SetLabelChoice}"
           }
 
         Expect:
-          __exercises() `returns` table {
+          __exercises() `returns` Table {
             upgPkgPk | setLabelChoiceETpePk | labelableCTpePk | cId2 | "exercised SetLabelChoice on upgraded contract"
           }
 
@@ -339,7 +339,7 @@ object ContractUpgradesSupportSpec extends SharedLedgerAndPostgresTest:
         val cId4 = Capture[String]
         Expect:
           __contracts(extraColumns = Seq("payload ->> 'label'")).returns(
-            table {
+            Table {
               pkgPk    | pingCTpePk      | cId1 | "[1,4)" | null
               pkgPk    | labelableCTpePk | cId1 | "[1,4)" | null
               upgPkgPk | pingCTpePk      | cId2 | "[2,3)" | "created upgraded contract"
@@ -352,7 +352,7 @@ object ContractUpgradesSupportSpec extends SharedLedgerAndPostgresTest:
           )
 
         Expect:
-          __exercises() `returns` table {
+          __exercises() `returns` Table {
             upgPkgPk | setLabelChoiceETpePk | labelableCTpePk | cId2 | "exercised SetLabelChoice on upgraded contract"
             upgPkgPk | setLabelChoiceETpePk | labelableCTpePk | cId1 | "exercised SetLabelChoice on contract created with original template version"
           }
@@ -360,19 +360,19 @@ object ContractUpgradesSupportSpec extends SharedLedgerAndPostgresTest:
         // Read API tests
         // active
         Expect:
-          active(Some(s"${ping.name}:Ping:Ping")) `returns` table {
+          active(Some(s"${ping.name}:Ping:Ping")) `returns` Table {
             upgPkgId | s"${ping.name}:Ping:Ping" | "template" | cId3
             upgPkgId | s"${ping.name}:Ping:Ping" | "template" | cId4
           }
         // archives
         Expect:
-          archives(Some(s"${ping.name}:Ping:Ping")) `returns` table {
+          archives(Some(s"${ping.name}:Ping:Ping")) `returns` Table {
             pkgId    | s"${ping.name}:Ping:Ping" | "template" | cId1
             upgPkgId | s"${ping.name}:Ping:Ping" | "template" | cId2
           }
         // creates
         Expect:
-          creates(Some(s"${ping.name}:Ping:Ping")) `returns` table {
+          creates(Some(s"${ping.name}:Ping:Ping")) `returns` Table {
             pkgId    | s"${ping.name}:Ping:Ping" | "template" | cId1
             upgPkgId | s"${ping.name}:Ping:Ping" | "template" | cId2
             upgPkgId | s"${ping.name}:Ping:Ping" | "template" | cId3
@@ -380,7 +380,7 @@ object ContractUpgradesSupportSpec extends SharedLedgerAndPostgresTest:
           }
         // exercises
         Expect:
-          exercises(Some(s"${pingIface.name}:Interfaces:Labelable:SetLabelChoice")) `returns` table {
+          exercises(Some(s"${pingIface.name}:Interfaces:Labelable:SetLabelChoice")) `returns` Table {
             upgPkgId | s"${pingIface.name}:Interfaces:Labelable" | s"${pingIface.name}:Interfaces:Labelable:SetLabelChoice" | "SetLabelChoice" | cId2 | "exercised SetLabelChoice on upgraded contract"
             upgPkgId | s"${pingIface.name}:Interfaces:Labelable" | s"${pingIface.name}:Interfaces:Labelable:SetLabelChoice" | "SetLabelChoice" | cId1 | "exercised SetLabelChoice on contract created with original template version"
           }

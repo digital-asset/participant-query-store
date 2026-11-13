@@ -5,7 +5,7 @@ package com.digitalasset.pqs.schema.postgres.document
 
 import com.digitalasset.pqs.SharedLedgerAndPostgresTest
 import com.digitalasset.pqs.functest.matchers.*
-import com.digitalasset.pqs.functest.table.*
+import com.digitalasset.pqs.services.postgres.Table
 import com.digitalasset.pqs.services.daml.*
 import com.digitalasset.pqs.services.postgres.Postgres
 import com.digitalasset.pqs.services.pqs.Pqs
@@ -66,11 +66,11 @@ object ResetProcedureSpec extends SharedLedgerAndPostgresTest:
       And:
         Postgres
           .query(sql"""select "offset" from __transactions order by ix""")
-          .returns(table(anything | target.capture | anything | anything).transpose)
+          .returns(Table(anything | target.capture | anything | anything).transpose)
       Expect:
         Postgres
           .query(sql"select new_latest, affected_transactions from validate_reset_offset(${target.get})")
-          .returns(table(target | 2))
+          .returns(Table(target | 2))
     ,
     funcTest("reset_to_offset"):
       val target     = Capture[OffsetType]
@@ -80,23 +80,23 @@ object ResetProcedureSpec extends SharedLedgerAndPostgresTest:
       And:
         Postgres
           .query(sql"select instance_id from __watermark")
-          .returns(table(pipelineId.capture))
+          .returns(Table(pipelineId.capture))
       And:
         Postgres
           .query(sql"""select "offset" from __transactions order by ix""")
-          .returns(table(anything | target.capture | anything | anything).transpose)
+          .returns(Table(anything | target.capture | anything | anything).transpose)
       And:
         Postgres
           .query(sql"select new_latest, affected_transactions from reset_to_offset(${target.get})")
-          .returns(table(target | 2))
+          .returns(Table(target | 2))
       Expect:
         Postgres
           .query(sql"""select "offset" from latest_checkpoint()""")
-          .returns(table(target))
+          .returns(Table(target))
       And:
         Postgres
           .query(sql"select instance_id from __watermark")
-          .returns(table(not(equalTo(pipelineId.get))))
+          .returns(Table(not(equalTo(pipelineId.get))))
     ,
     funcTest("__cleanup_transactions_after_watermark"):
       val target      = Capture[OffsetType]
@@ -106,13 +106,13 @@ object ResetProcedureSpec extends SharedLedgerAndPostgresTest:
       And:
         Postgres
           .query(sql"""select "offset" from __transactions order by ix""")
-          .returns(table(anything | target.capture | anything | anything).transpose)
+          .returns(Table(anything | target.capture | anything | anything).transpose)
       And:
         Postgres.reverseWatermark(2) `returns` 1
       And:
         Postgres
           .query(sql"select instance_id from __watermark")
-          .returns(table(staleWriter.capture))
+          .returns(Table(staleWriter.capture))
       Expect:
         Postgres call {
           sql"call __cleanup_transactions_after_watermark()"
@@ -120,13 +120,13 @@ object ResetProcedureSpec extends SharedLedgerAndPostgresTest:
       And:
         Postgres
           .query(sql"""select "offset" from __transactions order by ix""")
-          .returns(table(anything | target).transpose)
+          .returns(Table(anything | target).transpose)
       And:
-        Postgres.query(sql"select count(*) from __contracts").returns(table(2))
+        Postgres.query(sql"select count(*) from __contracts").returns(Table(2))
       And:
         Postgres
           .query(sql"select instance_id from __watermark")
-          .returns(table(not(equalTo(staleWriter.get))))
+          .returns(Table(not(equalTo(staleWriter.get))))
     ,
     funcTest("offset out of lower bounds"):
       Given:

@@ -6,7 +6,7 @@ package com.digitalasset.pqs.features.upgrades
 import com.digitalasset.pqs.docker.{Docker, Service}
 import com.digitalasset.pqs.functest.{FTEnv, FuncTestStandalone}
 import com.digitalasset.pqs.functest.matchers.*
-import com.digitalasset.pqs.functest.table.*
+import com.digitalasset.pqs.services.postgres.Table
 import com.digitalasset.pqs.services.daml.*
 import com.digitalasset.pqs.services.postgres.*
 import com.digitalasset.pqs.services.pqs.{Pipeline, Pqs}
@@ -91,45 +91,35 @@ object RpidTwoParticipantSpec extends FuncTestStandalone:
       And:
         Pqs `hasProcessedAtLeastTransactions` 2
       Expect:
-        apiCreates() `returns` table {
-          "package_id"        | "creation_package_id"
-          ---                 | ---
+        apiCreates() `returns` Table {
           v2Dar.get.packageId | v1Dar.get.packageId
           v2Dar.get.packageId | v2Dar.get.packageId
         }
       And:
-        apiActive() `returns` table {
-          "package_id"        | "creation_package_id"
-          ---                 | ---
+        apiActive() `returns` Table {
           v2Dar.get.packageId | v1Dar.get.packageId
           v2Dar.get.packageId | v2Dar.get.packageId
         }
       And:
-        storageContracts() `returns` table {
-          "representative_package_id" | "creation_package_id" | "status"
-          ---                         | ---                   | ---
-          v2Dar.get.packageId         | v1Dar.get.packageId   | "active"
-          v2Dar.get.packageId         | null                  | "active"
+        storageContracts() `returns` Table {
+          v2Dar.get.packageId | v1Dar.get.packageId | "active"
+          v2Dar.get.packageId | null                | "active"
         }
       When:
         DamlSdk.runScript("RpidTest:consumeAll", alice.id)
       And:
         Pqs `hasProcessedAtLeastTransactions` 4
       Expect:
-        apiArchives() `returns` table {
-          "package_id"        | "creation_package_id"
-          ---                 | ---
+        apiArchives() `returns` Table {
           v2Dar.get.packageId | v1Dar.get.packageId
           v2Dar.get.packageId | v2Dar.get.packageId
         }
       And:
         apiActive() `returns` Table.empty
       And:
-        storageContracts() `returns` table {
-          "representative_package_id" | "creation_package_id" | "status"
-          ---                         | ---                   | ---
-          v2Dar.get.packageId         | v1Dar.get.packageId   | "archive"
-          v2Dar.get.packageId         | null                  | "archive"
+        storageContracts() `returns` Table {
+          v2Dar.get.packageId | v1Dar.get.packageId | "archive"
+          v2Dar.get.packageId | null                | "archive"
         }
   )
 
