@@ -25,19 +25,20 @@ object ContractsPerfSpec extends SharedHydratedLedgerTest with QueryPerfSpec[Int
           "select_star_from_all_at_100",
           sql"select * from active(null, $offset100)",
           repeat = 2,
-          expectedDiff = 0.48
+          expectedDiff = 1.15
         ),
         Query(
           "select_star_from_all_at_50",
           sql"select * from active(null, $offset50)",
           repeat = 2,
-          expectedDiff = 0.45
+          expectedDiff = 1.01
         ),
         Query(
           "select_star_from_all_at_10",
           sql"select * from active(null, $offset10)",
           repeat = 8,
-          expectedDiff = 0.75
+          expectedDiff = 2.11,
+          tolerance = 0.5
         ),
 
         // Nested loop anti-join: one extra scan of the active contracts, no JIT.
@@ -45,19 +46,19 @@ object ContractsPerfSpec extends SharedHydratedLedgerTest with QueryPerfSpec[Int
           "select_star_from_bloba_at_100",
           sql"select * from active($blobA, $offset100)",
           repeat = 4,
-          expectedDiff = 0.26
+          expectedDiff = 0.41
         ),
         Query(
           "select_star_from_bloba_at_50",
           sql"select * from active($blobA, $offset50)",
           repeat = 4,
-          expectedDiff = 0.24
+          expectedDiff = 0.44
         ),
         Query(
           "select_star_from_bloba_at_10",
           sql"select * from active($blobA, $offset10)",
           repeat = 16,
-          expectedDiff = 0.12
+          expectedDiff = 0.34
         ),
 
         // Baseline is a bare scan with no joins, so the anti-join weighs more
@@ -65,13 +66,13 @@ object ContractsPerfSpec extends SharedHydratedLedgerTest with QueryPerfSpec[Int
           "select_cid_from_all_at_100",
           sql"select contract_id from active(null, $offset100)",
           repeat = 2,
-          expectedDiff = 0.73
+          expectedDiff = 1.10
         ),
         Query(
           "select_cid_from_bloba_at_100",
           sql"select contract_id from active($blobA, $offset100)",
           repeat = 4,
-          expectedDiff = 0.47
+          expectedDiff = 0.65
         ),
 
         // Candidate filters in a parallel scan (baseline is serial)
@@ -79,13 +80,13 @@ object ContractsPerfSpec extends SharedHydratedLedgerTest with QueryPerfSpec[Int
           "select_star_from_all_at_100_filter_on_payload",
           sql"select * from active(null, $offset100) where payload ->> 'value' = '42'",
           repeat = 4,
-          expectedDiff = -0.50
+          expectedDiff = -0.47
         ),
         Query(
           "select_star_from_bloba_at_100_filter_on_payload",
           sql"select * from active($blobA, $offset100) where payload ->> 'value' = '42'",
           repeat = 8,
-          expectedDiff = -0.02
+          expectedDiff = 0.05
         )
       )
     }

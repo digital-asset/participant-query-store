@@ -12,7 +12,8 @@ import zio.jdbc.*
 import zio.test.*
 
 object IngestionPerfSpec extends SharedHydratedLedgerTest:
-  private val limits = ContainerLimits(cpus = 2.0, memoryGiB = 0.8)
+  private val limits       = ContainerLimits(cpus = 2.0, memoryGiB = 0.8)
+  private val expectedDiff = 0.18
 
   def spec = suite("IngestionPerfSpec")(
     funcTest("Ingestion perf") {
@@ -72,8 +73,8 @@ object IngestionPerfSpec extends SharedHydratedLedgerTest:
             s" | Diff: ${diff.percent}" +
             s" | Output: ${candidateSummary.get}"
           assert(candidateSummary.get)(Assertion.equalTo(baselineSummary.get))
-          && assertTrue(diff < 0.5).label(message)
-          && assertTrue(diff > -0.1).label(message)
+          && assertTrue(diff < expectedDiff + 0.3).label(message)
+          && assertTrue(diff > expectedDiff - 0.3).label(message)
     }
   )
 

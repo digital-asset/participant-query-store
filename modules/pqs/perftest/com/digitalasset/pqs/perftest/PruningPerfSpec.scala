@@ -13,20 +13,30 @@ import zio.jdbc.SqlFragment
 final case class PruningOutput(contracts: Long, exercises: Long, events: Long, transactions: Long)
 
 object PruningPerfSpec extends SharedHydratedLedgerTest with QueryPerfSpec[PruningOutput]:
-  private val steps = Seq((0.005, 128), (0.01, 64), (0.05, 16), (0.10, 8), (0.25, 4), (0.5, 2))
+  private case class PruningStep(ratio: Double, repeat: Int, expectedDiff: Double)
+  private val steps = Seq(
+    PruningStep(0.005, 128, 0.14),
+    PruningStep(0.01, 64, 0.14),
+    PruningStep(0.05, 16, 0.11),
+    PruningStep(0.10, 8, 0.08),
+    PruningStep(0.25, 4, 0.03),
+    PruningStep(0.5, 2, 0.05)
+  )
   def spec = suite("PruningPerfSpec")(
     perfTest("prune_archive_to_offset") {
       for
         lastIx <- Database.getLastIx
-        queries <- ZIO.foreach(steps) { (step, repeat) =>
-          Database.getOffset((lastIx * step).toLong).map { offset =>
-            val prettyStep = f"${step * 100}%.1f"
-            Query(
-              s"prune_${prettyStep}_percent",
-              sql"select deleted_contracts, deleted_exercises, deleted_events, deleted_transactions from prune_archived_to_offset($offset)",
-              repeat
-            )
-          }
+        queries <- ZIO.foreach(steps) {
+          case PruningStep(ratio, repeat, expectedDiff) =>
+            Database.getOffset((lastIx * ratio).toLong).map { offset =>
+              val prettyRatio = f"${ratio * 100}%.1f"
+              Query(
+                s"prune_${prettyRatio}_percent",
+                sql"select deleted_contracts, deleted_exercises, deleted_events, deleted_transactions from prune_archived_to_offset($offset)",
+                repeat,
+                expectedDiff
+              )
+            }
         }
       yield Benchmark(queries*)
     }
