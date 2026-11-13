@@ -56,6 +56,10 @@ object ReassignmentSeedingSpec extends SharedMultiSyncLedgerSpec:
         Database
           .query(sql"""select "type"::text from __events""")
           .returns(Table("assign"))
+      Expect:
+        Database
+          .query(sql"select * from summary_updates()")
+          .returns(Table(s"${pingPong.name}:PingPong:Ping" | "template" | 1 | 0 | 0 | 0))
     },
     funcTest("Contract seeded from the ACS as an assign can be archived") {
       val alice      = Party("Alice")
