@@ -113,7 +113,7 @@ object ReassignmentRedactionSpec extends SharedMultiSyncLedgerSpec:
         def unassignTx = transactions.get(1).copy(offset = unassignedAtOffset)
 
         Then:
-          Ledger.recordTransactionStream.is(hasSize(equalTo(3)) && transactions.capture)
+          Ledger.recordTransactionStream().is(hasSize(equalTo(3)) && transactions.capture)
 
         When:
           Postgres.database
@@ -161,7 +161,7 @@ object ReassignmentRedactionSpec extends SharedMultiSyncLedgerSpec:
         def unassignTx = transactions.get(1).copy(offset = unassignedAtOffset)
 
         Then:
-          Ledger.recordTransactionStream.is(hasSize(equalTo(4)) && transactions.capture)
+          Ledger.recordTransactionStream().is(hasSize(equalTo(4)) && transactions.capture)
 
         When:
           Postgres.database

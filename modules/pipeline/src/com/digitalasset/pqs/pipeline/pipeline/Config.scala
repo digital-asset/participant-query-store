@@ -11,18 +11,15 @@ import zio.config.magnolia.describe
 
 case class Config(
     @describe("Ledger API service to use as data source")
-    datasource: Config.TransactionApi = Config.TransactionApi.TransactionStream,
+    datasource: Config.Datasource = Config.Datasource.TransactionStream,
     @describe("Ledger config")
     ledger: LedgerConfig,
     filter: Config.Filters = Config.Filters(),
     oauth: auth.Config.OAuth
 )
 object Config:
-  sealed trait TransactionApi
-  object TransactionApi:
-    case object TransactionStream     extends TransactionApi
-    case object TransactionTreeStream extends TransactionApi
-  end TransactionApi
+  enum Datasource:
+    case TransactionStream, TransactionTreeStream
 
   case class Filters(
       // TODO: Add a link to the public documentation of ContractFilter syntax
