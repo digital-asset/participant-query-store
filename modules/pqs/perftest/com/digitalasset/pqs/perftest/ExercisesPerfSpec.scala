@@ -72,7 +72,7 @@ object ExercisesPerfSpec extends SharedHydratedLedgerTest:
       lastIx <- Database.getLastIx
       from   <- Database.getOffset((lastIx * 0.4).toLong)
       to     <- Database.getOffset((lastIx * 0.6).toLong)
-      seedId <- Postgres.get[String](sql"select contract_id from creates('Blob:Seed') order by contract_id limit 1")
+      seedId <- Database.get[String](sql"select contract_id from creates('Blob:Seed') order by contract_id limit 1")
     yield Seq(
       Benchmark("exercises()", 5, sql"exercises()"),
       Benchmark("exercises() all columns", 5, sql"exercises() e where length(e::text) > 0"),
@@ -95,7 +95,7 @@ object ExercisesPerfSpec extends SharedHydratedLedgerTest:
       }
 
   private def summarize(call: SqlFragment) =
-    Postgres
+    Database
       .get[(Long, Long, Long)](
         sql"select count(*), count(signatories), coalesce(sum(exercised_at_offset), 0)::int8 from " ++ call
       )

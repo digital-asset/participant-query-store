@@ -6,10 +6,9 @@ package com.digitalasset.pqs.features
 import com.digitalasset.pqs.Dars
 import com.digitalasset.pqs.SharedLedgerAndPostgresTest
 import com.digitalasset.pqs.functest.matchers.*
-import com.digitalasset.pqs.functest.table.*
 import com.digitalasset.pqs.services.daml.*
 import com.digitalasset.pqs.services.daml.DamlSdk.onlyDamlLfVersion
-import com.digitalasset.pqs.services.postgres.Postgres
+import com.digitalasset.pqs.services.postgres.*
 import com.digitalasset.pqs.services.pqs.{Pipeline, Pqs}
 import zio.jdbc.sqlInterpolator
 import zio.test.Assertion.*
@@ -69,7 +68,7 @@ object NuckSpec extends SharedLedgerAndPostgresTest:
       // Looking up contracts by key "(alice, 42)" returns A and B, but not C.
       Expect:
         lookupByKey(alice.id, 42).returns(
-          table {
+          Table {
             anything | contractKeyHash.capture | "A"
             anything | contractKeyHash.capture | "B"
           }
@@ -78,7 +77,7 @@ object NuckSpec extends SharedLedgerAndPostgresTest:
       // returns one row per contract.
       Expect:
         lookupByKeyHash(contractKeyHash.get).returns(
-          table {
+          Table {
             anything | "A"
             anything | "B"
           }
@@ -100,7 +99,7 @@ object NuckSpec extends SharedLedgerAndPostgresTest:
       // both, because they describe the underlying template, not the interface view.
       Expect:
         for
-          stored <- Postgres
+          stored <- Database
             .query(
               sql"""select contract_key is null, contract_key_hash is null
                     from active($interfaceFqn)
@@ -115,43 +114,39 @@ object NuckSpec extends SharedLedgerAndPostgresTest:
 
       Expect:
         keyColumnsOf(templateFqn).returns(
-          table {
-            "key owner" | "key k" | "key hash"  | "label"
-            ---         | ---     | ---         | ---
-            alice.id    | "42"    | not(isNull) | "A"
-            alice.id    | "43"    | not(isNull) | "C"
-            alice.id    | "42"    | not(isNull) | "B"
+          Table {
+            alice.id | "42" | not(isNull) | "A"
+            alice.id | "43" | not(isNull) | "C"
+            alice.id | "42" | not(isNull) | "B"
           }
         )
 
       Expect:
         keyColumnsOf(interfaceFqn).returns(
-          table {
-            "key owner" | "key k" | "key hash" | "label"
-            ---         | ---     | ---        | ---
-            isNull      | isNull  | isNull     | "A"
-            isNull      | isNull  | isNull     | "C"
-            isNull      | isNull  | isNull     | "B"
+          Table {
+            isNull | isNull | isNull | "A"
+            isNull | isNull | isNull | "C"
+            isNull | isNull | isNull | "B"
           }
         )
     }
   ) @@ onlyDamlLfVersion(">=2.3")
 
-  private def lookupByKey(partyId: String, k: Int) = Postgres.query(
+  private def lookupByKey(partyId: String, k: Int) = Database.query(
     sql"""select contract_id, contract_key_hash, payload ->> 'label'
           from __contracts
           where contract_key = jsonb_build_object('_1', $partyId, '_2', ${k.toString})
           order by activated_at_ix"""
   )
 
-  private def lookupByKeyHash(contractKeyHash: String) = Postgres.query(
+  private def lookupByKeyHash(contractKeyHash: String) = Database.query(
     sql"""select contract_id, payload ->> 'label'
           from __contracts
           where contract_key_hash = $contractKeyHash::bytea
           order by activated_at_ix"""
   )
 
-  private def keyColumnsOf(qname: String) = Postgres.query(
+  private def keyColumnsOf(qname: String) = Database.query(
     sql"""select contract_key ->> '_1', contract_key ->> '_2', contract_key_hash, payload ->> 'label'
           from active($qname)
           order by activated_at_ix"""

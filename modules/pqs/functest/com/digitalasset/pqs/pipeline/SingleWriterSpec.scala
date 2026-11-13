@@ -8,10 +8,9 @@ import com.digitalasset.pqs.Dars
 import com.digitalasset.pqs.SharedLedgerAndPostgresTest
 import com.digitalasset.pqs.docker.{Docker, Service}
 import com.digitalasset.pqs.functest.matchers.*
-import com.digitalasset.pqs.functest.table.*
 import com.digitalasset.pqs.pipeline.pipeline.ledger.CliStartOffset
 import com.digitalasset.pqs.services.daml.*
-import com.digitalasset.pqs.services.postgres.{Database, Postgres}
+import com.digitalasset.pqs.services.postgres.*
 import com.digitalasset.pqs.services.pqs.{Pipeline, Pqs}
 import com.digitalasset.pqs.utils.safeequals.=/=
 import zio.*
@@ -212,8 +211,8 @@ object SingleWriterSpec extends SharedLedgerAndPostgresTest:
 
   // Records each claim of the writer slot and each watermark advance with the app that made it
   private val startRecordingWriters: ZIO[Database, Throwable, Unit] =
-    Postgres.call(
-      sql"""create table ft_watermark_audit (
+    Database.call(
+      sql"""create Table ft_watermark_audit (
               seq bigserial primary key,
               app text not null default current_setting('application_name'),
               kind text not null,
@@ -254,7 +253,7 @@ object SingleWriterSpec extends SharedLedgerAndPostgresTest:
   // Waiters for a locked row queue on its tuple lock: the first holds it while waiting, the rest wait for it.
   // pg_stat_activity is server-wide, so queries on it filter by database
   private val appsWaitingOnWatermark: ZIO[Database, Throwable, Set[String]] =
-    Postgres
+    Database
       .query(
         sql"""select distinct a.application_name from pg_stat_activity a join pg_locks l on l.pid = a.pid
               where a.datname = current_database() and a.wait_event_type = 'Lock'
@@ -264,7 +263,7 @@ object SingleWriterSpec extends SharedLedgerAndPostgresTest:
 
   // Claims and advances in commit order: the app, whether it claimed the writer slot, and the ix
   private val watermarkUpdates: ZIO[Database, Throwable, Chunk[(String, Boolean, Long)]] =
-    Postgres.query(
+    Database.query(
       sql"select app, kind = 'claim', ix from ft_watermark_audit order by seq".query[(String, Boolean, Long)].selectAll
     )
 
@@ -292,10 +291,10 @@ object SingleWriterSpec extends SharedLedgerAndPostgresTest:
     advances.map(_.map(_._2))
 
   private val lastProcessedOffset: ZIO[Database, Throwable, Option[Long]] =
-    Postgres.query(sql"""select "offset" from latest_checkpoint()""".query[Long].selectOne)
+    Database.query(sql"""select "offset" from latest_checkpoint()""".query[Long].selectOne)
 
   private val activeContracts: ZIO[Database, Throwable, Set[String]] =
-    Postgres.query(sql"select contract_id from active($pingFqn)".query[String].selectAll).map(_.toSet)
+    Database.query(sql"select contract_id from active($pingFqn)".query[String].selectAll).map(_.toSet)
 
   // Compared through the read API, so changes to PQS tables need no changes here
   private val createdContracts: ZIO[Database, Throwable, Table] =

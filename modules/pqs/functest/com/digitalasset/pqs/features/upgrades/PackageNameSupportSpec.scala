@@ -6,10 +6,9 @@ package com.digitalasset.pqs.features.upgrades
 import com.digitalasset.pqs.Dars
 import com.digitalasset.pqs.functest.FuncTestStandalone
 import com.digitalasset.pqs.functest.matchers.*
-import com.digitalasset.pqs.functest.table.*
 import com.digitalasset.pqs.services.daml.*
 import com.digitalasset.pqs.services.postgres.Database.*
-import com.digitalasset.pqs.services.postgres.Postgres
+import com.digitalasset.pqs.services.postgres.*
 import com.digitalasset.pqs.services.pqs.{Pipeline, Pqs}
 import zio.jdbc.sqlInterpolator
 import zio.test.Assertion.anything
@@ -113,7 +112,7 @@ object PackageNameSupportSpec extends FuncTestStandalone:
         val pkgPk         = Capture[Int]
         val upgPkgPk      = Capture[Int]
         Expect:
-          __packages(sql"""order by version, name desc""") `returns` table {
+          __packages(sql"""order by version, name desc""") `returns` Table {
             pkgPk.capture    | packageName     | "0.0.0" | pkgId
             anything         | interfaces.name | "0.0.0" | anything
             upgPkgPk.capture | packageName     | "0.0.1" | upgPkgId
@@ -122,7 +121,7 @@ object PackageNameSupportSpec extends FuncTestStandalone:
         val pingCTpePk      = Capture[Int]
         val labelableCTpePk = Capture[Int]
         Expect:
-          __contract_tpe() `returns` table {
+          __contract_tpe() `returns` Table {
             labelableCTpePk.capture | s"${interfaces.name}:Interfaces:Labelable" | "interface" | s"{${interfaces.name}:Interfaces:Labelable,Interfaces:Labelable,Labelable}"
             pingCTpePk.capture | s"$packageName:Ping:Ping" | "template" | s"{$packageName:Ping:Ping,Ping:Ping,Ping}"
           }
@@ -131,7 +130,7 @@ object PackageNameSupportSpec extends FuncTestStandalone:
         val cId2 = Capture[String]
         val cId3 = Capture[String]
         Expect:
-          __contracts(extraColumns = Seq("payload ->> 'label'")) `returns` table {
+          __contracts(extraColumns = Seq("payload ->> 'label'")) `returns` Table {
             pkgPk    | labelableCTpePk | anything     | "[1,)"  | null
             pkgPk    | pingCTpePk      | cId1.capture | "[1,)"  | null
             upgPkgPk | labelableCTpePk | anything     | "[2,3)" | "created upgraded contract"
@@ -141,7 +140,7 @@ object PackageNameSupportSpec extends FuncTestStandalone:
           }
 
         Expect:
-          __contracts(extraColumns = Seq("payload ->> 'label'")) `returns` table {
+          __contracts(extraColumns = Seq("payload ->> 'label'")) `returns` Table {
             pkgPk    | labelableCTpePk | cId1 | "[1,)"  | null
             pkgPk    | pingCTpePk      | cId1 | "[1,)"  | null
             upgPkgPk | labelableCTpePk | cId2 | "[2,3)" | "created upgraded contract"
@@ -151,7 +150,7 @@ object PackageNameSupportSpec extends FuncTestStandalone:
           }
 
         Expect:
-          __exercise_tpe() `returns` table {
+          __exercise_tpe() `returns` Table {
             anything | s"${interfaces.name}:Interfaces:Labelable" | s"${interfaces.name}:Interfaces:Labelable:Archive" | "Archive" | true | s"{${interfaces.name}:Interfaces:Labelable:Archive,Interfaces:Labelable:Archive,Labelable:Archive,Archive}"
             anything | s"${interfaces.name}:Interfaces:Labelable" | s"${interfaces.name}:Interfaces:Labelable:SetLabelChoice" | "SetLabelChoice" | true | s"{${interfaces.name}:Interfaces:Labelable:SetLabelChoice,Interfaces:Labelable:SetLabelChoice,Labelable:SetLabelChoice,SetLabelChoice}"
             anything | s"$packageName:Ping:Ping" | s"$packageName:Ping:Ping:Archive" | "Archive" | true | s"{$packageName:Ping:Ping:Archive,Ping:Ping:Archive,Ping:Archive,Archive}"
@@ -163,30 +162,30 @@ object PackageNameSupportSpec extends FuncTestStandalone:
         // Read API tests
         // active
         Expect:
-          active() `returns` table {
+          active() `returns` Table {
             pkgId    | s"${interfaces.name}:Interfaces:Labelable" | "interface" | cId1
             pkgId    | s"$packageName:Ping:Ping"                  | "template"  | cId1
             upgPkgId | s"${interfaces.name}:Interfaces:Labelable" | "interface" | cId3
             upgPkgId | s"$packageName:Ping:Ping"                  | "template"  | cId3
           }
         Expect:
-          active(Some(s"$packageName:Ping:Ping")) `returns` table {
+          active(Some(s"$packageName:Ping:Ping")) `returns` Table {
             pkgId    | s"$packageName:Ping:Ping" | "template" | cId1
             upgPkgId | s"$packageName:Ping:Ping" | "template" | cId3
           }
         // archives
         Expect:
-          archives() `returns` table {
+          archives() `returns` Table {
             upgPkgId | s"${interfaces.name}:Interfaces:Labelable" | "interface" | cId2
             upgPkgId | s"$packageName:Ping:Ping"                  | "template"  | cId2
           }
         Expect:
-          archives(Some(s"$packageName:Ping:Ping")) `returns` table {
+          archives(Some(s"$packageName:Ping:Ping")) `returns` Table {
             upgPkgId | s"$packageName:Ping:Ping" | "template" | cId2
           }
         // creates
         Expect:
-          creates() `returns` table {
+          creates() `returns` Table {
             pkgId    | s"${interfaces.name}:Interfaces:Labelable" | "interface" | cId1
             pkgId    | s"$packageName:Ping:Ping"                  | "template"  | cId1
             upgPkgId | s"${interfaces.name}:Interfaces:Labelable" | "interface" | cId2
@@ -195,7 +194,7 @@ object PackageNameSupportSpec extends FuncTestStandalone:
             upgPkgId | s"$packageName:Ping:Ping"                  | "template"  | cId3
           }
         Expect:
-          creates(Some(s"$packageName:Ping:Ping")) `returns` table {
+          creates(Some(s"$packageName:Ping:Ping")) `returns` Table {
             pkgId    | s"$packageName:Ping:Ping" | "template" | cId1
             upgPkgId | s"$packageName:Ping:Ping" | "template" | cId2
             upgPkgId | s"$packageName:Ping:Ping" | "template" | cId3
@@ -239,7 +238,7 @@ object PackageNameSupportSpec extends FuncTestStandalone:
         val pkgPk         = Capture[Int]
         val upgPkgPk      = Capture[Int]
         Expect:
-          __packages(sql"""order by version, name desc""") `returns` table {
+          __packages(sql"""order by version, name desc""") `returns` Table {
             pkgPk.capture    | packageName     | "0.0.0" | pkgId
             anything         | interfaces.name | "0.0.0" | anything
             upgPkgPk.capture | packageName     | "0.0.1" | upgPkgId
@@ -248,7 +247,7 @@ object PackageNameSupportSpec extends FuncTestStandalone:
         val pingCTpePk      = Capture[Int]
         val labelableCTpePk = Capture[Int]
         Expect:
-          __contract_tpe() `returns` table {
+          __contract_tpe() `returns` Table {
             labelableCTpePk.capture | s"${interfaces.name}:Interfaces:Labelable" | "interface" | s"{${interfaces.name}:Interfaces:Labelable,Interfaces:Labelable,Labelable}"
             pingCTpePk.capture | s"$packageName:Ping:Ping" | "template" | s"{$packageName:Ping:Ping,Ping:Ping,Ping}"
           }
@@ -257,7 +256,7 @@ object PackageNameSupportSpec extends FuncTestStandalone:
         val cId2 = Capture[String]
         val cId3 = Capture[String]
         Expect:
-          __contracts(extraColumns = Seq("payload ->> 'label'")) `returns` table {
+          __contracts(extraColumns = Seq("payload ->> 'label'")) `returns` Table {
             pkgPk    | labelableCTpePk | anything     | "[1,)"  | null
             pkgPk    | pingCTpePk      | cId1.capture | "[1,)"  | null
             upgPkgPk | labelableCTpePk | anything     | "[2,3)" | "created upgraded contract"
@@ -267,7 +266,7 @@ object PackageNameSupportSpec extends FuncTestStandalone:
           }
 
         Expect:
-          __contracts(extraColumns = Seq("payload ->> 'label'")) `returns` table {
+          __contracts(extraColumns = Seq("payload ->> 'label'")) `returns` Table {
             pkgPk    | labelableCTpePk | cId1 | "[1,)"  | null
             pkgPk    | pingCTpePk      | cId1 | "[1,)"  | null
             upgPkgPk | labelableCTpePk | cId2 | "[2,3)" | "created upgraded contract"
@@ -278,39 +277,39 @@ object PackageNameSupportSpec extends FuncTestStandalone:
 
         val setLabelChoiceETpePk = Capture[Int]
         Expect:
-          __exercise_tpe() `returns` table {
+          __exercise_tpe() `returns` Table {
             anything | s"${interfaces.name}:Interfaces:Labelable" | s"${interfaces.name}:Interfaces:Labelable:Archive" | "Archive" | true | s"{${interfaces.name}:Interfaces:Labelable:Archive,Interfaces:Labelable:Archive,Labelable:Archive,Archive}"
             setLabelChoiceETpePk.capture | s"${interfaces.name}:Interfaces:Labelable" | s"${interfaces.name}:Interfaces:Labelable:SetLabelChoice" | "SetLabelChoice" | true | s"{${interfaces.name}:Interfaces:Labelable:SetLabelChoice,Interfaces:Labelable:SetLabelChoice,Labelable:SetLabelChoice,SetLabelChoice}"
             anything | s"$packageName:Ping:Ping" | s"$packageName:Ping:Ping:Archive" | "Archive" | true | s"{$packageName:Ping:Ping:Archive,Ping:Ping:Archive,Ping:Archive,Archive}"
           }
 
         Expect:
-          __exercises() `returns` table {
+          __exercises() `returns` Table {
             upgPkgPk | setLabelChoiceETpePk | labelableCTpePk | cId2 | "exercised SetLabelChoice on upgraded contract"
           }
 
         // Read API tests
         // active
         Expect:
-          active(Some(s"$packageName:Ping:Ping")) `returns` table {
+          active(Some(s"$packageName:Ping:Ping")) `returns` Table {
             pkgId    | s"$packageName:Ping:Ping" | "template" | cId1
             upgPkgId | s"$packageName:Ping:Ping" | "template" | cId3
           }
         // archives
         Expect:
-          archives(Some(s"$packageName:Ping:Ping")) `returns` table {
+          archives(Some(s"$packageName:Ping:Ping")) `returns` Table {
             upgPkgId | s"$packageName:Ping:Ping" | "template" | cId2
           }
         // creates
         Expect:
-          creates(Some(s"$packageName:Ping:Ping")) `returns` table {
+          creates(Some(s"$packageName:Ping:Ping")) `returns` Table {
             pkgId    | s"$packageName:Ping:Ping" | "template" | cId1
             upgPkgId | s"$packageName:Ping:Ping" | "template" | cId2
             upgPkgId | s"$packageName:Ping:Ping" | "template" | cId3
           }
         // exercises
         Expect:
-          exercises(Some(s"${interfaces.name}:Interfaces:Labelable:SetLabelChoice")) `returns` table {
+          exercises(Some(s"${interfaces.name}:Interfaces:Labelable:SetLabelChoice")) `returns` Table {
             upgPkgId | s"${interfaces.name}:Interfaces:Labelable" | s"${interfaces.name}:Interfaces:Labelable:SetLabelChoice" | "SetLabelChoice" | cId2 | "exercised SetLabelChoice on upgraded contract"
           }
     )

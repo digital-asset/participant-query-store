@@ -5,9 +5,8 @@ package com.digitalasset.pqs.features.upgrades
 
 import com.daml.ledger.api.v2.value.*
 import com.digitalasset.pqs.functest.matchers.*
-import com.digitalasset.pqs.functest.table.*
 import com.digitalasset.pqs.services.daml.*
-import com.digitalasset.pqs.services.postgres.{Database, Postgres}
+import com.digitalasset.pqs.services.postgres.*
 import com.digitalasset.pqs.services.pqs.Pqs
 import com.digitalasset.pqs.SharedMultiSyncLedgerSpec
 
@@ -101,7 +100,7 @@ object ReassignedContractUpgradesSpec extends SharedMultiSyncLedgerSpec:
         Database
           .active(extraColumns = Seq("payload ->> 'label'", "synchronizer_id", "reassignment_counter"))
           .returns(
-            table {
+            Table {
               // Canton uses pingV1 to compute the interface view because TAPS require a package to be vetted on all synchronizers hosting the submitting party
               pingV1Dar.get.packageId | s"${pingIface.name}:Interfaces:Labelable" | "interface" | contractId | "someLabelV1" | sync2.id | 1
               pingV1Dar.get.packageId | s"${pingV1.name}:Ping:Ping" | "template" | contractId | "someLabel" | sync2.id | 1
@@ -120,7 +119,7 @@ object ReassignedContractUpgradesSpec extends SharedMultiSyncLedgerSpec:
         Database
           .active(extraColumns = Seq("payload ->> 'label'", "synchronizer_id", "reassignment_counter"))
           .returns(
-            table {
+            Table {
               // Canton uses pingV2 to compute the interface view since it is vetted by all synchronizers hosting Alice
               pingV1Dar.get.packageId | s"${pingIface.name}:Interfaces:Labelable" | "interface" | contractId | "someLabelV2" | sync1.id | 2
               pingV1Dar.get.packageId | s"${pingV1.name}:Ping:Ping" | "template" | contractId | "someLabel" | sync1.id | 2

@@ -4,15 +4,13 @@
 package com.digitalasset.pqs.features.redaction
 
 import com.digitalasset.pqs.SharedLedgerAndPostgresTest
-import com.digitalasset.pqs.nonExistenceEventId
 import com.digitalasset.pqs.functest.FuncTest
 import com.digitalasset.pqs.functest.matchers.*
-import com.digitalasset.pqs.functest.table.*
 import com.digitalasset.pqs.pipeline.pipeline.Config.TransactionApi
 import com.digitalasset.pqs.pipeline.pipeline.Config.TransactionApi.{TransactionStream, TransactionTreeStream}
 import com.digitalasset.pqs.services.daml.*
 import com.digitalasset.pqs.services.daml.DamlSdk.onlyDamlLfVersion
-import com.digitalasset.pqs.services.postgres.Postgres
+import com.digitalasset.pqs.services.postgres.*
 import com.digitalasset.pqs.services.pqs.{Pipeline, Pqs}
 import zio.ZLayer
 import zio.jdbc.{SqlFragment, sqlInterpolator}
@@ -20,9 +18,11 @@ import zio.test.*
 import zio.test.Assertion.*
 
 import scala.language.implicitConversions
+import com.digitalasset.pqs.services.postgres.Database
 
 object RedactionSpec extends SharedLedgerAndPostgresTest {
-  val redactionId = "some_reason"
+  private val nonExistenceEventId = s"(${Long.MaxValue},${Int.MaxValue})"
+  val redactionId                 = "some_reason"
   lazy val interfaces = DamlSource(
     "Interfaces" -> """module Interfaces where
                       |
@@ -111,19 +111,19 @@ object RedactionSpec extends SharedLedgerAndPostgresTest {
         Given:
           context(TransactionStream)
         And:
-          Postgres
+          Database
             .query(sql"select contract_id from archives($templateRef) limit 1")
-            .returns(table(oneArchived.capture))
+            .returns(Table(oneArchived.capture))
         When:
           // 2 => affected contracts/interface views
-          Postgres.query(sql"select redact_contract(${oneArchived.get}, $redactionId)").returns(table(2))
+          Database.query(sql"select redact_contract(${oneArchived.get}, $redactionId)").returns(Table(2))
         And:
-          Postgres
+          Database
             .query(
               sql"select payload, redaction_id from lookup_contract(${oneArchived.get})"
             )
             .returns(
-              table {
+              Table {
                 isNull | redactionId
                 isNull | redactionId
               }
@@ -135,16 +135,16 @@ object RedactionSpec extends SharedLedgerAndPostgresTest {
         Given:
           context(TransactionTreeStream)
         And:
-          Postgres.query(sql"select contract_id from active($templateRef) limit 1").returns(table(active.capture))
+          Database.query(sql"select contract_id from active($templateRef) limit 1").returns(Table(active.capture))
         And:
-          Postgres.query(sql"select contract_id from archives($templateRef) limit 1").returns(table(redacted.capture))
+          Database.query(sql"select contract_id from archives($templateRef) limit 1").returns(Table(redacted.capture))
         And:
           // redact valid contract to make sure it cannot be redacted again
           // 2 affected (template + interface)
-          Postgres.query(sql"select redact_contract(${redacted.get}, ${"reason"})").returns(table(2))
+          Database.query(sql"select redact_contract(${redacted.get}, ${"reason"})").returns(Table(2))
         Expect:
           // active contracts cannot be redacted
-          Postgres
+          Database
             .query(sql"select redact_contract(${active.get}, ${"reason"})")
             .exit
             .map(
@@ -160,7 +160,7 @@ object RedactionSpec extends SharedLedgerAndPostgresTest {
             )
         And:
           // redacted contracts cannot be redacted again
-          Postgres
+          Database
             .query(sql"select redact_contract(${redacted.get}, ${"reason"})")
             .exit
             .map(
@@ -176,7 +176,7 @@ object RedactionSpec extends SharedLedgerAndPostgresTest {
             )
         And:
           val nonexistent = active.get.reverse
-          Postgres
+          Database
             .query(sql"select redact_contract($nonexistent, ${"reason"})")
             .exit
             .map(
@@ -197,41 +197,41 @@ object RedactionSpec extends SharedLedgerAndPostgresTest {
         Given:
           context(TransactionTreeStream)
         And:
-          Postgres
+          Database
             .query(sql"select exercise_event_id from exercises($choiceRef) limit 2")
-            .returns(table(targetEventId.capture | controlEventId.capture).transpose)
+            .returns(Table(targetEventId.capture | controlEventId.capture).transpose)
         When:
           // 2 => affected contracts/interface views
-          Postgres
+          Database
             .query(sql"select redact_exercise(${targetEventId.get}::event_id, $redactionId)")
             .returns(Table.empty)
         And:
-          Postgres
+          Database
             .query(
               sql"select argument, result, redaction_id from exercises($choiceRef) where exercise_event_id = ${targetEventId.get}::event_id"
             )
-            .returns(table(isNull | isNull | redactionId))
+            .returns(Table(isNull | isNull | redactionId))
         And:
-          Postgres
+          Database
             .query(
               sql"select redaction_id from  exercises($choiceRef) where exercise_event_id = ${controlEventId.get}::event_id"
             )
-            .returns(table(isNull))
+            .returns(Table(isNull))
       },
       funcTest("raises exception on redaction of non-existent and already redacted exercise") {
         val redacted = Capture[String]
         Given:
           context(TransactionTreeStream)
         And:
-          Postgres
+          Database
             .query(sql"select exercise_event_id from exercises($choiceRef) limit 1")
-            .returns(table(redacted.capture))
+            .returns(Table(redacted.capture))
         And:
           // redact exercise to make sure it cannot be redacted again
-          Postgres.query(sql"select redact_exercise(${redacted.get}::event_id, ${"reason"})").returns(anything)
+          Database.query(sql"select redact_exercise(${redacted.get}::event_id, ${"reason"})").returns(anything)
         Expect:
           // redacted exercises cannot be redacted again
-          Postgres
+          Database
             .query(sql"select redact_exercise(${redacted.get}::event_id, ${"reason"})")
             .exit
             .map(
@@ -246,7 +246,7 @@ object RedactionSpec extends SharedLedgerAndPostgresTest {
               )
             )
         And:
-          Postgres
+          Database
             .query(sql"select redact_exercise($nonExistenceEventId::event_id, 'reason')")
             .exit
             .map(
@@ -277,15 +277,15 @@ object RedactionSpec extends SharedLedgerAndPostgresTest {
           )
 
         And:
-          Postgres.query(sql"select contract_id from archives()").returns(table(archivedCid.capture))
+          Database.query(sql"select contract_id from archives()").returns(Table(archivedCid.capture))
         And:
-          Postgres.query(sql"select redact_contract(${archivedCid.get}, $redactionId)").returns(table(1))
+          Database.query(sql"select redact_contract(${archivedCid.get}, $redactionId)").returns(Table(1))
         Expect:
-          Postgres
+          Database
             .query(
               sql"select payload, contract_key, contract_key_hash, redaction_id from lookup_contract(${archivedCid.get})"
             )
-            .returns(table(isNull | isNull | isNull | redactionId))
+            .returns(Table(isNull | isNull | isNull | redactionId))
       } @@ onlyDamlLfVersion(">=2.3")
     )
 }

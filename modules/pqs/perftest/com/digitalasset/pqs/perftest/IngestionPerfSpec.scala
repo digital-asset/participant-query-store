@@ -65,9 +65,9 @@ object IngestionPerfSpec extends SharedHydratedLedgerTest:
   private case class DatabaseSummary(creates: Long, archives: Long, active: Long, transactions: Long, events: Long)
 
   private def getDatabaseSummary =
-    (Postgres.get[Long](sql"select count(*) from creates()")
-      <&> Postgres.get[Long](sql"select count(*) from archives()")
-      <&> Postgres.get[Long](sql"select count(*) from active()")
-      <&> Postgres.get[Long](sql"select count(*) from __transactions")
-      <&> Postgres.get[Long](sql"select count(*) from __events"))
+    (Database.get[Long](sql"select count(*) from creates()")
+      <&> Database.get[Long](sql"select count(*) from archives()")
+      <&> Database.get[Long](sql"select count(*) from active()")
+      <&> Database.get[Long](sql"select count(*) from __transactions")
+      <&> Database.get[Long](sql"select count(*) from __events"))
       .map(DatabaseSummary.apply.tupled)

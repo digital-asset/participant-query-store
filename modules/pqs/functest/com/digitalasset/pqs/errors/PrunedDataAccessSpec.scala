@@ -6,7 +6,6 @@ package com.digitalasset.pqs.errors
 import com.digitalasset.canonical.Offset
 import com.digitalasset.pqs.functest.FuncTestStandalone
 import com.digitalasset.pqs.functest.matchers.*
-import com.digitalasset.pqs.functest.table.*
 import com.digitalasset.pqs.services.daml.*
 import com.digitalasset.pqs.services.postgres.*
 import com.digitalasset.pqs.services.pqs.Pqs
@@ -63,7 +62,7 @@ object PrunedDataAccessSpec extends FuncTestStandalone:
       Expect:
         Pqs.exitCode `is` ExitCode.success
       And:
-        checkpointsQuery `is` table {
+        checkpointsQuery `is` Table {
           pruneUpTo.capture | 1L | anything | 5L
         }
       When:
@@ -86,4 +85,4 @@ object PrunedDataAccessSpec extends FuncTestStandalone:
         )
   )
 
-  private val checkpointsQuery = Postgres `query` sql"select f.*, l.* from oldest_checkpoint() f, latest_checkpoint() l"
+  private val checkpointsQuery = Database `query` sql"select f.*, l.* from oldest_checkpoint() f, latest_checkpoint() l"

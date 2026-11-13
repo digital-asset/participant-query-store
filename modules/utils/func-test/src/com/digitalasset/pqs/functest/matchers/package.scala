@@ -3,12 +3,10 @@
 
 package com.digitalasset.pqs.functest
 
-import com.digitalasset.pqs.functest.table.Table
 import com.digitalasset.pqs.utils.safeequals.===
 import zio.*
 import zio.internal.stacktracer.SourceLocation
 import zio.test.*
-import zio.test.Assertion.{anything, contains}
 import zio.test.diff.Diff
 import zio.test.internal.OptionalImplicit
 
@@ -65,8 +63,5 @@ package object matchers:
     override def toString: String = get.toString
   }
   object Capture { def apply[A: Tag] = new Capture[A] }
-
-  def matchesTableUnordered(expectedPayloadsTbl: Table): Assertion[Iterable[Any]] =
-    expectedPayloadsTbl.rows.map(contains).reduceOption(_ && _).getOrElse(anything)
 
 end matchers

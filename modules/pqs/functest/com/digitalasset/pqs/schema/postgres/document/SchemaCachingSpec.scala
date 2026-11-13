@@ -7,7 +7,7 @@ import com.digitalasset.pqs.Dars
 import com.digitalasset.pqs.functest.FuncTestStandalone
 import com.digitalasset.pqs.functest.matchers.*
 import com.digitalasset.pqs.services.daml.*
-import com.digitalasset.pqs.services.postgres.Postgres
+import com.digitalasset.pqs.services.postgres.*
 import com.digitalasset.pqs.services.pqs.Pqs
 import zio.test.*
 import zio.test.Assertion.not
@@ -71,5 +71,5 @@ object SchemaCachingSpec extends FuncTestStandalone:
           && not(stringContaining("Fetched contents of package"))
           && not(stringContaining("Falling back to computing the value"))
       And:
-        Postgres `hasTable` "__transactions"
+        Database `hasTable` "__transactions"
   )

@@ -6,10 +6,9 @@ package com.digitalasset.pqs.querying.postgres.document
 import com.digitalasset.pqs.SharedLedgerAndPostgresTest
 import com.digitalasset.pqs.functest.FuncTest
 import com.digitalasset.pqs.functest.matchers.*
-import com.digitalasset.pqs.functest.table.*
 import com.digitalasset.pqs.querying.postgres.document.QueryingSpec.{funcTest}
 import com.digitalasset.pqs.services.daml.*
-import com.digitalasset.pqs.services.postgres.Postgres
+import com.digitalasset.pqs.services.postgres.*
 import com.digitalasset.pqs.services.pqs.Pqs
 import com.digitalasset.pqs.OffsetType
 import zio.ZLayer
@@ -135,33 +134,33 @@ object QueryingSpec extends SharedLedgerAndPostgresTest:
         Given:
           upAndRunning
         When:
-          Postgres `makeGap` (7 to 8) `returns` 2
+          Database `makeGap` (7 to 8) `returns` 2
         Then:
-          Postgres query { sql"""select min(ix), max(ix) from __transactions;""" } `returns` table { 1 <|> 10 }
+          Database query { sql"""select min(ix), max(ix) from __transactions;""" } `returns` Table { 1 <|> 10 }
         And:
-          Postgres query { historyBoundaries } `returns` table { 1 <|> 6 }
+          Database query { historyBoundaries } `returns` Table { 1 <|> 6 }
       ,
       funcTest("can set/reset a session's oldest/latest offset"):
         Given:
           upAndRunning
         When:
-          Postgres `makeGap` (7 to 8) `returns` 2
+          Database `makeGap` (7 to 8) `returns` 2
         And:
-          Postgres.Session.init
+          Database.Session.init
         And:
-          Postgres.Session `setOldest` 2
+          Database.Session `setOldest` 2
         Then:
-          Postgres.Session query { historyBoundaries } `returns` table { 2 <|> 6 }
+          Database.Session query { historyBoundaries } `returns` Table { 2 <|> 6 }
         When:
-          Postgres.Session `setLatest` 5
+          Database.Session `setLatest` 5
         Then:
-          Postgres.Session query { historyBoundaries } `returns` table { 2 <|> 5 }
+          Database.Session query { historyBoundaries } `returns` Table { 2 <|> 5 }
         When:
-          Postgres.Session `setOldest` null
+          Database.Session `setOldest` null
         And:
-          Postgres.Session `setLatest` null
+          Database.Session `setLatest` null
         Then:
-          Postgres.Session query { historyBoundaries } `returns` table { 1 <|> 6 }
+          Database.Session query { historyBoundaries } `returns` Table { 1 <|> 6 }
       ,
       funcTest("can pin a session's latest offset even on an advancing ledger"):
         Given:
@@ -169,28 +168,28 @@ object QueryingSpec extends SharedLedgerAndPostgresTest:
 
         val offsetAt7 = Capture[OffsetType]
         Then:
-          Postgres query {
+          Database query {
             sql"""select "offset" from __transactions where ix = 7;"""
-          } `returns` table { offsetAt7.capture }
+          } `returns` Table { offsetAt7.capture }
         And:
-          Postgres `makeGap` (7 to 8) `returns` 2
+          Database `makeGap` (7 to 8) `returns` 2
 
         When:
-          Postgres.Session.init
+          Database.Session.init
         And:
-          Postgres.Session `setLatest` 6
+          Database.Session `setLatest` 6
         And:
-          Postgres query {
+          Database query {
             sql"""insert into __transactions (ix, "offset") values (7, ${offsetAt7.get});""".insert
           } `returns` anything
         And:
-          Postgres query {
+          Database query {
             sql"""update __watermark set ix = 7, "offset" = ${offsetAt7.get}, instance_id = 'advance-watermark';""".update
           } `returns` anything
         Then:
-          Postgres query { historyBoundaries } `returns` table { 1 <|> 7 }
+          Database query { historyBoundaries } `returns` Table { 1 <|> 7 }
         And:
-          Postgres.Session query { historyBoundaries } `returns` table { 1 <|> 6 }
+          Database.Session query { historyBoundaries } `returns` Table { 1 <|> 6 }
       ,
       funcTest("can pin a session's latest offset ensuring it is no less than supplied offset"):
         Given:
@@ -200,27 +199,27 @@ object QueryingSpec extends SharedLedgerAndPostgresTest:
         val offsetAt6 = Capture[OffsetType]
         val offsetAt7 = Capture[OffsetType]
         Then:
-          Postgres query {
+          Database query {
             sql"""select (select "offset" from __transactions where ix = 4),
                              (select "offset" from __transactions where ix = 6),
                              (select "offset" from __transactions where ix = 7);"""
-          } `returns` table { offsetAt4.capture | offsetAt6.capture | offsetAt7.capture }
+          } `returns` Table { offsetAt4.capture | offsetAt6.capture | offsetAt7.capture }
         And:
-          Postgres `makeGap` (7 to 8) `returns` 2
+          Database `makeGap` (7 to 8) `returns` 2
 
         When:
-          Postgres.Session.init
+          Database.Session.init
         And:
-          Postgres.Session `setLatest` offsetAt4.get
+          Database.Session `setLatest` offsetAt4.get
         Then:
-          Postgres.Session queryVerbose { historyBoundaries } `returns` List(
-            table { offsetAt4.get },
-            table { 1 <|> 4 }
+          Database.Session queryVerbose { historyBoundaries } `returns` List(
+            Table { offsetAt4.get },
+            Table { 1 <|> 4 }
           )
         When:
-          Postgres.Session `setLatest` offsetAt7.get
+          Database.Session `setLatest` offsetAt7.get
         Then:
-          (Postgres.Session query { sql"select 42;" }).exit.map(result =>
+          (Database.Session query { sql"select 42;" }).exit.map(result =>
             assert(result)(
               fails(
                 hasMessage(
@@ -239,7 +238,7 @@ object QueryingSpec extends SharedLedgerAndPostgresTest:
         val offsetAt3              = Capture[OffsetType]
         val offsetAt5              = Capture[OffsetType]
         Then:
-          Postgres query {
+          Database query {
             sql"""select
                         -- by timestamp (closest match prior)
                         (select nearest_offset((select (effective_at - interval '00:00:00.000001') from __transactions where ix = 3))),
@@ -249,24 +248,24 @@ object QueryingSpec extends SharedLedgerAndPostgresTest:
                         (select nearest_offset((select effective_at from __transactions where ix = 3))),
                         -- by interval (exact match)
                         (select nearest_offset(now() - (select effective_at from __transactions where ix = 5)));"""
-          } `returns` table {
+          } `returns` Table {
             offsetSlightlyPriorTo3.capture | offsetSlightlyPriorTo5.capture | offsetAt3.capture | offsetAt5.capture
           }
 
         When:
-          Postgres.Session.init
+          Database.Session.init
         And:
-          Postgres.Session `setOldest` offsetSlightlyPriorTo3.get
+          Database.Session `setOldest` offsetSlightlyPriorTo3.get
         And:
-          Postgres.Session `setLatest` offsetSlightlyPriorTo5.get
+          Database.Session `setLatest` offsetSlightlyPriorTo5.get
         Then:
-          Postgres.Session query { historyBoundaries } `returns` table { 2 <|> 4 }
+          Database.Session query { historyBoundaries } `returns` Table { 2 <|> 4 }
         And:
-          Postgres.Session `setOldest` offsetAt3.get
+          Database.Session `setOldest` offsetAt3.get
         And:
-          Postgres.Session `setLatest` offsetAt5.get
+          Database.Session `setLatest` offsetAt5.get
         Then:
-          Postgres.Session query { historyBoundaries } `returns` table { 3 <|> 5 }
+          Database.Session query { historyBoundaries } `returns` Table { 3 <|> 5 }
       ,
       funcTest("resolves valid offset when __watermark is behind latest transaction"):
         Given:
@@ -275,82 +274,82 @@ object QueryingSpec extends SharedLedgerAndPostgresTest:
         val txOffset   = Capture[OffsetType]
         val txInFlight = Capture[OffsetType]
         And:
-          Postgres query {
+          Database query {
             sql"""select
                               (select nearest_offset((select effective_at from __transactions where ix = 5))),
                               (select nearest_offset((select effective_at from __transactions where ix = 10)));
                               """
-          } `returns` table {
+          } `returns` Table {
             txOffset.capture | txInFlight.capture
           }
         And:
-          Postgres.reverseWatermark(5) `returns` 1
+          Database.reverseWatermark(5) `returns` 1
         When:
-          Postgres.Session.init
+          Database.Session.init
         Then:
-          Postgres query {
+          Database query {
             sql"select nearest_offset((select effective_at from __transactions where ix = 10))"
-          } `returns` table { txOffset.get }
+          } `returns` Table { txOffset.get }
     ),
     suite("read API")(
       funcTest("transactions queries"):
         Given:
           upAndRunning
         When:
-          Postgres `makeGap` (7 to 8) `returns` 2
+          Database `makeGap` (7 to 8) `returns` 2
         Then:
           // Binds to `[oldest_offset(), latest_offset()]` range by default
-          Postgres query {
+          Database query {
             sql"""select count(*) from transactions;"""
-          } `returns` table { 6 }
+          } `returns` Table { 6 }
         When:
-          Postgres.Session.init
+          Database.Session.init
         And:
           // ... or, implicitly through session
-          Postgres.Session `setOldest` 2
+          Database.Session `setOldest` 2
         And:
-          Postgres.Session `setLatest` 5
+          Database.Session `setLatest` 5
         Then:
-          Postgres.Session query {
+          Database.Session query {
             sql"""select count(*) from transactions;"""
-          } `returns` table { 4 }
+          } `returns` Table { 4 }
       ,
       funcTest("state-based queries: ACS @ any offset"):
         Given:
           upAndRunning
         When:
-          Postgres `makeGap` (7 to 8) `returns` 2
+          Database `makeGap` (7 to 8) `returns` 2
         Then:
           // Binds to `latest_offset()` value by default
-          Postgres query {
+          Database query {
             sql"""select payload->>'user_id', payload->>'firstName', payload->>'lastName'
                       from active('NameRegistry:BirthCertificate')
                       order by created_at_offset;"""
-          } `returns` table {
+          } `returns` Table {
             "id-alice" | "Alice" | "Citizen"
             "id-bill"  | "Bill"  | "Taylor"
           }
         And:
           // ... or, can supply an offset explicitly
-          Postgres query {
+          Database query {
             sql"""select payload->>'user_id', payload->>'firstName', payload->>'lastName'
                       from active('NameRegistry:BirthCertificate', (select "offset" from __transactions where ix = 3))
                       order by created_at_offset;"""
-          } `returns` table {
+          } `returns` Table {
             "id-alice" | "Alice" | "Citizen"
             "id-joe"   | "Fred"  | "Bloggs"
           }
         When:
-          Postgres.Session.init
+          Database.Session.init
         And:
           // ... or, implicitly through session
-          Postgres.Session `setLatest` 3
+          Database.Session `setLatest` 3
         Then:
-          Postgres.Session query {
+          Database.Session query {
             sql"""select payload->>'user_id', payload->>'firstName', payload->>'lastName'
                       from active('NameRegistry:BirthCertificate')
                       order by created_at_offset;"""
-          } `returns` table {
+          } `returns` Table {
             "id-alice" | "Alice" | "Citizen"
             "id-joe"   | "Fred"  | "Bloggs"
           }
@@ -359,14 +358,14 @@ object QueryingSpec extends SharedLedgerAndPostgresTest:
         Given:
           upAndRunning
         When:
-          Postgres `makeGap` (7 to 8) `returns` 2
+          Database `makeGap` (7 to 8) `returns` 2
         Then:
           // Binds to `[oldest_offset(), latest_offset()]` range by default
-          Postgres query {
+          Database query {
             sql"""select payload->>'user_id', payload->>'firstName', payload->>'lastName'
                     from creates('NameRegistry:BirthCertificate')
                     order by created_at_offset;"""
-          } `returns` table {
+          } `returns` Table {
             "id-alice" | "Alice" | "Citizen"
             "id-joe"   | "Joe"   | "Bloggs"
             "id-joe"   | "Fred"  | "Bloggs"
@@ -375,29 +374,29 @@ object QueryingSpec extends SharedLedgerAndPostgresTest:
           }
         And:
           // ... or, can supply offset range explicitly
-          Postgres query {
+          Database query {
             sql"""select payload->>'user_id', payload->>'firstName', payload->>'lastName'
                     from creates('NameRegistry:BirthCertificate',
                                  (select "offset" from __transactions where ix = 3),
                                  (select "offset" from __transactions where ix = 5))
                     order by created_at_offset;"""
-          } `returns` table {
+          } `returns` Table {
             "id-joe"  | "Fred" | "Bloggs"
             "id-bill" | "Bill" | "Myers"
           }
         When:
-          Postgres.Session.init
+          Database.Session.init
         And:
           // ... or, implicitly through session
-          Postgres.Session `setOldest` 3
+          Database.Session `setOldest` 3
         And:
-          Postgres.Session `setLatest` 5
+          Database.Session `setLatest` 5
         Then:
-          Postgres.Session query {
+          Database.Session query {
             sql"""select payload->>'user_id', payload->>'firstName', payload->>'lastName'
                     from creates('NameRegistry:BirthCertificate')
                     order by created_at_offset;"""
-          } `returns` table {
+          } `returns` Table {
             "id-joe"  | "Fred" | "Bloggs"
             "id-bill" | "Bill" | "Myers"
           }
@@ -406,43 +405,43 @@ object QueryingSpec extends SharedLedgerAndPostgresTest:
         Given:
           upAndRunning
         When:
-          Postgres `makeGap` (7 to 8) `returns` 2
+          Database `makeGap` (7 to 8) `returns` 2
         Then:
           // Binds to `[oldest_offset(), latest_offset()]` range by default
-          Postgres query {
+          Database query {
             sql"""select payload->>'user_id', payload->>'firstName', payload->>'lastName'
                     from archives('NameRegistry:BirthCertificate')
                     order by created_at_offset;"""
-          } `returns` table {
+          } `returns` Table {
             "id-joe"  | "Joe"  | "Bloggs"
             "id-joe"  | "Fred" | "Bloggs"
             "id-bill" | "Bill" | "Myers"
           }
         And:
           // ... or, can supply offset range explicitly
-          Postgres query {
+          Database query {
             sql"""select payload->>'user_id', payload->>'firstName', payload->>'lastName'
                     from archives('NameRegistry:BirthCertificate',
                                   (select "offset" from __transactions where ix = 3),
                                   (select "offset" from __transactions where ix = 5))
                     order by created_at_offset;"""
-          } `returns` table {
+          } `returns` Table {
             "id-joe" | "Joe"  | "Bloggs"
             "id-joe" | "Fred" | "Bloggs"
           }
         When:
-          Postgres.Session.init
+          Database.Session.init
         And:
           // ... or, implicitly through session
-          Postgres.Session `setOldest` 3
+          Database.Session `setOldest` 3
         And:
-          Postgres.Session `setLatest` 5
+          Database.Session `setLatest` 5
         Then:
-          Postgres.Session query {
+          Database.Session query {
             sql"""select payload->>'user_id', payload->>'firstName', payload->>'lastName'
                     from archives('NameRegistry:BirthCertificate')
                     order by created_at_offset;"""
-          } `returns` table {
+          } `returns` Table {
             "id-joe" | "Joe"  | "Bloggs"
             "id-joe" | "Fred" | "Bloggs"
           }
@@ -451,41 +450,41 @@ object QueryingSpec extends SharedLedgerAndPostgresTest:
         Given:
           upAndRunning
         When:
-          Postgres `makeGap` (7 to 8) `returns` 2
+          Database `makeGap` (7 to 8) `returns` 2
         Then:
           // Binds to `[oldest_offset(), latest_offset()]` range by default
-          Postgres query {
+          Database query {
             sql"""select argument->>'newFirstName', argument->>'newLastName'
                     from exercises('BirthCertificate:BirthCertificateNameChange')
                     order by exercised_at_offset;"""
-          } `returns` table {
+          } `returns` Table {
             "Fred" | "Bloggs"
             "Bill" | "Taylor"
           }
         And:
           // ... or, can supply offset range explicitly
-          Postgres query {
+          Database query {
             sql"""select argument->>'newFirstName', argument->>'newLastName'
                     from exercises('BirthCertificate:BirthCertificateNameChange',
                                    (select "offset" from __transactions where ix = 3),
                                    (select "offset" from __transactions where ix = 5))
                     order by exercised_at_offset;"""
-          } `returns` table {
+          } `returns` Table {
             "Fred" | "Bloggs"
           }
         When:
-          Postgres.Session.init
+          Database.Session.init
         And:
           // ... or, implicitly through session
-          Postgres.Session `setOldest` 3
+          Database.Session `setOldest` 3
         And:
-          Postgres.Session `setLatest` 5
+          Database.Session `setLatest` 5
         Then:
-          Postgres.Session query {
+          Database.Session query {
             sql"""select argument->>'newFirstName', argument->>'newLastName'
                     from exercises('BirthCertificate:BirthCertificateNameChange')
                     order by exercised_at_offset;"""
-          } `returns` table {
+          } `returns` Table {
             "Fred" | "Bloggs"
           }
       ,
@@ -493,9 +492,9 @@ object QueryingSpec extends SharedLedgerAndPostgresTest:
         Given:
           upAndRunning
         Then:
-          Postgres query {
+          Database query {
             sql"""select exercise_event_id, choice_fqn, last_descendant_node_id from exercises() order by exercise_event_id;"""
-          } `returns` table {
+          } `returns` Table {
             stringContaining(
               ",0)"
             ) <|> s"${nameRegistry.name}:NameRegistry:BirthCertificate:BirthCertificateNameChange" <|> 2
@@ -513,7 +512,7 @@ object QueryingSpec extends SharedLedgerAndPostgresTest:
         Given:
           upAndRunning
         Then:
-          Postgres query {
+          Database query {
             sql"""-- are there any active users who had been known under different names in the past?
                     select user_id, current_name, string_agg(other_name, ', ' order by other_name) also_known_as
                     from (
@@ -524,11 +523,11 @@ object QueryingSpec extends SharedLedgerAndPostgresTest:
                       inner join archives('NameRegistry:BirthCertificate') c on a.payload->>'user_id' = c.payload->>'user_id'
                     ) t
                     group by user_id, current_name;"""
-          } `returns` table {
+          } `returns` Table {
             "id-bill" | "Bill Kirk" | "Bill Doe, Bill Myers, Bill Taylor"
           }
         And:
-          Postgres query {
+          Database query {
             sql"""-- show chronological changes of names
                     select t.user_id,
                            array_to_string(array_prepend((array_agg(t.from_name))[1], array_agg(t.to_name)), ' ~> ') names_evolution
@@ -549,7 +548,7 @@ object QueryingSpec extends SharedLedgerAndPostgresTest:
                     ) t
                     group by t.user_id
                     order by t.user_id;"""
-          } `returns` table {
+          } `returns` Table {
             "id-bill" | "Bill Myers ~> Bill Taylor ~> Bill Doe ~> Bill Kirk"
             "id-joe"  | "Joe Bloggs ~> Fred Bloggs"
           }
@@ -558,11 +557,11 @@ object QueryingSpec extends SharedLedgerAndPostgresTest:
         Given:
           upAndRunning
         Then:
-          Postgres query {
+          Database query {
             sql"""select template_fqn, created_at_offset, created_effective_at, archived_effective_at, contract_id, create_event_id, payload->>'user_id'
                   from lookup_contract((select distinct contract_id from __contracts where activated_at_ix = 1))
                   order by template_fqn"""
-          } `returns` table {
+          } `returns` Table {
             s"${interfaces.name}:Interfaces:INameDocument" | anything | anything | anything | anything | anything | anything
             s"${nameRegistry.name}:NameRegistry:BirthCertificate" | anything | anything | anything | anything | anything | "id-alice"
           }
@@ -571,10 +570,10 @@ object QueryingSpec extends SharedLedgerAndPostgresTest:
         Given:
           upAndRunning
         Then:
-          Postgres query {
+          Database query {
             sql"""select template_fqn, choice_fqn, exercised_at_offset, exercised_effective_at, contract_id, exercise_event_id, argument->>'newLastName', result
                 from lookup_exercises((select distinct contract_id from __contracts where activated_at_ix = 2));"""
-          } `returns` table {
+          } `returns` Table {
             s"${nameRegistry.name}:NameRegistry:BirthCertificate" |
               s"${nameRegistry.name}:NameRegistry:BirthCertificate:BirthCertificateNameChange" |
               anything |
@@ -590,29 +589,29 @@ object QueryingSpec extends SharedLedgerAndPostgresTest:
           upAndRunning
         Then:
           // Binds to `latest_offset()` value by default
-          Postgres query {
+          Database query {
             sql"""select * from summary_active();"""
-          } `returns` table {
+          } `returns` Table {
             s"${interfaces.name}:Interfaces:INameDocument"        | "interface" | 4
             s"${nameRegistry.name}:NameRegistry:BirthCertificate" | "template"  | 4
           }
         And:
           // ... or, can supply an offset explicitly
-          Postgres query {
+          Database query {
             sql"""select * from summary_active((select "offset" from __transactions where ix = 3));"""
-          } `returns` table {
+          } `returns` Table {
             s"${interfaces.name}:Interfaces:INameDocument"        | "interface" | 2
             s"${nameRegistry.name}:NameRegistry:BirthCertificate" | "template"  | 2
           }
         When:
-          Postgres.Session.init
+          Database.Session.init
         And:
           // ... or, implicitly through session
-          Postgres.Session `setLatest` 3
+          Database.Session `setLatest` 3
         And:
-          Postgres.Session query {
+          Database.Session query {
             sql"""select * from summary_active();"""
-          } `returns` table {
+          } `returns` Table {
             s"${interfaces.name}:Interfaces:INameDocument"        | "interface" | 2
             s"${nameRegistry.name}:NameRegistry:BirthCertificate" | "template"  | 2
           }
@@ -622,33 +621,33 @@ object QueryingSpec extends SharedLedgerAndPostgresTest:
           upAndRunning
         Then:
           // Binds to `[oldest_offset(), latest_offset()]` range by default
-          Postgres query {
+          Database query {
             sql"""select * from summary_creates();"""
-          } `returns` table {
+          } `returns` Table {
             s"${interfaces.name}:Interfaces:INameDocument"        | "interface" | 9
             s"${nameRegistry.name}:NameRegistry:BirthCertificate" | "template"  | 9
           }
         And:
           // ... or, can supply offset range explicitly
-          Postgres query {
+          Database query {
             sql"""select * from summary_creates(
                         (select "offset" from __transactions where ix = 3),
                         (select "offset" from __transactions where ix = 7));"""
-          } `returns` table {
+          } `returns` Table {
             s"${interfaces.name}:Interfaces:INameDocument"        | "interface" | 4
             s"${nameRegistry.name}:NameRegistry:BirthCertificate" | "template"  | 4
           }
         When:
-          Postgres.Session.init
+          Database.Session.init
         And:
           // ... or, implicitly through session
-          Postgres.Session `setOldest` 3
+          Database.Session `setOldest` 3
         And:
-          Postgres.Session `setLatest` 7
+          Database.Session `setLatest` 7
         And:
-          Postgres.Session query {
+          Database.Session query {
             sql"""select * from summary_creates();"""
-          } `returns` table {
+          } `returns` Table {
             s"${interfaces.name}:Interfaces:INameDocument"        | "interface" | 4
             s"${nameRegistry.name}:NameRegistry:BirthCertificate" | "template"  | 4
           }
@@ -658,33 +657,33 @@ object QueryingSpec extends SharedLedgerAndPostgresTest:
           upAndRunning
         Then:
           // Binds to `[oldest_offset(), latest_offset()]` range by default
-          Postgres query {
+          Database query {
             sql"""select * from summary_archives();"""
-          } `returns` table {
+          } `returns` Table {
             s"${interfaces.name}:Interfaces:INameDocument"        | "interface" | 5
             s"${nameRegistry.name}:NameRegistry:BirthCertificate" | "template"  | 5
           }
         And:
           // ... or, can supply offset range explicitly
-          Postgres query {
+          Database query {
             sql"""select * from summary_archives(
                         (select "offset" from __transactions where ix = 3),
                         (select "offset" from __transactions where ix = 7));"""
-          } `returns` table {
+          } `returns` Table {
             s"${interfaces.name}:Interfaces:INameDocument"        | "interface" | 4
             s"${nameRegistry.name}:NameRegistry:BirthCertificate" | "template"  | 4
           }
         When:
-          Postgres.Session.init
+          Database.Session.init
         And:
           // ... or, implicitly through session
-          Postgres.Session `setOldest` 3
+          Database.Session `setOldest` 3
         And:
-          Postgres.Session `setLatest` 7
+          Database.Session `setLatest` 7
         And:
-          Postgres.Session query {
+          Database.Session query {
             sql"""select * from summary_archives();"""
-          } `returns` table {
+          } `returns` Table {
             s"${interfaces.name}:Interfaces:INameDocument"        | "interface" | 4
             s"${nameRegistry.name}:NameRegistry:BirthCertificate" | "template"  | 4
           }
@@ -694,33 +693,33 @@ object QueryingSpec extends SharedLedgerAndPostgresTest:
           upAndRunning
         Then:
           // Binds to `[oldest_offset(), latest_offset()]` range by default
-          Postgres query {
+          Database query {
             sql"""select * from summary_transients();"""
-          } `returns` table {
+          } `returns` Table {
             s"${interfaces.name}:Interfaces:INameDocument"        | "interface" | 5
             s"${nameRegistry.name}:NameRegistry:BirthCertificate" | "template"  | 5
           }
         And:
           // ... or, can supply offset range explicitly
-          Postgres query {
+          Database query {
             sql"""select * from summary_transients(
                       (select "offset" from __transactions where ix = 3),
                       (select "offset" from __transactions where ix = 7));"""
-          } `returns` table {
+          } `returns` Table {
             s"${interfaces.name}:Interfaces:INameDocument"        | "interface" | 3
             s"${nameRegistry.name}:NameRegistry:BirthCertificate" | "template"  | 3
           }
         When:
-          Postgres.Session.init
+          Database.Session.init
         And:
           // ... or, implicitly through session
-          Postgres.Session `setOldest` 3
+          Database.Session `setOldest` 3
         And:
-          Postgres.Session `setLatest` 7
+          Database.Session `setLatest` 7
         And:
-          Postgres.Session query {
+          Database.Session query {
             sql"""select * from summary_transients();"""
-          } `returns` table {
+          } `returns` Table {
             s"${interfaces.name}:Interfaces:INameDocument"        | "interface" | 3
             s"${nameRegistry.name}:NameRegistry:BirthCertificate" | "template"  | 3
           }
@@ -730,9 +729,9 @@ object QueryingSpec extends SharedLedgerAndPostgresTest:
           upAndRunning
         Then:
           // Binds to `[oldest_offset(), latest_offset()]` range by default
-          Postgres query {
+          Database query {
             sql"""select * from summary_exercises() order by template_fqn, choice_fqn;"""
-          } `returns` table {
+          } `returns` Table {
             s"${interfaces.name}:Interfaces:INameDocument" | s"${interfaces.name}:Interfaces:INameDocument:INameDocumentNameChange" | "INameDocumentNameChange" | true | 2
             s"${nameRegistry.name}:NameRegistry:BirthCertificate" | s"${nameRegistry.name}:NameRegistry:BirthCertificate:Archive" | "Archive" | true | 1
             s"${nameRegistry.name}:NameRegistry:BirthCertificate" | s"${nameRegistry.name}:NameRegistry:BirthCertificate:BirthCertificateNameChange" | "BirthCertificateNameChange" | true | 2
@@ -740,27 +739,27 @@ object QueryingSpec extends SharedLedgerAndPostgresTest:
           }
         And:
           // ... or, can supply offset range explicitly
-          Postgres query {
+          Database query {
             sql"""select * from summary_exercises(
                         (select "offset" from __transactions where ix = 3),
                         (select "offset" from __transactions where ix = 5))
                       order by template_fqn, choice_fqn;"""
-          } `returns` table {
+          } `returns` Table {
             s"${nameRegistry.name}:NameRegistry:BirthCertificate" | s"${nameRegistry.name}:NameRegistry:BirthCertificate:Archive" | "Archive" | true | 1
             s"${nameRegistry.name}:NameRegistry:BirthCertificate" | s"${nameRegistry.name}:NameRegistry:BirthCertificate:BirthCertificateNameChange" | "BirthCertificateNameChange" | true | 1
             s"${nameRegistry.name}:NameRegistry:BirthCertificate" | s"${nameRegistry.name}:NameRegistry:BirthCertificate:DoNothing" | "DoNothing" | false | 1
           }
         When:
-          Postgres.Session.init
+          Database.Session.init
         And:
           // ... or, implicitly through session
-          Postgres.Session `setOldest` 3
+          Database.Session `setOldest` 3
         And:
-          Postgres.Session `setLatest` 5
+          Database.Session `setLatest` 5
         And:
-          Postgres.Session query {
+          Database.Session query {
             sql"""select * from summary_exercises() order by template_fqn, choice_fqn;"""
-          } `returns` table {
+          } `returns` Table {
             s"${nameRegistry.name}:NameRegistry:BirthCertificate" | s"${nameRegistry.name}:NameRegistry:BirthCertificate:Archive" | "Archive" | true | 1
             s"${nameRegistry.name}:NameRegistry:BirthCertificate" | s"${nameRegistry.name}:NameRegistry:BirthCertificate:BirthCertificateNameChange" | "BirthCertificateNameChange" | true | 1
             s"${nameRegistry.name}:NameRegistry:BirthCertificate" | s"${nameRegistry.name}:NameRegistry:BirthCertificate:DoNothing" | "DoNothing" | false | 1
@@ -774,22 +773,22 @@ object QueryingSpec extends SharedLedgerAndPostgresTest:
         val offsetAt6 = Capture[OffsetType]
         Then:
           // Capture offsets at ix=5 and ix=6 before creating the gap
-          Postgres query {
+          Database query {
             sql"""select (select "offset" from __transactions where ix = 5),
                          (select "offset" from __transactions where ix = 6);"""
-          } `returns` table { offsetAt5.capture | offsetAt6.capture }
+          } `returns` Table { offsetAt5.capture | offsetAt6.capture }
         When:
           // Create a gap between ix=5 and ix=6 by shifting offsets from ix=6 onwards
-          Postgres `shiftOffsets` (6L, 10L) `returns` anything
+          Database `shiftOffsets` (6L, 10L) `returns` anything
         Then:
           // Using the exact offset at ix=6 as from_offset correctly excludes Bill Myers (ix=5)
-          Postgres query {
+          Database query {
             sql"""select payload->>'user_id', payload->>'firstName', payload->>'lastName'
                     from creates('NameRegistry:BirthCertificate',
                                  ${offsetAt6.get + 10L},
                                  latest_offset())
                     order by created_at_offset;"""
-          } `returns` table {
+          } `returns` Table {
             "id-bill" | "Bill" | "Taylor"
             "id-bill" | "Bill" | "Doe"
             "id-jane" | "Jane" | "Smith"
@@ -799,13 +798,13 @@ object QueryingSpec extends SharedLedgerAndPostgresTest:
         // Using an offset in the gap: __nearest_ix_ceil rounds up to ix=6,
         // correctly excluding Bill Myers (ix=5) whose offset is before from_offset
         And:
-          Postgres query {
+          Database query {
             sql"""select payload->>'user_id', payload->>'firstName', payload->>'lastName'
                     from creates('NameRegistry:BirthCertificate',
                                  ${offsetAt5.get + 1L},
                                  latest_offset())
                     order by created_at_offset;"""
-          } `returns` table {
+          } `returns` Table {
             "id-bill" | "Bill" | "Taylor"
             "id-bill" | "Bill" | "Doe"
             "id-jane" | "Jane" | "Smith"
@@ -815,7 +814,7 @@ object QueryingSpec extends SharedLedgerAndPostgresTest:
         And:
           // A range that stays entirely inside the synthetic offset gap should behave like an empty interval,
           // not fail while constructing the transient-summary range bounds.
-          Postgres query {
+          Database query {
             sql"""select * from summary_transients(
                          ${offsetAt5.get + 1L},
                          ${offsetAt6.get + 9L});"""

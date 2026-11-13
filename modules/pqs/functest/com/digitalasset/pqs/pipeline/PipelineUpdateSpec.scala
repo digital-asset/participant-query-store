@@ -6,9 +6,8 @@ package com.digitalasset.pqs.pipeline
 import com.digitalasset.pqs.Dars
 import com.digitalasset.pqs.SharedLedgerAndPostgresTest
 import com.digitalasset.pqs.functest.matchers.*
-import com.digitalasset.pqs.functest.table.*
 import com.digitalasset.pqs.services.daml.{DamlSdk, Party}
-import com.digitalasset.pqs.services.postgres.Postgres
+import com.digitalasset.pqs.services.postgres.*
 import com.digitalasset.pqs.services.pqs.Pqs
 import zio.jdbc.sqlInterpolator
 import zio.{durationInt, ExitCode, Promise, ZIO, ZLayer}
@@ -32,16 +31,16 @@ object PipelineUpdateSpec extends SharedLedgerAndPostgresTest:
       When:
         Pqs.runPipeline("--pipeline-ledger-stop=Latest")
       And:
-        Postgres.query(sql"""select count(*) from active($templateRef)""").returns(table(1))
+        Database.query(sql"""select count(*) from active($templateRef)""").returns(Table(1))
       And:
-        Postgres.query {
+        Database.query {
           sql"""update __watermark set instance_id='another-instance' """.update.returns(1)
         }
       And:
         // We want to deliberately spoil the instance_id in the watermark to trigger an error in the pipeline
         // Seems that such trigger is the most stable way (I tried running a thread with concurrent updates,
         // but that was a flaky solution)
-        Postgres
+        Database
           .query {
             sql"""
               create function override_instance_id()
@@ -75,7 +74,7 @@ object PipelineUpdateSpec extends SharedLedgerAndPostgresTest:
       And:
         Pqs.stdout.is(!stringContaining("inserting watermark"))
       Expect:
-        Postgres.query(sql"""select count(*) from active($templateRef)""").returns(table(1))
+        Database.query(sql"""select count(*) from active($templateRef)""").returns(Table(1))
     },
     funcTest("pipeline cannot start while __watermark is updated") {
       val alice = Party("Alice")
@@ -90,7 +89,7 @@ object PipelineUpdateSpec extends SharedLedgerAndPostgresTest:
         // Run pipeline once to initialize the schema
         Pqs.runPipeline("--pipeline-ledger-stop=Latest").unit
       Expect:
-        Postgres.query(sql"select count(*) from __contracts").returns(table(0))
+        Database.query(sql"select count(*) from __contracts").returns(Table(0))
       When:
         DamlSdk.runScript("Message:createMessage", (alice.id, bob.id, "test"))
       When:
@@ -99,7 +98,7 @@ object PipelineUpdateSpec extends SharedLedgerAndPostgresTest:
             _ <- Promise.make[Nothing, Unit].map(startTransaction = _)
             _ <- Promise.make[Nothing, Unit].map(releaseTransaction = _)
             // Start a SQL transaction that updates __watermark
-            _ <- Postgres.query {
+            _ <- Database.query {
               for {
                 _ <- sql"begin".execute
                 _ <- sql"update __watermark set instance_id='another-instance'".execute
@@ -127,7 +126,7 @@ object PipelineUpdateSpec extends SharedLedgerAndPostgresTest:
       Expect:
         Pqs.exitCode.is(ExitCode.success).retryUntilTimeout
       Expect:
-        Postgres.query(sql"""select count(*) from active($templateRef)""").returns(table(1))
+        Database.query(sql"""select count(*) from active($templateRef)""").returns(Table(1))
     },
     funcTest("pipeline can start while __watermark is being read") {
       val alice = Party("Alice")
@@ -142,7 +141,7 @@ object PipelineUpdateSpec extends SharedLedgerAndPostgresTest:
         // Run pipeline once to initialize the schema
         Pqs.runPipeline("--pipeline-ledger-stop=Latest").unit
       Expect:
-        Postgres.query(sql"select count(*) from __contracts").returns(table(0))
+        Database.query(sql"select count(*) from __contracts").returns(Table(0))
       When:
         DamlSdk.runScript("Message:createMessage", (alice.id, bob.id, "test"))
       When:
@@ -151,7 +150,7 @@ object PipelineUpdateSpec extends SharedLedgerAndPostgresTest:
             _ <- Promise.make[Nothing, Unit].map(startTransaction = _)
             _ <- Promise.make[Nothing, Unit].map(releaseTransaction = _)
             // Start a SQL transaction that reads __watermark
-            _ <- Postgres.query {
+            _ <- Database.query {
               for {
                 _ <- sql"begin".execute
                 _ <- sql"select ix from __watermark".query[Long].selectOne
@@ -171,6 +170,6 @@ object PipelineUpdateSpec extends SharedLedgerAndPostgresTest:
       Expect:
         Pqs.exitCode.is(ExitCode.success)
       Expect:
-        Postgres.query(sql"""select count(*) from active($templateRef)""").returns(table(1))
+        Database.query(sql"""select count(*) from active($templateRef)""").returns(Table(1))
     }
   )
