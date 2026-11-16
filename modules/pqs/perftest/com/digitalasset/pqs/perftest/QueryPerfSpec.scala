@@ -45,8 +45,9 @@ trait QueryPerfSpec[T] extends FuncTest[Ledger & Postgres & Parties]:
   final case class Stats(query: Query, duration: Duration, output: T):
     def avgDuration = duration.dividedBy(query.repeat)
     def diffRatio(baseline: Stats): Double =
-      val baselineDurationMs = baseline.duration.toMillis
-      (duration.toMillis.toDouble - baselineDurationMs) / baselineDurationMs
+      val baselineDurationNanos = baseline.duration.toNanos
+      if baselineDurationNanos == 0 then Double.MaxValue
+      else (duration.toNanos.toDouble - baselineDurationNanos) / baselineDurationNanos
 
   final case class Query(tag: String, sql: SqlFragment, repeat: Int, expectedDiff: Double = 0, tolerance: Double = 0.3)
 
