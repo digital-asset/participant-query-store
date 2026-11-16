@@ -19,7 +19,7 @@ import zio.test.*
 object FTLogging:
   val layer: ZLayer[Any, Nothing, Unit] = removeDefaultLoggers ++ ZLayer
     .fromZIO(
-      zio.System.env("FT_LOG_FILE").orDie.map {
+      zio.System.env("PQS_FT_LOG_FILE").orDie.map {
         case None       => consoleLogger(consoleLogConfig)
         case Some(file) => fileLogger(fileLogConfig(file))
       }
