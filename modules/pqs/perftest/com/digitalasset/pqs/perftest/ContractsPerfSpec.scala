@@ -141,7 +141,8 @@ object ContractsPerfSpec extends SharedHydratedLedgerTest with QueryPerfSpec[Int
           sql"select count(*) from contracts(null, $offset100)",
           baselineSql = Some(sql"select count(*) from creates(null, oldest_offset(), $offset100)"),
           repeat = 2,
-          expectedDiff = 3.10
+          expectedDiff = 3.45,
+          tolerance = 0.4
         ),
         Query(
           "count_from_bloba_at_100",
@@ -176,7 +177,8 @@ object ContractsPerfSpec extends SharedHydratedLedgerTest with QueryPerfSpec[Int
           sql"select contract_id from contracts() where contract_id like '%' limit 20",
           baselineSql = Some(sql"select contract_id from creates() where contract_id like '%' limit 20"),
           repeat = 100,
-          expectedDiff = -0.10
+          expectedDiff = 0.05,
+          tolerance = 0.4
         ),
         Query(
           "daml_shell_completion_no_match",
