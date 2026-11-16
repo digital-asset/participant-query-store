@@ -20,7 +20,7 @@ package object millbuild {
     // Latest stable: https://console.cloud.google.com/artifacts/docker/da-images/europe/public/docker%2Fcanton-base
     val canton = "3.8.0-snapshot.20261029.21038.0.v135bb7c3"
 
-    val bouncyCastle = "1.86"
+    val bouncyCastle = "1.87"
     val dockerClient = "3.4.0"
     val flyway = "13.4.0"
 
