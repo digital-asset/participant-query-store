@@ -96,9 +96,9 @@ object ContractsPerfSpec extends SharedHydratedLedgerTest with QueryPerfSpec[Int
         ),
         Query(
           "select_star_from_bloba_at_100_limit_20",
-          sql"select * from active($blobA, $offset100) where payload ->> 'value' = '42'",
+          sql"select * from active($blobA, $offset100) LIMIT 20",
           repeat = 8,
-          expectedDiff = 0.04
+          expectedDiff = 0.51
         )
       )
     },
