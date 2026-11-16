@@ -1210,13 +1210,11 @@ as
 $$
 select c.*
 from __contracts(qname) c
-where c.life_ix @> (select __nearest_ix_floor("offset"))
-    and not c.divulged_only -- exclude contracts that were merely divulged
     -- Deduplicate reassigned contracts by keeping the highest reassignment_counter.
-    -- Expressed as an anti-join rather than DISTINCT ON so that caller predicates (e.g. WHERE payload ->> 'x' = ?)
+    -- Expressed as a lateral join rather than DISTINCT ON so that caller predicates (e.g. WHERE payload ->> 'x' = ?)
     -- can be pushed down to the contract index scan instead of running after a full sort.
-    and not exists (
-        select 1
+    left join lateral (
+        select true as found
         from __contracts newer
         where newer.tpe_pk = c.tpe_pk
             and newer.life_ix @> (select __nearest_ix_floor("offset"))
@@ -1232,7 +1230,11 @@ where c.life_ix @> (select __nearest_ix_floor("offset"))
                         and newer.activated_at_ix > c.activated_at_ix
                     )
                 )
-    )
+        limit 1
+    ) newer on true
+where c.life_ix @> (select __nearest_ix_floor("offset"))
+    and not c.divulged_only -- exclude contracts that were merely divulged
+    and newer.found is null
 $$ language sql stable
                 parallel safe;
 comment on function active is $$Returns payload and metadata for active contracts of the given Daml qualified name.
