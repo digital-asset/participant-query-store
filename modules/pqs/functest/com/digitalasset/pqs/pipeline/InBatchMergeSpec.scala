@@ -39,7 +39,7 @@ object InBatchMergeSpec extends SharedLedgerAndPostgresTest:
           >+> DamlSchema.protobufCodecs
           >+> Ledger.updateService ++ Ledger.stateService
       Then:
-        Ledger.recordTransactionStream.is(hasSize(equalTo(2)) && transactions.capture)
+        Ledger.recordTransactionStream().is(hasSize(equalTo(2)) && transactions.capture)
       When:
         Postgres.database
           >+> DamlSchema.produce(JsonCodec())
@@ -74,7 +74,7 @@ object InBatchMergeSpec extends SharedLedgerAndPostgresTest:
           >+> DamlSchema.protobufCodecs
           >+> Ledger.updateService ++ Ledger.stateService
       Then:
-        Ledger.recordTransactionStream.is(hasSize(equalTo(2)) && transactions.capture)
+        Ledger.recordTransactionStream().is(hasSize(equalTo(2)) && transactions.capture)
       When:
         Postgres.database
           >+> DamlSchema.produce(JsonCodec())

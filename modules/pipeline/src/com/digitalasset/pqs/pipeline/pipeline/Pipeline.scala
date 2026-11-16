@@ -9,7 +9,7 @@ import com.digitalasset.pqs.as
 import com.digitalasset.pqs.backend.Datastore
 import com.digitalasset.pqs.o11y.traces
 import com.digitalasset.pqs.o11y.traces.given
-import com.digitalasset.pqs.pipeline.pipeline.Config.TransactionApi
+import com.digitalasset.pqs.pipeline.pipeline.Config.Datasource
 import com.digitalasset.pqs.pipeline.pipeline.ledger.{CliStartOffset, CliStopOffset}
 import com.digitalasset.pqs.utils.safeequals.===
 import com.digitalasset.zio.daml.Ledger
@@ -100,8 +100,8 @@ private case class Impl(
         yield (rights, offsetAndIx, actualEnd)
       }
       datasource = config.datasource match
-        case TransactionApi.TransactionStream     => ledger.getTransactions
-        case TransactionApi.TransactionTreeStream => ledger.getTransactionTrees
+        case Datasource.TransactionStream     => ledger.getTransactions
+        case Datasource.TransactionTreeStream => ledger.getTransactionTrees
       _ <- datasource(rights, continueFromOffset, actualEnd)
         .mapAccum(continueFromIx + 1)((index, a) => (index + 1, (a, index)))
         .run(datastore.processTransactions(continueFromIx, insertWatermark = true))

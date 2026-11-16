@@ -29,7 +29,7 @@ import com.digitalasset.canonical.{ContractFilter, Event, MetadataFilter, Offset
 import com.digitalasset.pqs.docker.{Docker, Service}
 import com.digitalasset.pqs.functest.FTEnv
 import com.digitalasset.pqs.grpc.{ZClientInterceptor, ZManagedChannel}
-import com.digitalasset.pqs.pipeline.pipeline.Config.TransactionApi
+import com.digitalasset.pqs.pipeline.pipeline.Config.Datasource
 import com.digitalasset.pqs.services.inspectMaybe
 import com.digitalasset.pqs.services.postgres.Postgres
 import com.digitalasset.pqs.utils.safeequals.*
@@ -303,20 +303,8 @@ object Ledger:
     yield ()
   }
 
-  def recordTransactionStream: ZIO[
-    Docker & Ledger & Parties & UpdateService & StateService,
-    Throwable,
-    Chunk[Transaction[Event]]
-  ] = recordStream(TransactionApi.TransactionStream)
-
-  def recordTransactionTreeStream: ZIO[
-    Docker & Ledger & Parties & UpdateService & StateService,
-    Throwable,
-    Chunk[Transaction[Event]]
-  ] = recordStream(TransactionApi.TransactionTreeStream)
-
-  private def recordStream(
-      source: TransactionApi
+  def recordTransactionStream(
+      source: Datasource = Datasource.TransactionStream
   ): ZIO[Docker & Ledger & Parties & UpdateService & StateService, Throwable, Chunk[Transaction[Event]]] = client {
     for
       parties       <- ZIO.service[Parties]
@@ -325,9 +313,9 @@ object Ledger:
       startOffset   <- stateService.getLedgerStart(parties.userRight)
       endOffset     <- stateService.getLedgerEnd
       stream = source match
-        case TransactionApi.TransactionStream =>
+        case Datasource.TransactionStream =>
           updateService.getTransactions(parties.userRight, startOffset, endOffset)
-        case TransactionApi.TransactionTreeStream =>
+        case Datasource.TransactionTreeStream =>
           updateService.getTransactionTrees(parties.userRight, startOffset, endOffset)
       transactions <- stream.runCollect
     yield transactions

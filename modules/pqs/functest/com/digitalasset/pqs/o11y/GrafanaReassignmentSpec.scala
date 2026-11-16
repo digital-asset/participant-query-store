@@ -6,8 +6,7 @@ package com.digitalasset.pqs.o11y
 import com.daml.ledger.api.v2.value.{Record, RecordField, Value}
 import com.digitalasset.pqs.SharedMultiSyncLedgerSpec
 import com.digitalasset.pqs.functest.matchers.*
-import com.digitalasset.pqs.pipeline.pipeline.Config.TransactionApi
-import com.digitalasset.pqs.pipeline.pipeline.Config.TransactionApi.{TransactionStream, TransactionTreeStream}
+import com.digitalasset.pqs.pipeline.pipeline.Config.Datasource
 import com.digitalasset.pqs.services.daml.*
 import com.digitalasset.pqs.services.o11y.*
 import com.digitalasset.pqs.services.postgres.Postgres
@@ -49,22 +48,22 @@ object GrafanaReassignmentSpec extends SharedMultiSyncLedgerSpec:
   ).dependsOn(assetInterface)
 
   def spec = suite("observability signals can be queried with Grafana")(
-    reassignedContractSpec(TransactionStream),
-    reassignedContractSpec(TransactionTreeStream),
+    reassignedContractSpec(Datasource.TransactionStream),
+    reassignedContractSpec(Datasource.TransactionTreeStream),
     seededAssignSpec
   )
 
   private def owner(party: Party) =
     Record.defaultInstance.addFields(RecordField("owner", Some(Value(Value.Sum.Party(party.id)))))
 
-  private def reassignedContractSpec(source: TransactionApi) =
+  private def reassignedContractSpec(source: Datasource) =
     funcTest(s"[metrics] contract rows and contract events of a reassigned contract ($source)") {
       val alice      = Party("Alice")
       val contractId = Capture[String]
       def reassigned = s"source_synchronizer_id='${sync1.id}', target_synchronizer_id='${sync2.id}'"
       val trees = source match
-        case TransactionTreeStream => true
-        case TransactionStream     => false
+        case Datasource.TransactionTreeStream => true
+        case Datasource.TransactionStream     => false
 
       Given:
         Loki.instance ++ Prometheus.instance ++ Tempo.instance >>> (Collector.instance ++ Grafana.instance)

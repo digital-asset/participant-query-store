@@ -6,8 +6,7 @@ package com.digitalasset.pqs.features.redaction
 import com.digitalasset.pqs.SharedLedgerAndPostgresTest
 import com.digitalasset.pqs.functest.FuncTest
 import com.digitalasset.pqs.functest.matchers.*
-import com.digitalasset.pqs.pipeline.pipeline.Config.TransactionApi
-import com.digitalasset.pqs.pipeline.pipeline.Config.TransactionApi.{TransactionStream, TransactionTreeStream}
+import com.digitalasset.pqs.pipeline.pipeline.Config.Datasource
 import com.digitalasset.pqs.services.daml.*
 import com.digitalasset.pqs.services.daml.DamlSdk.onlyDamlLfVersion
 import com.digitalasset.pqs.services.postgres.*
@@ -92,7 +91,7 @@ object RedactionSpec extends SharedLedgerAndPostgresTest {
                    |""".stripMargin
   )
 
-  def context(dataSource: TransactionApi) =
+  def context(dataSource: Datasource) =
     val alice = Party("Alice")
     DamlSdk.parties(alice) ++ Postgres.database
       >+> DamlSdk.deploy(pingDaml)
@@ -109,7 +108,7 @@ object RedactionSpec extends SharedLedgerAndPostgresTest {
         // underscore duplicates due to contract vs. interface. Expected behavior is same for both.
         val oneArchived = Capture[String]
         Given:
-          context(TransactionStream)
+          context(Datasource.TransactionStream)
         And:
           Database
             .query(sql"select contract_id from archives($templateRef) limit 1")
@@ -133,7 +132,7 @@ object RedactionSpec extends SharedLedgerAndPostgresTest {
         val active   = Capture[String]
         val redacted = Capture[String]
         Given:
-          context(TransactionTreeStream)
+          context(Datasource.TransactionTreeStream)
         And:
           Database.query(sql"select contract_id from active($templateRef) limit 1").returns(Table(active.capture))
         And:
@@ -195,7 +194,7 @@ object RedactionSpec extends SharedLedgerAndPostgresTest {
         val targetEventId  = Capture[String]
         val controlEventId = Capture[String] // ensure other events are not affected
         Given:
-          context(TransactionTreeStream)
+          context(Datasource.TransactionTreeStream)
         And:
           Database
             .query(sql"select exercise_event_id from exercises($choiceRef) limit 2")
@@ -221,7 +220,7 @@ object RedactionSpec extends SharedLedgerAndPostgresTest {
       funcTest("raises exception on redaction of non-existent and already redacted exercise") {
         val redacted = Capture[String]
         Given:
-          context(TransactionTreeStream)
+          context(Datasource.TransactionTreeStream)
         And:
           Database
             .query(sql"select exercise_event_id from exercises($choiceRef) limit 1")
