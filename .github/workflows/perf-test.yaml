@@ -26,3 +26,5 @@ jobs:
         run: make build package
       - name: Perf tests
         run: make perf-test
+        env:
+          DATADOG_API_KEY: ${{ secrets.DATADOG_API_KEY }}

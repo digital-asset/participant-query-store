@@ -8,6 +8,7 @@ import com.digitalasset.canonical.{Event, Offset, Transaction}
 import com.digitalasset.pqs.functest.matchers.*
 import com.digitalasset.pqs.functest.table.*
 import com.digitalasset.pqs.pipeline.InProcessPipeline
+import com.digitalasset.pqs.pipeline.pipeline.Config.Datasource
 import com.digitalasset.pqs.postgres.document.SqlSchema
 import com.digitalasset.pqs.services.daml.*
 import com.digitalasset.pqs.services.postgres.*
@@ -200,7 +201,7 @@ object ReassignmentSpec extends SharedMultiSyncLedgerSpec:
       def unassignTx = transactions.get(1).copy(offset = Offset.Absolute(4))
 
       Then:
-        Ledger.recordTransactionStream.is(hasSize(equalTo(4)) && transactions.capture)
+        Ledger.recordTransactionStream().is(hasSize(equalTo(4)) && transactions.capture)
 
       When:
         Postgres.database
@@ -320,7 +321,7 @@ object ReassignmentSpec extends SharedMultiSyncLedgerSpec:
       def archiveTx  = transactions.get(3).copy(offset = Offset.Absolute(4))
 
       Then:
-        Ledger.recordTransactionStream.is(hasSize(equalTo(4)) && transactions.capture)
+        Ledger.recordTransactionStream().is(hasSize(equalTo(4)) && transactions.capture)
 
       When:
         Postgres.database
@@ -438,7 +439,7 @@ object ReassignmentSpec extends SharedMultiSyncLedgerSpec:
       )
 
       Then:
-        Ledger.recordTransactionStream.is(hasSize(equalTo(10)) && transactions.capture)
+        Ledger.recordTransactionStream().is(hasSize(equalTo(10)) && transactions.capture)
 
       When:
         Postgres.database
@@ -503,7 +504,9 @@ object ReassignmentSpec extends SharedMultiSyncLedgerSpec:
       def archiveTx  = transactions.get(5).copy(offset = Offset.Absolute(6))
 
       Then:
-        Ledger.recordTransactionTreeStream.is(hasSize(equalTo(6)) && transactions.capture)
+        Ledger
+          .recordTransactionStream(source = Datasource.TransactionTreeStream)
+          .is(hasSize(equalTo(6)) && transactions.capture)
 
       When:
         Postgres.database
