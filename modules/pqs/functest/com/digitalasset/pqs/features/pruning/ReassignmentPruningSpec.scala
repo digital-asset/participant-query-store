@@ -90,6 +90,19 @@ object ReassignmentPruningSpec extends SharedMultiSyncLedgerSpec:
                 activeCid     | activeCreated      | "create"
               }
             )
+        And:
+          Database
+            .query(sql"select * from __net_change_summary(${reassignedAssigned.get})")
+            .exit
+            .is(
+              fails(
+                hasMessage(containsString(s"Offset $reassignedAssigned is before the pruned offset $archivedArchived"))
+              )
+            )
+        And:
+          Database
+            .query(sql"select * from __net_change_summary(pruned_offset())")
+            .returns(Table(s"${pingPong.name}:PingPong:Ping" | "template" | 1 | 0))
       },
       funcTest("prune_to_offset squashes assigned contracts into the new genesis") {
         val alice         = Party("Alice")

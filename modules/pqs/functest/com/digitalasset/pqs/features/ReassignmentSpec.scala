@@ -171,6 +171,27 @@ object ReassignmentSpec extends SharedMultiSyncLedgerSpec:
                           from __transactions)
                        )""")
           .returns(Table(createdAtOffset))
+      Expect:
+        netChangeSummaryAtEachOffset.returns(
+          Table {
+            createdAtOffset    | s"${pingPong.name}:PingPong:Ping" | "template" | 1 | 0
+            unassignedAtOffset | s"${pingPong.name}:PingPong:Ping" | "template" | 0 | 1
+            assignedAtOffset   | s"${pingPong.name}:PingPong:Ping" | "template" | 1 | 0
+            archivedAtOffset   | s"${pingPong.name}:PingPong:Ping" | "template" | 0 | 1
+          }
+        )
+      Expect:
+        Database.query(sql"select * from __net_change_summary()").returns(Table.empty)
+      Expect:
+        Database
+          .query(sql"select * from __net_change_summary(${unassignedAtOffset.get}, ${assignedAtOffset.get})")
+          .returns(Table.empty)
+      Expect:
+        Database
+          .query(sql"select * from __net_change_summary(${createdAtOffset.get}, ${assignedAtOffset.get})")
+          .returns(Table(s"${pingPong.name}:PingPong:Ping" | "template" | 1 | 0))
+      Expect:
+        netChangeSummaryMismatchesWithActive.returns(Table.empty)
     },
     funcTest("contracts() returns every known contract once") {
       val alice        = Party("Alice")
@@ -340,6 +361,17 @@ object ReassignmentSpec extends SharedMultiSyncLedgerSpec:
               s"${pingPong.name}:PingPong:Ping" | "unassign" | contractId | reassignmentId.capture | sync1.id | sync2.id | alice.id | 1
             }
           )
+      Expect:
+        netChangeSummaryAtEachOffset.returns(
+          Table {
+            assignTx.offset.toLong   | s"${pingPong.name}:PingPong:Ping" | "template" | 1 | 0
+            archiveTx.offset.toLong  | s"${pingPong.name}:PingPong:Ping" | "template" | 0 | 1
+            createTx.offset.toLong   | s"${pingPong.name}:PingPong:Ping" | "template" | 1 | 0
+            unassignTx.offset.toLong | s"${pingPong.name}:PingPong:Ping" | "template" | 0 | 1
+          }
+        )
+      Expect:
+        netChangeSummaryMismatchesWithActive.returns(Table.empty)
     },
     funcTest("Non-causal stream: assigned before unassigned") {
       val alice      = Party("Alice")
@@ -445,7 +477,15 @@ object ReassignmentSpec extends SharedMultiSyncLedgerSpec:
               dar.get.packageId | s"${pingPong.name}:PingPong:Ping" | "template" | contractId | sync2.id | 1
             }
           )
-
+      Expect:
+        netChangeSummaryAtEachOffset.returns(
+          Table {
+            createTx.offset.toLong  | s"${pingPong.name}:PingPong:Ping" | "template" | 1 | 0
+            archiveTx.offset.toLong | s"${pingPong.name}:PingPong:Ping" | "template" | 0 | 1
+          }
+        )
+      Expect:
+        netChangeSummaryMismatchesWithActive.returns(Table.empty)
     },
     funcTest("non-causal stream: repeated interleaved reassignments") {
       val alice      = Party("Alice")
@@ -519,6 +559,15 @@ object ReassignmentSpec extends SharedMultiSyncLedgerSpec:
               dar.get.packageId | s"${pingPong.name}:PingPong:Ping" | "template" | contractId | sync1.id | 4
             }
           )
+      Expect:
+        netChangeSummaryAtEachOffset.returns(
+          Table {
+            1  | s"${pingPong.name}:PingPong:Ping" | "template" | 1 | 0
+            10 | s"${pingPong.name}:PingPong:Ping" | "template" | 0 | 1
+          }
+        )
+      Expect:
+        netChangeSummaryMismatchesWithActive.returns(Table.empty)
     },
     funcTest("Non-causal stream: exercises between an assign and its late unassign are returned once") {
       val alice      = Party("Alice")
@@ -637,3 +686,35 @@ object ReassignmentSpec extends SharedMultiSyncLedgerSpec:
           )
     }
   )
+
+  private def netChangeSummaryAtEachOffset =
+    Database.query(sql"""select t."offset", s.*
+                         from __transactions t, __net_change_summary(t."offset", t."offset") s
+                         order by t.ix, s.template_fqn, s.payload_type""")
+
+  private def netChangeSummaryMismatchesWithActive =
+    Database.query(
+      sql"""with ranges as (
+                select f."offset" as from_offset, t."offset" as to_offset, b."offset" as before_offset
+                from __transactions f
+                     join __transactions t on t.ix >= f.ix
+                     left join __transactions b on b.ix = f.ix - 1
+            ),
+            expected as (
+                select r.from_offset, r.to_offset, x.template_fqn, x.payload_type,
+                       count(x.after) as additions, count(x.before) as removals
+                from ranges r,
+                     lateral (select template_fqn, payload_type, a.contract_id as after, b.contract_id as before
+                              from active(null, r.to_offset) a
+                                   full join active(null, r.before_offset) b using (template_fqn, payload_type, contract_id)
+                              where a.contract_id is null or b.contract_id is null) x
+                group by r.from_offset, r.to_offset, x.template_fqn, x.payload_type
+            ),
+            actual as (
+                select r.from_offset, r.to_offset, s.*
+                from ranges r, __net_change_summary(r.from_offset, r.to_offset) s
+            )
+            select 'missing', * from (table expected except table actual) m
+            union all
+            select 'unexpected', * from (table actual except table expected) u"""
+    )

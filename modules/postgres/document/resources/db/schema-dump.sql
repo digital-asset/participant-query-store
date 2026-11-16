@@ -699,6 +699,105 @@ $$;
 
 
 --
+-- Name: latest_offset(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.latest_offset() RETURNS bigint
+    LANGUAGE sql STABLE PARALLEL SAFE
+    AS $$
+select case
+           when coalesce(current_setting('pqs.session_offset_latest', true), '') = ''
+               then (select "offset" from latest_checkpoint())
+           else current_setting('pqs.session_offset_latest', false)::bigint
+           end;
+$$;
+
+
+--
+-- Name: oldest_offset(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.oldest_offset() RETURNS bigint
+    LANGUAGE sql STABLE PARALLEL SAFE
+    AS $$
+select case
+           when coalesce(current_setting('pqs.session_offset_oldest', true), '') = ''
+               then (select "offset" from oldest_checkpoint())
+           else current_setting('pqs.session_offset_oldest', false)::bigint
+           end;
+$$;
+
+
+--
+-- Name: pruned_offset(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.pruned_offset() RETURNS bigint
+    LANGUAGE sql STABLE PARALLEL SAFE
+    AS $$
+    select pruned_offset from __pruning_metadata;
+$$;
+
+
+--
+-- Name: __net_change_summary(bigint, bigint); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.__net_change_summary(from_offset bigint DEFAULT COALESCE(public.pruned_offset(), public.oldest_offset()), to_offset bigint DEFAULT public.latest_offset()) RETURNS TABLE(template_fqn text, payload_type public.__payload_type, additions bigint, removals bigint)
+    LANGUAGE plpgsql STABLE
+    SET plan_cache_mode TO 'force_generic_plan'
+    SET jit TO 'off'
+    AS $$
+declare
+    from_ix bigint;
+    to_ix bigint;
+    one bigint := 1;
+begin
+    if from_offset < pruned_offset() then
+        raise exception 'Offset % is before the pruned offset %', from_offset, pruned_offset();
+    end if;
+    from_ix := __nearest_ix_ceil(from_offset);
+    to_ix := __nearest_ix_floor(to_offset);
+    if from_ix > to_ix then -- no transaction in the range
+        return;
+    end if;
+    return query
+    with changed as ( -- whether a contract with a row activated or deactivated in the range is active before and after it
+        select c.tpe_pk,
+               c.contract_id,
+               bool_or(c.life_ix @> (from_ix - 1)) as before,
+               bool_or(c.life_ix @> to_ix) as after
+        from __contracts c
+        where (c.activated_at_ix between from_ix and to_ix or c.deactivated_at_ix between from_ix and to_ix)
+            and (c.life_ix @> (from_ix - 1)) <> (c.life_ix @> to_ix) -- active at one end only
+            and not c.divulged_only
+        group by c.tpe_pk, c.contract_id
+    ),
+    stats as (
+        select changed.tpe_pk,
+               count(*) filter (where changed.after) as additions,
+               count(*) filter (where changed.before) as removals
+        from changed
+        where changed.before <> changed.after
+            and not exists ( -- a row active at both ends, which the scan above can't see, keeps the contract unchanged
+                select 1
+                from __contracts c
+                where c.tpe_pk = changed.tpe_pk
+                    and c.contract_id = changed.contract_id
+                    and c.life_ix @> int8range(from_ix - 1, to_ix, '[]')
+                    and not c.divulged_only
+                limit one -- a parameter keeps this a per-contract probe; an anti-join would scan every active contract
+            )
+        group by changed.tpe_pk
+    )
+    select tpe.template_fqn, tpe.payload_type, stats.additions, stats.removals
+    from stats
+         join __contract_tpe tpe on tpe.pk = stats.tpe_pk;
+end
+$$;
+
+
+--
 -- Name: __update_watermark_fn(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -849,21 +948,6 @@ $$;
 
 
 --
--- Name: latest_offset(); Type: FUNCTION; Schema: public; Owner: -
---
-
-CREATE FUNCTION public.latest_offset() RETURNS bigint
-    LANGUAGE sql STABLE PARALLEL SAFE
-    AS $$
-select case
-           when coalesce(current_setting('pqs.session_offset_latest', true), '') = ''
-               then (select "offset" from latest_checkpoint())
-           else current_setting('pqs.session_offset_latest', false)::bigint
-           end;
-$$;
-
-
---
 -- Name: active(text, bigint); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -895,32 +979,6 @@ where c.life_ix @> (select __nearest_ix_floor("offset"))
                     )
                 )
     )
-$$;
-
-
---
--- Name: oldest_offset(); Type: FUNCTION; Schema: public; Owner: -
---
-
-CREATE FUNCTION public.oldest_offset() RETURNS bigint
-    LANGUAGE sql STABLE PARALLEL SAFE
-    AS $$
-select case
-           when coalesce(current_setting('pqs.session_offset_oldest', true), '') = ''
-               then (select "offset" from oldest_checkpoint())
-           else current_setting('pqs.session_offset_oldest', false)::bigint
-           end;
-$$;
-
-
---
--- Name: pruned_offset(); Type: FUNCTION; Schema: public; Owner: -
---
-
-CREATE FUNCTION public.pruned_offset() RETURNS bigint
-    LANGUAGE sql STABLE PARALLEL SAFE
-    AS $$
-    select pruned_offset from __pruning_metadata;
 $$;
 
 
