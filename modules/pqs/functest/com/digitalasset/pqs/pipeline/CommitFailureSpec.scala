@@ -6,7 +6,7 @@ package com.digitalasset.pqs.pipeline
 import com.digitalasset.pqs.functest.FuncTestStandalone
 import com.digitalasset.pqs.functest.matchers.*
 import com.digitalasset.pqs.services.daml.*
-import com.digitalasset.pqs.services.postgres.Postgres
+import com.digitalasset.pqs.services.postgres.*
 import com.digitalasset.pqs.services.pqs.Pqs
 import zio.jdbc.*
 
@@ -62,13 +62,13 @@ object CommitFailureSpec extends FuncTestStandalone:
 
   private val failCommitsWritingTransactions =
     // Fail every transaction at commit time, using an PQS-recoverable error code
-    Postgres.call(
+    Database.call(
       sql"""
         create function fail_commit() returns trigger language plpgsql as $$$$
         begin
           raise exception 'boom' using errcode = '40001';
         end $$$$"""
-    ) *> Postgres.call(
+    ) *> Database.call(
       sql"""
         create constraint trigger fail_commit_trg after insert on __transactions
         deferrable initially deferred for each row execute function fail_commit()
@@ -76,9 +76,9 @@ object CommitFailureSpec extends FuncTestStandalone:
     )
 
   private val restoreCommitsWritingTransactions =
-    Postgres.call(sql"drop trigger fail_commit_trg on __transactions")
-      *> Postgres.call(sql"drop function fail_commit()")
+    Database.call(sql"drop trigger fail_commit_trg on __transactions")
+      *> Database.call(sql"drop function fail_commit()")
 
-  private val activeLabels = Postgres.get[String](
+  private val activeLabels = Database.get[String](
     sql"select string_agg(payload->>'label', ',' order by payload->>'label') from active('Foo:Foo')"
   )

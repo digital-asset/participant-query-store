@@ -6,7 +6,6 @@ package com.digitalasset.pqs.features
 import com.daml.ledger.api.v2.value.{Record, RecordField, Value}
 import com.digitalasset.canonical.{Event, Offset, Transaction}
 import com.digitalasset.pqs.functest.matchers.*
-import com.digitalasset.pqs.functest.table.*
 import com.digitalasset.pqs.pipeline.InProcessPipeline
 import com.digitalasset.pqs.pipeline.pipeline.Config.Datasource
 import com.digitalasset.pqs.postgres.document.SqlSchema
@@ -71,11 +70,11 @@ object ReassignmentSpec extends SharedMultiSyncLedgerSpec:
         // but every update has a record time.
         // Every update now carries a synchronizer_id; for a reassignment it is the synchronizer
         // that synchronized it — the source synchronizer for the unassign, the target for the assign.
-        Postgres
+        Database
           .query(sql"""select "offset", synchronizer_id, effective_at is null, record_time is null
                        from __transactions order by "offset"""")
           .returns(
-            table {
+            Table {
               // submitAndWait guarantees the causal order of these multi-sync transactions
               createdAtOffset.capture    | sync1.id | false | false
               unassignedAtOffset.capture | sync1.id | true  | false
@@ -88,7 +87,7 @@ object ReassignmentSpec extends SharedMultiSyncLedgerSpec:
         Database
           .creates(extraColumns = Seq("created_at_offset", "synchronizer_id", "reassignment_counter"))
           .returns(
-            table {
+            Table {
               dar.get.packageId | s"${pingPong.name}:PingPong:Ping" | "template" | contractId | createdAtOffset | sync1.id | 0
             }
           )
@@ -96,7 +95,7 @@ object ReassignmentSpec extends SharedMultiSyncLedgerSpec:
         Database
           .archives(extraColumns = Seq("archived_at_offset", "synchronizer_id", "reassignment_counter"))
           .returns(
-            table {
+            Table {
               dar.get.packageId | s"${pingPong.name}:PingPong:Ping" | "template" | contractId | archivedAtOffset | sync2.id | 1
             }
           )
@@ -105,18 +104,18 @@ object ReassignmentSpec extends SharedMultiSyncLedgerSpec:
         Database
           .lookupContract(contractId.get, extraColumns = Seq("synchronizer_id", "reassignment_counter"))
           .returns(
-            table {
+            Table {
               dar.get.packageId | s"${pingPong.name}:PingPong:Ping" | "template" | contractId | sync2.id | 1
             }
           )
 
       Expect:
-        Postgres
+        Database
           .query(sql"""select e."type"::text, e.event_id::text
                        from __events e join __transactions t on e.tx_ix = t.ix
                        order by t."offset"""")
           .returns(
-            table {
+            Table {
               "create"   | s"($createdAtOffset,0)"
               "unassign" | s"($unassignedAtOffset,0)"
               "assign"   | s"($assignedAtOffset,0)"
@@ -130,30 +129,30 @@ object ReassignmentSpec extends SharedMultiSyncLedgerSpec:
         Database
           .__reassignments()
           .returns(
-            table {
+            Table {
               s"${pingPong.name}:PingPong:Ping" | "unassign" | contractId | reassignmentId.capture | sync1.id | sync2.id | alice.id | 1
               s"${pingPong.name}:PingPong:Ping" | "assign" | contractId | reassignmentId.capture | sync1.id | sync2.id | alice.id | 1
             }
           )
       Expect:
         // The assign branch has no assignment_exclusivity field of its own and must store none.
-        Postgres
+        Database
           .query(sql"""select assignment_exclusivity from __reassignments where "type" = 'assign'""")
-          .returns(table(isNull))
+          .returns(Table(isNull))
       Expect:
-        Postgres
+        Database
           .query(sql"select * from summary_reassignments() order by type")
           .returns(
-            table {
+            Table {
               s"${pingPong.name}:PingPong:Ping" | "assign"   | sync1.id | sync2.id | 1
               s"${pingPong.name}:PingPong:Ping" | "unassign" | sync1.id | sync2.id | 1
             }
           )
       Expect:
-        Postgres
+        Database
           .query(sql"select * from summary_reassignments(${unassignedAtOffset.get}, ${unassignedAtOffset.get})")
           .returns(
-            table {
+            Table {
               s"${pingPong.name}:PingPong:Ping" | "unassign" | sync1.id | sync2.id | 1
             }
           )
@@ -166,12 +165,12 @@ object ReassignmentSpec extends SharedMultiSyncLedgerSpec:
         // and the answer is the create rather than the newer unassign. A boundary falling in a
         // reassignment-only stretch of history is therefore not targetable, which is what
         // https://github.com/digital-asset/participant-query-store/issues/74 will revisit.
-        Postgres
+        Database
           .query(sql"""select nearest_offset(
                          (select min(effective_at) + (max(effective_at) - min(effective_at)) / 2
                           from __transactions)
                        )""")
-          .returns(table(createdAtOffset))
+          .returns(Table(createdAtOffset))
     },
     funcTest("Non-causal stream: archived before created") {
       val alice      = Party("Alice")
@@ -216,7 +215,7 @@ object ReassignmentSpec extends SharedMultiSyncLedgerSpec:
           InProcessPipeline.processTransactions(Chunk(createTx, unassignTx))
 
       Expect:
-        Postgres
+        Database
           .query(
             sql"""select "offset", synchronizer_id, record_time from __transactions order by "offset""""
               .query[(Long, String, Instant)]
@@ -237,7 +236,7 @@ object ReassignmentSpec extends SharedMultiSyncLedgerSpec:
         Database
           .creates(extraColumns = Seq("created_at_offset", "synchronizer_id", "reassignment_counter"))
           .returns(
-            table {
+            Table {
               dar.get.packageId | s"${pingPong.name}:PingPong:Ping" | "template" | contractId | createTx.offset.toLong | sync1.id | 0
             }
           )
@@ -245,7 +244,7 @@ object ReassignmentSpec extends SharedMultiSyncLedgerSpec:
         Database
           .archives(extraColumns = Seq("archived_at_offset", "synchronizer_id", "reassignment_counter"))
           .returns(
-            table {
+            Table {
               dar.get.packageId | s"${pingPong.name}:PingPong:Ping" | "template" | contractId | archiveTx.offset.toLong | sync2.id | 1
             }
           )
@@ -256,7 +255,7 @@ object ReassignmentSpec extends SharedMultiSyncLedgerSpec:
             extraColumns = Seq("activated_at_offset", "activation_type", "synchronizer_id", "reassignment_counter")
           )
           .returns(
-            table {
+            Table {
               dar.get.packageId | s"${pingPong.name}:PingPong:Ping" | "template" | contractId | assignTx.offset.toLong | "assign" | sync2.id | 1
             }
           )
@@ -267,7 +266,7 @@ object ReassignmentSpec extends SharedMultiSyncLedgerSpec:
             extraColumns = Seq("activated_at_offset", "activation_type", "synchronizer_id", "reassignment_counter")
           )
           .returns(
-            table {
+            Table {
               dar.get.packageId | s"${pingPong.name}:PingPong:Ping" | "template" | contractId | createTx.offset.toLong | "create" | sync1.id | 0
             }
           )
@@ -276,7 +275,7 @@ object ReassignmentSpec extends SharedMultiSyncLedgerSpec:
         Database
           .lookupContract(contractId.get, extraColumns = Seq("synchronizer_id", "reassignment_counter"))
           .returns(
-            table {
+            Table {
               dar.get.packageId | s"${pingPong.name}:PingPong:Ping" | "template" | contractId | sync2.id | 1
             }
           )
@@ -287,7 +286,7 @@ object ReassignmentSpec extends SharedMultiSyncLedgerSpec:
         Database
           .__reassignments()
           .returns(
-            table {
+            Table {
               s"${pingPong.name}:PingPong:Ping" | "assign" | contractId | reassignmentId.capture | sync1.id | sync2.id | alice.id | 1
               s"${pingPong.name}:PingPong:Ping" | "unassign" | contractId | reassignmentId.capture | sync1.id | sync2.id | alice.id | 1
             }
@@ -333,10 +332,10 @@ object ReassignmentSpec extends SharedMultiSyncLedgerSpec:
         InProcessPipeline.processTransactions(Chunk(createTx, assignTx, unassignTx, archiveTx))
 
       Expect:
-        Postgres
+        Database
           .query(sql"""select "offset", synchronizer_id from __transactions order by "offset"""")
           .returns(
-            table {
+            Table {
               createTx.offset.toLong   | sync1.id
               assignTx.offset.toLong   | sync2.id
               unassignTx.offset.toLong | sync1.id
@@ -348,7 +347,7 @@ object ReassignmentSpec extends SharedMultiSyncLedgerSpec:
         Database
           .creates(extraColumns = Seq("created_at_offset", "synchronizer_id", "reassignment_counter"))
           .returns(
-            table {
+            Table {
               dar.get.packageId | s"${pingPong.name}:PingPong:Ping" | "template" | contractId | createTx.offset.toLong | sync1.id | 0
             }
           )
@@ -356,7 +355,7 @@ object ReassignmentSpec extends SharedMultiSyncLedgerSpec:
         Database
           .archives(extraColumns = Seq("archived_at_offset", "synchronizer_id", "reassignment_counter"))
           .returns(
-            table {
+            Table {
               dar.get.packageId | s"${pingPong.name}:PingPong:Ping" | "template" | contractId | archiveTx.offset.toLong | sync2.id | 1
             }
           )
@@ -367,7 +366,7 @@ object ReassignmentSpec extends SharedMultiSyncLedgerSpec:
             extraColumns = Seq("activated_at_offset", "activation_type", "synchronizer_id", "reassignment_counter")
           )
           .returns(
-            table {
+            Table {
               // deduplication by highest reassignment counter
               dar.get.packageId | s"${pingPong.name}:PingPong:Ping" | "template" | contractId | assignTx.offset.toLong | "assign" | sync2.id | 1
             }
@@ -376,7 +375,7 @@ object ReassignmentSpec extends SharedMultiSyncLedgerSpec:
         // count unique contract IDs
         Database
           .summaryActiveAtOffset(assignTx.offset.toLong)
-          .returns(table(s"${pingPong.name}:PingPong:Ping" | "template" | 1))
+          .returns(Table(s"${pingPong.name}:PingPong:Ping" | "template" | 1))
       Expect:
         Database
           .activeAtOffset(
@@ -384,7 +383,7 @@ object ReassignmentSpec extends SharedMultiSyncLedgerSpec:
             extraColumns = Seq("activated_at_offset", "activation_type", "synchronizer_id", "reassignment_counter")
           )
           .returns(
-            table {
+            Table {
               dar.get.packageId | s"${pingPong.name}:PingPong:Ping" | "template" | contractId | assignTx.offset.toLong | "assign" | sync2.id | 1
             }
           )
@@ -393,7 +392,7 @@ object ReassignmentSpec extends SharedMultiSyncLedgerSpec:
         Database
           .lookupContract(contractId.get, extraColumns = Seq("synchronizer_id", "reassignment_counter"))
           .returns(
-            table {
+            Table {
               dar.get.packageId | s"${pingPong.name}:PingPong:Ping" | "template" | contractId | sync2.id | 1
             }
           )
@@ -454,7 +453,7 @@ object ReassignmentSpec extends SharedMultiSyncLedgerSpec:
         Database
           .__contracts(extraColumns = Seq("synchronizer_id", "reassignment_counter"))
           .returns(
-            table {
+            Table {
               anything | anything | contractId | "[1,3)"  | sync1.id | 0
               anything | anything | contractId | "[2,5)"  | sync2.id | 1
               anything | anything | contractId | "[4,7)"  | sync1.id | 2
@@ -467,7 +466,7 @@ object ReassignmentSpec extends SharedMultiSyncLedgerSpec:
         Database
           .lookupContract(contractId.get, extraColumns = Seq("synchronizer_id", "reassignment_counter"))
           .returns(
-            table {
+            Table {
               dar.get.packageId | s"${pingPong.name}:PingPong:Ping" | "template" | contractId | sync1.id | 4
             }
           )
@@ -519,22 +518,22 @@ object ReassignmentSpec extends SharedMultiSyncLedgerSpec:
         )
 
       Expect:
-        Postgres
+        Database
           .query(sql"""select choice, consuming, synchronizer_id, signatories
                        from exercises() order by exercised_at_ix""")
           .returns(
-            table {
+            Table {
               "Touch"   | false | sync1.id | s"{${alice.id}}"
               "Touch"   | false | sync2.id | s"{${alice.id}}"
               "Archive" | true  | sync2.id | s"{${alice.id}}"
             }
           )
       Expect:
-        Postgres
+        Database
           .query(sql"""select choice, consuming, synchronizer_id, signatories
                        from lookup_exercises(${contractId.get}) order by exercised_at_ix""")
           .returns(
-            table {
+            Table {
               "Touch"   | false | sync1.id | s"{${alice.id}}"
               "Touch"   | false | sync2.id | s"{${alice.id}}"
               "Archive" | true  | sync2.id | s"{${alice.id}}"
@@ -566,22 +565,22 @@ object ReassignmentSpec extends SharedMultiSyncLedgerSpec:
           )
 
       Expect:
-        Postgres
+        Database
           .query(sql"""select choice, consuming, synchronizer_id, signatories
                        from exercises() order by exercised_at_ix""")
           .returns(
-            table {
+            Table {
               "Touch"   | false | sync1.id | s"{${alice.id}}"
               "Touch"   | false | sync2.id | s"{${alice.id}}"
               "Archive" | true  | sync2.id | s"{${alice.id}}"
             }
           )
       Expect:
-        Postgres
+        Database
           .query(sql"""select choice, consuming, synchronizer_id, signatories
                        from lookup_exercises(${contractId.get}) order by exercised_at_ix""")
           .returns(
-            table {
+            Table {
               "Touch"   | false | sync1.id | s"{${alice.id}}"
               "Touch"   | false | sync2.id | s"{${alice.id}}"
               "Archive" | true  | sync2.id | s"{${alice.id}}"

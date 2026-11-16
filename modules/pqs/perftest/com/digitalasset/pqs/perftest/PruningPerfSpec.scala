@@ -3,7 +3,7 @@
 
 package com.digitalasset.pqs.perftest
 
-import com.digitalasset.pqs.services.postgres.{Database, Postgres}
+import com.digitalasset.pqs.services.postgres.Database
 import zio.ZIO
 import zio.jdbc.*
 
@@ -43,7 +43,7 @@ object PruningPerfSpec extends SharedHydratedLedgerTest with QueryPerfSpec[Pruni
   )
 
   override protected def executeQuery(sql: SqlFragment): ZIO[Database, Throwable, PruningOutput] =
-    Postgres
+    Database
       .query {
         for
           result <- sql.query[(Long, Long, Long, Long)].selectOne

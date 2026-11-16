@@ -8,9 +8,8 @@ import com.digitalasset.pqs.SharedLedgerAndPostgresTest
 import com.digitalasset.pqs.docker.Service
 import com.digitalasset.pqs.functest.FuncTest
 import com.digitalasset.pqs.functest.matchers.*
-import com.digitalasset.pqs.functest.table.*
 import com.digitalasset.pqs.services.daml.*
-import com.digitalasset.pqs.services.postgres.Postgres
+import com.digitalasset.pqs.services.postgres.*
 import com.digitalasset.pqs.services.pqs.Pqs
 import com.digitalasset.pqs.OffsetType
 import zio.jdbc.sqlInterpolator
@@ -35,7 +34,7 @@ object LedgerSlicingSpec extends SharedLedgerAndPostgresTest:
       Expect:
         Pqs.exitCode `is` ExitCode.success
       And:
-        checkpointsQuery `is` table { anything | 1L | anything | 1L }
+        checkpointsQuery `is` Table { anything | 1L | anything | 1L }
       And:
         Pqs.stdout `is` stringContaining("Starting from Genesis")
     ,
@@ -44,7 +43,7 @@ object LedgerSlicingSpec extends SharedLedgerAndPostgresTest:
       Given:
         context(alice) >+> Pqs.pipeline("--pipeline-ledger-start=Genesis", "--pipeline-ledger-stop=Never")
       Expect:
-        checkpointsQuery `is` table { anything | 1L | anything | 1L } retryUntilTimeout
+        checkpointsQuery `is` Table { anything | 1L | anything | 1L } retryUntilTimeout
     ,
     funcTest("on non-empty datastore"):
       val alice      = Party("Alice")
@@ -56,7 +55,7 @@ object LedgerSlicingSpec extends SharedLedgerAndPostgresTest:
       Expect:
         Pqs.exitCode `is` ExitCode.success
       And:
-        checkpointsQuery `returns` table { anything | 1L | checkpoint.capture | 1L }
+        checkpointsQuery `returns` Table { anything | 1L | checkpoint.capture | 1L }
 
       When:
         Pqs.runPipeline(s"--pipeline-ledger-start=$checkpoint", "--pipeline-ledger-stop=Latest")
@@ -67,7 +66,7 @@ object LedgerSlicingSpec extends SharedLedgerAndPostgresTest:
           s"Continuing from offset '$checkpoint' and index '1' until offset"
         )
       And:
-        checkpointsQuery `returns` table { checkpoint | 1L | checkpoint | 1L }
+        checkpointsQuery `returns` Table { checkpoint | 1L | checkpoint | 1L }
     ,
     funcTest("idempotent repeated run"):
       val alice          = Party("Alice")
@@ -79,21 +78,21 @@ object LedgerSlicingSpec extends SharedLedgerAndPostgresTest:
       Expect:
         Pqs.exitCode `is` ExitCode.success
       And:
-        checkpointsQuery `returns` table { anything | 1L | lastCheckpoint.capture | 1L }
+        checkpointsQuery `returns` Table { anything | 1L | lastCheckpoint.capture | 1L }
 
       When:
         Pqs.runPipeline(s"--pipeline-ledger-start=$lastCheckpoint", "--pipeline-ledger-stop=Latest")
       Expect:
         Pqs.exitCode `is` ExitCode.success
       And:
-        checkpointsQuery `returns` table { lastCheckpoint | 1L | lastCheckpoint | 1L }
+        checkpointsQuery `returns` Table { lastCheckpoint | 1L | lastCheckpoint | 1L }
 
       When:
         Pqs.runPipeline(s"--pipeline-ledger-start=$lastCheckpoint", "--pipeline-ledger-stop=Latest")
       Expect:
         Pqs.exitCode `is` ExitCode.success
       And:
-        checkpointsQuery `returns` table { lastCheckpoint | 1L | lastCheckpoint | 1L }
+        checkpointsQuery `returns` Table { lastCheckpoint | 1L | lastCheckpoint | 1L }
     ,
     funcTest("second run with new transaction in the ledger"):
       val alice          = Party("Alice")
@@ -105,7 +104,7 @@ object LedgerSlicingSpec extends SharedLedgerAndPostgresTest:
       Expect:
         Pqs.exitCode `is` ExitCode.success
       And:
-        checkpointsQuery `returns` table { anything | 1L | lastCheckpoint.capture | 1L }
+        checkpointsQuery `returns` Table { anything | 1L | lastCheckpoint.capture | 1L }
 
       When:
         DamlSdk.runScript("PingPong:transact1", alice.id)
@@ -114,11 +113,11 @@ object LedgerSlicingSpec extends SharedLedgerAndPostgresTest:
       Expect:
         Pqs.exitCode `is` ExitCode.success
       And:
-        checkpointsQuery `returns` table { lastCheckpoint | 1L | anything | 2L }
+        checkpointsQuery `returns` Table { lastCheckpoint | 1L | anything | 2L }
       And:
         Pqs.stdout `is` stringContaining(
           s"Continuing from offset '$lastCheckpoint' and index '1' until offset"
         )
   )
 
-  private val checkpointsQuery = Postgres `query` sql"select f.*, l.* from oldest_checkpoint() f, latest_checkpoint() l"
+  private val checkpointsQuery = Database `query` sql"select f.*, l.* from oldest_checkpoint() f, latest_checkpoint() l"

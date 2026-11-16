@@ -6,7 +6,6 @@ package com.digitalasset.pqs.perftest
 import com.digitalasset.pqs.services.postgres.Database
 import zio.jdbc.*
 import zio.ZIO
-import com.digitalasset.pqs.services.postgres.Postgres
 
 object ContractsPerfSpec extends SharedHydratedLedgerTest with QueryPerfSpec[Int]:
 
@@ -94,4 +93,4 @@ object ContractsPerfSpec extends SharedHydratedLedgerTest with QueryPerfSpec[Int
   )
 
   override protected def executeQuery(sql: SqlFragment): ZIO[Database, Throwable, Int] =
-    Postgres.query(sql).map(_.rows.size)
+    Database.query(sql).map(_.rows.size)

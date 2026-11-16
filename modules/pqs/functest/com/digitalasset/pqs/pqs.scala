@@ -3,17 +3,9 @@
 
 package com.digitalasset.pqs
 
-import zio.jdbc.{SqlFragment, sqlInterpolator}
-
 type OffsetType = Long
 
-val eventIdSqlType  = "USER-DEFINED"
-val offsetSqlType   = "bigint"
 val offsetScalaType = "long"
 
 val biggestOffset: OffsetType  = Long.MaxValue
 val smallestOffset: OffsetType = 0
-
-def offsetSqlFragment(value: String) = sql"$value::bigint"
-
-val nonExistenceEventId = s"($biggestOffset,${Int.MaxValue})"

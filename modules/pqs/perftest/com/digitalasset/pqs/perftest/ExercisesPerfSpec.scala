@@ -4,7 +4,7 @@
 package com.digitalasset.pqs.perftest
 
 import com.digitalasset.pqs.pipeline.pipeline.Config.Datasource
-import com.digitalasset.pqs.services.postgres.{Database, Postgres}
+import com.digitalasset.pqs.services.postgres.Database
 import zio.jdbc.*
 import zio.ZIO
 
@@ -43,7 +43,7 @@ object ExercisesPerfSpec extends SharedHydratedLedgerTest with QueryPerfSpec[Int
       )
     },
     perfTest("lookup_exercises", source = Datasource.TransactionTreeStream) {
-      for seedId <- Postgres.get[String](
+      for seedId <- Database.get[String](
           sql"select contract_id from exercises('Blob:Seed:ArchiveMany') order by contract_id limit 1"
         )
       yield Benchmark(
@@ -62,4 +62,4 @@ object ExercisesPerfSpec extends SharedHydratedLedgerTest with QueryPerfSpec[Int
   )
 
   override protected def executeQuery(sql: SqlFragment): ZIO[Database, Throwable, Int] =
-    Postgres.query(sql).map(_.rows.size)
+    Database.query(sql).map(_.rows.size)

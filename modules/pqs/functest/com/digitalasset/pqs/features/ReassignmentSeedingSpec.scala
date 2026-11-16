@@ -5,7 +5,6 @@ package com.digitalasset.pqs.features
 
 import com.digitalasset.pqs.SharedMultiSyncLedgerSpec
 import com.digitalasset.pqs.functest.matchers.*
-import com.digitalasset.pqs.functest.table.*
 import com.digitalasset.pqs.services.daml.*
 import com.digitalasset.pqs.services.postgres.*
 import com.digitalasset.pqs.services.pqs.Pqs
@@ -47,16 +46,16 @@ object ReassignmentSeedingSpec extends SharedMultiSyncLedgerSpec:
         Database
           .active(extraColumns = multiSyncColumns)
           .returns(
-            table {
+            Table {
               dar.get.packageId | s"${pingPong.name}:PingPong:Ping" | "template" | contractId | "0" | "assign" | null | null | sync2.id | 1
             }
           )
       Expect:
         Database.creates().returns(Table.empty)
       Expect:
-        Postgres
+        Database
           .query(sql"""select "type"::text from __events""")
-          .returns(table("assign"))
+          .returns(Table("assign"))
     },
     funcTest("Contract seeded from the ACS as an assign can be archived") {
       val alice      = Party("Alice")
@@ -79,7 +78,7 @@ object ReassignmentSeedingSpec extends SharedMultiSyncLedgerSpec:
       Then:
         Database
           .active()
-          .returns(table(dar.get.packageId | s"${pingPong.name}:PingPong:Ping" | "template" | contractId))
+          .returns(Table(dar.get.packageId | s"${pingPong.name}:PingPong:Ping" | "template" | contractId))
       When:
         Ledger.archive("PingPong:Ping", contractId.get, alice, sync2)
       When:
@@ -91,7 +90,7 @@ object ReassignmentSeedingSpec extends SharedMultiSyncLedgerSpec:
         Database
           .archives(extraColumns = multiSyncColumns)
           .returns(
-            table {
+            Table {
               dar.get.packageId | s"${pingPong.name}:PingPong:Ping" | "template" | contractId | "0" | "assign" | "1" | "archive" | sync2.id | 1
             }
           )

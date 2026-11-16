@@ -6,9 +6,8 @@ package com.digitalasset.pqs.querying.postgres.document
 import com.digitalasset.pqs.SharedLedgerAndPostgresTest
 import com.digitalasset.pqs.functest.FuncTest
 import com.digitalasset.pqs.functest.matchers.*
-import com.digitalasset.pqs.functest.table.*
 import com.digitalasset.pqs.services.daml.*
-import com.digitalasset.pqs.services.postgres.Postgres
+import com.digitalasset.pqs.services.postgres.*
 import com.digitalasset.pqs.services.pqs.Pqs
 import zio.ZLayer
 import zio.jdbc.sqlInterpolator
@@ -135,17 +134,17 @@ object DivulgedContractsSpec extends SharedLedgerAndPostgresTest:
       When:
         run(source = "TransactionStream", partyHint = bob.name)
       Expect:
-        Postgres query {
+        Database query {
           sql"select count(*) from creates('AssetApp:SimpleAsset') where divulged_only"
-        } `returns` table { 0 }
+        } `returns` Table { 0 }
       And:
-        Postgres query {
+        Database query {
           sql"select count(*) from archives('AssetApp:SimpleAsset') where divulged_only"
-        } `returns` table { 0 }
+        } `returns` Table { 0 }
       And:
-        Postgres query {
+        Database query {
           sql"select count(*) from active('AssetApp:SimpleAsset') where divulged_only"
-        } `returns` table { 0 }
+        } `returns` Table { 0 }
     },
     funcTest("TransactionTreeStream: divulged contracts are present") {
       // IMPORTANT: divulgences are only shipped in TransactionTreeStream from SDK 3.4+
@@ -158,59 +157,59 @@ object DivulgedContractsSpec extends SharedLedgerAndPostgresTest:
       When:
         run(source = "TransactionTreeStream", partyHint = bob.name)
       Expect:
-        Postgres query { // Alice's assets get divulged to Bob
+        Database query { // Alice's assets get divulged to Bob
           sql"""select count(c.*)
                 from creates('AssetApp:SimpleAsset') c
                 where c.divulged_only
                   and c.stakeholders @> array[${alice.id}]::text[]
                   and c.witnesses @> array[${bob.id}]::text[]"""
-        } `returns` table { 2 }
+        } `returns` Table { 2 }
       And:
-        Postgres query {
+        Database query {
           sql"select count(*) from creates()"
-        } `returns` table { 10 }
+        } `returns` Table { 10 }
       And:
-        Postgres query {
+        Database query {
           sql"select * from summary_creates() order by template_fqn"
-        } `returns` table {
+        } `returns` Table {
           s"${damlSource.name}:AssetApp:ProposeSimpleDvP" | "template" | 2
           s"${damlSource.name}:AssetApp:SimpleAsset"      | "template" | 6
           s"${damlSource.name}:AssetApp:SimpleDvP"        | "template" | 2
         }
       And:
-        Postgres query { // archives are not broadcast for divulged contracts, only creates
+        Database query { // archives are not broadcast for divulged contracts, only creates
           sql"select count(*) from archives('AssetApp:SimpleAsset') where divulged_only"
-        } `returns` table { 0 }
+        } `returns` Table { 0 }
       And:
-        Postgres query {
+        Database query {
           sql"select count(*) from archives()"
-        } `returns` table { 6 }
+        } `returns` Table { 6 }
       And:
-        Postgres query {
+        Database query {
           sql"select * from summary_archives() order by template_fqn"
-        } `returns` table {
+        } `returns` Table {
           s"${damlSource.name}:AssetApp:ProposeSimpleDvP" | "template" | 2
           s"${damlSource.name}:AssetApp:SimpleAsset"      | "template" | 2
           s"${damlSource.name}:AssetApp:SimpleDvP"        | "template" | 2
         }
       And:
-        Postgres query { // active never includes divulged contracts
+        Database query { // active never includes divulged contracts
           sql"select count(*) from active('AssetApp:SimpleAsset') where divulged_only"
-        } `returns` table { 0 }
+        } `returns` Table { 0 }
       And:
-        Postgres query {
+        Database query {
           sql"select count(*) from active()"
-        } `returns` table { 2 }
+        } `returns` Table { 2 }
       And:
-        Postgres query {
+        Database query {
           sql"select * from summary_active() order by template_fqn"
-        } `returns` table {
+        } `returns` Table {
           s"${damlSource.name}:AssetApp:SimpleAsset" | "template" | 2
         }
       And:
-        Postgres query {
+        Database query {
           sql"select * from summary_transients() order by template_fqn"
-        } `returns` table {
+        } `returns` Table {
           s"${damlSource.name}:AssetApp:ProposeSimpleDvP" | "template" | 2
           s"${damlSource.name}:AssetApp:SimpleAsset"      | "template" | 2
           s"${damlSource.name}:AssetApp:SimpleDvP"        | "template" | 2
@@ -228,24 +227,24 @@ object DivulgedContractsSpec extends SharedLedgerAndPostgresTest:
       When:
         run(source = "TransactionTreeStream", partyHint = bob.name)
       Expect:
-        Postgres query {
+        Database query {
           sql"select template_fqn, created_at_offset from creates() where divulged_only order by create_event_id"
-        } `returns` table {
+        } `returns` Table {
           s"${damlSource.name}:AssetApp:SimpleAsset" | earlier_offset.capture
           s"${damlSource.name}:AssetApp:SimpleAsset" | later_offset.capture
         }
       And:
-        Postgres
+        Database
           .query(sql"select * from prune_archived_to_offset_dry_run(${earlier_offset.get})")
-          .returns(table(anything | 4 | 4 | 8 | 3 | 0))
+          .returns(Table(anything | 4 | 4 | 8 | 3 | 0))
       And:
-        Postgres
+        Database
           .query(sql"select * from prune_archived_to_offset(${earlier_offset.get})")
-          .returns(table(anything | 4 | 4 | 8 | 3 | 0))
+          .returns(Table(anything | 4 | 4 | 8 | 3 | 0))
       And:
-        Postgres query { // divulgences are pruned akin to exercises (i.e. if created_at_offset <= cutoff_offset)
+        Database query { // divulgences are pruned akin to exercises (i.e. if created_at_offset <= cutoff_offset)
           sql"select template_fqn, created_at_offset from creates() where divulged_only order by create_event_id"
-        } `returns` table {
+        } `returns` Table {
           s"${damlSource.name}:AssetApp:SimpleAsset" | later_offset.get
         }
     },
@@ -265,27 +264,27 @@ object DivulgedContractsSpec extends SharedLedgerAndPostgresTest:
       When:
         run(source = source, partyHint = bob.name)
       Expect:
-        Postgres query {
+        Database query {
           sql"""select c.payload->>'asset', c.signatories, c.observers, c.stakeholders, c.witnesses
                 from creates('AssetApp:SimpleAsset') c
                 order by c.create_event_id limit 1"""
-        } `returns` table {
+        } `returns` Table {
           "1 USD" | s"{${bank2.id}}" | s"{${bob.id}}" | s"{${bank2.id},${bob.id}}" | s"{${bob.id}}"
         }
       And:
-        Postgres query {
+        Database query {
           sql"""select a.payload->>'asset', a.signatories, a.observers, a.stakeholders, a.witnesses
                 from archives('AssetApp:SimpleAsset') a
                 order by a.create_event_id limit 1;"""
-        } `returns` table { // archives explicitly blinded wrt witnesses
+        } `returns` Table { // archives explicitly blinded wrt witnesses
           "1 USD" | s"{${bank2.id}}" | s"{${bob.id}}" | s"{${bank2.id},${bob.id}}" | s"{}"
         }
       And:
-        Postgres query {
+        Database query {
           sql"""select a.payload->>'asset', a.signatories, a.observers, a.stakeholders, a.witnesses
                 from active('AssetApp:SimpleAsset') a
                 order by a.create_event_id limit 1;"""
-        } `returns` table {
+        } `returns` Table {
           "1 EUR" | s"{${bank1.id}}" | s"{${bob.id}}" | s"{${bank1.id},${bob.id}}" | s"{${bob.id}}"
         }
     }
@@ -301,12 +300,12 @@ object DivulgedContractsSpec extends SharedLedgerAndPostgresTest:
       When:
         run(source = "TransactionTreeStream", partyHint = bob.name)
       Expect:
-        Postgres query {
+        Database query {
           sql"""select e.argument->>'toBeAllocated', e.signatories, e.observers, e.stakeholders,
                        e.controllers, e.witnesses
                 from exercises('AssetApp:ProposeSimpleDvP:Accept') e
                 order by e.exercise_event_id limit 1"""
-        } `returns` table {
+        } `returns` Table {
           anything | s"{${alice.id}}" | s"{${bob.id}}" | s"{${alice.id},${bob.id}}" | s"{${bob.id}}" | s"{${bob.id}}"
         }
     }

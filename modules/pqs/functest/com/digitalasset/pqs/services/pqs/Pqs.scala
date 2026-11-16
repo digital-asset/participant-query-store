@@ -336,7 +336,7 @@ trait Pqs:
   def hasProcessedAtLeastTransactions(count: Int) = {
     import zio.jdbc.sqlInterpolator
 
-    val checkpoints = Postgres.query(
+    val checkpoints = Database.query(
       sql"select f.ix, l.ix from oldest_checkpoint() f, latest_checkpoint() l".query[(Long, Long)].selectOne
     )
     val difference = zio.test.Assertion

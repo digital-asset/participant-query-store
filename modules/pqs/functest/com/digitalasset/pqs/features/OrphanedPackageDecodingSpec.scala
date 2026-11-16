@@ -8,7 +8,6 @@ import com.digitalasset.pqs.Dars
 import com.digitalasset.pqs.SharedLedgerAndPostgresTest
 import com.digitalasset.pqs.docker.Docker
 import com.digitalasset.pqs.functest.matchers.*
-import com.digitalasset.pqs.functest.table.*
 import com.digitalasset.pqs.services.postgres.*
 import com.digitalasset.pqs.services.pqs.{CliRun, Pqs}
 import com.digitalasset.pqs.functest.FuncTest
@@ -55,7 +54,7 @@ object OrphanedPackageDecodingSpec extends SharedLedgerAndPostgresTest:
       Database
         .active(Some(templateFqn), extraColumns = Seq("payload"))
         .returns(
-          table {
+          Table {
             dar.get.packageId | templateFqn | "template" | contractId | s"""{"sender": "${alice.id}"}"""
           }
         )

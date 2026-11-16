@@ -6,9 +6,8 @@ package com.digitalasset.pqs.schema.postgres.document
 import com.digitalasset.pqs.Dars
 import com.digitalasset.pqs.SharedLedgerAndPostgresTest
 import com.digitalasset.pqs.functest.matchers.*
-import com.digitalasset.pqs.functest.table.*
 import com.digitalasset.pqs.services.daml.{DamlSdk, DamlSource, Party}
-import com.digitalasset.pqs.services.postgres.Postgres
+import com.digitalasset.pqs.services.postgres.*
 import com.digitalasset.pqs.services.pqs.Pqs
 import com.digitalasset.transcode.schema.packageName
 import zio.jdbc.{SqlFragment, sqlInterpolator}
@@ -50,13 +49,13 @@ object SchemaSpec extends SharedLedgerAndPostgresTest:
         When:
           Pqs.runPipeline("--pipeline-ledger-stop=Latest")
         Then:
-          Postgres call {
+          Database call {
             sql"call create_index_for_contract($indexName, $contractName, '(payload->>''receiver'')', $indexType);"
           } `returns` ()
         And:
           for
-            tpe_pk <- Postgres.get[String](sql"select __contract_tpe4name($contractName)")
-            result <- Postgres query {
+            tpe_pk <- Database.get[String](sql"select __contract_tpe4name($contractName)")
+            result <- Database query {
               sql"""select
                           c.relname as table_name,
                           i.relname as index_name,
@@ -67,7 +66,7 @@ object SchemaSpec extends SharedLedgerAndPostgresTest:
                                join pg_am am on i.relam = am.oid
                       where c.relname like '__contracts_%' and i.relname like ${"%" + indexName + "_idx"}
                       ;"""
-            } `returns` table {
+            } `returns` Table {
               s"__contracts_$tpe_pk" | s"__contracts_${tpe_pk}_${indexName}_idx" | indexType
             }
           yield result
@@ -84,11 +83,11 @@ object SchemaSpec extends SharedLedgerAndPostgresTest:
           Pqs.runPipeline("--pipeline-ledger-stop=Latest")
         Then:
           for
-            tpe_pk <- Postgres.get[String](sql"select __contract_tpe4name($contractName)")
-            queryConcurrently <- Postgres.get[String](
+            tpe_pk <- Database.get[String](sql"select __contract_tpe4name($contractName)")
+            queryConcurrently <- Database.get[String](
               sql"select print_create_index_for_contract($indexName, $contractName, $indexExpression, $indexType)"
             )
-            query <- Postgres.get[String](
+            query <- Database.get[String](
               sql"select print_create_index_for_contract($indexName, $contractName, $indexExpression, $indexType, use_concurrently => false)"
             )
           yield zio.test.assert(queryConcurrently)(
@@ -109,13 +108,13 @@ object SchemaSpec extends SharedLedgerAndPostgresTest:
         When:
           Pqs.runPipeline("--pipeline-ledger-stop=Latest")
         Then:
-          Postgres `hasTable` "flyway_schema_history"
+          Database `hasTable` "flyway_schema_history"
         And:
-          Postgres `query`
+          Database `query`
             sql"""select version, description, script
                       from flyway_schema_history
                       order by installed_rank
-                      limit 2""" `returns` table {
+                      limit 2""" `returns` Table {
               "001" | "Create initial schema" | "V001__Create_initial_schema.sql"
               "002" | "Make initializecontractimplements function idempotent" | "V002__Make_initializecontractimplements_function_idempotent.sql"
             }

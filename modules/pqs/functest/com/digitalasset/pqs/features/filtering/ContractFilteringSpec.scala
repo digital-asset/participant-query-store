@@ -5,9 +5,8 @@ package com.digitalasset.pqs.features.filtering
 
 import com.digitalasset.pqs.SharedLedgerAndPostgresTest
 import com.digitalasset.pqs.functest.matchers.*
-import com.digitalasset.pqs.functest.table.*
 import com.digitalasset.pqs.services.daml.*
-import com.digitalasset.pqs.services.postgres.Postgres
+import com.digitalasset.pqs.services.postgres.*
 import com.digitalasset.pqs.services.pqs.Pqs
 import zio.ZLayer
 import zio.jdbc.sqlInterpolator
@@ -163,13 +162,13 @@ object ContractFilteringSpec extends SharedLedgerAndPostgresTest:
       s"--pipeline-filter-contracts=$filter"
     )
 
-  private def queryActive() = Postgres `query`
+  private def queryActive() = Database `query`
     sql"""select substring(template_fqn from position(':' in template_fqn) + 1), payload->>'firstName', payload->>'lastName', payload->>'name'
           from active()
           where template_fqn like $templateMatcher
           order by activated_at_ix, template_fqn"""
 
-  private def querySummaryExercises() = Postgres `query`
+  private def querySummaryExercises() = Database `query`
     sql"""select substring(choice_fqn from position(':' in choice_fqn) + 1) as ch_fqn, count
           from summary_exercises()
           where choice_fqn like $templateMatcher
@@ -183,7 +182,7 @@ object ContractFilteringSpec extends SharedLedgerAndPostgresTest:
         When:
           run(start = "Oldest", source = "TransactionStream", filter = "*")
         Expect:
-          queryActive() `returns` table {
+          queryActive() `returns` Table {
             "Interfaces:U" | null | null | "V T"
             "Interfaces:V" | null | null | "V T"
             "Templates:T"  | "V"  | "T"  | null
@@ -201,7 +200,7 @@ object ContractFilteringSpec extends SharedLedgerAndPostgresTest:
         When:
           run(start = "Oldest", source = "TransactionStream", filter = "Templates.T")
         Expect:
-          queryActive() `returns` table {
+          queryActive() `returns` Table {
             "Templates:T" | "V" | "T" | null
           }
         And:
@@ -213,7 +212,7 @@ object ContractFilteringSpec extends SharedLedgerAndPostgresTest:
         When:
           run(start = "Oldest", source = "TransactionStream", filter = "Interfaces.V")
         Expect:
-          queryActive() `returns` table {
+          queryActive() `returns` Table {
             "Interfaces:V" | null | null | "V T"
             "Templates:T"  | "V"  | "T"  | null
             "Interfaces:V" | null | null | "V S"
@@ -228,7 +227,7 @@ object ContractFilteringSpec extends SharedLedgerAndPostgresTest:
         When:
           run(start = "Oldest", source = "TransactionStream", filter = "Interfaces.U")
         Expect:
-          queryActive() `returns` table {
+          queryActive() `returns` Table {
             "Interfaces:U" | null | null | "V T"
             "Templates:T"  | "V"  | "T"  | null
           }
@@ -241,7 +240,7 @@ object ContractFilteringSpec extends SharedLedgerAndPostgresTest:
         When:
           run(start = "Oldest", source = "TransactionStream", filter = "Templates.T | Templates.S")
         Expect:
-          queryActive() `returns` table {
+          queryActive() `returns` Table {
             "Templates:T" | "V" | "T" | null
             "Templates:S" | "V" | "S" | null
           }
@@ -254,7 +253,7 @@ object ContractFilteringSpec extends SharedLedgerAndPostgresTest:
         When:
           run(start = "Oldest", source = "TransactionStream", filter = "Interfaces.U | Interfaces.V")
         Expect:
-          queryActive() `returns` table {
+          queryActive() `returns` Table {
             "Interfaces:U" | null | null | "V T"
             "Interfaces:V" | null | null | "V T"
             "Templates:T"  | "V"  | "T"  | null
@@ -276,7 +275,7 @@ object ContractFilteringSpec extends SharedLedgerAndPostgresTest:
             filter = "* & !(Interfaces.W | Templates.P)"
           )
         Expect:
-          queryActive() `returns` table {
+          queryActive() `returns` Table {
             "Interfaces:U" | null | null | "V T"
             "Interfaces:V" | null | null | "V T"
             "Templates:T"  | "V"  | "T"  | null
@@ -294,7 +293,7 @@ object ContractFilteringSpec extends SharedLedgerAndPostgresTest:
         When:
           run(start = "Oldest", source = "TransactionTreeStream", filter = "*")
         Expect:
-          queryActive() `returns` table {
+          queryActive() `returns` Table {
             "Interfaces:U" | null | null | "V T"
             "Interfaces:V" | null | null | "V T"
             "Templates:T"  | "V"  | "T"  | null
@@ -304,7 +303,7 @@ object ContractFilteringSpec extends SharedLedgerAndPostgresTest:
             "Templates:P"  | "W"  | "P"  | null
           }
         And:
-          querySummaryExercises() `returns` table {
+          querySummaryExercises() `returns` Table {
             "Interfaces:U:UChoice"   | 1
             "Interfaces:V:VChoice"   | 2
             "Interfaces:W:WChoice"   | 1
@@ -319,11 +318,11 @@ object ContractFilteringSpec extends SharedLedgerAndPostgresTest:
         When:
           run(start = "Oldest", source = "TransactionTreeStream", filter = "Templates.T")
         Expect:
-          queryActive() `returns` table {
+          queryActive() `returns` Table {
             "Templates:T" | "V" | "T" | null
           }
         And:
-          querySummaryExercises() `returns` table {
+          querySummaryExercises() `returns` Table {
             "Interfaces:U:UChoice" | 1 // we did not ask for interfaces' exercises but ledger sent them so we store them
             "Interfaces:V:VChoice" | 1
             "Templates:T:DoNothingT" | 1
@@ -337,14 +336,14 @@ object ContractFilteringSpec extends SharedLedgerAndPostgresTest:
         When:
           run(start = "Oldest", source = "TransactionTreeStream", filter = "Interfaces.V")
         Expect:
-          queryActive() `returns` table {
+          queryActive() `returns` Table {
             "Interfaces:V" | null | null | "V T"
             "Templates:T"  | "V"  | "T"  | null
             "Interfaces:V" | null | null | "V S"
             "Templates:S"  | "V"  | "S"  | null
           }
         And:
-          querySummaryExercises() `returns` table {
+          querySummaryExercises() `returns` Table {
             "Interfaces:U:UChoice" | 1 // UChoice is included because T implements U, and T is transitively included through V
             "Interfaces:V:VChoice"   | 2 // T and S both had VChoice exercised
             "Templates:S:DoNothingS" | 1
@@ -359,12 +358,12 @@ object ContractFilteringSpec extends SharedLedgerAndPostgresTest:
         When:
           run(start = "Oldest", source = "TransactionTreeStream", filter = "Interfaces.U")
         Expect:
-          queryActive() `returns` table {
+          queryActive() `returns` Table {
             "Interfaces:U" | null | null | "V T"
             "Templates:T"  | "V"  | "T"  | null
           }
         And:
-          querySummaryExercises() `returns` table {
+          querySummaryExercises() `returns` Table {
             "Interfaces:U:UChoice" | 1
             "Interfaces:V:VChoice" | 1 // VChoice is included because T implements U & V, but only T's exercise is recorded (not S's)
             "Templates:T:DoNothingT" | 1
@@ -378,12 +377,12 @@ object ContractFilteringSpec extends SharedLedgerAndPostgresTest:
         When:
           run(start = "Oldest", source = "TransactionTreeStream", filter = "Templates.T | Templates.S")
         Expect:
-          queryActive() `returns` table {
+          queryActive() `returns` Table {
             "Templates:T" | "V" | "T" | null
             "Templates:S" | "V" | "S" | null
           }
         And:
-          querySummaryExercises() `returns` table {
+          querySummaryExercises() `returns` Table {
             "Interfaces:U:UChoice"   | 1
             "Interfaces:V:VChoice"   | 2
             "Templates:S:DoNothingS" | 1
@@ -399,7 +398,7 @@ object ContractFilteringSpec extends SharedLedgerAndPostgresTest:
         When:
           run(start = "Oldest", source = "TransactionTreeStream", filter = "Interfaces.U | Interfaces.V")
         Expect:
-          queryActive() `returns` table {
+          queryActive() `returns` Table {
             "Interfaces:U" | null | null | "V T"
             "Interfaces:V" | null | null | "V T"
             "Templates:T"  | "V"  | "T"  | null
@@ -407,7 +406,7 @@ object ContractFilteringSpec extends SharedLedgerAndPostgresTest:
             "Templates:S"  | "V"  | "S"  | null
           }
         And:
-          querySummaryExercises() `returns` table {
+          querySummaryExercises() `returns` Table {
             "Interfaces:U:UChoice"   | 1
             "Interfaces:V:VChoice"   | 2
             "Templates:S:DoNothingS" | 1
@@ -426,7 +425,7 @@ object ContractFilteringSpec extends SharedLedgerAndPostgresTest:
             filter = "* & !(Interfaces.W | Templates.P)"
           )
         Expect:
-          queryActive() `returns` table {
+          queryActive() `returns` Table {
             "Interfaces:U" | null | null | "V T"
             "Interfaces:V" | null | null | "V T"
             "Templates:T"  | "V"  | "T"  | null
@@ -434,7 +433,7 @@ object ContractFilteringSpec extends SharedLedgerAndPostgresTest:
             "Templates:S"  | "V"  | "S"  | null
           }
         And:
-          querySummaryExercises() `returns` table {
+          querySummaryExercises() `returns` Table {
             "Interfaces:U:UChoice"   | 1
             "Interfaces:V:VChoice"   | 2
             "Templates:S:DoNothingS" | 1
@@ -455,7 +454,7 @@ object ContractFilteringSpec extends SharedLedgerAndPostgresTest:
             filter = s"${templates.name}@${dar.get.packageId} | ${interfaces.name}"
           )
         Expect:
-          queryActive() `returns` table {
+          queryActive() `returns` Table {
             "Interfaces:U" | null | null | "V T"
             "Interfaces:V" | null | null | "V T"
             "Templates:T"  | "V"  | "T"  | null
@@ -465,7 +464,7 @@ object ContractFilteringSpec extends SharedLedgerAndPostgresTest:
             "Templates:P"  | "W"  | "P"  | null
           }
         And:
-          querySummaryExercises() `returns` table {
+          querySummaryExercises() `returns` Table {
             "Interfaces:U:UChoice"   | 1
             "Interfaces:V:VChoice"   | 2
             "Interfaces:W:WChoice"   | 1
