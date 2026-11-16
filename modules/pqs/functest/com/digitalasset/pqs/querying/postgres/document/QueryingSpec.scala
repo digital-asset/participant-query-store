@@ -497,15 +497,15 @@ object QueryingSpec extends SharedLedgerAndPostgresTest:
           } `returns` Table {
             stringContaining(
               ",0)"
-            ) <|> s"${nameRegistry.name}:NameRegistry:BirthCertificate:BirthCertificateNameChange" <|> 2
-            stringContaining(",2)") <|> s"${nameRegistry.name}:NameRegistry:BirthCertificate:DoNothing" <|> 2
-            stringContaining(",0)") <|> s"${nameRegistry.name}:NameRegistry:BirthCertificate:Archive" <|> 0
+            ) | s"${nameRegistry.name}:NameRegistry:BirthCertificate:BirthCertificateNameChange" | 2
+            stringContaining(",2)") | s"${nameRegistry.name}:NameRegistry:BirthCertificate:DoNothing" | 2
+            stringContaining(",0)") | s"${nameRegistry.name}:NameRegistry:BirthCertificate:Archive"   | 0
             stringContaining(
               ",0)"
-            ) <|> s"${nameRegistry.name}:NameRegistry:BirthCertificate:BirthCertificateNameChange" <|> 2
-            stringContaining(",2)") <|> s"${nameRegistry.name}:NameRegistry:BirthCertificate:DoNothing" <|> 2
-            stringContaining(",0)") <|> s"${interfaces.name}:Interfaces:INameDocument:INameDocumentNameChange" <|> 1
-            stringContaining(",0)") <|> s"${interfaces.name}:Interfaces:INameDocument:INameDocumentNameChange" <|> 1
+            ) | s"${nameRegistry.name}:NameRegistry:BirthCertificate:BirthCertificateNameChange" | 2
+            stringContaining(",2)") | s"${nameRegistry.name}:NameRegistry:BirthCertificate:DoNothing"        | 2
+            stringContaining(",0)") | s"${interfaces.name}:Interfaces:INameDocument:INameDocumentNameChange" | 1
+            stringContaining(",0)") | s"${interfaces.name}:Interfaces:INameDocument:INameDocumentNameChange" | 1
           }
       },
       funcTest("hybrid queries: analytics over current data and history"):
