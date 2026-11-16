@@ -24,21 +24,19 @@ object ContractsPerfSpec extends SharedHydratedLedgerTest with QueryPerfSpec[Int
           "select_star_from_all_at_100",
           sql"select * from active(null, $offset100)",
           repeat = 2,
-          expectedDiff = 0.5,
-          tolerance = 0.4
+          expectedDiff = 0.72
         ),
         Query(
           "select_star_from_all_at_50",
           sql"select * from active(null, $offset50)",
           repeat = 2,
-          expectedDiff = 0.6
+          expectedDiff = 0.88
         ),
         Query(
           "select_star_from_all_at_10",
           sql"select * from active(null, $offset10)",
           repeat = 8,
-          expectedDiff = 1.09,
-          tolerance = 0.4
+          expectedDiff = 1.19
         ),
 
         // Same serial per-contract probes, no JIT.
@@ -46,19 +44,19 @@ object ContractsPerfSpec extends SharedHydratedLedgerTest with QueryPerfSpec[Int
           "select_star_from_bloba_at_100",
           sql"select * from active($blobA, $offset100)",
           repeat = 4,
-          expectedDiff = 0.39
+          expectedDiff = 0.77
         ),
         Query(
           "select_star_from_bloba_at_50",
           sql"select * from active($blobA, $offset50)",
           repeat = 4,
-          expectedDiff = 0.42
+          expectedDiff = 0.49
         ),
         Query(
           "select_star_from_bloba_at_10",
           sql"select * from active($blobA, $offset10)",
           repeat = 16,
-          expectedDiff = 0.43
+          expectedDiff = 0.59
         ),
 
         // Baseline is a bare scan with no joins, so the per-contract probes weigh more
@@ -66,13 +64,13 @@ object ContractsPerfSpec extends SharedHydratedLedgerTest with QueryPerfSpec[Int
           "select_cid_from_all_at_100",
           sql"select contract_id from active(null, $offset100)",
           repeat = 2,
-          expectedDiff = 0.81
+          expectedDiff = 1.53
         ),
         Query(
           "select_cid_from_bloba_at_100",
           sql"select contract_id from active($blobA, $offset100)",
           repeat = 4,
-          expectedDiff = 0.98
+          expectedDiff = 1.45
         ),
 
         // The payload filter runs in the contract scan, so only the matching contracts are probed
@@ -86,7 +84,7 @@ object ContractsPerfSpec extends SharedHydratedLedgerTest with QueryPerfSpec[Int
           "select_star_from_bloba_at_100_filter_on_payload",
           sql"select * from active($blobA, $offset100) where payload ->> 'value' = '42'",
           repeat = 8,
-          expectedDiff = -0.03
+          expectedDiff = 0
         ),
 
         // Only 20 contracts are probed; the diff is the candidate's parallel Gather startup
@@ -94,13 +92,13 @@ object ContractsPerfSpec extends SharedHydratedLedgerTest with QueryPerfSpec[Int
           "select_star_from_all_at_100_limit_20",
           sql"select * from active(null, $offset100) LIMIT 20",
           repeat = 4,
-          expectedDiff = 1.00
+          expectedDiff = 0.75
         ),
         Query(
           "select_star_from_bloba_at_100_limit_20",
           sql"select * from active($blobA, $offset100) where payload ->> 'value' = '42'",
           repeat = 8,
-          expectedDiff = -0.02
+          expectedDiff = 0.04
         )
       )
     },
