@@ -3,7 +3,7 @@
 
 package com.digitalasset.pqs.perftest
 
-import com.digitalasset.pqs.services.postgres.{Database, Postgres}
+import com.digitalasset.pqs.services.postgres.Database
 import zio.ZIO
 import zio.jdbc.*
 

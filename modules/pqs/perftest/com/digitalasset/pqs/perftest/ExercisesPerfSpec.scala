@@ -4,7 +4,7 @@
 package com.digitalasset.pqs.perftest
 
 import com.digitalasset.pqs.pipeline.pipeline.Config.Datasource
-import com.digitalasset.pqs.services.postgres.{Database, Postgres}
+import com.digitalasset.pqs.services.postgres.Database
 import zio.jdbc.*
 import zio.ZIO
 
