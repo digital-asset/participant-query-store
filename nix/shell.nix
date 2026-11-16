@@ -3,7 +3,7 @@ let
   inherit (pkgs) stdenv;
   helm-values-schema-json = import ./helm-values-schema-json.nix;
   helm-unittest = import ./helm-unittest.nix;
-  dpm = import ./dpm.nix;
+  dpm = import ./dpm/default.nix;
   requiredPackages = with pkgs; ([
     # these packages are required both in CI and for local development
     ## dynamic makefile packages:
