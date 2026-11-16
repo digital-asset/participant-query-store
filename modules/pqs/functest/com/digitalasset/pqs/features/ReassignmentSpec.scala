@@ -172,6 +172,55 @@ object ReassignmentSpec extends SharedMultiSyncLedgerSpec:
                        )""")
           .returns(Table(createdAtOffset))
     },
+    funcTest("contracts() returns every known contract once") {
+      val alice        = Party("Alice")
+      val dar          = Capture[DarFile]
+      val reassignedId = Capture[String]
+      val activeId     = Capture[String]
+      Given:
+        DamlSdk.allocateParties(alice -> Seq(sync1, sync2))
+      And:
+        dar.captureFromService
+      Then:
+        createContract(alice).is(reassignedId.capture)
+      When:
+        Ledger.reassign(reassignedId.get, alice, sync1, sync2)
+          *> Ledger.archive("PingPong:Ping", reassignedId.get, alice, sync2)
+      Then:
+        createContract(alice).is(activeId.capture)
+      When:
+        Postgres.database
+          >+> Pqs.runPipeline(
+            "--pipeline-ledger-start=Genesis",
+            "--pipeline-ledger-stop=Latest"
+          )
+
+      val createdAtOffset = Capture[OffsetType]
+      Expect:
+        Database
+          .query(sql"""select "offset" from __transactions order by "offset" limit 1""")
+          .returns(Table(createdAtOffset.capture))
+      Expect:
+        Database
+          .contracts(extraColumns = Seq("deactivation_type", "synchronizer_id", "reassignment_counter"))
+          .returns(
+            Table {
+              dar.get.packageId | s"${pingPong.name}:PingPong:Ping" | "template" | reassignedId | "archive" | sync2.id | 1
+              dar.get.packageId | s"${pingPong.name}:PingPong:Ping" | "template" | activeId | null | sync1.id | 0
+            }
+          )
+      Expect:
+        Database
+          .contracts(
+            offset = Some(createdAtOffset.get),
+            extraColumns = Seq("deactivation_type", "synchronizer_id", "reassignment_counter")
+          )
+          .returns(
+            Table {
+              dar.get.packageId | s"${pingPong.name}:PingPong:Ping" | "template" | reassignedId | "unassign" | sync1.id | 0
+            }
+          )
+    },
     funcTest("Non-causal stream: archived before created") {
       val alice      = Party("Alice")
       val dar        = Capture[DarFile]

@@ -978,6 +978,37 @@ $$;
 
 
 --
+-- Name: contracts(text, bigint); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.contracts(qname text DEFAULT NULL::text, to_offset bigint DEFAULT public.latest_offset()) RETURNS SETOF public.contract
+    LANGUAGE sql STABLE PARALLEL SAFE
+    AS $$
+select c.*
+from __contracts(qname) c
+    left join lateral (
+        select newer.contract_id
+        from __contracts newer
+        where newer.tpe_pk = c.tpe_pk
+            and (qname is null or newer.tpe_pk = __contract_tpe4name(qname))
+            and newer.contract_id = c.contract_id
+            and newer.activation_type = 'assign'
+            and newer.activated_at_ix <= (select __nearest_ix_floor(to_offset))
+            and (
+                    newer.reassignment_counter > c.reassignment_counter
+                    or (
+                        newer.reassignment_counter = c.reassignment_counter
+                        and newer.activated_at_ix > c.activated_at_ix
+                    )
+                )
+        limit 1
+    ) superseded_by on superseded_by.contract_id = c.contract_id
+where c.activated_at_ix between 0 and (select __nearest_ix_floor(to_offset))
+    and superseded_by.contract_id is null
+$$;
+
+
+--
 -- Name: create_index_for_contract(text, text, text, text, text); Type: PROCEDURE; Schema: public; Owner: -
 --
 

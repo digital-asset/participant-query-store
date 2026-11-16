@@ -92,6 +92,9 @@ object Database:
   def archives(qname: Option[String] = None, extraColumns: Seq[String] = Seq.empty) =
     selectContracts(sql"archives($qname)", extraColumns)
 
+  def contracts(qname: Option[String] = None, offset: Option[Long] = None, extraColumns: Seq[String] = Seq.empty) =
+    selectContracts(offset.fold(sql"contracts($qname)")(offset => sql"contracts($qname, $offset)"), extraColumns)
+
   def creates(qname: Option[String] = None, extraColumns: Seq[String] = Seq.empty) =
     selectContracts(sql"creates($qname)", extraColumns)
 

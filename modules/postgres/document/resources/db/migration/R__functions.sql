@@ -1246,6 +1246,47 @@ When a contract temporarily appears active on several synchronizers,
 only the row with the highest reassignment counter is returned.
 $$;
 
+create or replace function contracts(
+    qname text default null,
+    to_offset __transactions."offset"%type default latest_offset()
+) returns setof contract
+as
+$$
+select c.*
+from __contracts(qname) c
+    left join lateral (
+        select newer.contract_id
+        from __contracts newer
+        where newer.tpe_pk = c.tpe_pk
+            and (qname is null or newer.tpe_pk = __contract_tpe4name(qname))
+            and newer.contract_id = c.contract_id
+            and newer.activation_type = 'assign'
+            and newer.activated_at_ix <= (select __nearest_ix_floor(to_offset))
+            and (
+                    newer.reassignment_counter > c.reassignment_counter
+                    or (
+                        newer.reassignment_counter = c.reassignment_counter
+                        and newer.activated_at_ix > c.activated_at_ix
+                    )
+                )
+        limit 1
+    ) superseded_by on superseded_by.contract_id = c.contract_id
+where c.activated_at_ix between 0 and (select __nearest_ix_floor(to_offset))
+    and superseded_by.contract_id is null
+$$ language sql stable
+                parallel safe;
+comment on function contracts is $$Returns payload and metadata for every contract of the given Daml qualified name known at particular offset.
+Qualified name can be:
+- fully qualified, e.g. '<package-id>:<module-path>:<template-name>'
+- partially qualified, e.g. '<module-path>:<template-name>' or '<template-name>'
+Qualified name cannot be ambiguous.
+Unlike active(), the result includes archived and unassigned contracts, contracts that were only divulged,
+and contracts created and archived in the same transaction. Pruned contracts are not returned.
+When a contract was reassigned between synchronizers, only the row with the highest reassignment counter is returned
+(the latest activation when counters are equal).
+Deactivation columns are returned as stored, even when the deactivation happened after the given offset.
+$$;
+
 create or replace function summary_active(
     "offset" __transactions."offset"%type default latest_offset()
 ) returns setof contract_summary

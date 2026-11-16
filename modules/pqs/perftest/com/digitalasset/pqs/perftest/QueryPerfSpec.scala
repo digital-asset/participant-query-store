@@ -34,7 +34,7 @@ trait QueryPerfSpec[T] extends FuncTest[Ledger & Postgres & Parties]:
       Expect:
         prepareBenchmark.is(benchmark.capture)
       Expect(4.minutes):
-        benchmark.get.run.is(baseline.capture)
+        benchmark.get.run(baseline = true).is(baseline.capture)
 
       When:
         Database.freshConnectionPool >+> Pqs.applySchema
@@ -49,20 +49,28 @@ trait QueryPerfSpec[T] extends FuncTest[Ledger & Postgres & Parties]:
       if baselineDurationNanos == 0 then Double.MaxValue
       else (duration.toNanos.toDouble - baselineDurationNanos) / baselineDurationNanos
 
-  final case class Query(tag: String, sql: SqlFragment, repeat: Int, expectedDiff: Double = 0, tolerance: Double = 0.3)
+  final case class Query(
+      tag: String,
+      sql: SqlFragment,
+      repeat: Int,
+      expectedDiff: Double = 0,
+      tolerance: Double = 0.3,
+      baselineSql: Option[SqlFragment] = None
+  )
 
   final class Benchmark(queries: Query*):
-    def run: ZIO[Postgres & Database, Throwable, Seq[Stats]] =
+    def run(baseline: Boolean): ZIO[Postgres & Database, Throwable, Seq[Stats]] =
       Postgres.vacuumAnalyzeAll
         *> Database.checkpoint
         *> ZIO.foreach(queries) { query =>
+          val sql = if baseline then query.baselineSql.getOrElse(query.sql) else query.sql
           ZIO.logInfo(s"Running query ${query.tag}")
-            *> executeQuery(query.sql) // warm-up
+            *> executeQuery(sql) // warm-up
             // Uncomment to debug query plans
             // *> Postgres
-            //   .getAll[String](sql"EXPLAIN ANALYZE ${query.sql}")
+            //   .getAll[String](sql"EXPLAIN ANALYZE $sql")
             //   .flatMap(plan => ZIO.logInfo(s"${query.tag}:\n${plan.mkString("\n")}"))
-            *> executeQuery(query.sql)
+            *> executeQuery(sql)
               .repeatN(query.repeat - 1)
               .timed
               .map((duration, output) => Stats(query, duration, output))
@@ -70,7 +78,7 @@ trait QueryPerfSpec[T] extends FuncTest[Ledger & Postgres & Parties]:
 
     def runAndCompare(name: String, baseline: Seq[Stats]): ZIO[Postgres & Database, Throwable, TestResult] =
       for
-        candidate   <- run
+        candidate   <- run(baseline = false)
         _           <- Datadog.submit(gauges(name, candidate, baseline))
         testResults <- testResults(candidate, baseline)
       yield TestResult.allSuccesses(testResults)
