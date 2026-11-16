@@ -212,6 +212,8 @@ object `package` extends RootModule { root =>
       "org.checkerframework.**",
       "org.osgi.annotation.bundle.Export",
       "com.google.protobuf.descriptor.FileOptions$",
+      "org.bouncycastle.operator.bc.BcHssLmsContentSignerBuilder$HssSigner",
+      "org.bouncycastle.operator.jcajce.JcaContentSignerBuilder",
       // Warnings from azure-identity-extensions
       "com.azure.identity.extensions.jdbc.mysql.AzureMysqlAuthenticationPlugin",
       "reactor.core.publisher.**",
