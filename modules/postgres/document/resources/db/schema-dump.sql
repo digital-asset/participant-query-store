@@ -769,7 +769,8 @@ begin
                bool_or(c.life_ix @> to_ix) as after
         from __contracts c
         where (c.activated_at_ix between from_ix and to_ix or c.deactivated_at_ix between from_ix and to_ix)
-            and (c.life_ix @> (from_ix - 1)) <> (c.life_ix @> to_ix) -- active at one end only
+            -- skips rows active at neither end, which can't change the result, before grouping
+            and (c.life_ix @> (from_ix - 1)) <> (c.life_ix @> to_ix)
             and not c.divulged_only
         group by c.tpe_pk, c.contract_id
     ),
