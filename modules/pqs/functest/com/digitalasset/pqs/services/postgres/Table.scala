@@ -47,14 +47,10 @@ object Table:
   /** Table DSL. Usage example:
     * {{{
     * Table {
-    *   "column1" | "column2" | "column3"
-    *   ---       | ---       | ---
     *   "value 1" | true      | 123
     *   "value 3" | true      | 321
     * }
     * }}}
-    *
-    * All the rows above the separator are ignored, and can be used as a table header for description purposes.
     */
   def apply(init: Builder ?=> Builder): Table =
     val builder: Builder = Builder()
