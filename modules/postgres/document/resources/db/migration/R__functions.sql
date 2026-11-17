@@ -82,6 +82,16 @@ begin
 end
 $$ language plpgsql immutable parallel safe;
 
+create or replace function __nearest_unpruned_ix_ceil("offset" checkpoint."offset"%type) returns checkpoint.ix%type as
+$$
+begin
+    if "offset" < pruned_offset() then
+        raise exception 'Offset % is before the pruned offset %', "offset", pruned_offset();
+    end if;
+    return __nearest_ix_ceil("offset");
+end
+$$ language plpgsql stable parallel safe;
+
 create or replace function __contracts(qname text default null) returns setof contract
 as
 $$
@@ -158,7 +168,6 @@ select tpe.template_fqn,
        c.signatories,
        c.observers,
        c.witnesses,
-       c.divulged_only,
        coalesce(c.creation_package_id, p.id),
        c.contract_key_hash,
        c.activate_event_pk,
@@ -183,7 +192,8 @@ from __contracts c
     left join __events ae on ae.pk = c.activate_event_pk
     left join __events de on de.pk = c.deactivate_event_pk
     left join __packages p on c.package_pk = p.pk
-where qname is null or c.tpe_pk = __contract_tpe4name(qname)
+where (qname is null or c.tpe_pk = __contract_tpe4name(qname))
+    and not c.divulged_only
 $$ language sql stable
                 parallel safe;
 
@@ -1168,13 +1178,13 @@ Only contracts within [from_offset; to_offset] range are considered.$$;
 
 create or replace function activations(
     qname text default null,
-    from_offset __transactions."offset"%type default oldest_offset(),
+    from_offset __transactions."offset"%type default coalesce(pruned_offset(), oldest_offset()),
     to_offset __transactions."offset"%type default latest_offset()
 ) returns setof activation as
 $$
     select a.*
     from __activations(qname) a
-    where a.activated_at_ix between (select __nearest_ix_ceil(from_offset)) and (select __nearest_ix_floor(to_offset))
+    where a.activated_at_ix between (select __nearest_unpruned_ix_ceil(from_offset)) and (select __nearest_ix_floor(to_offset))
 $$ language sql stable parallel safe;
 comment on function activations(text, __transactions."offset"%type, __transactions."offset"%type) is $$Returns payload and metadata for activated (created or assigned) contracts of the given Daml qualified name.
 Qualified name can be:
@@ -1182,7 +1192,8 @@ Qualified name can be:
 - partially qualified, e.g. '<module-path>:<template-name>' or '<template-name>'
 Qualified name cannot be ambiguous.
 Only activations within [from_offset; to_offset] range are considered.
-Every create and assign is its own row, divulged ones included and flagged by divulged_only.$$;
+Every create and assign is its own row. Divulged-only contracts are not returned.
+Raises an error when from_offset is before the pruned offset.$$;
 
 create or replace function summary_creates(
     from_offset __transactions."offset"%type default oldest_offset(),
@@ -1436,7 +1447,7 @@ Only contracts within [from_offset; to_offset] range are considered.$$;
 
 create or replace function deactivations(
     qname text default null,
-    from_offset __transactions."offset"%type default oldest_offset(),
+    from_offset __transactions."offset"%type default coalesce(pruned_offset(), oldest_offset()),
     to_offset __transactions."offset"%type default latest_offset()
 ) returns setof deactivation as
 $$
@@ -1453,7 +1464,6 @@ $$
         a.package_id,
         a.signatories,
         a.observers,
-        a.divulged_only,
         a.creation_package_id,
         a.contract_key_hash,
         a.activate_event_pk,
@@ -1472,7 +1482,7 @@ $$
         a.synchronizer_id,
         a.tpe_pk
     from __activations(qname) a
-    where a.deactivated_at_ix between (select __nearest_ix_ceil(from_offset)) and (select __nearest_ix_floor(to_offset))
+    where a.deactivated_at_ix between (select __nearest_unpruned_ix_ceil(from_offset)) and (select __nearest_ix_floor(to_offset))
 $$ language sql stable parallel safe;
 comment on function deactivations(text, __transactions."offset"%type, __transactions."offset"%type) is $$Returns payload and metadata for deactivated (archived or unassigned) contracts of the given Daml qualified name.
 Qualified name can be:
@@ -1480,7 +1490,8 @@ Qualified name can be:
 - partially qualified, e.g. '<module-path>:<template-name>' or '<template-name>'
 Qualified name cannot be ambiguous.
 Only deactivations within [from_offset; to_offset] range are considered.
-Every archive and unassign is its own row, divulged ones included and flagged by divulged_only.$$;
+Every archive and unassign is its own row. Divulged-only contracts are not returned.
+Raises an error when from_offset is before the pruned offset.$$;
 
 create or replace function summary_archives(
     from_offset __transactions."offset"%type default coalesce(pruned_offset(), oldest_offset()),

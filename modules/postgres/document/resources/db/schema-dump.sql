@@ -104,7 +104,6 @@ CREATE TYPE public.activation AS (
 	signatories text[],
 	observers text[],
 	witnesses text[],
-	divulged_only boolean,
 	creation_package_id text,
 	contract_key_hash bytea,
 	activate_event_pk bigint,
@@ -212,7 +211,6 @@ CREATE TYPE public.deactivation AS (
 	package_id text,
 	signatories text[],
 	observers text[],
-	divulged_only boolean,
 	creation_package_id text,
 	contract_key_hash bytea,
 	activate_event_pk bigint,
@@ -294,7 +292,6 @@ select tpe.template_fqn,
        c.signatories,
        c.observers,
        c.witnesses,
-       c.divulged_only,
        coalesce(c.creation_package_id, p.id),
        c.contract_key_hash,
        c.activate_event_pk,
@@ -319,7 +316,8 @@ from __contracts c
     left join __events ae on ae.pk = c.activate_event_pk
     left join __events de on de.pk = c.deactivate_event_pk
     left join __packages p on c.package_pk = p.pk
-where qname is null or c.tpe_pk = __contract_tpe4name(qname)
+where (qname is null or c.tpe_pk = __contract_tpe4name(qname))
+    and not c.divulged_only
 $$;
 
 
@@ -828,6 +826,22 @@ $$;
 
 
 --
+-- Name: __nearest_unpruned_ix_ceil(bigint); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.__nearest_unpruned_ix_ceil("offset" bigint) RETURNS bigint
+    LANGUAGE plpgsql STABLE PARALLEL SAFE
+    AS $$
+begin
+    if "offset" < pruned_offset() then
+        raise exception 'Offset % is before the pruned offset %', "offset", pruned_offset();
+    end if;
+    return __nearest_ix_ceil("offset");
+end
+$$;
+
+
+--
 -- Name: __update_watermark_fn(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -1008,15 +1022,26 @@ $$;
 
 
 --
+-- Name: pruned_offset(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.pruned_offset() RETURNS bigint
+    LANGUAGE sql STABLE PARALLEL SAFE
+    AS $$
+    select pruned_offset from __pruning_metadata;
+$$;
+
+
+--
 -- Name: activations(text, bigint, bigint); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public.activations(qname text DEFAULT NULL::text, from_offset bigint DEFAULT public.oldest_offset(), to_offset bigint DEFAULT public.latest_offset()) RETURNS SETOF public.activation
+CREATE FUNCTION public.activations(qname text DEFAULT NULL::text, from_offset bigint DEFAULT COALESCE(public.pruned_offset(), public.oldest_offset()), to_offset bigint DEFAULT public.latest_offset()) RETURNS SETOF public.activation
     LANGUAGE sql STABLE PARALLEL SAFE
     AS $$
     select a.*
     from __activations(qname) a
-    where a.activated_at_ix between (select __nearest_ix_ceil(from_offset)) and (select __nearest_ix_floor(to_offset))
+    where a.activated_at_ix between (select __nearest_unpruned_ix_ceil(from_offset)) and (select __nearest_ix_floor(to_offset))
 $$;
 
 
@@ -1052,17 +1077,6 @@ where c.life_ix @> (select __nearest_ix_floor("offset"))
                     )
                 )
     )
-$$;
-
-
---
--- Name: pruned_offset(); Type: FUNCTION; Schema: public; Owner: -
---
-
-CREATE FUNCTION public.pruned_offset() RETURNS bigint
-    LANGUAGE sql STABLE PARALLEL SAFE
-    AS $$
-    select pruned_offset from __pruning_metadata;
 $$;
 
 
@@ -1191,7 +1205,7 @@ $$;
 -- Name: deactivations(text, bigint, bigint); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public.deactivations(qname text DEFAULT NULL::text, from_offset bigint DEFAULT public.oldest_offset(), to_offset bigint DEFAULT public.latest_offset()) RETURNS SETOF public.deactivation
+CREATE FUNCTION public.deactivations(qname text DEFAULT NULL::text, from_offset bigint DEFAULT COALESCE(public.pruned_offset(), public.oldest_offset()), to_offset bigint DEFAULT public.latest_offset()) RETURNS SETOF public.deactivation
     LANGUAGE sql STABLE PARALLEL SAFE
     AS $$
     select a.template_fqn,
@@ -1207,7 +1221,6 @@ CREATE FUNCTION public.deactivations(qname text DEFAULT NULL::text, from_offset 
         a.package_id,
         a.signatories,
         a.observers,
-        a.divulged_only,
         a.creation_package_id,
         a.contract_key_hash,
         a.activate_event_pk,
@@ -1226,7 +1239,7 @@ CREATE FUNCTION public.deactivations(qname text DEFAULT NULL::text, from_offset 
         a.synchronizer_id,
         a.tpe_pk
     from __activations(qname) a
-    where a.deactivated_at_ix between (select __nearest_ix_ceil(from_offset)) and (select __nearest_ix_floor(to_offset))
+    where a.deactivated_at_ix between (select __nearest_unpruned_ix_ceil(from_offset)) and (select __nearest_ix_floor(to_offset))
 $$;
 
 

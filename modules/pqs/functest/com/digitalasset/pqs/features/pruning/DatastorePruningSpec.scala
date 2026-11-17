@@ -108,16 +108,14 @@ object DatastorePruningSpec extends SharedLedgerAndPostgresTest:
                          from activations($templateRef) order by activated_at_offset""")
             .returns(
               Table {
-                "one updated"   | oneUpdated
                 "three"         | threeCreated
                 "three updated" | threeUpdated
               }
             )
         And:
           Database
-            .query(sql"""select payload->>'label'
-                         from deactivations($templateRef, ${oneUpdated.get}, latest_offset())""")
-            .returns(Table("three"))
+            .query(sql"""select * from deactivations($templateRef, ${oneUpdated.get}, latest_offset())""")
+            .failsWithMessage(s"ERROR: Offset ${oneUpdated.get} is before the pruned offset ${twoArchived.get}")
       },
       funcTest("prevent pruning at illegal offsets") {
         val firstOffset  = Capture[OffsetType]
