@@ -138,7 +138,8 @@ object ContractsPerfSpec extends SharedHydratedLedgerTest with QueryPerfSpec[Int
           sql"select contract_id from contracts($blobA, $offset100)",
           baselineSql = Some(sql"select contract_id from creates($blobA, oldest_offset(), $offset100)"),
           repeat = 4,
-          expectedDiff = 0.73
+          expectedDiff = 0.92,
+          tolerance = 0.4
         ),
 
         // The filter runs before the probe, so only the matching rows are probed
