@@ -52,7 +52,7 @@ jobs:
   notify:
     name: Notify on failure
     needs: matrix-test
-    if: failure()
+    if: failure() && github.event_name == 'push'
     runs-on: digital-asset-participant-query-store
     steps:
       - uses: actions/checkout@v5
