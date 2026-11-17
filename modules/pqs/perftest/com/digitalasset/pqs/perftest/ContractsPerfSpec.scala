@@ -97,6 +97,8 @@ object ContractsPerfSpec extends SharedHydratedLedgerTest with QueryPerfSpec[Int
         offset50  <- Database.getOffset((lastIx * 0.5).toLong)
         offset10  <- Database.getOffset((lastIx * 0.1).toLong)
         blobA = "Blob:BlobA"
+        blobB = "Blob:BlobB"
+        blobC = "Blob:BlobC"
       yield Benchmark(
         // Serial per-row probe: Postgres never runs a LATERAL subquery with LIMIT in a parallel worker
         Query(
@@ -145,6 +147,19 @@ object ContractsPerfSpec extends SharedHydratedLedgerTest with QueryPerfSpec[Int
             Some(sql"select * from creates($blobA, oldest_offset(), $offset100) where payload ->> 'value' = '42'"),
           repeat = 8,
           expectedDiff = 0.02
+        ),
+
+        // Two contracts() calls joined on payload
+        Query(
+          "select_star_from_blobc_join_blobb_on_payload",
+          sql"""select * from contracts($blobC, $offset100) c
+                join contracts($blobB, $offset100) b on b.payload ->> 'value' = c.payload ->> 'value'
+                where c.payload ->> 'value' = '42'""",
+          baselineSql = Some(sql"""select * from creates($blobC, oldest_offset(), $offset100) c
+                join creates($blobB, oldest_offset(), $offset100) b on b.payload ->> 'value' = c.payload ->> 'value'
+                where c.payload ->> 'value' = '42'"""),
+          repeat = 8,
+          expectedDiff = -0.57
         ),
 
         // Planning dominates this 20-row query, and the probe plans a second scan of every partition
