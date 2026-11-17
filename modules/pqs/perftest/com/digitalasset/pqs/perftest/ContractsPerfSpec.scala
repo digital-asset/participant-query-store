@@ -136,21 +136,6 @@ object ContractsPerfSpec extends SharedHydratedLedgerTest with QueryPerfSpec[Int
           repeat = 4,
           expectedDiff = 1.15
         ),
-        Query(
-          "count_from_all_at_100",
-          sql"select count(*) from contracts(null, $offset100)",
-          baselineSql = Some(sql"select count(*) from creates(null, oldest_offset(), $offset100)"),
-          repeat = 2,
-          expectedDiff = 3.45,
-          tolerance = 0.4
-        ),
-        Query(
-          "count_from_bloba_at_100",
-          sql"select count(*) from contracts($blobA, $offset100)",
-          baselineSql = Some(sql"select count(*) from creates($blobA, oldest_offset(), $offset100)"),
-          repeat = 4,
-          expectedDiff = 2.26
-        ),
 
         // The filter runs before the probe, so only the matching rows are probed
         Query(

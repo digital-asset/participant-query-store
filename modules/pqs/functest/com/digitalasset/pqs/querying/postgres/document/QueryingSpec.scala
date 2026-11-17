@@ -354,6 +354,48 @@ object QueryingSpec extends SharedLedgerAndPostgresTest:
             "id-joe"   | "Fred"  | "Bloggs"
           }
       ,
+      funcTest("state-based queries: all contracts @ any offset"):
+        Given:
+          upAndRunning
+        When:
+          Database `makeGap` (7 to 8) `returns` 2
+        Then:
+          Database query {
+            sql"""select payload->>'user_id', payload->>'firstName', payload->>'lastName'
+                      from contracts('NameRegistry:BirthCertificate')
+                      order by created_at_offset;"""
+          } `returns` Table {
+            "id-alice" | "Alice" | "Citizen"
+            "id-joe"   | "Joe"   | "Bloggs"
+            "id-joe"   | "Fred"  | "Bloggs"
+            "id-bill"  | "Bill"  | "Myers"
+            "id-bill"  | "Bill"  | "Taylor"
+          }
+        And:
+          Database query {
+            sql"""select payload->>'user_id', payload->>'firstName', payload->>'lastName'
+                      from contracts('NameRegistry:BirthCertificate', (select "offset" from __transactions where ix = 3))
+                      order by created_at_offset;"""
+          } `returns` Table {
+            "id-alice" | "Alice" | "Citizen"
+            "id-joe"   | "Joe"   | "Bloggs"
+            "id-joe"   | "Fred"  | "Bloggs"
+          }
+        When:
+          Database.Session.init
+        And:
+          Database.Session `setLatest` 3
+        Then:
+          Database.Session query {
+            sql"""select payload->>'user_id', payload->>'firstName', payload->>'lastName'
+                      from contracts('NameRegistry:BirthCertificate')
+                      order by created_at_offset;"""
+          } `returns` Table {
+            "id-alice" | "Alice" | "Citizen"
+            "id-joe"   | "Joe"   | "Bloggs"
+            "id-joe"   | "Fred"  | "Bloggs"
+          }
+      ,
       funcTest("event-based queries: create events @ any [oldest..latest] range"):
         Given:
           upAndRunning
