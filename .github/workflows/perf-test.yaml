@@ -30,7 +30,7 @@ jobs:
           DATADOG_API_KEY: ${{ secrets.DATADOG_API_KEY }}
       - name: Send slack notification
         if: failure() && github.event_name == 'schedule'
-        uses: ./.github/actions/slack-notify
+        uses: $/.github/actions/slack-notify
         with:
           webhook: ${{ secrets.SLACK_WEBHOOK_URL }}
           title: ":snail: Performance tests failed"

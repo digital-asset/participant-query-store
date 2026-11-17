@@ -62,7 +62,7 @@ jobs:
           retention-days: 7
       - name: Send slack notification
         if: failure() && github.event_name == 'schedule'
-        uses: ./.github/actions/slack-notify
+        uses: $/.github/actions/slack-notify
         with:
           webhook: ${{ secrets.SLACK_WEBHOOK_URL }}
           title: ":ducky: Blackduck scan failed"

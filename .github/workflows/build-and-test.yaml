@@ -203,7 +203,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
       - name: Send slack notification
-        uses: ./.github/actions/slack-notify
+        uses: $/.github/actions/slack-notify
         with:
           webhook: ${{ secrets.SLACK_WEBHOOK_URL }}
           title: ":this-is-fine-fire: CI failed"
