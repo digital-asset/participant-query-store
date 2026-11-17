@@ -66,7 +66,7 @@ trait QueryPerfSpec[T] extends FuncTest[Ledger & Postgres & Parties]:
           ZIO.logInfo(s"Running query ${query.tag}")
             *> executeQuery(query.sql) // warm-up
             // Uncomment to debug query plans
-            // *> Postgres
+            // *> Database
             //   .getAll[String](sql"EXPLAIN ANALYZE ${query.sql}")
             //   .flatMap(plan => ZIO.logInfo(s"${query.tag}:\n${plan.mkString("\n")}"))
             *> executeQuery(query.sql)
