@@ -39,9 +39,23 @@ object NetChangeSummaryPerfSpec extends SharedHydratedLedgerTest with QueryPerfS
           tolerance = 3.0 // varies by up to 4.5 between runs
         ),
         // One probe per changed contract over a fifth of the ledger
-        netChange("between_40_60", offset40, offset60, repeat = 25, expectedDiff = 32.43, tolerance = 8.0),
+        netChange(
+          "between_40_60",
+          offset40,
+          offset60,
+          repeat = 25,
+          expectedDiff = 33.58,
+          tolerance = 5.0 // varies by up to 2.8 between runs
+        ),
         // Nothing is active before the first transaction, so every contract active at the end is probed
-        netChange("oldest_to_latest", oldest, offset100, repeat = 3, expectedDiff = 8.32, tolerance = 2.0)
+        netChange(
+          "oldest_to_latest",
+          oldest,
+          offset100,
+          repeat = 3,
+          expectedDiff = 9.05,
+          tolerance = 2.5 // varies by up to 2.4 between runs
+        )
       )
     }
   )
