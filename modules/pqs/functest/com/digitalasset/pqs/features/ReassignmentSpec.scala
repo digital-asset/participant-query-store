@@ -171,6 +171,39 @@ object ReassignmentSpec extends SharedMultiSyncLedgerSpec:
                           from __transactions)
                        )""")
           .returns(Table(createdAtOffset))
+      Expect:
+        Database
+          .activations(extraColumns =
+            Seq("activated_at_offset", "synchronizer_id", "reassignment_counter", "activated_effective_at is null")
+          )
+          .returns(
+            Table {
+              dar.get.packageId | s"${pingPong.name}:PingPong:Ping" | "template" | contractId | createdAtOffset | sync1.id | 0 | false
+              dar.get.packageId | s"${pingPong.name}:PingPong:Ping" | "template" | contractId | assignedAtOffset | sync2.id | 1 | true
+            }
+          )
+      Expect:
+        Database
+          .deactivations(extraColumns =
+            Seq(
+              "deactivation_type",
+              "deactivated_at_offset",
+              "synchronizer_id",
+              "reassignment_counter",
+              "deactivated_effective_at is null",
+              """activated_at_ix < deactivated_at_ix
+                 and (activate_event_id)."offset" = activated_at_offset
+                 and (deactivate_event_id)."offset" = deactivated_at_offset
+                 and activate_event_id = (select event_id from __events where pk = activate_event_pk)
+                 and deactivate_event_id = (select event_id from __events where pk = deactivate_event_pk)"""
+            )
+          )
+          .returns(
+            Table {
+              dar.get.packageId | s"${pingPong.name}:PingPong:Ping" | "template" | contractId | "unassign" | unassignedAtOffset | sync1.id | 0 | true | true
+              dar.get.packageId | s"${pingPong.name}:PingPong:Ping" | "template" | contractId | "archive" | archivedAtOffset | sync2.id | 1 | false | true
+            }
+          )
     },
     funcTest("contracts() returns every known contract once") {
       val alice        = Party("Alice")

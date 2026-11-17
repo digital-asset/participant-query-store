@@ -488,6 +488,43 @@ object QueryingSpec extends SharedLedgerAndPostgresTest:
             "id-joe" | "Fred" | "Bloggs"
           }
       ,
+      funcTest("event-based queries: activation and deactivation events @ any [oldest..latest] range"):
+        Given:
+          upAndRunning
+        When:
+          Database.makeGap(7 to 8)
+        Then:
+          Database
+            .query(sql"""select payload->>'user_id', payload->>'firstName', payload->>'lastName'
+                         from activations('NameRegistry:BirthCertificate')
+                         order by activated_at_offset""")
+            .returns(Table {
+              "id-alice" | "Alice" | "Citizen"
+              "id-joe"   | "Joe"   | "Bloggs"
+              "id-joe"   | "Fred"  | "Bloggs"
+              "id-bill"  | "Bill"  | "Myers"
+              "id-bill"  | "Bill"  | "Taylor"
+            })
+        And:
+          Database
+            .query(sql"""select payload->>'user_id', payload->>'firstName', payload->>'lastName'
+                         from activations('NameRegistry:BirthCertificate',
+                                          (select "offset" from __transactions where ix = 3),
+                                          (select "offset" from __transactions where ix = 6))
+                         order by activated_at_offset""")
+            .returns(Table {
+              "id-joe"  | "Fred" | "Bloggs"
+              "id-bill" | "Bill" | "Myers"
+              "id-bill" | "Bill" | "Taylor"
+            })
+        And:
+          Database
+            .query(sql"""select payload->>'user_id', payload->>'firstName', payload->>'lastName'
+                         from deactivations('NameRegistry:BirthCertificate',
+                                            (select "offset" from __transactions where ix = 4),
+                                            (select "offset" from __transactions where ix = 4))""")
+            .returns(Table("id-joe" | "Fred" | "Bloggs"))
+      ,
       funcTest("event-based queries: exercise events @ any [oldest..latest] range"):
         Given:
           upAndRunning
