@@ -34,7 +34,7 @@ trait QueryPerfSpec[T] extends FuncTest[Ledger & Postgres & Parties]:
       Expect:
         prepareBenchmark.is(benchmark.capture)
       Expect(4.minutes):
-        benchmark.get.run.is(baseline.capture)
+        Benchmark(benchmark.get.queries.map(_.baseline)*).run.is(baseline.capture)
 
       When:
         Database.freshConnectionPool >+> Pqs.applySchema
@@ -49,9 +49,17 @@ trait QueryPerfSpec[T] extends FuncTest[Ledger & Postgres & Parties]:
       if baselineDurationNanos == 0 then Double.MaxValue
       else (duration.toNanos.toDouble - baselineDurationNanos) / baselineDurationNanos
 
-  final case class Query(tag: String, sql: SqlFragment, repeat: Int, expectedDiff: Double = 0, tolerance: Double = 0.3)
+  final case class Query(
+      tag: String,
+      sql: SqlFragment,
+      repeat: Int,
+      expectedDiff: Double = 0,
+      tolerance: Double = 0.3,
+      baselineSql: Option[SqlFragment] = None
+  ):
+    def baseline: Query = baselineSql.fold(this)(sql => copy(sql = sql))
 
-  final class Benchmark(queries: Query*):
+  final class Benchmark(val queries: Query*):
     def run: ZIO[Postgres & Database, Throwable, Seq[Stats]] =
       Postgres.vacuumAnalyzeAll
         *> Database.checkpoint

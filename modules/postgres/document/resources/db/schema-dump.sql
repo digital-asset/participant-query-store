@@ -978,6 +978,40 @@ $$;
 
 
 --
+-- Name: contracts(text, bigint); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.contracts(qname text DEFAULT NULL::text, "offset" bigint DEFAULT public.latest_offset()) RETURNS SETOF public.contract
+    LANGUAGE sql STABLE PARALLEL SAFE
+    AS $$
+select c.*
+from __contracts(qname) c
+    -- Deduplicate reassigned contracts by keeping the highest reassignment_counter.
+    -- Expressed as a LATERAL anti-join rather than NOT EXISTS, which the planner can turn into a hash anti-join
+    -- that reads every contract before returning the first row.
+    left join lateral (
+        select newer.contract_id
+        from __contracts newer
+        where newer.tpe_pk = c.tpe_pk
+            and (qname is null or newer.tpe_pk = __contract_tpe4name(qname))
+            and newer.contract_id = c.contract_id
+            and newer.activation_type = 'assign'
+            and newer.activated_at_ix <= (select __nearest_ix_floor("offset"))
+            and (
+                    newer.reassignment_counter > c.reassignment_counter
+                    or (
+                        newer.reassignment_counter = c.reassignment_counter
+                        and newer.activated_at_ix > c.activated_at_ix
+                    )
+                )
+        limit 1
+    ) newer on newer.contract_id = c.contract_id
+where c.activated_at_ix <= (select __nearest_ix_floor("offset"))
+    and newer.contract_id is null
+$$;
+
+
+--
 -- Name: create_index_for_contract(text, text, text, text, text); Type: PROCEDURE; Schema: public; Owner: -
 --
 
