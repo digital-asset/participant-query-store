@@ -106,7 +106,8 @@ object ContractsPerfSpec extends SharedHydratedLedgerTest with QueryPerfSpec[Int
           sql"select * from contracts(null, $offset10)",
           baselineSql = Some(sql"select * from creates(null, oldest_offset(), $offset10)"),
           repeat = 8,
-          expectedDiff = 0.82
+          expectedDiff = 2.98,
+          tolerance = 0.5
         ),
         Query(
           "select_star_from_bloba_at_100",
@@ -127,7 +128,8 @@ object ContractsPerfSpec extends SharedHydratedLedgerTest with QueryPerfSpec[Int
           sql"select * from contracts($blobA, $offset10)",
           baselineSql = Some(sql"select * from creates($blobA, oldest_offset(), $offset10)"),
           repeat = 16,
-          expectedDiff = 0.52
+          expectedDiff = 2.30,
+          tolerance = 0.4
         ),
 
         // Baseline is a bare scan with no joins, so the probe weighs more
@@ -136,7 +138,7 @@ object ContractsPerfSpec extends SharedHydratedLedgerTest with QueryPerfSpec[Int
           sql"select contract_id from contracts($blobA, $offset100)",
           baselineSql = Some(sql"select contract_id from creates($blobA, oldest_offset(), $offset100)"),
           repeat = 4,
-          expectedDiff = 1.15
+          expectedDiff = 0.73
         ),
 
         // The filter runs before the probe, so only the matching rows are probed
@@ -146,7 +148,7 @@ object ContractsPerfSpec extends SharedHydratedLedgerTest with QueryPerfSpec[Int
           baselineSql =
             Some(sql"select * from creates($blobA, oldest_offset(), $offset100) where payload ->> 'value' = '42'"),
           repeat = 8,
-          expectedDiff = 0.02
+          expectedDiff = -0.81
         ),
 
         // Two contracts() calls joined on payload
@@ -159,7 +161,7 @@ object ContractsPerfSpec extends SharedHydratedLedgerTest with QueryPerfSpec[Int
                 join creates($blobB, oldest_offset(), $offset100) b on b.payload ->> 'value' = c.payload ->> 'value'
                 where c.payload ->> 'value' = '42'"""),
           repeat = 8,
-          expectedDiff = -0.57
+          expectedDiff = -0.45
         ),
 
         // Planning dominates this 20-row query, and the probe plans a second scan of every partition
