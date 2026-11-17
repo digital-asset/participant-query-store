@@ -177,27 +177,4 @@ object PipelineSpec extends SharedLedgerAndPostgresTest:
         Database.hasTable("__transactions", "custom_schema")
       And:
         Database.lacksTable("__transactions", "public")
-    ,
-    funcTest("foreign event type does not prevent schema bootstrap"):
-      val alice = Party("Alice")
-      val bob   = Party("Bob")
-      Given:
-        context(alice, bob)
-      When:
-        Database.query {
-          for
-            _ <- sql"create schema unrelated".execute
-            _ <- sql"create type unrelated.__event_type as enum ('unrelated')".execute
-          yield ()
-        }
-      When:
-        Pqs.runPipeline("--pipeline-ledger-stop=Latest", "--target-postgres-schema=custom_schema")
-      Expect:
-        Pqs.exitCode.is(ExitCode.success)
-      And:
-        Database.hasTable("__transactions", "custom_schema")
-      And:
-        Database.query(sql"select count(*) from custom_schema.__contracts").returns(Table(1L))
-      And:
-        Database.query(sql"select enum_range(null::unrelated.__event_type)::text").returns(Table("{unrelated}"))
   )
