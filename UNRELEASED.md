@@ -9,7 +9,6 @@ _Write summary of release_
 ## SQL Migration
 
 This release includes the following SQL migrations:
-- The `beforeMigrate` callback bootstraps V001 types when another schema contains `__event_type`, without changing versioned migration checksums (#240). **[Impact: Metadata-only, fresh stores with a type-name collision; existing stores unchanged.]**
 - [V044__Add_reassignment_event_types.sql](https://github.com/digital-asset/participant-query-store/blob/main/modules/postgres/document/resources/db/migration/V044__Add_reassignment_event_types.sql):a dds the `assign` and `unassign` labels to the `__event_type` enum. Metadata-only, no table is scanned or rewritten. **[Impact: Instantaneous]**
 - [V045__Rename_domain_id_to_synchronizer_id.sql](https://github.com/digital-asset/participant-query-store/blob/main/modules/postgres/document/resources/db/migration/V045__Rename_domain_id_to_synchronizer_id.sql): renames the `domain_id` column of `__transactions` to `synchronizer_id`. Metadata-only, no table is scanned or rewritten. **[Impact: Instantaneous]**
 - [V046__Add_multisync_contract_columns.sql](https://github.com/digital-asset/participant-query-store/blob/main/modules/postgres/document/resources/db/migration/V046__Add_multisync_contract_columns.sql) **[Impact: Instantaneous]**:
@@ -86,6 +85,7 @@ synchronizer_id text;
 
 ### Bug fixes
 
+- The `beforeMigrate` callback bootstraps V001 types when another schema contains `__event_type`, without changing versioned migration checksums (#240). **[Impact: Metadata-only, fresh stores with a type-name collision; existing stores unchanged.]**
 - Fixed silent handling of PostgreSQL commit failures that could leave gaps in `__transactions`. Commit errors now invalidate the connection and fail the pipeline so ingestion is retried.
 - `effective_at` is stored with the microsecond precision the ledger provides. It used to be truncated to milliseconds; rows written before this release keep the truncated value.
 
