@@ -11,8 +11,7 @@ import com.digitalasset.pqs.services.postgres.{Database, Postgres}
 import com.digitalasset.pqs.services.pqs.{Pqs, Pqs37}
 import zio.*
 import zio.test.*
-
-import zio.jdbc.SqlFragment
+import zio.jdbc.*
 
 trait QueryPerfSpec[T] extends FuncTest[Ledger & Postgres & Parties]:
   protected def executeQuery(sql: SqlFragment): ZIO[Database, Throwable, T]

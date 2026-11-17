@@ -11,6 +11,9 @@ object ContractsPerfSpec extends SharedHydratedLedgerTest with QueryPerfSpec[Int
 
   def spec = suite("ContractsPerfSpec")(
     perfTest("active") {
+      val blobA = "Blob:BlobA"
+      val blobB = "Blob:BlobB"
+      val blobC = "Blob:BlobC"
       for
         lastIx    <- Database.getLastIx // 29767
         offset100 <- Database.getOffset(lastIx)
@@ -64,13 +67,13 @@ object ContractsPerfSpec extends SharedHydratedLedgerTest with QueryPerfSpec[Int
           "select_cid_from_all_at_100",
           sql"select contract_id from active(null, $offset100)",
           repeat = 2,
-          expectedDiff = 1.53
+          expectedDiff = 1.14
         ),
         Query(
           "select_cid_from_bloba_at_100",
           sql"select contract_id from active($blobA, $offset100)",
           repeat = 4,
-          expectedDiff = 1.45
+          expectedDiff = 0.96
         ),
 
         // The payload filter runs in the contract scan, so only the matching contracts are probed
@@ -87,18 +90,28 @@ object ContractsPerfSpec extends SharedHydratedLedgerTest with QueryPerfSpec[Int
           expectedDiff = 0
         ),
 
-        // Only 20 contracts are probed; the diff is the candidate's parallel Gather startup
+        // Two active() calls joined on payload
+        Query(
+          "select_star_from_blobc_join_blobb_on_payload",
+          sql"""select * from active($blobC, $offset100) c
+                join active($blobB, $offset100) b on b.payload ->> 'value' = c.payload ->> 'value'
+                where c.payload ->> 'value' = '42'""",
+          repeat = 8,
+          expectedDiff = 0.03
+        ),
+
+        // Only 20 contracts are probed by a serial anti-join
         Query(
           "select_star_from_all_at_100_limit_20",
           sql"select * from active(null, $offset100) LIMIT 20",
           repeat = 4,
-          expectedDiff = 0.75
+          expectedDiff = 0
         ),
         Query(
           "select_star_from_bloba_at_100_limit_20",
           sql"select * from active($blobA, $offset100) LIMIT 20",
           repeat = 8,
-          expectedDiff = 0.51
+          expectedDiff = 0.2
         )
       )
     },

@@ -876,7 +876,7 @@ from __contracts(qname) c
     -- Expressed as a lateral join rather than DISTINCT ON so that caller predicates (e.g. WHERE payload ->> 'x' = ?)
     -- can be pushed down to the contract index scan instead of running after a full sort.
     left join lateral (
-        select true as found
+        select newer.contract_id
         from __contracts newer
         where newer.tpe_pk = c.tpe_pk
             and newer.life_ix @> (select __nearest_ix_floor("offset"))
@@ -893,10 +893,11 @@ from __contracts(qname) c
                     )
                 )
         limit 1
-    ) newer on true
+    -- The join condition on newer.contract_id lets the planner turn it into an anti-join with a realistic row estimate
+    ) newer on newer.contract_id = c.contract_id
 where c.life_ix @> (select __nearest_ix_floor("offset"))
     and not c.divulged_only -- exclude contracts that were merely divulged
-    and newer.found is null
+    and newer.contract_id is null
 $$;
 
 
