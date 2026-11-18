@@ -1437,8 +1437,8 @@ create or replace function summary_updates(
 $$
     with activations as (
         select c.tpe_pk as tpe_pk,
-               count(*) filter (where c.activation_type = 'create' or c.activated_at_ix = 0) as creates,
-               count(*) filter (where c.activation_type = 'assign' and c.activated_at_ix <> 0) as assigns
+               count(*) filter (where c.activation_type = 'create') as creates,
+               count(*) filter (where c.activation_type = 'assign') as assigns
         from __contracts c
         where c.activated_at_ix between (select __nearest_ix_ceil(from_offset)) and (select __nearest_ix_floor(to_offset))
         group by c.tpe_pk
@@ -1461,7 +1461,7 @@ $$
              join __contract_tpe tpe on activations.tpe_pk = tpe.pk or deactivations.tpe_pk = tpe.pk
 $$ language sql stable parallel safe;
 comment on function summary_updates(__transactions."offset"%type, __transactions."offset"%type)
-    is 'Returns the number of create, archive, assign and unassign events per Daml fully qualified name in the [from_offset, to_offset] range. Contracts seeded from the ACS count as creates.';
+    is 'Returns the number of create, archive, assign and unassign events per Daml fully qualified name in the [from_offset, to_offset] range.';
 
 create or replace function stakeholders(c contract) returns text[]
 as

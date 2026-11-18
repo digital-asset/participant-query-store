@@ -59,7 +59,7 @@ object ReassignmentSeedingSpec extends SharedMultiSyncLedgerSpec:
       Expect:
         Database
           .query(sql"select * from summary_updates()")
-          .returns(Table(s"${pingPong.name}:PingPong:Ping" | "template" | 1 | 0 | 0 | 0))
+          .returns(Table(s"${pingPong.name}:PingPong:Ping" | "template" | 0 | 0 | 1 | 0))
     },
     funcTest("Contract seeded from the ACS as an assign can be archived") {
       val alice      = Party("Alice")
@@ -98,5 +98,9 @@ object ReassignmentSeedingSpec extends SharedMultiSyncLedgerSpec:
               dar.get.packageId | s"${pingPong.name}:PingPong:Ping" | "template" | contractId | "0" | "assign" | "1" | "archive" | sync2.id | 1
             }
           )
+      Expect:
+        Database
+          .query(sql"select * from summary_updates()")
+          .returns(Table(s"${pingPong.name}:PingPong:Ping" | "template" | 0 | 1 | 1 | 0))
     }
   )
