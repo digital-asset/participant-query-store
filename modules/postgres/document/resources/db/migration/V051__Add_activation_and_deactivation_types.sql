@@ -5,7 +5,6 @@ create type activation as
 (
     template_fqn             text,
     payload_type             __payload_type,
-    life_ix                  int8range,
     contract_id              text,
     payload                  jsonb,
     contract_key             jsonb,
@@ -23,17 +22,17 @@ create type activation as
     activate_event_id        event_id,
     activated_at_ix          bigint,
     activated_at_offset      bigint,
-    activated_effective_at   timestamp with time zone,
+    created_effective_at     timestamp with time zone,
     activation_type          activation_type,
     deactivate_event_pk      bigint,
     deactivate_event_id      event_id,
     deactivated_at_ix        bigint,
     deactivated_at_offset    bigint,
-    deactivated_effective_at timestamp with time zone,
+    archived_effective_at    timestamp with time zone,
     deactivation_type        deactivation_type,
     reassignment_counter     bigint,
-    synchronizer_id          text,
-    tpe_pk                   bigint
+    source_synchronizer_id   text,
+    synchronizer_id          text
 );
 comment on type activation is 'Row returned by the activations SQL function.';
 
@@ -41,7 +40,6 @@ create type deactivation as
 (
     template_fqn             text,
     payload_type             __payload_type,
-    life_ix                  int8range,
     contract_id              text,
     payload                  jsonb,
     contract_key             jsonb,
@@ -58,16 +56,16 @@ create type deactivation as
     activate_event_id        event_id,
     activated_at_ix          bigint,
     activated_at_offset      bigint,
-    activated_effective_at   timestamp with time zone,
+    created_effective_at     timestamp with time zone,
     activation_type          activation_type,
     deactivate_event_pk      bigint,
     deactivate_event_id      event_id,
     deactivated_at_ix        bigint,
     deactivated_at_offset    bigint,
-    deactivated_effective_at timestamp with time zone,
+    archived_effective_at    timestamp with time zone,
     deactivation_type        deactivation_type,
     reassignment_counter     bigint,
     synchronizer_id          text,
-    tpe_pk                   bigint
+    target_synchronizer_id   text
 );
 comment on type deactivation is 'Row returned by the deactivations SQL function.';

@@ -151,52 +151,6 @@ where qname is null or c.tpe_pk = __contract_tpe4name(qname)
 $$ language sql stable
                 parallel safe;
 
-create or replace function __activations(qname text default null) returns setof activation
-as
-$$
-select tpe.template_fqn,
-       tpe.payload_type,
-       c.life_ix,
-       c.contract_id,
-       c.payload,
-       c.contract_key,
-       c.metadata,
-       c.redaction_id,
-       p.name,
-       p.version,
-       p.id,
-       c.signatories,
-       c.observers,
-       c.witnesses,
-       coalesce(c.creation_package_id, p.id),
-       c.contract_key_hash,
-       c.activate_event_pk,
-       ae.event_id,
-       c.activated_at_ix,
-       at."offset",
-       at.effective_at,
-       c.activation_type,
-       c.deactivate_event_pk,
-       de.event_id,
-       c.deactivated_at_ix,
-       dt."offset",
-       dt.effective_at,
-       c.deactivation_type,
-       c.reassignment_counter,
-       c.synchronizer_id,
-       c.tpe_pk
-from __contracts c
-    left join __contract_tpe tpe on tpe.pk = c.tpe_pk
-    left join __transactions at on at.ix = c.activated_at_ix
-    left join __transactions dt on dt.ix = c.deactivated_at_ix
-    left join __events ae on ae.pk = c.activate_event_pk
-    left join __events de on de.pk = c.deactivate_event_pk
-    left join __packages p on c.package_pk = p.pk
-where (qname is null or c.tpe_pk = __contract_tpe4name(qname))
-    and not c.divulged_only
-$$ language sql stable
-                parallel safe;
-
 
 create or replace function __exercises(qname text default null) returns setof exercise
 as
@@ -1182,9 +1136,40 @@ create or replace function activations(
     to_offset __transactions."offset"%type default latest_offset()
 ) returns setof activation as
 $$
-    select a.*
-    from __activations(qname) a
-    where a.activated_at_ix between (select __nearest_unpruned_ix_ceil(from_offset)) and (select __nearest_ix_floor(to_offset))
+select c.template_fqn,
+       c.payload_type,
+       c.contract_id,
+       c.payload,
+       c.contract_key,
+       c.metadata,
+       c.redaction_id,
+       c.package_name,
+       c.package_version,
+       c.package_id,
+       c.signatories,
+       c.observers,
+       c.witnesses,
+       c.creation_package_id,
+       c.contract_key_hash,
+       c.activate_event_pk,
+       c.activate_event_id,
+       c.activated_at_ix,
+       c.activated_at_offset,
+       c.created_effective_at,
+       c.activation_type,
+       c.deactivate_event_pk,
+       c.deactivate_event_id,
+       c.deactivated_at_ix,
+       c.deactivated_at_offset,
+       c.archived_effective_at,
+       c.deactivation_type,
+       c.reassignment_counter,
+       r.source_synchronizer_id,
+       c.synchronizer_id
+from __contracts(qname) c
+    left join __reassignments r on r.reassign_event_pk = c.activate_event_pk and r.reassigned_at_ix = c.activated_at_ix
+where not c.divulged_only
+    and c.activated_at_ix between (select __nearest_unpruned_ix_ceil(from_offset)) and (select __nearest_ix_floor(to_offset))
 $$ language sql stable parallel safe;
 comment on function activations(text, __transactions."offset"%type, __transactions."offset"%type) is $$Returns payload and metadata for activated (created or assigned) contracts of the given Daml qualified name.
 Qualified name can be:
@@ -1193,6 +1178,7 @@ Qualified name can be:
 Qualified name cannot be ambiguous.
 Only activations within [from_offset; to_offset] range are considered.
 Every create and assign is its own row. Divulged-only contracts are not returned.
+source_synchronizer_id is NULL for creates and for the assigns recorded by the ACS import.
 Raises an error when from_offset is before the pruned offset.$$;
 
 create or replace function summary_creates(
@@ -1451,38 +1437,39 @@ create or replace function deactivations(
     to_offset __transactions."offset"%type default latest_offset()
 ) returns setof deactivation as
 $$
-    select a.template_fqn,
-        a.payload_type,
-        a.life_ix,
-        a.contract_id,
-        a.payload,
-        a.contract_key,
-        a.metadata,
-        a.redaction_id,
-        a.package_name,
-        a.package_version,
-        a.package_id,
-        a.signatories,
-        a.observers,
-        a.creation_package_id,
-        a.contract_key_hash,
-        a.activate_event_pk,
-        a.activate_event_id,
-        a.activated_at_ix,
-        a.activated_at_offset,
-        a.activated_effective_at,
-        a.activation_type,
-        a.deactivate_event_pk,
-        a.deactivate_event_id,
-        a.deactivated_at_ix,
-        a.deactivated_at_offset,
-        a.deactivated_effective_at,
-        a.deactivation_type,
-        a.reassignment_counter,
-        a.synchronizer_id,
-        a.tpe_pk
-    from __activations(qname) a
-    where a.deactivated_at_ix between (select __nearest_unpruned_ix_ceil(from_offset)) and (select __nearest_ix_floor(to_offset))
+select c.template_fqn,
+       c.payload_type,
+       c.contract_id,
+       c.payload,
+       c.contract_key,
+       c.metadata,
+       c.redaction_id,
+       c.package_name,
+       c.package_version,
+       c.package_id,
+       c.signatories,
+       c.observers,
+       c.creation_package_id,
+       c.contract_key_hash,
+       c.activate_event_pk,
+       c.activate_event_id,
+       c.activated_at_ix,
+       c.activated_at_offset,
+       c.created_effective_at,
+       c.activation_type,
+       c.deactivate_event_pk,
+       c.deactivate_event_id,
+       c.deactivated_at_ix,
+       c.deactivated_at_offset,
+       c.archived_effective_at,
+       c.deactivation_type,
+       c.reassignment_counter,
+       c.synchronizer_id,
+       r.target_synchronizer_id
+from __contracts(qname) c
+    left join __reassignments r on r.reassign_event_pk = c.deactivate_event_pk and r.reassigned_at_ix = c.deactivated_at_ix
+where not c.divulged_only
+    and c.deactivated_at_ix between (select __nearest_unpruned_ix_ceil(from_offset)) and (select __nearest_ix_floor(to_offset))
 $$ language sql stable parallel safe;
 comment on function deactivations(text, __transactions."offset"%type, __transactions."offset"%type) is $$Returns payload and metadata for deactivated (archived or unassigned) contracts of the given Daml qualified name.
 Qualified name can be:
@@ -1491,6 +1478,7 @@ Qualified name can be:
 Qualified name cannot be ambiguous.
 Only deactivations within [from_offset; to_offset] range are considered.
 Every archive and unassign is its own row. Divulged-only contracts are not returned.
+target_synchronizer_id is NULL for archives.
 Raises an error when from_offset is before the pruned offset.$$;
 
 create or replace function summary_archives(

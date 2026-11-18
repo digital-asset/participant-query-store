@@ -226,7 +226,7 @@ object ContractsPerfSpec extends SharedHydratedLedgerTest with QueryPerfSpec[Int
       query("select_star_from_bloba_at_100_filter_on_cid", repeat = 1000)(f =>
         sql"select * from " ++ f ++ sql"('Blob:BlobA', oldest_offset(), $offset100) where contract_id = $archivedId"
       ),
-      query("select_star_from_bloba_at_100_limit_10", repeat = 200)(f =>
+      query("select_star_from_bloba_at_100_limit_10", repeat = 200, expectedDiff = 1.15)(f =>
         sql"select * from " ++ f ++ sql"('Blob:BlobA', oldest_offset(), $offset100) limit 10"
       )
     )
