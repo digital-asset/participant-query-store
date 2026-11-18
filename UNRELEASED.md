@@ -66,7 +66,7 @@ synchronizer_id text;
 - The `synchronizer_id text` column is added to the output of the `exercises` and `lookup_exercises` SQL functions. They return `NULL` for rows written by PQS 3.7 or older.
 - The `summary_reassignments` SQL function returns the number of assign and unassign events per Daml fully qualified name and per source and target synchronizer in the `[from_offset, to_offset]` range. It leaves out the assigns recorded by the ACS import.
 - The new `contracts` SQL function returns every contract known at `offset` that has not been pruned: active, archived, unassigned, divulged-only and transient. It returns a single row per `(contract_id, template_fqn)`, keeping the row with the highest `reassignment_counter`.
-- *BREAKING*: `summary_updates` returns additional `assigns bigint` and `unassigns bigint` columns: the number of assign and unassign events in the `[from_offset, to_offset]` range.
+- `summary_updates` returns additional `assigns bigint` and `unassigns bigint` columns: the number of assign and unassign events in the `[from_offset, to_offset]` range.
 
 
 #### Pruning, Reset to offset and Redaction
