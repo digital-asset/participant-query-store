@@ -21,6 +21,7 @@ This release includes the following SQL migrations:
 - [V048__Prunning_reassignments.sql](https://github.com/digital-asset/participant-query-store/blob/main/modules/postgres/document/resources/db/migration/V048__Prunning_reassignments.sql): drops `prune_archived_to_offset` and `prune_archived_to_offset_dry_run` so that they can be re-created with the new `deleted_reassignments` result column. **[Impact: Instantaneous]**
 - [V049__Store_record_time.sql](https://github.com/digital-asset/participant-query-store/blob/main/modules/postgres/document/resources/db/migration/V049__Store_record_time.sql): adds the `record_time` column to `__transactions`. Metadata-only, no table is scanned or rewritten. **[Impact: Instantaneous]**
 - [V050__Store_exercise_synchronizer_id.sql](https://github.com/digital-asset/participant-query-store/blob/main/modules/postgres/document/resources/db/migration/V050__Store_exercise_synchronizer_id.sql): adds the `synchronizer_id` column to `__exercises`. Metadata-only, no table is scanned or rewritten. **[Impact: Instantaneous]**
+- [V051__Add_reassignments_to_summary_updates.sql](https://github.com/digital-asset/participant-query-store/blob/main/modules/postgres/document/resources/db/migration/V051__Add_reassignments_to_summary_updates.sql): drops `summary_updates` so that it can be re-created with the new `assigns` and `unassigns` result columns. **[Impact: Instantaneous]**
 
 ## What's New
 
@@ -65,6 +66,7 @@ synchronizer_id text;
 - The `synchronizer_id text` column is added to the output of the `exercises` and `lookup_exercises` SQL functions. They return `NULL` for rows written by PQS 3.7 or older.
 - The `summary_reassignments` SQL function returns the number of assign and unassign events per Daml fully qualified name and per source and target synchronizer in the `[from_offset, to_offset]` range. It leaves out the assigns recorded by the ACS import.
 - The new `contracts` SQL function returns every contract known at `offset` that has not been pruned: active, archived, unassigned, divulged-only and transient. It returns a single row per `(contract_id, template_fqn)`, keeping the row with the highest `reassignment_counter`.
+- `summary_updates` returns additional `assigns bigint` and `unassigns bigint` columns: the number of assign and unassign events in the `[from_offset, to_offset]` range.
 
 
 #### Pruning, Reset to offset and Redaction

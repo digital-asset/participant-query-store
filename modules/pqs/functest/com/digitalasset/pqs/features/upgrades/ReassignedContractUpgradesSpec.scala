@@ -9,6 +9,7 @@ import com.digitalasset.pqs.services.daml.*
 import com.digitalasset.pqs.services.postgres.*
 import com.digitalasset.pqs.services.pqs.Pqs
 import com.digitalasset.pqs.SharedMultiSyncLedgerSpec
+import zio.jdbc.*
 
 import scala.language.{implicitConversions, postfixOps}
 
@@ -123,6 +124,15 @@ object ReassignedContractUpgradesSpec extends SharedMultiSyncLedgerSpec:
               // Canton uses pingV2 to compute the interface view since it is vetted by all synchronizers hosting Alice
               pingV1Dar.get.packageId | s"${pingIface.name}:Interfaces:Labelable" | "interface" | contractId | "someLabelV2" | sync1.id | 2
               pingV1Dar.get.packageId | s"${pingV1.name}:Ping:Ping" | "template" | contractId | "someLabel" | sync1.id | 2
+            }
+          )
+      Expect:
+        Database
+          .query(sql"select * from summary_updates() order by payload_type::text")
+          .returns(
+            Table {
+              s"${pingIface.name}:Interfaces:Labelable" | "interface" | 1 | 0 | 2 | 2
+              s"${pingV1.name}:Ping:Ping"               | "template"  | 1 | 0 | 2 | 2
             }
           )
     }

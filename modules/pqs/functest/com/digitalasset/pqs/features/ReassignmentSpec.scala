@@ -156,6 +156,30 @@ object ReassignmentSpec extends SharedMultiSyncLedgerSpec:
               s"${pingPong.name}:PingPong:Ping" | "unassign" | sync1.id | sync2.id | 1
             }
           )
+      Expect:
+        Database
+          .query(sql"select * from summary_updates()")
+          .returns(
+            Table {
+              s"${pingPong.name}:PingPong:Ping" | "template" | 1 | 1 | 1 | 1
+            }
+          )
+      Expect:
+        Database
+          .query(sql"select * from summary_updates(${unassignedAtOffset.get}, ${unassignedAtOffset.get})")
+          .returns(
+            Table {
+              s"${pingPong.name}:PingPong:Ping" | "template" | 0 | 0 | 0 | 1
+            }
+          )
+      Expect:
+        Database
+          .query(sql"select * from summary_updates(${assignedAtOffset.get}, ${assignedAtOffset.get})")
+          .returns(
+            Table {
+              s"${pingPong.name}:PingPong:Ping" | "template" | 0 | 0 | 1 | 0
+            }
+          )
 
       Expect:
         // A cutoff that falls between the unassign and the assign: later than the create's

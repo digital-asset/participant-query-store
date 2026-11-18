@@ -1701,29 +1701,33 @@ $$;
 -- Name: summary_updates(bigint, bigint); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public.summary_updates(from_offset bigint DEFAULT public.oldest_offset(), to_offset bigint DEFAULT public.latest_offset()) RETURNS TABLE(template_fqn text, payload_type public.__payload_type, creates bigint, archives bigint)
+CREATE FUNCTION public.summary_updates(from_offset bigint DEFAULT public.oldest_offset(), to_offset bigint DEFAULT public.latest_offset()) RETURNS TABLE(template_fqn text, payload_type public.__payload_type, creates bigint, archives bigint, assigns bigint, unassigns bigint)
     LANGUAGE sql STABLE PARALLEL SAFE
     AS $$
-    with creates as (
-        select c.tpe_pk as tpe_pk, count(*) as count
+    with activations as (
+        select c.tpe_pk as tpe_pk,
+               count(*) filter (where c.activation_type = 'create') as creates,
+               count(*) filter (where c.activation_type = 'assign') as assigns
         from __contracts c
-        where c.activation_type = 'create'
-            and c.activated_at_ix between (select __nearest_ix_ceil(from_offset)) and (select __nearest_ix_floor(to_offset))
+        where c.activated_at_ix between (select __nearest_ix_ceil(from_offset)) and (select __nearest_ix_floor(to_offset))
         group by c.tpe_pk
     ),
-    archives as (
-        select c.tpe_pk as tpe_pk, count(*) as count
+    deactivations as (
+        select c.tpe_pk as tpe_pk,
+               count(*) filter (where c.deactivation_type is null or c.deactivation_type = 'archive') as archives,
+               count(*) filter (where c.deactivation_type = 'unassign') as unassigns
         from __contracts c
-        where (c.deactivation_type is null or c.deactivation_type = 'archive')
-            and c.deactivated_at_ix between (select __nearest_ix_ceil(from_offset)) and (select __nearest_ix_floor(to_offset))
+        where c.deactivated_at_ix between (select __nearest_ix_ceil(from_offset)) and (select __nearest_ix_floor(to_offset))
         group by c.tpe_pk
     )
     select tpe.template_fqn,
            tpe.payload_type,
-           coalesce(creates.count, 0)  as creates,
-           coalesce(archives.count, 0) as archives
-    from (creates full outer join archives on creates.tpe_pk = archives.tpe_pk)
-         join __contract_tpe tpe on creates.tpe_pk = tpe.pk or archives.tpe_pk = tpe.pk
+           coalesce(activations.creates, 0) as creates,
+           coalesce(deactivations.archives, 0) as archives,
+           coalesce(activations.assigns, 0) as assigns,
+           coalesce(deactivations.unassigns, 0) as unassigns
+    from (activations full outer join deactivations on activations.tpe_pk = deactivations.tpe_pk)
+             join __contract_tpe tpe on activations.tpe_pk = tpe.pk or deactivations.tpe_pk = tpe.pk
 $$;
 
 
