@@ -54,6 +54,14 @@ object ReassignmentSeedingSpec extends SharedMultiSyncLedgerSpec:
         Database.creates().returns(Table.empty)
       Expect:
         Database
+          .activations(extraColumns = multiSyncColumns :+ "source_synchronizer_id")
+          .returns(
+            Table {
+              dar.get.packageId | s"${pingPong.name}:PingPong:Ping" | "template" | contractId | "0" | "assign" | null | null | sync2.id | 1 | null
+            }
+          )
+      Expect:
+        Database
           .query(sql"""select "type"::text from __events""")
           .returns(Table("assign"))
     },

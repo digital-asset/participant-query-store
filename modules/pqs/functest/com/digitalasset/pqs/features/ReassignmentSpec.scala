@@ -171,6 +171,34 @@ object ReassignmentSpec extends SharedMultiSyncLedgerSpec:
                           from __transactions)
                        )""")
           .returns(Table(createdAtOffset))
+      Expect:
+        Database
+          .activations(extraColumns =
+            Seq("activated_at_offset", "source_synchronizer_id", "synchronizer_id", "created_effective_at is null")
+          )
+          .returns(
+            Table {
+              dar.get.packageId | s"${pingPong.name}:PingPong:Ping" | "template" | contractId | createdAtOffset | null | sync1.id | false
+              dar.get.packageId | s"${pingPong.name}:PingPong:Ping" | "template" | contractId | assignedAtOffset | sync1.id | sync2.id | true
+            }
+          )
+      Expect:
+        Database
+          .deactivations(extraColumns =
+            Seq(
+              "deactivation_type",
+              "deactivated_at_offset",
+              "synchronizer_id",
+              "target_synchronizer_id",
+              "archived_effective_at is null"
+            )
+          )
+          .returns(
+            Table {
+              dar.get.packageId | s"${pingPong.name}:PingPong:Ping" | "template" | contractId | "unassign" | unassignedAtOffset | sync1.id | sync2.id | true
+              dar.get.packageId | s"${pingPong.name}:PingPong:Ping" | "template" | contractId | "archive" | archivedAtOffset | sync2.id | null | false
+            }
+          )
     },
     funcTest("contracts() returns every known contract once") {
       val alice        = Party("Alice")

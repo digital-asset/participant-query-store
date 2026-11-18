@@ -66,16 +66,6 @@ CREATE TYPE public.activation_type AS ENUM (
 
 
 --
--- Name: checkpoint; Type: TYPE; Schema: public; Owner: -
---
-
-CREATE TYPE public.checkpoint AS (
-	"offset" bigint,
-	ix bigint
-);
-
-
---
 -- Name: deactivation_type; Type: TYPE; Schema: public; Owner: -
 --
 
@@ -92,6 +82,54 @@ CREATE TYPE public.deactivation_type AS ENUM (
 CREATE TYPE public.event_id AS (
 	"offset" bigint,
 	node_id integer
+);
+
+
+--
+-- Name: activation; Type: TYPE; Schema: public; Owner: -
+--
+
+CREATE TYPE public.activation AS (
+	template_fqn text,
+	payload_type public.__payload_type,
+	contract_id text,
+	payload jsonb,
+	contract_key jsonb,
+	metadata bytea,
+	redaction_id text,
+	package_name text,
+	package_version text,
+	package_id text,
+	signatories text[],
+	observers text[],
+	witnesses text[],
+	creation_package_id text,
+	contract_key_hash bytea,
+	activate_event_pk bigint,
+	activate_event_id public.event_id,
+	activated_at_ix bigint,
+	activated_at_offset bigint,
+	created_effective_at timestamp with time zone,
+	activation_type public.activation_type,
+	deactivate_event_pk bigint,
+	deactivate_event_id public.event_id,
+	deactivated_at_ix bigint,
+	deactivated_at_offset bigint,
+	archived_effective_at timestamp with time zone,
+	deactivation_type public.deactivation_type,
+	reassignment_counter bigint,
+	source_synchronizer_id text,
+	synchronizer_id text
+);
+
+
+--
+-- Name: checkpoint; Type: TYPE; Schema: public; Owner: -
+--
+
+CREATE TYPE public.checkpoint AS (
+	"offset" bigint,
+	ix bigint
 );
 
 
@@ -151,6 +189,43 @@ CREATE TYPE public.contract_summary AS (
 	template_fqn text,
 	payload_type public.__payload_type,
 	count bigint
+);
+
+
+--
+-- Name: deactivation; Type: TYPE; Schema: public; Owner: -
+--
+
+CREATE TYPE public.deactivation AS (
+	template_fqn text,
+	payload_type public.__payload_type,
+	contract_id text,
+	payload jsonb,
+	contract_key jsonb,
+	metadata bytea,
+	redaction_id text,
+	package_name text,
+	package_version text,
+	package_id text,
+	signatories text[],
+	observers text[],
+	creation_package_id text,
+	contract_key_hash bytea,
+	activate_event_pk bigint,
+	activate_event_id public.event_id,
+	activated_at_ix bigint,
+	activated_at_offset bigint,
+	created_effective_at timestamp with time zone,
+	activation_type public.activation_type,
+	deactivate_event_pk bigint,
+	deactivate_event_id public.event_id,
+	deactivated_at_ix bigint,
+	deactivated_at_offset bigint,
+	archived_effective_at timestamp with time zone,
+	deactivation_type public.deactivation_type,
+	reassignment_counter bigint,
+	synchronizer_id text,
+	target_synchronizer_id text
 );
 
 
@@ -699,6 +774,22 @@ $$;
 
 
 --
+-- Name: __nearest_unpruned_ix_ceil(bigint); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.__nearest_unpruned_ix_ceil("offset" bigint) RETURNS bigint
+    LANGUAGE plpgsql STABLE PARALLEL SAFE
+    AS $$
+begin
+    if "offset" < pruned_offset() then
+        raise exception 'Offset % is before the pruned offset %', "offset", pruned_offset();
+    end if;
+    return __nearest_ix_ceil("offset");
+end
+$$;
+
+
+--
 -- Name: __update_watermark_fn(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -864,6 +955,76 @@ $$;
 
 
 --
+-- Name: oldest_offset(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.oldest_offset() RETURNS bigint
+    LANGUAGE sql STABLE PARALLEL SAFE
+    AS $$
+select case
+           when coalesce(current_setting('pqs.session_offset_oldest', true), '') = ''
+               then (select "offset" from oldest_checkpoint())
+           else current_setting('pqs.session_offset_oldest', false)::bigint
+           end;
+$$;
+
+
+--
+-- Name: pruned_offset(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.pruned_offset() RETURNS bigint
+    LANGUAGE sql STABLE PARALLEL SAFE
+    AS $$
+    select pruned_offset from __pruning_metadata;
+$$;
+
+
+--
+-- Name: activations(text, bigint, bigint); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.activations(qname text DEFAULT NULL::text, from_offset bigint DEFAULT COALESCE(public.pruned_offset(), public.oldest_offset()), to_offset bigint DEFAULT public.latest_offset()) RETURNS SETOF public.activation
+    LANGUAGE sql STABLE PARALLEL SAFE
+    AS $$
+select c.template_fqn,
+       c.payload_type,
+       c.contract_id,
+       c.payload,
+       c.contract_key,
+       c.metadata,
+       c.redaction_id,
+       c.package_name,
+       c.package_version,
+       c.package_id,
+       c.signatories,
+       c.observers,
+       c.witnesses,
+       c.creation_package_id,
+       c.contract_key_hash,
+       c.activate_event_pk,
+       c.activate_event_id,
+       c.activated_at_ix,
+       c.activated_at_offset,
+       c.created_effective_at,
+       c.activation_type,
+       c.deactivate_event_pk,
+       c.deactivate_event_id,
+       c.deactivated_at_ix,
+       c.deactivated_at_offset,
+       c.archived_effective_at,
+       c.deactivation_type,
+       c.reassignment_counter,
+       r.source_synchronizer_id,
+       c.synchronizer_id
+from __contracts(qname) c
+    left join __reassignments r on r.reassign_event_pk = c.activate_event_pk and r.reassigned_at_ix = c.activated_at_ix
+where not c.divulged_only
+    and c.activated_at_ix between (select __nearest_unpruned_ix_ceil(from_offset)) and (select __nearest_ix_floor(to_offset))
+$$;
+
+
+--
 -- Name: active(text, bigint); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -895,32 +1056,6 @@ where c.life_ix @> (select __nearest_ix_floor("offset"))
                     )
                 )
     )
-$$;
-
-
---
--- Name: oldest_offset(); Type: FUNCTION; Schema: public; Owner: -
---
-
-CREATE FUNCTION public.oldest_offset() RETURNS bigint
-    LANGUAGE sql STABLE PARALLEL SAFE
-    AS $$
-select case
-           when coalesce(current_setting('pqs.session_offset_oldest', true), '') = ''
-               then (select "offset" from oldest_checkpoint())
-           else current_setting('pqs.session_offset_oldest', false)::bigint
-           end;
-$$;
-
-
---
--- Name: pruned_offset(); Type: FUNCTION; Schema: public; Owner: -
---
-
-CREATE FUNCTION public.pruned_offset() RETURNS bigint
-    LANGUAGE sql STABLE PARALLEL SAFE
-    AS $$
-    select pruned_offset from __pruning_metadata;
 $$;
 
 
@@ -1042,6 +1177,49 @@ CREATE FUNCTION public.creates(qname text DEFAULT NULL::text, from_offset bigint
     from __contracts(qname) c
     where c.activation_type = 'create'
         and c.activated_at_ix between (select __nearest_ix_ceil(from_offset)) and (select __nearest_ix_floor(to_offset))
+$$;
+
+
+--
+-- Name: deactivations(text, bigint, bigint); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.deactivations(qname text DEFAULT NULL::text, from_offset bigint DEFAULT COALESCE(public.pruned_offset(), public.oldest_offset()), to_offset bigint DEFAULT public.latest_offset()) RETURNS SETOF public.deactivation
+    LANGUAGE sql STABLE PARALLEL SAFE
+    AS $$
+select c.template_fqn,
+       c.payload_type,
+       c.contract_id,
+       c.payload,
+       c.contract_key,
+       c.metadata,
+       c.redaction_id,
+       c.package_name,
+       c.package_version,
+       c.package_id,
+       c.signatories,
+       c.observers,
+       c.creation_package_id,
+       c.contract_key_hash,
+       c.activate_event_pk,
+       c.activate_event_id,
+       c.activated_at_ix,
+       c.activated_at_offset,
+       c.created_effective_at,
+       c.activation_type,
+       c.deactivate_event_pk,
+       c.deactivate_event_id,
+       c.deactivated_at_ix,
+       c.deactivated_at_offset,
+       c.archived_effective_at,
+       c.deactivation_type,
+       c.reassignment_counter,
+       c.synchronizer_id,
+       r.target_synchronizer_id
+from __contracts(qname) c
+    left join __reassignments r on r.reassign_event_pk = c.deactivate_event_pk and r.reassigned_at_ix = c.deactivated_at_ix
+where not c.divulged_only
+    and c.deactivated_at_ix between (select __nearest_unpruned_ix_ceil(from_offset)) and (select __nearest_ix_floor(to_offset))
 $$;
 
 

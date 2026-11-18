@@ -98,6 +98,12 @@ object Database:
   def creates(qname: Option[String] = None, extraColumns: Seq[String] = Seq.empty) =
     selectContracts(sql"creates($qname)", extraColumns)
 
+  def activations(qname: Option[String] = None, extraColumns: Seq[String] = Seq.empty) =
+    selectContracts(sql"activations($qname)", extraColumns)
+
+  def deactivations(qname: Option[String] = None, extraColumns: Seq[String] = Seq.empty) =
+    selectContracts(sql"deactivations($qname)", extraColumns)
+
   def lookupContract(contractId: String, qname: Option[String] = None, extraColumns: Seq[String] = Seq.empty) =
     selectContracts(sql"lookup_contract($contractId, $qname)", extraColumns)
 

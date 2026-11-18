@@ -125,5 +125,30 @@ object ReassignedContractUpgradesSpec extends SharedMultiSyncLedgerSpec:
               pingV1Dar.get.packageId | s"${pingV1.name}:Ping:Ping" | "template" | contractId | "someLabel" | sync1.id | 2
             }
           )
+      Expect:
+        Database
+          .activations(
+            Some(s"${pingIface.name}:Interfaces:Labelable"),
+            Seq("activation_type", "source_synchronizer_id", "synchronizer_id")
+          )
+          .returns(
+            Table {
+              pingV1Dar.get.packageId | s"${pingIface.name}:Interfaces:Labelable" | "interface" | contractId | "create" | null | sync1.id
+              pingV1Dar.get.packageId | s"${pingIface.name}:Interfaces:Labelable" | "interface" | contractId | "assign" | sync1.id | sync2.id
+              pingV1Dar.get.packageId | s"${pingIface.name}:Interfaces:Labelable" | "interface" | contractId | "assign" | sync2.id | sync1.id
+            }
+          )
+      Expect:
+        Database
+          .deactivations(
+            Some(s"${pingIface.name}:Interfaces:Labelable"),
+            Seq("deactivation_type", "synchronizer_id", "target_synchronizer_id")
+          )
+          .returns(
+            Table {
+              pingV1Dar.get.packageId | s"${pingIface.name}:Interfaces:Labelable" | "interface" | contractId | "unassign" | sync1.id | sync2.id
+              pingV1Dar.get.packageId | s"${pingIface.name}:Interfaces:Labelable" | "interface" | contractId | "unassign" | sync2.id | sync1.id
+            }
+          )
     }
   )
