@@ -86,6 +86,10 @@ synchronizer_id text;
 - The new `pipeline_contracts_per_template_total` metric counts each `create`, `archive`, `assign` and `unassign` once for the template and once for each of its interfaces. Its labels are `type`, `template` and `synchronizer_id`.
 - The PQS Grafana dashboard has a `synchronizer` variable and new `Reassignments` and `Synchronizers` rows. The `Churn`, `Active *` and `Reassignments by template` panels read `pipeline_contracts_per_template_total`, so a template with k interfaces counts k+1 times; `Churn` and `Active *` add assigned contracts and subtract unassigned ones, so `Churn` shows a reassignment as both down and up, or with one synchronizer selected, as down on its source and up on its target. The `Reassignments` panels count a reassignment the same whether PQS sees its unassign, its assign or both, if the participant topology is homogeneous. `Reassignments by template` also counts the assigns recorded by the ACS import, which `Reassignment flows` and `Reassignments ingested` leave out, and with one synchronizer selected it counts the larger of the reassignments into and out of it. An `archive` or `unassign` counts once for each interface the datastore knows for the template, while a `create` or `assign` counts once for each interface view the Ledger API delivers, so `Active *` undercounts a template whose interface is not in `--pipeline-filter-contracts`.
 
+### Security
+
+- The Docker image and the dpm component disable the JVM's hardware-accelerated Base64 decoder (`-XX:-UseBASE64Intrinsics`) to mitigate CVE-2026-114938 (Java4Shell). The image sets the flag in `JAVA_TOOL_OPTIONS`, the dpm component in its `jvm-args`. If you override `JAVA_TOOL_OPTIONS`, or run `pqs.jar` directly, add the flag yourself or use a patched JDK.
+
 ### Bug fixes
 
 - Fixed silent handling of PostgreSQL commit failures that could leave gaps in `__transactions`. Commit errors now invalidate the connection and fail the pipeline so ingestion is retried.
