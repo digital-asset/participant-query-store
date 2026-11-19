@@ -1463,6 +1463,62 @@ $$ language sql stable parallel safe;
 comment on function summary_updates(__transactions."offset"%type, __transactions."offset"%type)
     is 'Returns the number of create, archive, assign and unassign events per Daml fully qualified name in the [from_offset, to_offset] range.';
 
+-- Contracts added to and removed from the active set over [from_offset, to_offset].
+create or replace function __net_change_summary(
+    from_offset __transactions."offset"%type default coalesce(pruned_offset(), oldest_offset()),
+    to_offset __transactions."offset"%type default latest_offset()
+) returns table (template_fqn text, payload_type __payload_type, activations bigint, deactivations bigint) as
+$$
+declare
+    from_ix bigint;
+    to_ix bigint;
+    one bigint := 1;
+begin
+    if from_offset < pruned_offset() then
+        raise exception 'Offset % is before the pruned offset %', from_offset, pruned_offset();
+    end if;
+    from_ix := __nearest_ix_ceil(from_offset);
+    to_ix := __nearest_ix_floor(to_offset);
+    return query
+    with changed as ( -- whether a contract with a row activated or deactivated in the range is active before and after it
+        select c.tpe_pk,
+               c.contract_id,
+               bool_or(c.life_ix @> (from_ix - 1)) as active_before,
+               bool_or(c.life_ix @> to_ix) as active_after
+        from __contracts c
+        where (c.activated_at_ix between from_ix and to_ix or c.deactivated_at_ix between from_ix and to_ix)
+            -- skips rows active at neither end, which can't change the result, before grouping
+            and (c.life_ix @> (from_ix - 1)) <> (c.life_ix @> to_ix)
+            and not c.divulged_only
+        group by c.tpe_pk, c.contract_id
+    ),
+    stats as (
+        select changed.tpe_pk,
+               count(*) filter (where changed.active_after) as activations,
+               count(*) filter (where changed.active_before) as deactivations
+        from changed
+        where changed.active_before <> changed.active_after
+            and not exists ( -- a row active at both ends, which the scan above can't see, keeps the contract unchanged
+                select 1
+                from __contracts c
+                where c.tpe_pk = changed.tpe_pk
+                    and c.contract_id = changed.contract_id
+                    and c.life_ix @> int8range(from_ix - 1, to_ix, '[]')
+                    and not c.divulged_only
+                limit one -- a parameter keeps this a per-contract probe; an anti-join would scan every active contract
+            )
+        group by changed.tpe_pk
+    )
+    select tpe.template_fqn, tpe.payload_type, stats.activations, stats.deactivations
+    from stats
+         join __contract_tpe tpe on tpe.pk = stats.tpe_pk;
+end
+$$ language plpgsql stable
+    -- planning grows with the number of partitions: plan once per session, without the bounds
+    set plan_cache_mode = force_generic_plan
+    -- JIT compilation costs more than it saves here
+    set jit = 'off';
+
 create or replace function stakeholders(c contract) returns text[]
 as
 $$

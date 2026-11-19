@@ -218,6 +218,10 @@ object DivulgedContractsSpec extends SharedLedgerAndPostgresTest:
           s"${damlSource.name}:AssetApp:SimpleAsset"      | "template" | 2
           s"${damlSource.name}:AssetApp:SimpleDvP"        | "template" | 2
         }
+      And:
+        Database
+          .query(sql"select * from __net_change_summary() order by template_fqn")
+          .returns(Table(s"${damlSource.name}:AssetApp:SimpleAsset" | "template" | 2 | 0))
     },
     funcTest("TransactionTreeStream: pruning of divulged contracts") {
       val alice          = Party("Alice")
