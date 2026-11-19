@@ -106,15 +106,14 @@ object ContractsPerfSpec extends SharedHydratedLedgerTest with QueryPerfSpec[Int
           sql"select * from contracts(null, $offset10)",
           baselineSql = Some(sql"select * from creates(null, oldest_offset(), $offset10)"),
           repeat = 8,
-          expectedDiff = 2.98,
-          tolerance = 0.5
+          expectedDiff = 2.85
         ),
         Query(
           "select_star_from_bloba_at_100",
           sql"select * from contracts($blobA, $offset100)",
           baselineSql = Some(sql"select * from creates($blobA, oldest_offset(), $offset100)"),
           repeat = 4,
-          expectedDiff = 0.51
+          expectedDiff = 0.39
         ),
         Query(
           "select_star_from_bloba_at_50",
@@ -128,7 +127,7 @@ object ContractsPerfSpec extends SharedHydratedLedgerTest with QueryPerfSpec[Int
           sql"select * from contracts($blobA, $offset10)",
           baselineSql = Some(sql"select * from creates($blobA, oldest_offset(), $offset10)"),
           repeat = 16,
-          expectedDiff = 2.30,
+          expectedDiff = 2.00,
           tolerance = 0.4
         ),
 
@@ -138,7 +137,7 @@ object ContractsPerfSpec extends SharedHydratedLedgerTest with QueryPerfSpec[Int
           sql"select contract_id from contracts($blobA, $offset100)",
           baselineSql = Some(sql"select contract_id from creates($blobA, oldest_offset(), $offset100)"),
           repeat = 4,
-          expectedDiff = 0.92,
+          expectedDiff = 1.44,
           tolerance = 0.4
         ),
 
@@ -149,7 +148,7 @@ object ContractsPerfSpec extends SharedHydratedLedgerTest with QueryPerfSpec[Int
           baselineSql =
             Some(sql"select * from creates($blobA, oldest_offset(), $offset100) where payload ->> 'value' = '42'"),
           repeat = 8,
-          expectedDiff = -0.81
+          expectedDiff = -0.51
         ),
 
         // Two contracts() calls joined on payload
@@ -171,7 +170,7 @@ object ContractsPerfSpec extends SharedHydratedLedgerTest with QueryPerfSpec[Int
           sql"select * from contracts() limit 20",
           baselineSql = Some(sql"select * from creates() limit 20"),
           repeat = 50,
-          expectedDiff = 0.41
+          expectedDiff = 0.64
         ),
 
         // Daml Shell's completion: only contract_id is selected, so the joins are removed and only matching rows are probed
@@ -180,15 +179,15 @@ object ContractsPerfSpec extends SharedHydratedLedgerTest with QueryPerfSpec[Int
           sql"select contract_id from contracts() where contract_id like '%' limit 20",
           baselineSql = Some(sql"select contract_id from creates() where contract_id like '%' limit 20"),
           repeat = 100,
-          expectedDiff = 0.05,
-          tolerance = 0.4
+          expectedDiff = 0.09
         ),
         Query(
           "daml_shell_completion_no_match",
           sql"select contract_id from contracts() where contract_id like 'nonexistent%' limit 20",
           baselineSql = Some(sql"select contract_id from creates() where contract_id like 'nonexistent%' limit 20"),
           repeat = 4,
-          expectedDiff = -0.08
+          expectedDiff = -0.34,
+          tolerance = 0.4
         )
       )
     }
