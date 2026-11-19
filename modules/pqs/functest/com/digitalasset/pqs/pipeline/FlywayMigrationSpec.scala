@@ -245,11 +245,11 @@ object FlywayMigrationSpec extends FuncTestStandalone:
           )
       Expect:
         Database
-          .deactivations(extraColumns = Seq("deactivation_type"))
+          .deactivations(extraColumns = Seq("deactivation_type", "synchronizer_id", "target_synchronizer_id"))
           .returns(
             Table {
-              anything | s"${pingPong.name}:PingPong:Ping" | "template" | contractId3 | null
-              anything | s"${pingPong.name}:PingPong:Ping" | "template" | contractId1 | "unassign"
+              anything | s"${pingPong.name}:PingPong:Ping" | "template" | contractId3 | null       | null | null
+              anything | s"${pingPong.name}:PingPong:Ping" | "template" | contractId1 | "unassign" | null | sync1.id
             }
           )
       Expect:

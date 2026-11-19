@@ -114,6 +114,14 @@ object DatastorePruningSpec extends SharedLedgerAndPostgresTest:
             )
         And:
           Database
+            .query(sql"""select * from activations($templateRef, ${oneUpdated.get}, latest_offset())""")
+            .failsWithMessage(s"ERROR: Offset ${oneUpdated.get} is before the pruned offset ${twoArchived.get}")
+        And:
+          Database
+            .query(sql"""select payload->>'label', deactivated_at_offset from deactivations($templateRef)""")
+            .returns(Table("three" | threeUpdated))
+        And:
+          Database
             .query(sql"""select * from deactivations($templateRef, ${oneUpdated.get}, latest_offset())""")
             .failsWithMessage(s"ERROR: Offset ${oneUpdated.get} is before the pruned offset ${twoArchived.get}")
       },
