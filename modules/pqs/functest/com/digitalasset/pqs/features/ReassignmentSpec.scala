@@ -12,10 +12,11 @@ import com.digitalasset.pqs.postgres.document.SqlSchema
 import com.digitalasset.pqs.services.daml.*
 import com.digitalasset.pqs.services.postgres.*
 import com.digitalasset.pqs.services.pqs.Pqs
+import com.digitalasset.pqs.utils.safeequals.=/=
 import com.digitalasset.pqs.{OffsetType, SharedMultiSyncLedgerSpec}
 import com.digitalasset.transcode.codec.json.JsonCodec
 import com.digitalasset.zio.daml.DamlSchema
-import zio.Chunk
+import zio.{Chunk, ZIO}
 import zio.jdbc.*
 import zio.test.Assertion.*
 
@@ -191,7 +192,11 @@ object ReassignmentSpec extends SharedMultiSyncLedgerSpec:
           .query(sql"select * from __net_change_summary(${createdAtOffset.get}, ${assignedAtOffset.get})")
           .returns(Table(s"${pingPong.name}:PingPong:Ping" | "template" | 1 | 0))
       Expect:
-        netChangeSummaryMismatchesWithActive.returns(Table.empty)
+        Database
+          .query(sql"select * from __net_change_summary(${assignedAtOffset.get}, ${createdAtOffset.get})")
+          .returns(Table.empty)
+      Expect:
+        netChangeSummaryMismatchesWithActive.is(isEmpty)
     },
     funcTest("contracts() returns every known contract once") {
       val alice        = Party("Alice")
@@ -371,7 +376,7 @@ object ReassignmentSpec extends SharedMultiSyncLedgerSpec:
           }
         )
       Expect:
-        netChangeSummaryMismatchesWithActive.returns(Table.empty)
+        netChangeSummaryMismatchesWithActive.is(isEmpty)
     },
     funcTest("Non-causal stream: assigned before unassigned") {
       val alice      = Party("Alice")
@@ -485,7 +490,7 @@ object ReassignmentSpec extends SharedMultiSyncLedgerSpec:
           }
         )
       Expect:
-        netChangeSummaryMismatchesWithActive.returns(Table.empty)
+        netChangeSummaryMismatchesWithActive.is(isEmpty)
     },
     funcTest("non-causal stream: repeated interleaved reassignments") {
       val alice      = Party("Alice")
@@ -567,7 +572,7 @@ object ReassignmentSpec extends SharedMultiSyncLedgerSpec:
           }
         )
       Expect:
-        netChangeSummaryMismatchesWithActive.returns(Table.empty)
+        netChangeSummaryMismatchesWithActive.is(isEmpty)
     },
     funcTest("Non-causal stream: exercises between an assign and its late unassign are returned once") {
       val alice      = Party("Alice")
@@ -692,29 +697,44 @@ object ReassignmentSpec extends SharedMultiSyncLedgerSpec:
                          from __transactions t, __net_change_summary(t."offset", t."offset") s
                          order by t.ix, s.template_fqn, s.payload_type""")
 
+  private type ActiveContract = (template: String, payloadType: String, contractId: String)
+
   private def netChangeSummaryMismatchesWithActive =
-    Database.query(
-      sql"""with ranges as (
-                select f."offset" as from_offset, t."offset" as to_offset, b."offset" as before_offset
-                from __transactions f
-                     join __transactions t on t.ix >= f.ix
-                     left join __transactions b on b.ix = f.ix - 1
-            ),
-            expected as (
-                select r.from_offset, r.to_offset, x.template_fqn, x.payload_type,
-                       count(x.after) as additions, count(x.before) as removals
-                from ranges r,
-                     lateral (select template_fqn, payload_type, a.contract_id as after, b.contract_id as before
-                              from active(null, r.to_offset) a
-                                   full join active(null, r.before_offset) b using (template_fqn, payload_type, contract_id)
-                              where a.contract_id is null or b.contract_id is null) x
-                group by r.from_offset, r.to_offset, x.template_fqn, x.payload_type
-            ),
-            actual as (
-                select r.from_offset, r.to_offset, s.*
-                from ranges r, __net_change_summary(r.from_offset, r.to_offset) s
+    for
+      offsets <- Database.getAll[Long](sql"""select "offset" from __transactions order by ix""")
+      activeAt <- ZIO.foreach(offsets)(offset =>
+        Database
+          .getAll[ActiveContract](sql"select template_fqn, payload_type::text, contract_id from active(null, $offset)")
+          .map(_.toSet)
+      )
+      starts = offsets.zip(Set.empty[ActiveContract] +: activeAt) // with the contracts active just before
+      ends   = offsets.zip(activeAt)
+      ranges = for
+        (from, before) <- starts
+        (to, after)    <- ends
+        if from <= to
+      yield (from, to, netChange(before, after))
+      results <- ZIO.foreach(ranges)((from, to, expected) =>
+        Database
+          .getAll[(String, String, Long, Long)](
+            sql"select template_fqn, payload_type::text, activations, deactivations from __net_change_summary($from, $to)"
+          )
+          .map(rows =>
+            (
+              from,
+              to,
+              expected,
+              rows
+                .map((template, payload, activations, deactivations) =>
+                  (template, payload) -> (activations, deactivations)
+                )
+                .toMap
             )
-            select 'missing', * from (table expected except table actual) m
-            union all
-            select 'unexpected', * from (table actual except table expected) u"""
-    )
+          )
+      )
+    yield results.filter((_, _, expected, actual) => expected =/= actual)
+
+  private def netChange(before: Set[ActiveContract], after: Set[ActiveContract]) =
+    ((after -- before) ++ (before -- after))
+      .groupBy(ac => (ac.template, ac.payloadType))
+      .map((key, changed) => key -> (changed.count(after.contains).toLong, changed.count(before.contains).toLong))

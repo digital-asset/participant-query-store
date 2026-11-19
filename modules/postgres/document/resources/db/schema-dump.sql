@@ -743,7 +743,7 @@ $$;
 -- Name: __net_change_summary(bigint, bigint); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public.__net_change_summary(from_offset bigint DEFAULT COALESCE(public.pruned_offset(), public.oldest_offset()), to_offset bigint DEFAULT public.latest_offset()) RETURNS TABLE(template_fqn text, payload_type public.__payload_type, additions bigint, removals bigint)
+CREATE FUNCTION public.__net_change_summary(from_offset bigint DEFAULT COALESCE(public.pruned_offset(), public.oldest_offset()), to_offset bigint DEFAULT public.latest_offset()) RETURNS TABLE(template_fqn text, payload_type public.__payload_type, activations bigint, deactivations bigint)
     LANGUAGE plpgsql STABLE
     SET plan_cache_mode TO 'force_generic_plan'
     SET jit TO 'off'
@@ -758,15 +758,12 @@ begin
     end if;
     from_ix := __nearest_ix_ceil(from_offset);
     to_ix := __nearest_ix_floor(to_offset);
-    if from_ix > to_ix then -- no transaction in the range
-        return;
-    end if;
     return query
     with changed as ( -- whether a contract with a row activated or deactivated in the range is active before and after it
         select c.tpe_pk,
                c.contract_id,
-               bool_or(c.life_ix @> (from_ix - 1)) as before,
-               bool_or(c.life_ix @> to_ix) as after
+               bool_or(c.life_ix @> (from_ix - 1)) as active_before,
+               bool_or(c.life_ix @> to_ix) as active_after
         from __contracts c
         where (c.activated_at_ix between from_ix and to_ix or c.deactivated_at_ix between from_ix and to_ix)
             -- skips rows active at neither end, which can't change the result, before grouping
@@ -776,10 +773,10 @@ begin
     ),
     stats as (
         select changed.tpe_pk,
-               count(*) filter (where changed.after) as additions,
-               count(*) filter (where changed.before) as removals
+               count(*) filter (where changed.active_after) as activations,
+               count(*) filter (where changed.active_before) as deactivations
         from changed
-        where changed.before <> changed.after
+        where changed.active_before <> changed.active_after
             and not exists ( -- a row active at both ends, which the scan above can't see, keeps the contract unchanged
                 select 1
                 from __contracts c
@@ -791,7 +788,7 @@ begin
             )
         group by changed.tpe_pk
     )
-    select tpe.template_fqn, tpe.payload_type, stats.additions, stats.removals
+    select tpe.template_fqn, tpe.payload_type, stats.activations, stats.deactivations
     from stats
          join __contract_tpe tpe on tpe.pk = stats.tpe_pk;
 end

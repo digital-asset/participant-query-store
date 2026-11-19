@@ -86,11 +86,11 @@ object NetChangeSummaryPerfSpec extends SharedHydratedLedgerTest with QueryPerfS
     }
   )
 
-  // summary_updates is the baseline: with one synchronizer and no divulgence, creates - archives = additions - removals
+  // summary_updates is the baseline: with one synchronizer and no divulgence, creates - archives = activations - deactivations
   override protected def executeQuery(sql: SqlFragment): ZIO[Database, Throwable, Map[(String, String), Long]] =
     Database
       .getAll[(String, String, Long, Long)](sql)
       .map(_.collect {
-        case (template, payloadType, added, removed) if added =/= removed =>
-          (template, payloadType) -> (added - removed)
+        case (template, payloadType, activations, deactivations) if activations =/= deactivations =>
+          (template, payloadType) -> (activations - deactivations)
       }.toMap)
