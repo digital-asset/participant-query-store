@@ -248,8 +248,8 @@ object FlywayMigrationSpec extends FuncTestStandalone:
           .deactivations(extraColumns = Seq("deactivation_type"))
           .returns(
             Table {
-              anything | s"${pingPong.name}:PingPong:Ping" | "template" | contractId1 | "unassign"
               anything | s"${pingPong.name}:PingPong:Ping" | "template" | contractId3 | null
+              anything | s"${pingPong.name}:PingPong:Ping" | "template" | contractId1 | "unassign"
             }
           )
       Expect:

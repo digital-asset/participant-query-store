@@ -66,16 +66,6 @@ CREATE TYPE public.activation_type AS ENUM (
 
 
 --
--- Name: deactivation_type; Type: TYPE; Schema: public; Owner: -
---
-
-CREATE TYPE public.deactivation_type AS ENUM (
-    'archive',
-    'unassign'
-);
-
-
---
 -- Name: event_id; Type: TYPE; Schema: public; Owner: -
 --
 
@@ -96,6 +86,7 @@ CREATE TYPE public.activation AS (
 	payload jsonb,
 	contract_key jsonb,
 	metadata bytea,
+	created_effective_at timestamp with time zone,
 	redaction_id text,
 	package_name text,
 	package_version text,
@@ -109,14 +100,7 @@ CREATE TYPE public.activation AS (
 	activate_event_id public.event_id,
 	activated_at_ix bigint,
 	activated_at_offset bigint,
-	created_effective_at timestamp with time zone,
 	activation_type public.activation_type,
-	deactivate_event_pk bigint,
-	deactivate_event_id public.event_id,
-	deactivated_at_ix bigint,
-	deactivated_at_offset bigint,
-	archived_effective_at timestamp with time zone,
-	deactivation_type public.deactivation_type,
 	reassignment_counter bigint,
 	source_synchronizer_id text,
 	synchronizer_id text
@@ -130,6 +114,16 @@ CREATE TYPE public.activation AS (
 CREATE TYPE public.checkpoint AS (
 	"offset" bigint,
 	ix bigint
+);
+
+
+--
+-- Name: deactivation_type; Type: TYPE; Schema: public; Owner: -
+--
+
+CREATE TYPE public.deactivation_type AS ENUM (
+    'archive',
+    'unassign'
 );
 
 
@@ -203,6 +197,8 @@ CREATE TYPE public.deactivation AS (
 	payload jsonb,
 	contract_key jsonb,
 	metadata bytea,
+	created_effective_at timestamp with time zone,
+	archived_effective_at timestamp with time zone,
 	redaction_id text,
 	package_name text,
 	package_version text,
@@ -211,17 +207,10 @@ CREATE TYPE public.deactivation AS (
 	observers text[],
 	creation_package_id text,
 	contract_key_hash bytea,
-	activate_event_pk bigint,
-	activate_event_id public.event_id,
-	activated_at_ix bigint,
-	activated_at_offset bigint,
-	created_effective_at timestamp with time zone,
-	activation_type public.activation_type,
 	deactivate_event_pk bigint,
 	deactivate_event_id public.event_id,
 	deactivated_at_ix bigint,
 	deactivated_at_offset bigint,
-	archived_effective_at timestamp with time zone,
 	deactivation_type public.deactivation_type,
 	reassignment_counter bigint,
 	synchronizer_id text,
@@ -993,6 +982,7 @@ select c.template_fqn,
        c.payload,
        c.contract_key,
        c.metadata,
+       c.created_effective_at,
        c.redaction_id,
        c.package_name,
        c.package_version,
@@ -1006,14 +996,7 @@ select c.template_fqn,
        c.activate_event_id,
        c.activated_at_ix,
        c.activated_at_offset,
-       c.created_effective_at,
        c.activation_type,
-       c.deactivate_event_pk,
-       c.deactivate_event_id,
-       c.deactivated_at_ix,
-       c.deactivated_at_offset,
-       c.archived_effective_at,
-       c.deactivation_type,
        c.reassignment_counter,
        r.source_synchronizer_id,
        c.synchronizer_id
@@ -1193,6 +1176,8 @@ select c.template_fqn,
        c.payload,
        c.contract_key,
        c.metadata,
+       c.created_effective_at,
+       c.archived_effective_at,
        c.redaction_id,
        c.package_name,
        c.package_version,
@@ -1201,19 +1186,12 @@ select c.template_fqn,
        c.observers,
        c.creation_package_id,
        c.contract_key_hash,
-       c.activate_event_pk,
-       c.activate_event_id,
-       c.activated_at_ix,
-       c.activated_at_offset,
-       c.created_effective_at,
-       c.activation_type,
        c.deactivate_event_pk,
        c.deactivate_event_id,
        c.deactivated_at_ix,
        c.deactivated_at_offset,
-       c.archived_effective_at,
        c.deactivation_type,
-       c.reassignment_counter,
+       r.reassignment_counter,
        c.synchronizer_id,
        r.target_synchronizer_id
 from __contracts(qname) c

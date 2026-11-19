@@ -1142,6 +1142,7 @@ select c.template_fqn,
        c.payload,
        c.contract_key,
        c.metadata,
+       c.created_effective_at,
        c.redaction_id,
        c.package_name,
        c.package_version,
@@ -1155,14 +1156,7 @@ select c.template_fqn,
        c.activate_event_id,
        c.activated_at_ix,
        c.activated_at_offset,
-       c.created_effective_at,
        c.activation_type,
-       c.deactivate_event_pk,
-       c.deactivate_event_id,
-       c.deactivated_at_ix,
-       c.deactivated_at_offset,
-       c.archived_effective_at,
-       c.deactivation_type,
        c.reassignment_counter,
        r.source_synchronizer_id,
        c.synchronizer_id
@@ -1443,6 +1437,8 @@ select c.template_fqn,
        c.payload,
        c.contract_key,
        c.metadata,
+       c.created_effective_at,
+       c.archived_effective_at,
        c.redaction_id,
        c.package_name,
        c.package_version,
@@ -1451,19 +1447,12 @@ select c.template_fqn,
        c.observers,
        c.creation_package_id,
        c.contract_key_hash,
-       c.activate_event_pk,
-       c.activate_event_id,
-       c.activated_at_ix,
-       c.activated_at_offset,
-       c.created_effective_at,
-       c.activation_type,
        c.deactivate_event_pk,
        c.deactivate_event_id,
        c.deactivated_at_ix,
        c.deactivated_at_offset,
-       c.archived_effective_at,
        c.deactivation_type,
-       c.reassignment_counter,
+       r.reassignment_counter,
        c.synchronizer_id,
        r.target_synchronizer_id
 from __contracts(qname) c
@@ -1478,7 +1467,7 @@ Qualified name can be:
 Qualified name cannot be ambiguous.
 Only deactivations within [from_offset; to_offset] range are considered.
 Every archive and unassign is its own row. Divulged-only contracts are not returned.
-target_synchronizer_id is NULL for archives.
+reassignment_counter and target_synchronizer_id are NULL for archives.
 Raises an error when from_offset is before the pruned offset.$$;
 
 create or replace function summary_archives(

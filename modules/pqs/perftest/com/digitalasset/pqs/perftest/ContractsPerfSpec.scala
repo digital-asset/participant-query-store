@@ -197,12 +197,15 @@ object ContractsPerfSpec extends SharedHydratedLedgerTest with QueryPerfSpec[Int
   )
 
   private def windowBenchmark(function: String, baselineFunction: String) =
-    def query(tag: String, repeat: Int, expectedDiff: Double = 0)(sql: SqlFragment => SqlFragment) =
+    def query(tag: String, repeat: Int, expectedDiff: Double = 0, tolerance: Double = 0.3)(
+        sql: SqlFragment => SqlFragment
+    ) =
       Query(
         tag,
         sql(SqlFragment(function)),
         repeat,
         expectedDiff,
+        tolerance,
         baselineSql = Some(sql(SqlFragment(baselineFunction)))
       )
     for
@@ -211,13 +214,13 @@ object ContractsPerfSpec extends SharedHydratedLedgerTest with QueryPerfSpec[Int
       offset10   <- Database.getOffset((lastIx * 0.1).toLong)
       archivedId <- Database.get[String](sql"select min(contract_id) from archives('Blob:BlobA')")
     yield Benchmark(
-      query("select_star_from_all_at_10", repeat = 8)(f =>
+      query("select_star_from_all_at_10", repeat = 8, expectedDiff = -0.22)(f =>
         sql"select * from " ++ f ++ sql"(null, oldest_offset(), $offset10)"
       ),
-      query("select_star_from_bloba_at_100", repeat = 4)(f =>
+      query("select_star_from_bloba_at_100", repeat = 4, expectedDiff = -0.45)(f =>
         sql"select * from " ++ f ++ sql"('Blob:BlobA', oldest_offset(), $offset100)"
       ),
-      query("select_star_from_bloba_at_10", repeat = 16)(f =>
+      query("select_star_from_bloba_at_10", repeat = 16, expectedDiff = -0.38)(f =>
         sql"select * from " ++ f ++ sql"('Blob:BlobA', oldest_offset(), $offset10)"
       ),
       query("select_cid_from_bloba_at_100", repeat = 4)(f =>
@@ -226,7 +229,7 @@ object ContractsPerfSpec extends SharedHydratedLedgerTest with QueryPerfSpec[Int
       query("select_star_from_bloba_at_100_filter_on_cid", repeat = 1000)(f =>
         sql"select * from " ++ f ++ sql"('Blob:BlobA', oldest_offset(), $offset100) where contract_id = $archivedId"
       ),
-      query("select_star_from_bloba_at_100_limit_10", repeat = 200, expectedDiff = 1.15)(f =>
+      query("select_star_from_bloba_at_100_limit_10", repeat = 200, expectedDiff = -0.2, tolerance = 0.4)(f =>
         sql"select * from " ++ f ++ sql"('Blob:BlobA', oldest_offset(), $offset100) limit 10"
       )
     )
