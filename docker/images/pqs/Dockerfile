@@ -13,6 +13,7 @@ LABEL org.opencontainers.image.base.name="europe-docker.pkg.dev/da-images/public
 COPY LICENSE.txt /LICENSE.txt
 COPY --from=otel /javaagent.jar /open-telemetry.jar
 
+# TODO #253 Remove -XX:-UseBASE64Intrinsics once da-base-image ship a patched JDK
 # -XX:-UseBASE64Intrinsics mitigates CVE-2026-114938 (Java4Shell) until the base image ships a patched JDK
 ENV JAVA_TOOL_OPTIONS="-javaagent:/open-telemetry.jar -Djdk.attach.allowAttachSelf -XX:-UseBASE64Intrinsics"
 ENV OTEL_INSTRUMENTATION_MICROMETER_ENABLED=true
