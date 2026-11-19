@@ -60,7 +60,7 @@ object CantonConf:
     } yield (ver.getMajor, ver.getMinor) match {
       case (3, 4) => Canton34(cantonVersion)
       case (3, 5) => Canton35(cantonVersion)
-      case _      => sys.error(s"unsupported Canton version $ver")
+      case _      => Canton35(cantonVersion)
     }
 
   val layer: ZLayer[FTEnv, Throwable, CantonConf] =
