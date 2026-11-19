@@ -1165,14 +1165,16 @@ from __contracts(qname) c
 where not c.divulged_only
     and c.activated_at_ix between (select __nearest_unpruned_ix_ceil(from_offset)) and (select __nearest_ix_floor(to_offset))
 $$ language sql stable parallel safe;
-comment on function activations(text, __transactions."offset"%type, __transactions."offset"%type) is $$Returns payload and metadata for activated (created or assigned) contracts of the given Daml qualified name.
+comment on function activations(text, __transactions."offset"%type, __transactions."offset"%type) is $$Returns a row per activation (create or assign) of contracts of the given Daml qualified name.
 Qualified name can be:
 - fully qualified, e.g. '<package-id>:<module-path>:<template-name>'
 - partially qualified, e.g. '<module-path>:<template-name>' or '<template-name>'
 Qualified name cannot be ambiguous.
 Only activations within [from_offset; to_offset] range are considered.
-Every create and assign is its own row. Divulged-only contracts are not returned.
+Divulged-only contracts are not returned.
+created_effective_at is NULL for assigns and for the rows recorded by the ACS import.
 source_synchronizer_id is NULL for creates and for the assigns recorded by the ACS import.
+synchronizer_id is the target synchronizer for assigns; it is NULL on rows written by PQS 3.7 or older.
 Raises an error when from_offset is before the pruned offset.$$;
 
 create or replace function summary_creates(
@@ -1460,14 +1462,18 @@ from __contracts(qname) c
 where not c.divulged_only
     and c.deactivated_at_ix between (select __nearest_unpruned_ix_ceil(from_offset)) and (select __nearest_ix_floor(to_offset))
 $$ language sql stable parallel safe;
-comment on function deactivations(text, __transactions."offset"%type, __transactions."offset"%type) is $$Returns payload and metadata for deactivated (archived or unassigned) contracts of the given Daml qualified name.
+comment on function deactivations(text, __transactions."offset"%type, __transactions."offset"%type) is $$Returns a row per deactivation (archive or unassign) of contracts of the given Daml qualified name.
 Qualified name can be:
 - fully qualified, e.g. '<package-id>:<module-path>:<template-name>'
 - partially qualified, e.g. '<module-path>:<template-name>' or '<template-name>'
 Qualified name cannot be ambiguous.
 Only deactivations within [from_offset; to_offset] range are considered.
-Every archive and unassign is its own row. Divulged-only contracts are not returned.
+Divulged-only contracts are not returned.
+created_effective_at is NULL when the contract was activated by an assign or recorded by the ACS import.
+archived_effective_at is NULL for unassigns.
+deactivation_type is NULL on rows archived by PQS 3.7 or older.
 reassignment_counter and target_synchronizer_id are NULL for archives.
+synchronizer_id is the source synchronizer for unassigns; it is NULL when the activation was written by PQS 3.7 or older.
 Raises an error when from_offset is before the pruned offset.$$;
 
 create or replace function summary_archives(
