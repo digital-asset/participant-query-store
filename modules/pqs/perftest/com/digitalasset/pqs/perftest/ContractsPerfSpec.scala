@@ -11,6 +11,9 @@ object ContractsPerfSpec extends SharedHydratedLedgerTest with QueryPerfSpec[Int
 
   def spec = suite("ContractsPerfSpec")(
     perfTest("active") {
+      val blobA = "Blob:BlobA"
+      val blobB = "Blob:BlobB"
+      val blobC = "Blob:BlobC"
       for
         lastIx    <- Database.getLastIx // 29767
         offset100 <- Database.getOffset(lastIx)
@@ -18,75 +21,97 @@ object ContractsPerfSpec extends SharedHydratedLedgerTest with QueryPerfSpec[Int
         offset10  <- Database.getOffset((lastIx * 0.1).toLong)
         blobA = "Blob:BlobA"
       yield Benchmark(
-        // The dedup anti-join adds a extra scan of active contracts
-        // and activates JIT, a fixed cost that dominates at small offsets.
+        // The dedup lateral join probes the contract_id index once per active contract (~2 µs each),
+        // serially above the Gather. Its high plan cost activates JIT, a fixed cost that dominates at small offsets.
         Query(
           "select_star_from_all_at_100",
           sql"select * from active(null, $offset100)",
           repeat = 2,
-          expectedDiff = 1.17,
-          tolerance = 0.4
+          expectedDiff = 0.73
         ),
         Query(
           "select_star_from_all_at_50",
           sql"select * from active(null, $offset50)",
           repeat = 2,
-          expectedDiff = 1.20
+          expectedDiff = 0.90
         ),
         Query(
           "select_star_from_all_at_10",
           sql"select * from active(null, $offset10)",
           repeat = 8,
-          expectedDiff = 1.63,
-          tolerance = 0.4
+          expectedDiff = 1.25
         ),
 
-        // Nested loop anti-join: one extra scan of the active contracts, no JIT.
+        // Same serial per-contract probes, no JIT.
         Query(
           "select_star_from_bloba_at_100",
           sql"select * from active($blobA, $offset100)",
           repeat = 4,
-          expectedDiff = 0.45
+          expectedDiff = 0.73
         ),
         Query(
           "select_star_from_bloba_at_50",
           sql"select * from active($blobA, $offset50)",
           repeat = 4,
-          expectedDiff = 0.36
+          expectedDiff = 0.45
         ),
         Query(
           "select_star_from_bloba_at_10",
           sql"select * from active($blobA, $offset10)",
           repeat = 16,
-          expectedDiff = 0.34
+          expectedDiff = 0.52
         ),
 
-        // Baseline is a bare scan with no joins, so the anti-join weighs more
+        // Baseline is a bare scan with no joins, so the per-contract probes weigh more
         Query(
           "select_cid_from_all_at_100",
           sql"select contract_id from active(null, $offset100)",
           repeat = 2,
-          expectedDiff = 1.06
+          expectedDiff = 1.60
         ),
         Query(
           "select_cid_from_bloba_at_100",
           sql"select contract_id from active($blobA, $offset100)",
           repeat = 4,
-          expectedDiff = 0.59
+          expectedDiff = 1.40
         ),
 
-        // Candidate filters in a parallel scan (baseline is serial)
+        // The payload filter runs in the contract scan, so only the matching contracts are probed
         Query(
           "select_star_from_all_at_100_filter_on_payload",
           sql"select * from active(null, $offset100) where payload ->> 'value' = '42'",
           repeat = 4,
-          expectedDiff = -0.48
+          expectedDiff = 0
         ),
         Query(
           "select_star_from_bloba_at_100_filter_on_payload",
           sql"select * from active($blobA, $offset100) where payload ->> 'value' = '42'",
           repeat = 8,
-          expectedDiff = -0.03
+          expectedDiff = 0
+        ),
+
+        // Two active() calls joined on payload
+        Query(
+          "select_star_from_blobc_join_blobb_on_payload",
+          sql"""select * from active($blobC, $offset100) c
+                join active($blobB, $offset100) b on b.payload ->> 'value' = c.payload ->> 'value'
+                where c.payload ->> 'value' = '42'""",
+          repeat = 8,
+          expectedDiff = 0
+        ),
+
+        // Only 20 contracts are probed by a serial anti-join
+        Query(
+          "select_star_from_all_at_100_limit_20",
+          sql"select * from active(null, $offset100) LIMIT 20",
+          repeat = 4,
+          expectedDiff = 0.12
+        ),
+        Query(
+          "select_star_from_bloba_at_100_limit_20",
+          sql"select * from active($blobA, $offset100) LIMIT 20",
+          repeat = 8,
+          expectedDiff = 0.1
         )
       )
     },
@@ -138,7 +163,7 @@ object ContractsPerfSpec extends SharedHydratedLedgerTest with QueryPerfSpec[Int
           sql"select contract_id from contracts($blobA, $offset100)",
           baselineSql = Some(sql"select contract_id from creates($blobA, oldest_offset(), $offset100)"),
           repeat = 4,
-          expectedDiff = 0.92,
+          expectedDiff = 1.32,
           tolerance = 0.4
         ),
 
