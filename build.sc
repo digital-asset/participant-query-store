@@ -262,7 +262,7 @@ object `package` extends RootModule { root =>
       def moduleName    = "pqs"
       override def tags = T { Seq(s"${moduleName()}${localImageSuffix()}") }
       def baseImage     = Task.Input { T.env.getOrElse[String]("PQS_IMAGE_BASE", dockerImage) }
-      def jvmOptions    = T { Seq("-Djdk.attach.allowAttachSelf") ++ super.jvmOptions() }
+      def jvmOptions    = T { Seq("-Djdk.attach.allowAttachSelf", "-XX:-UseBASE64Intrinsics") ++ super.jvmOptions() }
 
       def run = T {
         val mavenRepo = allRepositories()

@@ -10,7 +10,6 @@ _Write summary of release_
 
 ## What's New
 
-### Minor Improvements
+### Security
 
-### Helm Chart
-- Removed `readOnlyRootFilesystem: false` from the pod-level `securityContext`, where it is not a valid field and had no effect.
+- The Docker image and the dpm component disable the JVM's hardware-accelerated Base64 decoder (`-XX:-UseBASE64Intrinsics`) to mitigate CVE-2026-114938 (Java4Shell). The image sets the flag in `JAVA_TOOL_OPTIONS`, the dpm component in its `jvm-args`. If you override `JAVA_TOOL_OPTIONS`, or run `pqs.jar` directly, add the flag yourself or use a patched JDK.
