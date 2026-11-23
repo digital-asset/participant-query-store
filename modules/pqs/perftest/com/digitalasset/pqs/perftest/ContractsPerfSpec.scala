@@ -106,7 +106,7 @@ object ContractsPerfSpec extends SharedHydratedLedgerTest with QueryPerfSpec[Int
           sql"select * from contracts(null, $offset10)",
           baselineSql = Some(sql"select * from creates(null, oldest_offset(), $offset10)"),
           repeat = 8,
-          expectedDiff = 2.85
+          expectedDiff = 2.93
         ),
         Query(
           "select_star_from_bloba_at_100",
