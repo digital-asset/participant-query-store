@@ -98,6 +98,12 @@ object Database:
   def creates(qname: Option[String] = None, extraColumns: Seq[String] = Seq.empty) =
     selectContracts(sql"creates($qname)", extraColumns)
 
+  def activations(qname: Option[String] = None, extraColumns: Seq[String] = Seq.empty) =
+    selectContracts(sql"activations($qname)", extraColumns)
+
+  def deactivations(qname: Option[String] = None, extraColumns: Seq[String] = Seq.empty) =
+    selectContracts(sql"deactivations($qname)", extraColumns, orderBy = "deactivated_at_ix")
+
   def lookupContract(contractId: String, qname: Option[String] = None, extraColumns: Seq[String] = Seq.empty) =
     selectContracts(sql"lookup_contract($contractId, $qname)", extraColumns)
 
@@ -290,6 +296,6 @@ object Database:
         }
         .map(_.map(Table.build))
 
-  private def selectContracts(Table: SqlFragment, extraColumns: Seq[String]) =
+  private def selectContracts(Table: SqlFragment, extraColumns: Seq[String], orderBy: String = "activated_at_ix") =
     val select = SqlFragment.select((Seq("package_id", "template_fqn", "payload_type", "contract_id") ++ extraColumns)*)
-    query(sql"$select from $Table order by activated_at_ix, template_fqn, payload_type desc")
+    query(sql"$select from $Table order by " ++ SqlFragment(orderBy) ++ sql", template_fqn, payload_type desc")

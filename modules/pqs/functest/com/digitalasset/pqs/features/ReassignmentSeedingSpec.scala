@@ -54,12 +54,40 @@ object ReassignmentSeedingSpec extends SharedMultiSyncLedgerSpec:
         Database.creates().returns(Table.empty)
       Expect:
         Database
+          .activations(extraColumns = Seq("source_synchronizer_id"))
+          .returns(Table(dar.get.packageId | s"${pingPong.name}:PingPong:Ping" | "template" | contractId | null))
+      Expect:
+        Database
           .query(sql"""select "type"::text from __events""")
           .returns(Table("assign"))
       Expect:
         Database
           .query(sql"select * from summary_updates()")
           .returns(Table(s"${pingPong.name}:PingPong:Ping" | "template" | 0 | 0 | 1 | 0))
+    },
+    funcTest("Contract seeded from the ACS as a create has no created_effective_at") {
+      val alice      = Party("Alice")
+      val dar        = Capture[DarFile]
+      val contractId = Capture[String]
+      Given:
+        DamlSdk.allocateParties(alice -> Seq(sync1, sync2))
+      And:
+        dar.captureFromService
+      Then:
+        createContract(alice).is(contractId.capture)
+      When:
+        Postgres.database
+          >+> Pqs.runPipeline(
+            "--pipeline-ledger-start=Latest",
+            "--pipeline-ledger-stop=Latest"
+          )
+
+      Expect:
+        Database
+          .activations(extraColumns = Seq("activation_type", "created_effective_at is null"))
+          .returns(
+            Table(dar.get.packageId | s"${pingPong.name}:PingPong:Ping" | "template" | contractId | "create" | true)
+          )
     },
     funcTest("Contract seeded from the ACS as an assign can be archived") {
       val alice      = Party("Alice")

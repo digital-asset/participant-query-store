@@ -193,12 +193,17 @@ object FlywayMigrationSpec extends FuncTestStandalone:
 
       val contractId1 = Capture[String]
       val contractId2 = Capture[String]
+      val contractId3 = Capture[String]
       Then:
         createContract(alice, sync1).is(contractId1.capture)
       And:
         Ledger.reassign(contractId1.get, alice, sync1, sync2)
         // create another contract to force watermark advancement
           *> createContract(alice, sync2).is(contractId2.capture)
+      And:
+        createContract(alice, sync2)
+          .tap(Ledger.archive("PingPong:Ping", _, alice, sync2))
+          .is(contractId3.capture)
       And:
         Pqs37.runPipeline(
           "--pipeline-datasource=TransactionStream",
@@ -232,9 +237,19 @@ object FlywayMigrationSpec extends FuncTestStandalone:
           )
           .returns(
             Table {
-              anything | anything | contractId1 | "[1,3)" | "unassign" | "3"  | 0 | null
+              anything | anything | contractId1 | "[1,5)" | "unassign" | "5"  | 0 | null
               anything | anything | contractId2 | "[2,)"  | null       | null | 0 | null
-              anything | anything | contractId1 | "[4,)"  | null       | null | 2 | sync1.id
+              anything | anything | contractId3 | "[3,4)" | null       | "4"  | 0 | null
+              anything | anything | contractId1 | "[6,)"  | null       | null | 2 | sync1.id
+            }
+          )
+      Expect:
+        Database
+          .deactivations(extraColumns = Seq("deactivation_type", "synchronizer_id", "target_synchronizer_id"))
+          .returns(
+            Table {
+              anything | s"${pingPong.name}:PingPong:Ping" | "template" | contractId3 | null       | null | null
+              anything | s"${pingPong.name}:PingPong:Ping" | "template" | contractId1 | "unassign" | null | sync1.id
             }
           )
       Expect:

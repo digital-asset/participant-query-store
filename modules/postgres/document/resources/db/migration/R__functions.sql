@@ -82,6 +82,16 @@ begin
 end
 $$ language plpgsql immutable parallel safe;
 
+create or replace function __nearest_unpruned_ix_ceil("offset" checkpoint."offset"%type) returns checkpoint.ix%type as
+$$
+begin
+    if "offset" < pruned_offset() then
+        raise exception 'Offset % is before the pruned offset %', "offset", pruned_offset();
+    end if;
+    return __nearest_ix_ceil("offset");
+end
+$$ language plpgsql stable parallel safe;
+
 create or replace function __contracts(qname text default null) returns setof contract
 as
 $$
@@ -1120,6 +1130,53 @@ Qualified name can be:
 Qualified name cannot be ambiguous.
 Only contracts within [from_offset; to_offset] range are considered.$$;
 
+create or replace function activations(
+    qname text default null,
+    from_offset __transactions."offset"%type default coalesce(pruned_offset(), oldest_offset()),
+    to_offset __transactions."offset"%type default latest_offset()
+) returns setof activation as
+$$
+select c.template_fqn,
+       c.payload_type,
+       c.contract_id,
+       c.payload,
+       c.contract_key,
+       c.metadata,
+       c.created_effective_at,
+       c.redaction_id,
+       c.package_name,
+       c.package_version,
+       c.package_id,
+       c.signatories,
+       c.observers,
+       c.witnesses,
+       c.creation_package_id,
+       c.contract_key_hash,
+       c.activate_event_pk,
+       c.activate_event_id,
+       c.activated_at_ix,
+       c.activated_at_offset,
+       c.activation_type,
+       c.reassignment_counter,
+       r.source_synchronizer_id,
+       c.synchronizer_id
+from __contracts(qname) c
+    left join __reassignments r on r.reassign_event_pk = c.activate_event_pk and r.reassigned_at_ix = c.activated_at_ix
+where not c.divulged_only
+    and c.activated_at_ix between (select __nearest_unpruned_ix_ceil(from_offset)) and (select __nearest_ix_floor(to_offset))
+$$ language sql stable parallel safe;
+comment on function activations(text, __transactions."offset"%type, __transactions."offset"%type) is $$Returns a row per activation (create or assign) of contracts of the given Daml qualified name.
+Qualified name can be:
+- fully qualified, e.g. '<package-id>:<module-path>:<template-name>'
+- partially qualified, e.g. '<module-path>:<template-name>' or '<template-name>'
+Qualified name cannot be ambiguous.
+Only activations within [from_offset; to_offset] range are considered.
+Divulged-only contracts are not returned.
+created_effective_at is NULL for assigns and for the rows recorded by the ACS import.
+source_synchronizer_id is NULL for creates and for the assigns recorded by the ACS import.
+synchronizer_id is the target synchronizer for assigns; it is NULL on rows written by PQS 3.7 or older.
+Raises an error when from_offset is before the pruned offset.$$;
+
 create or replace function summary_creates(
     from_offset __transactions."offset"%type default oldest_offset(),
     to_offset __transactions."offset"%type default latest_offset()
@@ -1369,6 +1426,55 @@ Qualified name can be:
 - partially qualified, e.g. '<module-path>:<template-name>' or '<template-name>'
 Qualified name cannot be ambiguous.
 Only contracts within [from_offset; to_offset] range are considered.$$;
+
+create or replace function deactivations(
+    qname text default null,
+    from_offset __transactions."offset"%type default coalesce(pruned_offset(), oldest_offset()),
+    to_offset __transactions."offset"%type default latest_offset()
+) returns setof deactivation as
+$$
+select c.template_fqn,
+       c.payload_type,
+       c.contract_id,
+       c.payload,
+       c.contract_key,
+       c.metadata,
+       c.created_effective_at,
+       c.archived_effective_at,
+       c.redaction_id,
+       c.package_name,
+       c.package_version,
+       c.package_id,
+       c.signatories,
+       c.observers,
+       c.creation_package_id,
+       c.contract_key_hash,
+       c.deactivate_event_pk,
+       c.deactivate_event_id,
+       c.deactivated_at_ix,
+       c.deactivated_at_offset,
+       c.deactivation_type,
+       r.reassignment_counter,
+       c.synchronizer_id,
+       r.target_synchronizer_id
+from __contracts(qname) c
+    left join __reassignments r on r.reassign_event_pk = c.deactivate_event_pk and r.reassigned_at_ix = c.deactivated_at_ix
+where not c.divulged_only
+    and c.deactivated_at_ix between (select __nearest_unpruned_ix_ceil(from_offset)) and (select __nearest_ix_floor(to_offset))
+$$ language sql stable parallel safe;
+comment on function deactivations(text, __transactions."offset"%type, __transactions."offset"%type) is $$Returns a row per deactivation (archive or unassign) of contracts of the given Daml qualified name.
+Qualified name can be:
+- fully qualified, e.g. '<package-id>:<module-path>:<template-name>'
+- partially qualified, e.g. '<module-path>:<template-name>' or '<template-name>'
+Qualified name cannot be ambiguous.
+Only deactivations within [from_offset; to_offset] range are considered.
+Divulged-only contracts are not returned.
+created_effective_at is NULL when the contract was activated by an assign or recorded by the ACS import.
+archived_effective_at is NULL for unassigns.
+deactivation_type is NULL on rows archived by PQS 3.7 or older.
+reassignment_counter and target_synchronizer_id are NULL for archives.
+synchronizer_id is the source synchronizer for unassigns; it is NULL when the activation was written by PQS 3.7 or older.
+Raises an error when from_offset is before the pruned offset.$$;
 
 create or replace function summary_archives(
     from_offset __transactions."offset"%type default coalesce(pruned_offset(), oldest_offset()),

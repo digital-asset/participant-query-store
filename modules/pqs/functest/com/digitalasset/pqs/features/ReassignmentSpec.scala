@@ -197,6 +197,35 @@ object ReassignmentSpec extends SharedMultiSyncLedgerSpec:
                        )""")
           .returns(Table(createdAtOffset))
       Expect:
+        Database
+          .activations(extraColumns =
+            Seq("activated_at_offset", "source_synchronizer_id", "synchronizer_id", "created_effective_at is null")
+          )
+          .returns(
+            Table {
+              dar.get.packageId | s"${pingPong.name}:PingPong:Ping" | "template" | contractId | createdAtOffset | null | sync1.id | false
+              dar.get.packageId | s"${pingPong.name}:PingPong:Ping" | "template" | contractId | assignedAtOffset | sync1.id | sync2.id | true
+            }
+          )
+      Expect:
+        Database
+          .deactivations(extraColumns =
+            Seq(
+              "deactivation_type",
+              "deactivated_at_offset",
+              "synchronizer_id",
+              "target_synchronizer_id",
+              "reassignment_counter::text",
+              "archived_effective_at is null"
+            )
+          )
+          .returns(
+            Table {
+              dar.get.packageId | s"${pingPong.name}:PingPong:Ping" | "template" | contractId | "unassign" | unassignedAtOffset | sync1.id | sync2.id | "1" | true
+              dar.get.packageId | s"${pingPong.name}:PingPong:Ping" | "template" | contractId | "archive" | archivedAtOffset | sync2.id | null | null | false
+            }
+          )
+      Expect:
         netChangeSummaryAtEachOffset.returns(
           Table {
             createdAtOffset    | s"${pingPong.name}:PingPong:Ping" | "template" | 1 | 0
