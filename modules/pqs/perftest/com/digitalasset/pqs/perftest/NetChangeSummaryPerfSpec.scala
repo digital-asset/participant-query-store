@@ -30,20 +30,22 @@ object NetChangeSummaryPerfSpec extends SharedHydratedLedgerTest with QueryPerfS
           sql"select * from __net_change_summary($offset10, $offset10)",
           baselineSql = Some(sql"select * from summary_updates($offset10, $offset10)"),
           repeat = 1500,
-          expectedDiff = -0.20
+          expectedDiff = 0.08
         ),
         Query(
           "single_at_50",
           sql"select * from __net_change_summary($offset50, $offset50)",
           baselineSql = Some(sql"select * from summary_updates($offset50, $offset50)"),
-          repeat = 1500
+          repeat = 1500,
+          expectedDiff = 0.22
         ),
         Query(
           "single_at_100",
           sql"select * from __net_change_summary($offset100, $offset100)",
           baselineSql = Some(sql"select * from summary_updates($offset100, $offset100)"),
           repeat = 1500,
-          expectedDiff = 0.57
+          expectedDiff = 1.05,
+          tolerance = 0.4
         ),
 
         // One probe per changed contract, where summary_updates counts index entries per template
@@ -52,15 +54,16 @@ object NetChangeSummaryPerfSpec extends SharedHydratedLedgerTest with QueryPerfS
           sql"select * from __net_change_summary($offset50, $offset50p10)",
           baselineSql = Some(sql"select * from summary_updates($offset50, $offset50p10)"),
           repeat = 1500,
-          expectedDiff = 1.64
+          expectedDiff = 2.61,
+          tolerance = 0.5
         ),
         Query(
           "100_transactions_at_50",
           sql"select * from __net_change_summary($offset50, $offset50p100)",
           baselineSql = Some(sql"select * from summary_updates($offset50, $offset50p100)"),
           repeat = 1000,
-          expectedDiff = 17.08,
-          tolerance = 3.0
+          expectedDiff = 17.28,
+          tolerance = 1.7
         ),
 
         // One probe per changed contract over a fifth of the ledger
@@ -69,8 +72,8 @@ object NetChangeSummaryPerfSpec extends SharedHydratedLedgerTest with QueryPerfS
           sql"select * from __net_change_summary($offset40, $offset60)",
           baselineSql = Some(sql"select * from summary_updates($offset40, $offset60)"),
           repeat = 25,
-          expectedDiff = 33.58,
-          tolerance = 5.0
+          expectedDiff = 34.52,
+          tolerance = 2.5
         ),
 
         // Nothing is active before the first transaction, so every contract active at the end is probed
@@ -79,8 +82,8 @@ object NetChangeSummaryPerfSpec extends SharedHydratedLedgerTest with QueryPerfS
           sql"select * from __net_change_summary($oldest, $offset100)",
           baselineSql = Some(sql"select * from summary_updates($oldest, $offset100)"),
           repeat = 3,
-          expectedDiff = 9.05,
-          tolerance = 2.5
+          expectedDiff = 8.72,
+          tolerance = 1.0
         )
       )
     }
