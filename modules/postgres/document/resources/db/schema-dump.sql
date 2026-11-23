@@ -779,6 +779,103 @@ $$;
 
 
 --
+-- Name: latest_offset(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.latest_offset() RETURNS bigint
+    LANGUAGE sql STABLE PARALLEL SAFE
+    AS $$
+select case
+           when coalesce(current_setting('pqs.session_offset_latest', true), '') = ''
+               then (select "offset" from latest_checkpoint())
+           else current_setting('pqs.session_offset_latest', false)::bigint
+           end;
+$$;
+
+
+--
+-- Name: oldest_offset(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.oldest_offset() RETURNS bigint
+    LANGUAGE sql STABLE PARALLEL SAFE
+    AS $$
+select case
+           when coalesce(current_setting('pqs.session_offset_oldest', true), '') = ''
+               then (select "offset" from oldest_checkpoint())
+           else current_setting('pqs.session_offset_oldest', false)::bigint
+           end;
+$$;
+
+
+--
+-- Name: pruned_offset(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.pruned_offset() RETURNS bigint
+    LANGUAGE sql STABLE PARALLEL SAFE
+    AS $$
+    select pruned_offset from __pruning_metadata;
+$$;
+
+
+--
+-- Name: __net_change_summary(bigint, bigint); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.__net_change_summary(from_offset bigint DEFAULT COALESCE(public.pruned_offset(), public.oldest_offset()), to_offset bigint DEFAULT public.latest_offset()) RETURNS TABLE(template_fqn text, payload_type public.__payload_type, activations bigint, deactivations bigint)
+    LANGUAGE plpgsql STABLE
+    SET plan_cache_mode TO 'force_generic_plan'
+    SET jit TO 'off'
+    AS $$
+declare
+    from_ix bigint;
+    to_ix bigint;
+    one bigint := 1;
+begin
+    if from_offset < pruned_offset() then
+        raise exception 'Offset % is before the pruned offset %', from_offset, pruned_offset();
+    end if;
+    from_ix := __nearest_ix_ceil(from_offset);
+    to_ix := __nearest_ix_floor(to_offset);
+    return query
+    with changed as ( -- whether a contract with a row activated or deactivated in the range is active before and after it
+        select c.tpe_pk,
+               c.contract_id,
+               bool_or(c.life_ix @> (from_ix - 1)) as active_before,
+               bool_or(c.life_ix @> to_ix) as active_after
+        from __contracts c
+        where (c.activated_at_ix between from_ix and to_ix or c.deactivated_at_ix between from_ix and to_ix)
+            -- skips rows active at neither end, which can't change the result, before grouping
+            and (c.life_ix @> (from_ix - 1)) <> (c.life_ix @> to_ix)
+            and not c.divulged_only
+        group by c.tpe_pk, c.contract_id
+    ),
+    stats as (
+        select changed.tpe_pk,
+               count(*) filter (where changed.active_after) as activations,
+               count(*) filter (where changed.active_before) as deactivations
+        from changed
+        where changed.active_before <> changed.active_after
+            and not exists ( -- a row active at both ends, which the scan above can't see, keeps the contract unchanged
+                select 1
+                from __contracts c
+                where c.tpe_pk = changed.tpe_pk
+                    and c.contract_id = changed.contract_id
+                    and c.life_ix @> int8range(from_ix - 1, to_ix, '[]')
+                    and not c.divulged_only
+                limit one -- a parameter keeps this a per-contract probe; an anti-join would scan every active contract
+            )
+        group by changed.tpe_pk
+    )
+    select tpe.template_fqn, tpe.payload_type, stats.activations, stats.deactivations
+    from stats
+         join __contract_tpe tpe on tpe.pk = stats.tpe_pk;
+end
+$$;
+
+
+--
 -- Name: __update_watermark_fn(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -925,47 +1022,6 @@ begin
         raise exception 'Cannot redact exercise with event ID % because it is already redacted', event_id;
     end if;
 end;
-$$;
-
-
---
--- Name: latest_offset(); Type: FUNCTION; Schema: public; Owner: -
---
-
-CREATE FUNCTION public.latest_offset() RETURNS bigint
-    LANGUAGE sql STABLE PARALLEL SAFE
-    AS $$
-select case
-           when coalesce(current_setting('pqs.session_offset_latest', true), '') = ''
-               then (select "offset" from latest_checkpoint())
-           else current_setting('pqs.session_offset_latest', false)::bigint
-           end;
-$$;
-
-
---
--- Name: oldest_offset(); Type: FUNCTION; Schema: public; Owner: -
---
-
-CREATE FUNCTION public.oldest_offset() RETURNS bigint
-    LANGUAGE sql STABLE PARALLEL SAFE
-    AS $$
-select case
-           when coalesce(current_setting('pqs.session_offset_oldest', true), '') = ''
-               then (select "offset" from oldest_checkpoint())
-           else current_setting('pqs.session_offset_oldest', false)::bigint
-           end;
-$$;
-
-
---
--- Name: pruned_offset(); Type: FUNCTION; Schema: public; Owner: -
---
-
-CREATE FUNCTION public.pruned_offset() RETURNS bigint
-    LANGUAGE sql STABLE PARALLEL SAFE
-    AS $$
-    select pruned_offset from __pruning_metadata;
 $$;
 
 
@@ -1857,29 +1913,33 @@ $$;
 -- Name: summary_updates(bigint, bigint); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public.summary_updates(from_offset bigint DEFAULT public.oldest_offset(), to_offset bigint DEFAULT public.latest_offset()) RETURNS TABLE(template_fqn text, payload_type public.__payload_type, creates bigint, archives bigint)
+CREATE FUNCTION public.summary_updates(from_offset bigint DEFAULT public.oldest_offset(), to_offset bigint DEFAULT public.latest_offset()) RETURNS TABLE(template_fqn text, payload_type public.__payload_type, creates bigint, archives bigint, assigns bigint, unassigns bigint)
     LANGUAGE sql STABLE PARALLEL SAFE
     AS $$
-    with creates as (
-        select c.tpe_pk as tpe_pk, count(*) as count
+    with activations as (
+        select c.tpe_pk as tpe_pk,
+               count(*) filter (where c.activation_type = 'create') as creates,
+               count(*) filter (where c.activation_type = 'assign') as assigns
         from __contracts c
-        where c.activation_type = 'create'
-            and c.activated_at_ix between (select __nearest_ix_ceil(from_offset)) and (select __nearest_ix_floor(to_offset))
+        where c.activated_at_ix between (select __nearest_ix_ceil(from_offset)) and (select __nearest_ix_floor(to_offset))
         group by c.tpe_pk
     ),
-    archives as (
-        select c.tpe_pk as tpe_pk, count(*) as count
+    deactivations as (
+        select c.tpe_pk as tpe_pk,
+               count(*) filter (where c.deactivation_type is null or c.deactivation_type = 'archive') as archives,
+               count(*) filter (where c.deactivation_type = 'unassign') as unassigns
         from __contracts c
-        where (c.deactivation_type is null or c.deactivation_type = 'archive')
-            and c.deactivated_at_ix between (select __nearest_ix_ceil(from_offset)) and (select __nearest_ix_floor(to_offset))
+        where c.deactivated_at_ix between (select __nearest_ix_ceil(from_offset)) and (select __nearest_ix_floor(to_offset))
         group by c.tpe_pk
     )
     select tpe.template_fqn,
            tpe.payload_type,
-           coalesce(creates.count, 0)  as creates,
-           coalesce(archives.count, 0) as archives
-    from (creates full outer join archives on creates.tpe_pk = archives.tpe_pk)
-         join __contract_tpe tpe on creates.tpe_pk = tpe.pk or archives.tpe_pk = tpe.pk
+           coalesce(activations.creates, 0) as creates,
+           coalesce(deactivations.archives, 0) as archives,
+           coalesce(activations.assigns, 0) as assigns,
+           coalesce(deactivations.unassigns, 0) as unassigns
+    from (activations full outer join deactivations on activations.tpe_pk = deactivations.tpe_pk)
+             join __contract_tpe tpe on activations.tpe_pk = tpe.pk or deactivations.tpe_pk = tpe.pk
 $$;
 
 

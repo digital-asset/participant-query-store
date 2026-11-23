@@ -12,10 +12,11 @@ import com.digitalasset.pqs.postgres.document.SqlSchema
 import com.digitalasset.pqs.services.daml.*
 import com.digitalasset.pqs.services.postgres.*
 import com.digitalasset.pqs.services.pqs.Pqs
+import com.digitalasset.pqs.utils.safeequals.=/=
 import com.digitalasset.pqs.{OffsetType, SharedMultiSyncLedgerSpec}
 import com.digitalasset.transcode.codec.json.JsonCodec
 import com.digitalasset.zio.daml.DamlSchema
-import zio.Chunk
+import zio.{Chunk, ZIO}
 import zio.jdbc.*
 import zio.test.Assertion.*
 
@@ -156,6 +157,30 @@ object ReassignmentSpec extends SharedMultiSyncLedgerSpec:
               s"${pingPong.name}:PingPong:Ping" | "unassign" | sync1.id | sync2.id | 1
             }
           )
+      Expect:
+        Database
+          .query(sql"select * from summary_updates()")
+          .returns(
+            Table {
+              s"${pingPong.name}:PingPong:Ping" | "template" | 1 | 1 | 1 | 1
+            }
+          )
+      Expect:
+        Database
+          .query(sql"select * from summary_updates(${unassignedAtOffset.get}, ${unassignedAtOffset.get})")
+          .returns(
+            Table {
+              s"${pingPong.name}:PingPong:Ping" | "template" | 0 | 0 | 0 | 1
+            }
+          )
+      Expect:
+        Database
+          .query(sql"select * from summary_updates(${assignedAtOffset.get}, ${assignedAtOffset.get})")
+          .returns(
+            Table {
+              s"${pingPong.name}:PingPong:Ping" | "template" | 0 | 0 | 1 | 0
+            }
+          )
 
       Expect:
         // A cutoff that falls between the unassign and the assign: later than the create's
@@ -200,6 +225,31 @@ object ReassignmentSpec extends SharedMultiSyncLedgerSpec:
               dar.get.packageId | s"${pingPong.name}:PingPong:Ping" | "template" | contractId | "archive" | archivedAtOffset | sync2.id | null | null | false
             }
           )
+      Expect:
+        netChangeSummaryAtEachOffset.returns(
+          Table {
+            createdAtOffset    | s"${pingPong.name}:PingPong:Ping" | "template" | 1 | 0
+            unassignedAtOffset | s"${pingPong.name}:PingPong:Ping" | "template" | 0 | 1
+            assignedAtOffset   | s"${pingPong.name}:PingPong:Ping" | "template" | 1 | 0
+            archivedAtOffset   | s"${pingPong.name}:PingPong:Ping" | "template" | 0 | 1
+          }
+        )
+      Expect:
+        Database.query(sql"select * from __net_change_summary()").returns(Table.empty)
+      Expect:
+        Database
+          .query(sql"select * from __net_change_summary(${unassignedAtOffset.get}, ${assignedAtOffset.get})")
+          .returns(Table.empty)
+      Expect:
+        Database
+          .query(sql"select * from __net_change_summary(${createdAtOffset.get}, ${assignedAtOffset.get})")
+          .returns(Table(s"${pingPong.name}:PingPong:Ping" | "template" | 1 | 0))
+      Expect:
+        Database
+          .query(sql"select * from __net_change_summary(${assignedAtOffset.get}, ${createdAtOffset.get})")
+          .returns(Table.empty)
+      Expect:
+        netChangeSummaryMismatchesWithActive.is(isEmpty)
     },
     funcTest("contracts() returns every known contract once") {
       val alice        = Party("Alice")
@@ -369,6 +419,17 @@ object ReassignmentSpec extends SharedMultiSyncLedgerSpec:
               s"${pingPong.name}:PingPong:Ping" | "unassign" | contractId | reassignmentId.capture | sync1.id | sync2.id | alice.id | 1
             }
           )
+      Expect:
+        netChangeSummaryAtEachOffset.returns(
+          Table {
+            assignTx.offset.toLong   | s"${pingPong.name}:PingPong:Ping" | "template" | 1 | 0
+            archiveTx.offset.toLong  | s"${pingPong.name}:PingPong:Ping" | "template" | 0 | 1
+            createTx.offset.toLong   | s"${pingPong.name}:PingPong:Ping" | "template" | 1 | 0
+            unassignTx.offset.toLong | s"${pingPong.name}:PingPong:Ping" | "template" | 0 | 1
+          }
+        )
+      Expect:
+        netChangeSummaryMismatchesWithActive.is(isEmpty)
     },
     funcTest("Non-causal stream: assigned before unassigned") {
       val alice      = Party("Alice")
@@ -474,7 +535,15 @@ object ReassignmentSpec extends SharedMultiSyncLedgerSpec:
               dar.get.packageId | s"${pingPong.name}:PingPong:Ping" | "template" | contractId | sync2.id | 1
             }
           )
-
+      Expect:
+        netChangeSummaryAtEachOffset.returns(
+          Table {
+            createTx.offset.toLong  | s"${pingPong.name}:PingPong:Ping" | "template" | 1 | 0
+            archiveTx.offset.toLong | s"${pingPong.name}:PingPong:Ping" | "template" | 0 | 1
+          }
+        )
+      Expect:
+        netChangeSummaryMismatchesWithActive.is(isEmpty)
     },
     funcTest("non-causal stream: repeated interleaved reassignments") {
       val alice      = Party("Alice")
@@ -548,6 +617,15 @@ object ReassignmentSpec extends SharedMultiSyncLedgerSpec:
               dar.get.packageId | s"${pingPong.name}:PingPong:Ping" | "template" | contractId | sync1.id | 4
             }
           )
+      Expect:
+        netChangeSummaryAtEachOffset.returns(
+          Table {
+            1  | s"${pingPong.name}:PingPong:Ping" | "template" | 1 | 0
+            10 | s"${pingPong.name}:PingPong:Ping" | "template" | 0 | 1
+          }
+        )
+      Expect:
+        netChangeSummaryMismatchesWithActive.is(isEmpty)
     },
     funcTest("Non-causal stream: exercises between an assign and its late unassign are returned once") {
       val alice      = Party("Alice")
@@ -666,3 +744,50 @@ object ReassignmentSpec extends SharedMultiSyncLedgerSpec:
           )
     }
   )
+
+  private def netChangeSummaryAtEachOffset =
+    Database.query(sql"""select t."offset", s.*
+                         from __transactions t, __net_change_summary(t."offset", t."offset") s
+                         order by t.ix, s.template_fqn, s.payload_type""")
+
+  private type ActiveContract = (template: String, payloadType: String, contractId: String)
+
+  private def netChangeSummaryMismatchesWithActive =
+    for
+      offsets <- Database.getAll[Long](sql"""select "offset" from __transactions order by ix""")
+      activeAt <- ZIO.foreach(offsets)(offset =>
+        Database
+          .getAll[ActiveContract](sql"select template_fqn, payload_type::text, contract_id from active(null, $offset)")
+          .map(_.toSet)
+      )
+      starts = offsets.zip(Set.empty[ActiveContract] +: activeAt) // with the contracts active just before
+      ends   = offsets.zip(activeAt)
+      ranges = for
+        (from, before) <- starts
+        (to, after)    <- ends
+        if from <= to
+      yield (from, to, netChange(before, after))
+      results <- ZIO.foreach(ranges)((from, to, expected) =>
+        Database
+          .getAll[(String, String, Long, Long)](
+            sql"select template_fqn, payload_type::text, activations, deactivations from __net_change_summary($from, $to)"
+          )
+          .map(rows =>
+            (
+              from,
+              to,
+              expected,
+              rows
+                .map((template, payload, activations, deactivations) =>
+                  (template, payload) -> (activations, deactivations)
+                )
+                .toMap
+            )
+          )
+      )
+    yield results.filter((_, _, expected, actual) => expected =/= actual)
+
+  private def netChange(before: Set[ActiveContract], after: Set[ActiveContract]) =
+    ((after -- before) ++ (before -- after))
+      .groupBy(ac => (ac.template, ac.payloadType))
+      .map((key, changed) => key -> (changed.count(after.contains).toLong, changed.count(before.contains).toLong))

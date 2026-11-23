@@ -9,6 +9,7 @@ import com.digitalasset.pqs.services.daml.*
 import com.digitalasset.pqs.services.postgres.*
 import com.digitalasset.pqs.services.pqs.Pqs
 import com.digitalasset.pqs.SharedMultiSyncLedgerSpec
+import zio.jdbc.*
 
 import scala.language.{implicitConversions, postfixOps}
 
@@ -148,6 +149,15 @@ object ReassignedContractUpgradesSpec extends SharedMultiSyncLedgerSpec:
             Table {
               pingV1Dar.get.packageId | s"${pingIface.name}:Interfaces:Labelable" | "interface" | contractId | "unassign" | sync1.id | sync2.id
               pingV1Dar.get.packageId | s"${pingIface.name}:Interfaces:Labelable" | "interface" | contractId | "unassign" | sync2.id | sync1.id
+            }
+          )
+      Expect:
+        Database
+          .query(sql"select * from summary_updates() order by payload_type::text")
+          .returns(
+            Table {
+              s"${pingIface.name}:Interfaces:Labelable" | "interface" | 1 | 0 | 2 | 2
+              s"${pingV1.name}:Ping:Ping"               | "template"  | 1 | 0 | 2 | 2
             }
           )
     }

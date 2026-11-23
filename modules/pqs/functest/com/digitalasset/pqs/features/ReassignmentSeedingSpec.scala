@@ -60,6 +60,10 @@ object ReassignmentSeedingSpec extends SharedMultiSyncLedgerSpec:
         Database
           .query(sql"""select "type"::text from __events""")
           .returns(Table("assign"))
+      Expect:
+        Database
+          .query(sql"select * from summary_updates()")
+          .returns(Table(s"${pingPong.name}:PingPong:Ping" | "template" | 0 | 0 | 1 | 0))
     },
     funcTest("Contract seeded from the ACS as a create has no created_effective_at") {
       val alice      = Party("Alice")
@@ -122,5 +126,9 @@ object ReassignmentSeedingSpec extends SharedMultiSyncLedgerSpec:
               dar.get.packageId | s"${pingPong.name}:PingPong:Ping" | "template" | contractId | "0" | "assign" | "1" | "archive" | sync2.id | 1
             }
           )
+      Expect:
+        Database
+          .query(sql"select * from summary_updates()")
+          .returns(Table(s"${pingPong.name}:PingPong:Ping" | "template" | 0 | 1 | 1 | 0))
     }
   )

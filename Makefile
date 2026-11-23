@@ -252,7 +252,15 @@ ASSISTANT_ARGS ?= oci://europe-docker.pkg.dev/da-images/playground/components
 .PHONY: populate-component-yaml
 populate-component-yaml: ## Render dpm component.yaml
 	cp LICENSE.txt .dist/${PQS_VERSION}/LICENSE
-	@printf 'apiVersion: digitalasset.com/v1\nkind: Component\nspec:\n  jar-commands:\n    - path: ./pqs.jar\n      name: pqs\n      desc: participant query store\n' \
+	@printf '%s\n' \
+		'apiVersion: digitalasset.com/v1' \
+		'kind: Component' \
+		'spec:' \
+		'  jar-commands:' \
+		'    - path: ./pqs.jar' \
+		'      name: pqs' \
+		'      desc: participant query store' \
+		'      jvm-args: ["-XX:-UseBASE64Intrinsics"]' \
 		| tee .dist/${PQS_VERSION}/component.yaml
 
 .PHONY: publish-component
