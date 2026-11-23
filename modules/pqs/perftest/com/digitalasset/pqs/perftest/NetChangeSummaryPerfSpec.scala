@@ -37,7 +37,7 @@ object NetChangeSummaryPerfSpec extends SharedHydratedLedgerTest with QueryPerfS
           sql"select * from __net_change_summary($offset50, $offset50)",
           baselineSql = Some(sql"select * from summary_updates($offset50, $offset50)"),
           repeat = 1500,
-          expectedDiff = 0.22 
+          expectedDiff = 0.22
         ),
         Query(
           "single_at_100",
