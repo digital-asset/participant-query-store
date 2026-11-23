@@ -505,6 +505,9 @@ final case class DocumentPostgres(
         acsDelta = contract.acsDelta,
         packagePk = packageMap(contract.representativePackageId),
         creationPackageId = contract.creationPackageId,
+        deactivateEventPk = None,
+        deactivatedAtIx = None,
+        deactivationType = None,
         metrics = metrics
       )
     )
