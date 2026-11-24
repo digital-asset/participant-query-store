@@ -1,7 +1,7 @@
 # Copyright (c) 2026 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-ARG BASE_IMAGE_TAG=jdk
+ARG BASE_IMAGE_TAG=jdk21
 ARG OTEL_VERSION=2.28.1
 FROM otel/autoinstrumentation-java:${OTEL_VERSION} AS otel
 RUN /bin/sha256sum /javaagent.jar

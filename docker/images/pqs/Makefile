@@ -18,7 +18,7 @@ export REGISTRY            ?= europe-docker.pkg.dev/$(GAR_REPOSITORY)/docker
 export REPOSITORY          ?= participant-query-store
 export LEGACY_REPOSITORY   ?= scribe
 export IMAGE_TAG           ?= $(shell echo ${PQS_VERSION} | sed 's|^v||g')
-export BASE_IMAGE_TAG      ?= jdk
+export BASE_IMAGE_TAG      ?= jdk21
 
 ## Variables for image annotation vars:
 export RFC_3339_BUILD_DATE := $(shell date --rfc-3339=seconds)

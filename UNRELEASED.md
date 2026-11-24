@@ -8,8 +8,103 @@ _Write summary of release_
 
 ## SQL Migration
 
+This release includes the following SQL migrations:
+- [V044__Add_reassignment_event_types.sql](https://github.com/digital-asset/participant-query-store/blob/main/modules/postgres/document/resources/db/migration/V044__Add_reassignment_event_types.sql):a dds the `assign` and `unassign` labels to the `__event_type` enum. Metadata-only, no table is scanned or rewritten. **[Impact: Instantaneous]**
+- [V045__Rename_domain_id_to_synchronizer_id.sql](https://github.com/digital-asset/participant-query-store/blob/main/modules/postgres/document/resources/db/migration/V045__Rename_domain_id_to_synchronizer_id.sql): renames the `domain_id` column of `__transactions` to `synchronizer_id`. Metadata-only, no table is scanned or rewritten. **[Impact: Instantaneous]**
+- [V046__Add_multisync_contract_columns.sql](https://github.com/digital-asset/participant-query-store/blob/main/modules/postgres/document/resources/db/migration/V046__Add_multisync_contract_columns.sql) **[Impact: Instantaneous]**:
+  - Define the `activation_type` and `deactivation_type` enums for the new `activation_type` and `deactivation_type` columns in the `__contracts` table.
+  - Rename column `created_at_ix` to `activated_at_ix`, and `archived_at_ix` to `deactivated_at_ix`, in the `__contracts` table.
+  - Add the multi-sync columns `reassignment_counter`, `synchronizer_id` in the `__contracts` table.
+  - Drop the internal `__archives` view.
+  - Drop the `__tmp_archived_contracts` and replace with `__tmp_deactivated_contracts` for internal use by the PQS pipeline.
+- [V047__Create_reassignments_table.sql](https://github.com/digital-asset/participant-query-store/blob/main/modules/postgres/document/resources/db/migration/V047__Create_reassignments_table.sql): creates the `__reassignment_type` enum and the list-partitioned `__reassignments` table, then creates one partition per row already present in `__contract_tpe`. **[Impact: Instantaneous /< 1 min]**
+- [V048__Prunning_reassignments.sql](https://github.com/digital-asset/participant-query-store/blob/main/modules/postgres/document/resources/db/migration/V048__Prunning_reassignments.sql): drops `prune_archived_to_offset` and `prune_archived_to_offset_dry_run` so that they can be re-created with the new `deleted_reassignments` result column. **[Impact: Instantaneous]**
+- [V049__Store_record_time.sql](https://github.com/digital-asset/participant-query-store/blob/main/modules/postgres/document/resources/db/migration/V049__Store_record_time.sql): adds the `record_time` column to `__transactions`. Metadata-only, no table is scanned or rewritten. **[Impact: Instantaneous]**
+- [V050__Store_exercise_synchronizer_id.sql](https://github.com/digital-asset/participant-query-store/blob/main/modules/postgres/document/resources/db/migration/V050__Store_exercise_synchronizer_id.sql): adds the `synchronizer_id` column to `__exercises`. Metadata-only, no table is scanned or rewritten. **[Impact: Instantaneous]**
+- [V051__Add_reassignments_to_summary_updates.sql](https://github.com/digital-asset/participant-query-store/blob/main/modules/postgres/document/resources/db/migration/V051__Add_reassignments_to_summary_updates.sql): drops `summary_updates` so that it can be re-created with the new `assigns` and `unassigns` result columns. **[Impact: Instantaneous]**
+- [V052__Add_activation_and_deactivation_types.sql](https://github.com/digital-asset/participant-query-store/blob/main/modules/postgres/document/resources/db/migration/V052__Add_activation_and_deactivation_types.sql): creates the `activation` and `deactivation` composite types returned by the new `activations` and `deactivations` SQL functions. Metadata-only, no table is scanned or rewritten. **[Impact: Instantaneous]**
+
 ## What's New
+
+### Multi-sync support
+
+#### Ingestion of reassignment events and reassigned contracts
+
+- PQS now subscribes to reassignments in addition to transactions.
+- Every `Reassignment` received from the ledger is recorded in `__transactions`, and its `Assigned` and `Unassigned` events are recorded in `__events` with the new `assign` and `unassign` types.
+- Each `Assigned` and `Unassigned` event is also recorded in the new `__reassignments` table. The table is a standalone audit log of what the ledger reported about the reassignment itself.
+- An `Assigned` event creates a new row in the `__contracts` table. It sets `activation_type='assign'`.
+- An `Unassigned` event deactivates its corresponding row from the `__contracts` table. It sets `deactivation_type='unassign'`.
+- `Created` and `Assigned` events from the ledger now set `reassignment_counter` and `synchronizer_id`. For legacy rows (PQS 3.7 or older), `synchronizer_id` is left empty and `reassignment_counter` defaults to `0`.
+- ACS import records contract that was reassigned onto its current synchronizer with an `assign` event.
+
+
+#### SQL API
+
+- The SQL `contract` type, describing the output of the `active`, `creates` and `archives` SQL functions, is modified with new columns:
+```sql
+activate_event_pk bigint,
+activate_event_id event_id,
+activated_at_ix bigint,
+activated_at_offset bigint,
+activation_type activation_type,
+deactivate_event_pk bigint,
+deactivate_event_id event_id,
+deactivated_at_ix bigint,
+deactivated_at_offset bigint,
+deactivation_type deactivation_type,
+reassignment_counter bigint,
+synchronizer_id text;
+```
+- Columns like `create_event_*`/`created_at_*` and `archive_event_*`/`archived_at_*` are generated from their respective `activate` or `deactivate` counterparts.
+  - The PostgreSQL planner cannot use indexes on these derived fields.
+  - Join or filter on the underlying `activate_event_pk`, `activated_at_ix`, `deactivate_event_pk` or `deactivated_at_ix` columns instead.
+- `active` and `lookup_contract` now return a single row per `(contract_id, template_fqn)`, keeping the row with the highest `reassignment_counter`.
+- `summary_active` counts each `contract_id` only once per `template_fqn`.
+- *BREAKING*: The `__transactions` column `domain_id` is renamed to `synchronizer_id`, to match Canton's current vocabulary. It is now populated for every update — every transaction and every reassignment. Rows written before this release keep `NULL` and are not getting backfilled.
+- The new `__transactions` column `record_time` holds the time at which the update was recorded by its synchronizer. It is populated for every update. Rows written before this release keep `NULL` and are not getting backfilled.
+- The `synchronizer_id text` column is added to the `transactions` SQL view. It returns `NULL` for rows written by PQS 3.7 or older.
+- The `synchronizer_id text` column is added to the output of the `exercises` and `lookup_exercises` SQL functions. They return `NULL` for rows written by PQS 3.7 or older.
+- The `summary_reassignments` SQL function returns the number of assign and unassign events per Daml fully qualified name and per source and target synchronizer in the `[from_offset, to_offset]` range. It leaves out the assigns recorded by the ACS import.
+- The new `contracts` SQL function returns every contract known at `offset` that has not been pruned: active, archived, unassigned, divulged-only and transient. It returns a single row per `(contract_id, template_fqn)`, keeping the row with the highest `reassignment_counter`.
+- `summary_updates` returns additional `assigns bigint` and `unassigns bigint` columns: the number of assign and unassign events in the `[from_offset, to_offset]` range.
+- The `activations` and `deactivations` SQL functions return every activation (create or assign) and every deactivation (archive or unassign) in the `[from_offset, to_offset]` range. As in `archives`, `deactivation_type` is `NULL` on rows archived by PQS 3.7 or older. `from_offset` defaults to `coalesce(pruned_offset(), oldest_offset())`, as in `archives`, and a `from_offset` before the pruned offset raises an error. Divulged-only contracts are not returned.
+
+
+#### Pruning, Reset to offset and Redaction
+
+- *BREAKING*: `prune_archived_to_offset` and `prune_archived_to_offset_dry_run` return an additional `deleted_reassignments integer` column. The `prune` command prints it as `Deleted reassignments`.
+- Pruning takes reassignments into account - SQL functions now also delete related `__reassignments` entries.
+- `redact_contract` redacts a contract once all its rows are deactivated (archived or unassigned), so reassigned and unassigned contracts can be redacted; rows inserted after a redaction (a late assign or create, or rows replayed by `reset_to_offset`) keep their payload — call `redact_contract` again once they are deactivated, and it fails with "already redacted" only when every row is redacted.
+- Resetting to an offset takes reassignments into account: `reset_to_offset` and `__cleanup_transactions_after_watermark` delete the contracts assigned after the offset and the `__reassignments` entries recorded after it, and revives the contracts unassigned after it.
+
+
+#### Observability
+
+- The `tx_lag_from_ledger_wallclock` metric is measured from the record time of the first update in each batch received from the ledger, instead of the effective time, so reassignments count towards it.
+- The `export` span of every transaction and reassignment has a new `daml.record_time` attribute.
+- *BREAKING*: The `pipeline_events_total` metric counts each ledger event once, whatever interfaces its template implements. It used to count `create` and `archive` once for the template and once for each of its interfaces. With `TransactionTreeStream`, a consuming exercise counts once, as an `archive` with its `choice` label, so `exercise` counts only non-consuming exercises; it used to count as both an `exercise` and an `archive`.
+- The `pipeline_events_total` metric has a new `synchronizer_id` label on every type except `watermark`, plus `source_synchronizer_id` and `target_synchronizer_id` on `assign` and `unassign`, except on an `assign` recorded by the ACS import. When PQS seeds an empty datastore from the ACS, the `transaction` it records at ix 0 has no synchronizer, so its `synchronizer_id` is `unknown`; the dashboard's `synchronizer` variable and `Synchronizers seen` panel leave it out.
+- The new `pipeline_contracts_per_template_total` metric counts each `create`, `archive`, `assign` and `unassign` once for the template and once for each of its interfaces. Its labels are `type`, `template` and `synchronizer_id`.
+- The PQS Grafana dashboard has a `synchronizer` variable and new `Reassignments` and `Synchronizers` rows. The `Churn`, `Active *` and `Reassignments by template` panels read `pipeline_contracts_per_template_total`, so a template with k interfaces counts k+1 times; `Churn` and `Active *` add assigned contracts and subtract unassigned ones, so `Churn` shows a reassignment as both down and up, or with one synchronizer selected, as down on its source and up on its target. The `Reassignments` panels count a reassignment the same whether PQS sees its unassign, its assign or both, if the participant topology is homogeneous. `Reassignments by template` also counts the assigns recorded by the ACS import, which `Reassignment flows` and `Reassignments ingested` leave out, and with one synchronizer selected it counts the larger of the reassignments into and out of it. An `archive` or `unassign` counts once for each interface the datastore knows for the template, while a `create` or `assign` counts once for each interface view the Ledger API delivers, so `Active *` undercounts a template whose interface is not in `--pipeline-filter-contracts`.
 
 ### Security
 
 - The Docker image and the dpm component disable the JVM's hardware-accelerated Base64 decoder (`-XX:-UseBASE64Intrinsics`) to mitigate CVE-2026-114938 (Java4Shell). The image sets the flag in `JAVA_TOOL_OPTIONS`, the dpm component in its `jvm-args`. If you override `JAVA_TOOL_OPTIONS`, or run `pqs.jar` directly, add the flag yourself or use a patched JDK.
+- JDK base image has been upgraded to 21.0.13.1_2, incorporating several key security patches
+
+### Bug fixes
+
+- Fixed silent handling of PostgreSQL commit failures that could leave gaps in `__transactions`. Commit errors now invalidate the connection and fail the pipeline so ingestion is retried.
+- `effective_at` is stored with the microsecond precision the ledger provides. It used to be truncated to milliseconds; rows written before this release keep the truncated value.
+
+### Minor improvements
+
+- At startup, the PQS pipeline runs `ANALYZE` on `__contracts` and `__tmp_deactivated_contracts` to populate planner statistics and speed up ingestion.
+- Optimize `prune_archived_to_offset` and its dry-run to run significantly faster on large datasets. Performance gains range from 20% to 80%, depending on the pruning window and dataset size.
+- Added support for `AzurePostgresqlAuthenticationPlugin` by bundling `com.azure:azure-identity-extensions:1.2.2` into assembly JAR and Docker image.
+
+### Helm Chart
+
+- Allow for managing JVM `JDK_JAVA_OPTIONS` env var via values file.  Default to assigning max of 75% of available container memory to the JVM process.  Allow for the entire `JDK_JAVA_OPTIONS` to be configured via `values.yaml` - `options` to override or `extraOptions` to append an additional value.
+- Removed `readOnlyRootFilesystem: false` from the pod-level `securityContext`, where it is not a valid field and had no effect.
