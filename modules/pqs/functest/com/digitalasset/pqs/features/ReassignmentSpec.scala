@@ -61,52 +61,58 @@ object ReassignmentSpec extends SharedMultiSyncLedgerSpec:
           )
 
       val createdAtOffset    = Capture[OffsetType]
+      val createdEffectiveAt = Capture[Instant]
       val unassignedAtOffset = Capture[OffsetType]
       val assignedAtOffset   = Capture[OffsetType]
       val archivedAtOffset   = Capture[OffsetType]
       Expect:
-        // `effective_at is null` rather than the timestamp itself: the value of a transaction's
-        // effective time is not predictable from the test, but which rows have one is exactly the
-        // decision being pinned. A reassignment has no ledger effective time and must store none,
+        // A reassignment has no ledger effective time and must store none,
         // but every update has a record time.
         // Every update now carries a synchronizer_id; for a reassignment it is the synchronizer
         // that synchronized it — the source synchronizer for the unassign, the target for the assign.
         Database
-          .query(sql"""select "offset", synchronizer_id, effective_at is null, record_time is null
+          .query(sql"""select "offset", synchronizer_id, effective_at, record_time
                        from __transactions order by "offset"""")
           .returns(
             Table {
               // submitAndWait guarantees the causal order of these multi-sync transactions
-              createdAtOffset.capture    | sync1.id | false | false
-              unassignedAtOffset.capture | sync1.id | true  | false
-              assignedAtOffset.capture   | sync2.id | true  | false
-              archivedAtOffset.capture   | sync2.id | false | false
+              createdAtOffset.capture    | sync1.id | createdEffectiveAt.capture | not(isNull)
+              unassignedAtOffset.capture | sync1.id | isNull                     | not(isNull)
+              assignedAtOffset.capture   | sync2.id | isNull                     | not(isNull)
+              archivedAtOffset.capture   | sync2.id | not(isNull)                | not(isNull)
             }
           )
 
       Expect:
         Database
-          .creates(extraColumns = Seq("created_at_offset", "synchronizer_id", "reassignment_counter"))
+          .creates(extraColumns =
+            Seq("created_at_offset", "created_effective_at", "synchronizer_id", "reassignment_counter")
+          )
           .returns(
             Table {
-              dar.get.packageId | s"${pingPong.name}:PingPong:Ping" | "template" | contractId | createdAtOffset | sync1.id | 0
+              dar.get.packageId | s"${pingPong.name}:PingPong:Ping" | "template" | contractId | createdAtOffset | createdEffectiveAt | sync1.id | 0
             }
           )
       Expect:
         Database
-          .archives(extraColumns = Seq("archived_at_offset", "synchronizer_id", "reassignment_counter"))
+          .archives(extraColumns =
+            Seq("archived_at_offset", "created_effective_at", "synchronizer_id", "reassignment_counter")
+          )
           .returns(
             Table {
-              dar.get.packageId | s"${pingPong.name}:PingPong:Ping" | "template" | contractId | archivedAtOffset | sync2.id | 1
+              dar.get.packageId | s"${pingPong.name}:PingPong:Ping" | "template" | contractId | archivedAtOffset | createdEffectiveAt | sync2.id | 1
             }
           )
       Expect:
         // lookup_contract returns the row with the highest reassignment_counter
         Database
-          .lookupContract(contractId.get, extraColumns = Seq("synchronizer_id", "reassignment_counter"))
+          .lookupContract(
+            contractId.get,
+            extraColumns = Seq("created_effective_at", "synchronizer_id", "reassignment_counter")
+          )
           .returns(
             Table {
-              dar.get.packageId | s"${pingPong.name}:PingPong:Ping" | "template" | contractId | sync2.id | 1
+              dar.get.packageId | s"${pingPong.name}:PingPong:Ping" | "template" | contractId | createdEffectiveAt | sync2.id | 1
             }
           )
 
@@ -199,12 +205,12 @@ object ReassignmentSpec extends SharedMultiSyncLedgerSpec:
       Expect:
         Database
           .activations(extraColumns =
-            Seq("activated_at_offset", "source_synchronizer_id", "synchronizer_id", "created_effective_at is null")
+            Seq("activated_at_offset", "source_synchronizer_id", "synchronizer_id", "created_effective_at")
           )
           .returns(
             Table {
-              dar.get.packageId | s"${pingPong.name}:PingPong:Ping" | "template" | contractId | createdAtOffset | null | sync1.id | false
-              dar.get.packageId | s"${pingPong.name}:PingPong:Ping" | "template" | contractId | assignedAtOffset | sync1.id | sync2.id | true
+              dar.get.packageId | s"${pingPong.name}:PingPong:Ping" | "template" | contractId | createdAtOffset | null | sync1.id | createdEffectiveAt
+              dar.get.packageId | s"${pingPong.name}:PingPong:Ping" | "template" | contractId | assignedAtOffset | sync1.id | sync2.id | createdEffectiveAt
             }
           )
       Expect:
@@ -216,13 +222,15 @@ object ReassignmentSpec extends SharedMultiSyncLedgerSpec:
               "synchronizer_id",
               "target_synchronizer_id",
               "reassignment_counter::text",
-              "archived_effective_at is null"
+              "archived_effective_at"
             )
           )
           .returns(
             Table {
-              dar.get.packageId | s"${pingPong.name}:PingPong:Ping" | "template" | contractId | "unassign" | unassignedAtOffset | sync1.id | sync2.id | "1" | true
-              dar.get.packageId | s"${pingPong.name}:PingPong:Ping" | "template" | contractId | "archive" | archivedAtOffset | sync2.id | null | null | false
+              dar.get.packageId | s"${pingPong.name}:PingPong:Ping" | "template" | contractId | "unassign" | unassignedAtOffset | sync1.id | sync2.id | "1" | isNull
+              dar.get.packageId | s"${pingPong.name}:PingPong:Ping" | "template" | contractId | "archive" | archivedAtOffset | sync2.id | null | null | not(
+                isNull
+              )
             }
           )
       Expect:
@@ -252,21 +260,21 @@ object ReassignmentSpec extends SharedMultiSyncLedgerSpec:
         netChangeSummaryMismatchesWithActive.is(isEmpty)
     },
     funcTest("contracts() returns every known contract once") {
-      val alice        = Party("Alice")
-      val dar          = Capture[DarFile]
-      val reassignedId = Capture[String]
-      val activeId     = Capture[String]
+      val alice         = Party("Alice")
+      val dar           = Capture[DarFile]
+      val reassignedCid = Capture[String]
+      val activeCid     = Capture[String]
       Given:
         DamlSdk.allocateParties(alice -> Seq(sync1, sync2))
       And:
         dar.captureFromService
       Then:
-        createContract(alice).is(reassignedId.capture)
+        createContract(alice).is(reassignedCid.capture)
       When:
-        Ledger.reassign(reassignedId.get, alice, sync1, sync2)
-          *> Ledger.archive("PingPong:Ping", reassignedId.get, alice, sync2)
+        Ledger.reassign(reassignedCid.get, alice, sync1, sync2)
+          *> Ledger.archive("PingPong:Ping", reassignedCid.get, alice, sync2)
       Then:
-        createContract(alice).is(activeId.capture)
+        createContract(alice).is(activeCid.capture)
       When:
         Postgres.database
           >+> Pqs.runPipeline(
@@ -284,8 +292,8 @@ object ReassignmentSpec extends SharedMultiSyncLedgerSpec:
           .contracts(extraColumns = Seq("deactivation_type", "synchronizer_id", "reassignment_counter"))
           .returns(
             Table {
-              dar.get.packageId | s"${pingPong.name}:PingPong:Ping" | "template" | reassignedId | "archive" | sync2.id | 1
-              dar.get.packageId | s"${pingPong.name}:PingPong:Ping" | "template" | activeId | null | sync1.id | 0
+              dar.get.packageId | s"${pingPong.name}:PingPong:Ping" | "template" | reassignedCid | "archive" | sync2.id | 1
+              dar.get.packageId | s"${pingPong.name}:PingPong:Ping" | "template" | activeCid | null | sync1.id | 0
             }
           )
       Expect:
@@ -296,7 +304,7 @@ object ReassignmentSpec extends SharedMultiSyncLedgerSpec:
           )
           .returns(
             Table {
-              dar.get.packageId | s"${pingPong.name}:PingPong:Ping" | "template" | reassignedId | "unassign" | sync1.id | 0
+              dar.get.packageId | s"${pingPong.name}:PingPong:Ping" | "template" | reassignedCid | "unassign" | sync1.id | 0
             }
           )
     },
@@ -327,6 +335,9 @@ object ReassignmentSpec extends SharedMultiSyncLedgerSpec:
       def createTx   = transactions.get(0).copy(offset = Offset.Absolute(3))
       def unassignTx = transactions.get(1).copy(offset = Offset.Absolute(4))
 
+      def createdEffectiveAt  = createTx.effectiveAt.get
+      def archivedEffectiveAt = archiveTx.effectiveAt.get
+
       Then:
         Ledger.recordTransactionStream().is(hasSize(equalTo(4)) && transactions.capture)
 
@@ -345,57 +356,73 @@ object ReassignmentSpec extends SharedMultiSyncLedgerSpec:
       Expect:
         Database
           .query(
-            sql"""select "offset", synchronizer_id, record_time from __transactions order by "offset""""
-              .query[(Long, String, Instant)]
+            sql"""select "offset", synchronizer_id, effective_at, record_time from __transactions order by "offset""""
+              .query[(Long, String, Option[Instant], Instant)]
               .selectAll
           )
           .is(
             equalTo(
               Chunk(
-                (assignTx.offset.toLong, sync2.id, assignTx.recordTime),
-                (archiveTx.offset.toLong, sync2.id, archiveTx.recordTime),
-                (createTx.offset.toLong, sync1.id, createTx.recordTime),
-                (unassignTx.offset.toLong, sync1.id, unassignTx.recordTime)
+                (assignTx.offset.toLong, sync2.id, None, assignTx.recordTime),
+                (archiveTx.offset.toLong, sync2.id, Some(archivedEffectiveAt), archiveTx.recordTime),
+                (createTx.offset.toLong, sync1.id, Some(createdEffectiveAt), createTx.recordTime),
+                (unassignTx.offset.toLong, sync1.id, None, unassignTx.recordTime)
               )
             )
           )
 
       Expect:
         Database
-          .creates(extraColumns = Seq("created_at_offset", "synchronizer_id", "reassignment_counter"))
+          .creates(extraColumns =
+            Seq("created_at_offset", "created_effective_at", "synchronizer_id", "reassignment_counter")
+          )
           .returns(
             Table {
-              dar.get.packageId | s"${pingPong.name}:PingPong:Ping" | "template" | contractId | createTx.offset.toLong | sync1.id | 0
+              dar.get.packageId | s"${pingPong.name}:PingPong:Ping" | "template" | contractId | createTx.offset.toLong | createdEffectiveAt | sync1.id | 0
             }
           )
       Expect:
         Database
-          .archives(extraColumns = Seq("archived_at_offset", "synchronizer_id", "reassignment_counter"))
+          .archives(extraColumns =
+            Seq("archived_at_offset", "created_effective_at", "synchronizer_id", "reassignment_counter")
+          )
           .returns(
             Table {
-              dar.get.packageId | s"${pingPong.name}:PingPong:Ping" | "template" | contractId | archiveTx.offset.toLong | sync2.id | 1
+              dar.get.packageId | s"${pingPong.name}:PingPong:Ping" | "template" | contractId | archiveTx.offset.toLong | createdEffectiveAt | sync2.id | 1
             }
           )
       Expect:
         Database
           .activeAtOffset(
             assignTx.offset.toLong,
-            extraColumns = Seq("activated_at_offset", "activation_type", "synchronizer_id", "reassignment_counter")
+            extraColumns = Seq(
+              "activated_at_offset",
+              "activation_type",
+              "created_effective_at",
+              "synchronizer_id",
+              "reassignment_counter"
+            )
           )
           .returns(
             Table {
-              dar.get.packageId | s"${pingPong.name}:PingPong:Ping" | "template" | contractId | assignTx.offset.toLong | "assign" | sync2.id | 1
+              dar.get.packageId | s"${pingPong.name}:PingPong:Ping" | "template" | contractId | assignTx.offset.toLong | "assign" | createdEffectiveAt | sync2.id | 1
             }
           )
       Expect:
         Database
           .activeAtOffset(
             createTx.offset.toLong,
-            extraColumns = Seq("activated_at_offset", "activation_type", "synchronizer_id", "reassignment_counter")
+            extraColumns = Seq(
+              "activated_at_offset",
+              "activation_type",
+              "created_effective_at",
+              "synchronizer_id",
+              "reassignment_counter"
+            )
           )
           .returns(
             Table {
-              dar.get.packageId | s"${pingPong.name}:PingPong:Ping" | "template" | contractId | createTx.offset.toLong | "create" | sync1.id | 0
+              dar.get.packageId | s"${pingPong.name}:PingPong:Ping" | "template" | contractId | createTx.offset.toLong | "create" | createdEffectiveAt | sync1.id | 0
             }
           )
       Expect:

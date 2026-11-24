@@ -145,6 +145,7 @@ object InBatchDeactivationMergeSpec extends ZIOSpecDefault:
       acsDelta = true,
       packagePk = 1,
       creationPackageId = None,
+      createdEffectiveAt = None,
       deactivateEventPk = None,
       deactivatedAtIx = None,
       deactivationType = None,

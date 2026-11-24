@@ -18,7 +18,7 @@ final case class Contract(
     signatories: Chunk[Party],
     observers: Chunk[Party],
     witnesses: Chunk[Party],
-    created_at: Option[Instant],
+    createdAt: Option[Instant],
     metadata: Option[Array[Byte]],
     acsDelta: Boolean,
     creationPackageId: Option[String]

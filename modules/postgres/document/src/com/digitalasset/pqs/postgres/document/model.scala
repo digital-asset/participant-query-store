@@ -261,6 +261,7 @@ final class Contract(
     acsDelta: Boolean,
     packagePk: PackagePk,
     creationPackageId: Option[String],
+    createdEffectiveAt: Option[Instant],
     deactivateEventPk: Option[IdPlaceholder],
     deactivatedAtIx: Option[Long],
     deactivationType: Option[DeactivationType],
@@ -286,6 +287,7 @@ final class Contract(
     observers,
     witnesses,
     !acsDelta,
+    createdEffectiveAt,
     deactivateEventPk,
     deactivatedAtIx,
     deactivationType
@@ -310,6 +312,7 @@ final class Contract(
       acsDelta,
       packagePk,
       creationPackageId,
+      createdEffectiveAt,
       Some(d.deactivateEventPk),
       Some(d.deactivatedAtIx),
       Some(d.deactivationType),
@@ -337,6 +340,7 @@ object Contract
         "observers",
         "witnesses",
         "divulged_only",
+        "created_effective_at",
         "deactivate_event_pk",
         "deactivated_at_ix",
         "deactivation_type"
