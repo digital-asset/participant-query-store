@@ -242,7 +242,6 @@ object Event
       insertOrder = 1
     )
 
-// Holds only the row, not the event's fields, so a batch doesn't keep every payload alive
 final class Contract(
     entityType: EntityTypePk,
     activateEventPk: IdPlaceholder,
