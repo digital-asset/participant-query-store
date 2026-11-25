@@ -14,8 +14,7 @@ import zio.jdbc.sqlInterpolator
 import zio.test.Assertion.anything
 import zio.{ExitCode, ZLayer}
 
-import java.time.OffsetDateTime
-import java.time.format.DateTimeFormatterBuilder
+import java.time.Instant
 import scala.language.implicitConversions
 
 object PruneCommandSpec extends SharedLedgerAndPostgresTest:
@@ -173,7 +172,7 @@ object PruneCommandSpec extends SharedLedgerAndPostgresTest:
       val oneCreated             = Capture[OffsetType]
       val oneArchived            = Capture[OffsetType]
       val twoCreated             = Capture[OffsetType]
-      val oneArchivedEffectiveAt = Capture[String]
+      val oneArchivedEffectiveAt = Capture[Instant]
       Given:
         context
       And:
@@ -185,16 +184,7 @@ object PruneCommandSpec extends SharedLedgerAndPostgresTest:
           twoCreated.capture  | anything
         }
       When:
-        // parse the effective_at timestamp to a format that can be used by the ledger prune command...
-        val formatter = new DateTimeFormatterBuilder()
-          .appendPattern("yyyy-MM-dd HH:mm:ss")
-          .appendFraction(java.time.temporal.ChronoField.NANO_OF_SECOND, 0, 6, true)
-          .appendPattern("X")
-          .toFormatter()
-        val timestamp = OffsetDateTime
-          .parse(oneArchivedEffectiveAt.get, formatter)
-          .toString
-        Pqs.runPrune("--prune-target", timestamp, "--prune-mode", "Force")
+        Pqs.runPrune("--prune-target", oneArchivedEffectiveAt.get.toString, "--prune-mode", "Force")
       Expect:
         Pqs.exitCode `is` ExitCode.success
       And:
