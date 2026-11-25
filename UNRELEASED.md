@@ -95,6 +95,7 @@ synchronizer_id text;
 
 ### Bug fixes
 
+- The `beforeMigrate` callback bootstraps V001 types when another schema contains `__event_type`, without changing versioned migration checksums (#240). **[Impact: Metadata-only, fresh stores with a type-name collision; existing stores unchanged.]**
 - Fixed silent handling of PostgreSQL commit failures that could leave gaps in `__transactions`. Commit errors now invalidate the connection and fail the pipeline so ingestion is retried.
 - `effective_at` is stored with the microsecond precision the ledger provides. It used to be truncated to milliseconds; rows written before this release keep the truncated value.
 
