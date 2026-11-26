@@ -24,7 +24,7 @@ object CantonConf:
       "LOG_LEVEL_STDOUT" -> "INFO",
       "LOG_LEVEL_CANTON" -> "INFO",
       // Limit visible CPUs to prevent Canton from oversizing DB connection pools on high-CPU CI runners
-      "JDK_JAVA_OPTIONS" -> "-XX:ActiveProcessorCount=4"
+      "JDK_JAVA_OPTIONS" -> "-XX:ActiveProcessorCount=4 -XX:MaxRAMPercentage=75"
     )
   val user = 1001
 
