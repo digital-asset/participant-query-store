@@ -63,7 +63,7 @@ object Pqs extends Pqs:
   override def envPrefix: String   = "PQS_"
 
 object Pqs37 extends Pqs:
-  override def version: PqsVersion = PqsVersion("3.7.0")
+  override def version: PqsVersion = PqsVersion("3.7.0-snapshot.20261124.1.771.v20cf564")
   override def image: String     = s"europe-docker.pkg.dev/da-images/public-all/docker/participant-query-store:$version"
   override def user: Option[Int] = Some(1001)
   override def envPrefix: String = "PQS_"
