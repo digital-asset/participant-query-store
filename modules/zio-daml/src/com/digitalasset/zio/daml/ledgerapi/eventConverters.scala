@@ -91,7 +91,8 @@ object eventConverters:
       EventId(evt.offset, evt.nodeId),
       synchronizerId,
       templateId,
-      ContractId(evt.contractId)
+      ContractId(evt.contractId),
+      evt.witnessParties.to(Chunk).map(Party)
     )
 
   private def convertUnassignedEvent(

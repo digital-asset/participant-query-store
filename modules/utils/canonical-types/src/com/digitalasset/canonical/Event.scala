@@ -29,7 +29,8 @@ object Event:
       eventId: EventId,
       synchronizerId: SynchronizerId,
       templateId: schema.Identifier,
-      contractId: ContractId
+      contractId: ContractId,
+      witnesses: Chunk[Party]
   ) extends TransactionEvent
 
   final case class Exercised(

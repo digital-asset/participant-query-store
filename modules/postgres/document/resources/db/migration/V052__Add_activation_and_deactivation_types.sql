@@ -16,7 +16,6 @@ create type activation as
     package_id               text,
     signatories              text[],
     observers                text[],
-    witnesses                text[],
     creation_package_id      text,
     contract_key_hash        bytea,
     activate_event_pk        bigint,
@@ -24,6 +23,7 @@ create type activation as
     activated_at_ix          bigint,
     activated_at_offset      bigint,
     activation_type          activation_type,
+    witnesses                text[],
     reassignment_counter     bigint,
     source_synchronizer_id   text,
     synchronizer_id          text
@@ -53,6 +53,7 @@ create type deactivation as
     deactivated_at_ix        bigint,
     deactivated_at_offset    bigint,
     deactivation_type        deactivation_type,
+    witnesses                text[],
     reassignment_counter     bigint,
     synchronizer_id          text,
     target_synchronizer_id   text

@@ -1152,7 +1152,6 @@ select c.template_fqn,
        c.package_id,
        c.signatories,
        c.observers,
-       c.witnesses,
        c.creation_package_id,
        c.contract_key_hash,
        c.activate_event_pk,
@@ -1160,12 +1159,13 @@ select c.template_fqn,
        c.activated_at_ix,
        c.activated_at_offset,
        c.activation_type,
+       c.witnesses,
        c.reassignment_counter,
        r.source_synchronizer_id,
        c.synchronizer_id,
        c.activated_at_record_time
 from __contracts(qname) c
-    left join __reassignments r on r.reassign_event_pk = c.activate_event_pk and r.reassigned_at_ix = c.activated_at_ix
+    left join __reassignments r on r.reassign_event_pk = c.activate_event_pk
 where not c.divulged_only
     and c.activated_at_ix between (select __nearest_unpruned_ix_ceil(from_offset)) and (select __nearest_ix_floor(to_offset))
 $$ language sql stable parallel safe;
@@ -1460,14 +1460,15 @@ select c.template_fqn,
        c.deactivated_at_ix,
        c.deactivated_at_offset,
        c.deactivation_type,
+       e.witnesses,
        r.reassignment_counter,
        c.synchronizer_id,
        r.target_synchronizer_id,
        c.deactivated_at_record_time
 from __contracts(qname) c
-    left join __reassignments r on r.reassign_event_pk = c.deactivate_event_pk and r.reassigned_at_ix = c.deactivated_at_ix
-where not c.divulged_only
-    and c.deactivated_at_ix between (select __nearest_unpruned_ix_ceil(from_offset)) and (select __nearest_ix_floor(to_offset))
+    left join __reassignments r on r.reassign_event_pk = c.deactivate_event_pk
+    left join __events e on e.pk = c.deactivate_event_pk
+where c.deactivated_at_ix between (select __nearest_unpruned_ix_ceil(from_offset)) and (select __nearest_ix_floor(to_offset))
 $$ language sql stable parallel safe;
 comment on function deactivations(text, __transactions."offset"%type, __transactions."offset"%type) is $$Returns a row per deactivation (archive or unassign) of contracts of the given Daml qualified name.
 Qualified name can be:

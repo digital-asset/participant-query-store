@@ -220,10 +220,11 @@ final class Event(
     txIx: Long,
     eventId: EventId,
     eventType: EventType,
+    witnesses: Seq[Party],
     metrics: MetricsContext
 ) extends Copy:
   def table = Event
-  val row   = buildRow(pk, txIx, eventId, eventType)
+  val row   = buildRow(pk, txIx, eventId, eventType, witnesses)
 
   override val eventLabels: Set[MetricLabel] = eventType match
     // Exercise and Reassignment rows count the other event types, with the choice and the synchronizers.
@@ -238,7 +239,7 @@ final class Event(
 object Event
     extends Table(
       "__events",
-      Seq("pk", "tx_ix", "event_id", "type"),
+      Seq("pk", "tx_ix", "event_id", "type", "witnesses"),
       insertOrder = 1
     )
 
@@ -452,7 +453,6 @@ final class Reassignment(
     target: SynchronizerId,
     submitter: Option[Party],
     reassignmentCounter: Long,
-    witnesses: Seq[Party],
     assignmentExclusivity: Option[Instant],
     metrics: MetricsContext
 ) extends Copy:
@@ -468,7 +468,6 @@ final class Reassignment(
     target,
     submitter,
     reassignmentCounter,
-    witnesses,
     assignmentExclusivity
   )
   override val eventLabels: Set[MetricLabel] =
@@ -489,7 +488,6 @@ object Reassignment
         "target_synchronizer_id",
         "submitter",
         "reassignment_counter",
-        "witnesses",
         "assignment_exclusivity"
       ),
       insertOrder = 5
