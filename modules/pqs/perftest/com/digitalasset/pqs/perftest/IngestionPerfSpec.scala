@@ -12,7 +12,7 @@ import zio.jdbc.*
 import zio.test.*
 
 object IngestionPerfSpec extends SharedHydratedLedgerTest:
-  private val limits       = ContainerLimits(cpus = 2.0, memoryGiB = 0.8)
+  private val limits       = ContainerLimits(cpus = 2.0, memoryGiB = 1.2)
   private val expectedDiff = 0.15
 
   def spec = suite("IngestionPerfSpec")(
