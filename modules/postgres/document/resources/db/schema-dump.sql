@@ -171,7 +171,8 @@ CREATE TYPE public.contract AS (
 	deactivation_type public.deactivation_type,
 	reassignment_counter bigint,
 	synchronizer_id text,
-	tpe_pk bigint
+	tpe_pk bigint,
+	activated_at_record_time timestamp without time zone
 );
 
 
@@ -363,7 +364,8 @@ select tpe.template_fqn,
        c.deactivation_type,
        c.reassignment_counter,
        c.synchronizer_id,
-       c.tpe_pk
+       c.tpe_pk,
+       at.record_time
 from __contracts c
     left join __contract_tpe tpe on tpe.pk = c.tpe_pk
     left join __transactions at on at.ix = c.activated_at_ix
@@ -1080,20 +1082,13 @@ where c.life_ix @> (select __nearest_ix_floor("offset"))
     and not exists (
         select 1
         from __contracts newer
+        left join __transactions newer_t on newer.activated_at_ix = newer_t.ix
         where newer.tpe_pk = c.tpe_pk
-            and newer.life_ix @> (select __nearest_ix_floor("offset"))
+            and newer.life_ix @> (select __nearest_ix_floor(active."offset"))
             and newer.activation_type = 'assign' -- optim: reduce dedup impact for dsync
             and newer.contract_id = c.contract_id
             and not newer.divulged_only
-            and (
-                    newer.reassignment_counter > c.reassignment_counter
-                    -- tie on reassignment_counter:
-                    -- the PN does not guarantee that reassignment_counter is unique per contract
-                    or (
-                        newer.reassignment_counter = c.reassignment_counter
-                        and newer.activated_at_ix > c.activated_at_ix
-                    )
-                )
+            and newer_t.record_time > c.activated_at_record_time
     )
 $$;
 
@@ -1144,7 +1139,8 @@ CREATE FUNCTION public.archives(qname text DEFAULT NULL::text, from_offset bigin
         c.deactivation_type,
         c.reassignment_counter,
         c.synchronizer_id,
-        c.tpe_pk
+        c.tpe_pk,
+        c.activated_at_record_time
     from __contracts(qname) c
     where (c.deactivation_type is null or c.deactivation_type = 'archive')
         and c.deactivated_at_ix between (select __nearest_ix_ceil(from_offset)) and (select __nearest_ix_floor(to_offset))
