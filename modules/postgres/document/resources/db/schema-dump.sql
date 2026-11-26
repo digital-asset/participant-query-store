@@ -334,8 +334,8 @@ select tpe.template_fqn,
        c.payload,
        c.contract_key,
        c.metadata,
-       case when c.activation_type = 'create' then at.effective_at end as created_effective_at,
-       case when (c.deactivation_type is null or c.deactivation_type = 'archive') then dt.effective_at end as archived_effective_at,
+       coalesce(c.created_effective_at, at.effective_at) as created_effective_at,
+       dt.effective_at as archived_effective_at, -- safe because reassignment updates don't have an effective_at
        c.redaction_id,
        p.name,
        p.version,
@@ -2122,7 +2122,8 @@ CREATE TABLE public.__contracts (
     activation_type public.activation_type DEFAULT 'create'::public.activation_type NOT NULL,
     deactivation_type public.deactivation_type,
     reassignment_counter bigint DEFAULT 0 NOT NULL,
-    synchronizer_id text
+    synchronizer_id text,
+    created_effective_at timestamp with time zone
 )
 PARTITION BY LIST (tpe_pk);
 
@@ -2153,7 +2154,8 @@ CREATE TABLE public.__contracts_1 (
     activation_type public.activation_type DEFAULT 'create'::public.activation_type NOT NULL,
     deactivation_type public.deactivation_type,
     reassignment_counter bigint DEFAULT 0 NOT NULL,
-    synchronizer_id text
+    synchronizer_id text,
+    created_effective_at timestamp with time zone
 );
 ALTER TABLE ONLY public.__contracts_1 ALTER COLUMN metadata SET STORAGE EXTERNAL;
 

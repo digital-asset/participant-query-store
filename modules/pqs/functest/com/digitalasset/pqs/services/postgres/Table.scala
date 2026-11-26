@@ -92,16 +92,18 @@ end Table
 final case class Row(cells: Seq[Cell])
 
 object Row:
+  @SuppressWarnings(Array("org.wartremover.warts.Null"))
   given JdbcDecoder[Row] = { (ix, rs) =>
     val cells = mutable.Buffer.empty[Cell]
     for ix <- 1 to rs.getMetaData.getColumnCount do {
       val value = rs.getMetaData.getColumnType(ix) match
-        case java.sql.Types.BOOLEAN => rs.getBoolean(ix)
-        case java.sql.Types.BIT     => rs.getBoolean(ix)
-        case java.sql.Types.VARCHAR => rs.getString(ix)
-        case java.sql.Types.INTEGER => rs.getInt(ix)
-        case java.sql.Types.BIGINT  => rs.getLong(ix)
-        case other                  => rs.getString(ix)
+        case java.sql.Types.BOOLEAN   => rs.getBoolean(ix)
+        case java.sql.Types.BIT       => rs.getBoolean(ix)
+        case java.sql.Types.VARCHAR   => rs.getString(ix)
+        case java.sql.Types.INTEGER   => rs.getInt(ix)
+        case java.sql.Types.BIGINT    => rs.getLong(ix)
+        case java.sql.Types.TIMESTAMP => Option(rs.getTimestamp(ix)).map(_.toInstant()).getOrElse(null)
+        case other                    => rs.getString(ix)
       cells.append(Cell(value))
     }
     (rs.getMetaData.getColumnCount, Row(cells.toSeq))

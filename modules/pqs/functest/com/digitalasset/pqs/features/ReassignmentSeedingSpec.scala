@@ -9,6 +9,7 @@ import com.digitalasset.pqs.services.daml.*
 import com.digitalasset.pqs.services.postgres.*
 import com.digitalasset.pqs.services.pqs.Pqs
 import zio.jdbc.*
+import zio.test.Assertion.*
 
 import scala.language.implicitConversions
 
@@ -18,6 +19,7 @@ object ReassignmentSeedingSpec extends SharedMultiSyncLedgerSpec:
     "activation_type",
     "deactivated_at_ix::text",
     "deactivation_type",
+    "created_effective_at",
     "synchronizer_id",
     "reassignment_counter"
   )
@@ -47,7 +49,9 @@ object ReassignmentSeedingSpec extends SharedMultiSyncLedgerSpec:
           .active(extraColumns = multiSyncColumns)
           .returns(
             Table {
-              dar.get.packageId | s"${pingPong.name}:PingPong:Ping" | "template" | contractId | "0" | "assign" | null | null | sync2.id | 1
+              dar.get.packageId | s"${pingPong.name}:PingPong:Ping" | "template" | contractId | "0" | "assign" | null | null | not(
+                isNull
+              ) | sync2.id | 1
             }
           )
       Expect:
@@ -64,30 +68,6 @@ object ReassignmentSeedingSpec extends SharedMultiSyncLedgerSpec:
         Database
           .query(sql"select * from summary_updates()")
           .returns(Table(s"${pingPong.name}:PingPong:Ping" | "template" | 0 | 0 | 1 | 0))
-    },
-    funcTest("Contract seeded from the ACS as a create has no created_effective_at") {
-      val alice      = Party("Alice")
-      val dar        = Capture[DarFile]
-      val contractId = Capture[String]
-      Given:
-        DamlSdk.allocateParties(alice -> Seq(sync1, sync2))
-      And:
-        dar.captureFromService
-      Then:
-        createContract(alice).is(contractId.capture)
-      When:
-        Postgres.database
-          >+> Pqs.runPipeline(
-            "--pipeline-ledger-start=Latest",
-            "--pipeline-ledger-stop=Latest"
-          )
-
-      Expect:
-        Database
-          .activations(extraColumns = Seq("activation_type", "created_effective_at is null"))
-          .returns(
-            Table(dar.get.packageId | s"${pingPong.name}:PingPong:Ping" | "template" | contractId | "create" | true)
-          )
     },
     funcTest("Contract seeded from the ACS as an assign can be archived") {
       val alice      = Party("Alice")
@@ -123,7 +103,9 @@ object ReassignmentSeedingSpec extends SharedMultiSyncLedgerSpec:
           .archives(extraColumns = multiSyncColumns)
           .returns(
             Table {
-              dar.get.packageId | s"${pingPong.name}:PingPong:Ping" | "template" | contractId | "0" | "assign" | "1" | "archive" | sync2.id | 1
+              dar.get.packageId | s"${pingPong.name}:PingPong:Ping" | "template" | contractId | "0" | "assign" | "1" | "archive" | not(
+                isNull
+              ) | sync2.id | 1
             }
           )
       Expect:

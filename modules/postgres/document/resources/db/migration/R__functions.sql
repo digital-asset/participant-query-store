@@ -110,8 +110,8 @@ select tpe.template_fqn,
        c.payload,
        c.contract_key,
        c.metadata,
-       case when c.activation_type = 'create' then at.effective_at end as created_effective_at,
-       case when (c.deactivation_type is null or c.deactivation_type = 'archive') then dt.effective_at end as archived_effective_at,
+       coalesce(c.created_effective_at, at.effective_at) as created_effective_at,
+       dt.effective_at as archived_effective_at, -- safe because reassignment updates don't have an effective_at
        c.redaction_id,
        p.name,
        p.version,
@@ -1172,7 +1172,6 @@ Qualified name can be:
 Qualified name cannot be ambiguous.
 Only activations within [from_offset; to_offset] range are considered.
 Divulged-only contracts are not returned.
-created_effective_at is NULL for assigns and for the rows recorded by the ACS import.
 source_synchronizer_id is NULL for creates and for the assigns recorded by the ACS import.
 synchronizer_id is the target synchronizer for assigns; it is NULL on rows written by PQS 3.7 or older.
 Raises an error when from_offset is before the pruned offset.$$;
@@ -1469,7 +1468,6 @@ Qualified name can be:
 Qualified name cannot be ambiguous.
 Only deactivations within [from_offset; to_offset] range are considered.
 Divulged-only contracts are not returned.
-created_effective_at is NULL when the contract was activated by an assign or recorded by the ACS import.
 archived_effective_at is NULL for unassigns.
 deactivation_type is NULL on rows archived by PQS 3.7 or older.
 reassignment_counter and target_synchronizer_id are NULL for archives.

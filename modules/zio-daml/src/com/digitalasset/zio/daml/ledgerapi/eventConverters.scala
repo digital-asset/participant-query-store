@@ -188,7 +188,7 @@ object eventConverters:
         signatories = evt.signatories.to(Chunk).map(Party),
         observers = evt.observers.to(Chunk).map(Party),
         witnesses = evt.witnessParties.to(Chunk).map(Party),
-        created_at = evt.createdAt.map(TimestampConverters.asJavaInstant),
+        createdAt = evt.createdAt.map(TimestampConverters.asJavaInstant),
         metadata = Option.when(payloads.map(_._1).exists(_.isMetadataIncluded))(evt.createdEventBlob.toByteArray),
         acsDelta = extractors.acsDelta(evt),
         // Storage optimization: only store it when it's different.

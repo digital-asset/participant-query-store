@@ -103,7 +103,7 @@ object Model {
     }
 
     val forcedCopies = copies
-      .map { (table, rows) => (table, rows.view.mkString(lineSeparator())) }
+      .map { (table, rows) => (table, rows.mkString(lineSeparator())) }
       .toSeq
       .sortBy(_._1.insertOrder)
     val copyIO = ZIO.serviceWithZIO[ZConnection](
@@ -242,18 +242,81 @@ object Event
       insertOrder = 1
     )
 
-// Holds only the row, not the event's fields, so a batch doesn't keep every payload alive
-final class Contract private (
-    val key: ContractKey,
+final class Contract(
+    entityType: EntityTypePk,
+    activateEventPk: IdPlaceholder,
     val activatedAtIx: Long,
-    val row: String,
-    override val contractLabels: Set[MetricLabel]
+    activationType: ActivationType,
+    contractId: ContractId,
+    synchronizerId: SynchronizerId,
+    reassignmentCounter: Long,
+    signatories: Seq[Party],
+    observers: Seq[Party],
+    witnesses: Seq[Party],
+    payload: ujson.Value,
+    contractKey: Option[ujson.Value],
+    contractKeyHash: Option[Array[Byte]],
+    metadata: Option[Array[Byte]],
+    acsDelta: Boolean,
+    packagePk: PackagePk,
+    creationPackageId: Option[String],
+    createdEffectiveAt: Option[Instant],
+    deactivateEventPk: Option[IdPlaceholder],
+    deactivatedAtIx: Option[Long],
+    deactivationType: Option[DeactivationType],
+    metrics: MetricsContext
 ) extends Copy:
   def table = Contract
-  // The deactivation columns come last
+  def key   = (entityType, contractId, synchronizerId)
+  val row = buildRow(
+    entityType,
+    activateEventPk,
+    activatedAtIx,
+    activationType,
+    contractId,
+    synchronizerId,
+    reassignmentCounter,
+    payload,
+    contractKey,
+    contractKeyHash,
+    metadata,
+    packagePk,
+    creationPackageId,
+    signatories,
+    observers,
+    witnesses,
+    !acsDelta,
+    createdEffectiveAt,
+    deactivateEventPk,
+    deactivatedAtIx,
+    deactivationType
+  )
+  override def contractLabels: Set[MetricLabel] = metrics.labels(activationType.toString)
   def deactivatedBy(d: DeactivatedContract): Contract =
-    val deactivation = buildRow(d.deactivateEventPk, d.deactivatedAtIx, d.deactivationType)
-    new Contract(key, activatedAtIx, s"${row.stripSuffix(Contract.notDeactivated)}\t$deactivation", contractLabels)
+    new Contract(
+      entityType,
+      activateEventPk,
+      activatedAtIx,
+      activationType,
+      contractId,
+      synchronizerId,
+      reassignmentCounter,
+      signatories,
+      observers,
+      witnesses,
+      payload,
+      contractKey,
+      contractKeyHash,
+      metadata,
+      acsDelta,
+      packagePk,
+      creationPackageId,
+      createdEffectiveAt,
+      Some(d.deactivateEventPk),
+      Some(d.deactivatedAtIx),
+      Some(d.deactivationType),
+      metrics
+    )
 
 object Contract
     extends Table(
@@ -276,60 +339,13 @@ object Contract
         "observers",
         "witnesses",
         "divulged_only",
+        "created_effective_at",
         "deactivate_event_pk",
         "deactivated_at_ix",
         "deactivation_type"
       ),
       insertOrder = 2
-    ):
-  def apply(
-      entityType: EntityTypePk,
-      activateEventPk: IdPlaceholder,
-      activatedAtIx: Long,
-      activationType: ActivationType,
-      contractId: ContractId,
-      synchronizerId: SynchronizerId,
-      reassignmentCounter: Long,
-      signatories: Seq[Party],
-      observers: Seq[Party],
-      witnesses: Seq[Party],
-      payload: ujson.Value,
-      contractKey: Option[ujson.Value],
-      contractKeyHash: Option[Array[Byte]],
-      metadata: Option[Array[Byte]],
-      acsDelta: Boolean,
-      packagePk: PackagePk,
-      creationPackageId: Option[String],
-      metrics: MetricsContext
-  ): Contract =
-    val row = buildRow(
-      entityType,
-      activateEventPk,
-      activatedAtIx,
-      activationType,
-      contractId,
-      synchronizerId,
-      reassignmentCounter,
-      payload,
-      contractKey,
-      contractKeyHash,
-      metadata,
-      packagePk,
-      creationPackageId,
-      signatories,
-      observers,
-      witnesses,
-      !acsDelta
     )
-    new Contract(
-      (entityType, contractId, synchronizerId),
-      activatedAtIx,
-      row + notDeactivated,
-      metrics.labels(activationType.toString)
-    )
-
-  private val notDeactivated =
-    "\t" + buildRow(Option.empty[IdPlaceholder], Option.empty[Long], Option.empty[DeactivationType])
 
 final class Exercise(
     entityType: EntityTypePk,
