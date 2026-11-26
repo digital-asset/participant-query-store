@@ -103,7 +103,8 @@ CREATE TYPE public.activation AS (
 	activation_type public.activation_type,
 	reassignment_counter bigint,
 	source_synchronizer_id text,
-	synchronizer_id text
+	synchronizer_id text,
+	activated_at_record_time timestamp with time zone
 );
 
 
@@ -171,7 +172,9 @@ CREATE TYPE public.contract AS (
 	deactivation_type public.deactivation_type,
 	reassignment_counter bigint,
 	synchronizer_id text,
-	tpe_pk bigint
+	tpe_pk bigint,
+	activated_at_record_time timestamp with time zone,
+	deactivated_at_record_time timestamp with time zone
 );
 
 
@@ -214,7 +217,8 @@ CREATE TYPE public.deactivation AS (
 	deactivation_type public.deactivation_type,
 	reassignment_counter bigint,
 	synchronizer_id text,
-	target_synchronizer_id text
+	target_synchronizer_id text,
+	deactivated_at_record_time timestamp with time zone
 );
 
 
@@ -244,7 +248,8 @@ CREATE TYPE public.exercise AS (
 	controllers text[],
 	last_descendant_node_id integer,
 	witnesses text[],
-	synchronizer_id text
+	synchronizer_id text,
+	exercised_at_record_time timestamp with time zone
 );
 
 
@@ -363,7 +368,9 @@ select tpe.template_fqn,
        c.deactivation_type,
        c.reassignment_counter,
        c.synchronizer_id,
-       c.tpe_pk
+       c.tpe_pk,
+       at.record_time,
+       dt.record_time
 from __contracts c
     left join __contract_tpe tpe on tpe.pk = c.tpe_pk
     left join __transactions at on at.ix = c.activated_at_ix
@@ -532,7 +539,8 @@ select tpe.template_fqn,
        e.controllers,
        e.last_descendant_node_id,
        e.witnesses,
-       e.synchronizer_id
+       e.synchronizer_id,
+       t.record_time
 from __exercises e
          left join __contracts c on c.contract_id = e.contract_id and c.tpe_pk = e.contract_tpe_pk
              and c.activated_at_ix <= e.exercised_at_ix
@@ -1055,7 +1063,8 @@ select c.template_fqn,
        c.activation_type,
        c.reassignment_counter,
        r.source_synchronizer_id,
-       c.synchronizer_id
+       c.synchronizer_id,
+       c.activated_at_record_time
 from __contracts(qname) c
     left join __reassignments r on r.reassign_event_pk = c.activate_event_pk and r.reassigned_at_ix = c.activated_at_ix
 where not c.divulged_only
@@ -1144,7 +1153,9 @@ CREATE FUNCTION public.archives(qname text DEFAULT NULL::text, from_offset bigin
         c.deactivation_type,
         c.reassignment_counter,
         c.synchronizer_id,
-        c.tpe_pk
+        c.tpe_pk,
+        c.activated_at_record_time,
+        c.deactivated_at_record_time
     from __contracts(qname) c
     where (c.deactivation_type is null or c.deactivation_type = 'archive')
         and c.deactivated_at_ix between (select __nearest_ix_ceil(from_offset)) and (select __nearest_ix_floor(to_offset))
@@ -1249,7 +1260,8 @@ select c.template_fqn,
        c.deactivation_type,
        r.reassignment_counter,
        c.synchronizer_id,
-       r.target_synchronizer_id
+       r.target_synchronizer_id,
+       c.deactivated_at_record_time
 from __contracts(qname) c
     left join __reassignments r on r.reassign_event_pk = c.deactivate_event_pk and r.reassigned_at_ix = c.deactivated_at_ix
 where not c.divulged_only
@@ -2411,7 +2423,8 @@ CREATE VIEW public.transactions AS
     trace_context,
     external_transaction_hash,
     paid_traffic_cost,
-    synchronizer_id
+    synchronizer_id,
+    record_time
    FROM public.__transactions t
   WHERE (("offset" >= ( SELECT public.oldest_offset() AS oldest_offset)) AND ("offset" <= ( SELECT public.latest_offset() AS latest_offset)));
 

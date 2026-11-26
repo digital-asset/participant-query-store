@@ -769,6 +769,82 @@ object ReassignmentSpec extends SharedMultiSyncLedgerSpec:
               "Archive" | true  | sync2.id | s"{${alice.id}}"
             }
           )
+    },
+    funcTest("Read API returns the record time of every update") {
+      val alice      = Party("Alice")
+      val contractId = Capture[String]
+      Given:
+        DamlSdk.allocateParties(alice -> Seq(sync1, sync2))
+      Then:
+        createContract(alice).is(contractId.capture)
+      When:
+        Ledger.reassign(contractId.get, alice, sync1, sync2)
+          *> Ledger.archive("PingPong:Ping", contractId.get, alice, sync2)
+      And:
+        Ledger.damlSchema()
+          >+> DamlSchema.protobufCodecs
+          >+> Ledger.updateService ++ Ledger.stateService
+
+      val transactions = Capture[Chunk[Transaction[Event]]]
+
+      def createdAt    = transactions.get(0).recordTime
+      def unassignedAt = transactions.get(1).recordTime
+      def assignedAt   = transactions.get(2).recordTime
+      def archivedAt   = transactions.get(3).recordTime
+
+      Then:
+        Ledger
+          .recordTransactionStream(source = Datasource.TransactionTreeStream)
+          .is(hasSize(equalTo(4)) && transactions.capture)
+
+      When:
+        Postgres.database
+          >+> DamlSchema.produce(JsonCodec())
+          >+> DamlSchema.produce(SqlSchema)
+          >+> InProcessPipeline.destinationLayer()
+      When:
+        InProcessPipeline.processTransactions(transactions.get)
+
+      Expect:
+        Database
+          .query(sql"""select record_time from transactions order by "offset"""".query[Instant].selectAll)
+          .is(equalTo(Chunk(createdAt, unassignedAt, assignedAt, archivedAt)))
+      Expect:
+        Database
+          .query(
+            sql"""select activation_type::text, activated_at_record_time from activations() order by activated_at_ix"""
+              .query[(String, Instant)]
+              .selectAll
+          )
+          .is(equalTo(Chunk(("create", createdAt), ("assign", assignedAt))))
+      Expect:
+        Database
+          .query(
+            sql"""select deactivation_type::text, deactivated_at_record_time from deactivations() order by deactivated_at_ix"""
+              .query[(String, Instant)]
+              .selectAll
+          )
+          .is(equalTo(Chunk(("unassign", unassignedAt), ("archive", archivedAt))))
+      Expect:
+        Database
+          .query(
+            sql"select activated_at_record_time, deactivated_at_record_time from creates()"
+              .query[(Instant, Instant)]
+              .selectAll
+          )
+          .is(equalTo(Chunk((createdAt, unassignedAt))))
+      Expect:
+        Database
+          .query(
+            sql"select activated_at_record_time, deactivated_at_record_time from archives()"
+              .query[(Instant, Instant)]
+              .selectAll
+          )
+          .is(equalTo(Chunk((assignedAt, archivedAt))))
+      Expect:
+        Database
+          .query(sql"select choice, exercised_at_record_time from exercises()".query[(String, Instant)].selectAll)
+          .is(equalTo(Chunk(("Archive", archivedAt))))
     }
   )
 
