@@ -103,7 +103,7 @@ object Model {
     }
 
     val forcedCopies = copies
-      .map { (table, rows) => (table, rows.view.mkString(lineSeparator())) }
+      .map { (table, rows) => (table, rows.mkString(lineSeparator())) }
       .toSeq
       .sortBy(_._1.insertOrder)
     val copyIO = ZIO.serviceWithZIO[ZConnection](
@@ -268,7 +268,7 @@ final class Contract(
 ) extends Copy:
   def table = Contract
   def key   = (entityType, contractId, synchronizerId)
-  def row = buildRow(
+  val row = buildRow(
     entityType,
     activateEventPk,
     activatedAtIx,
