@@ -400,12 +400,14 @@ object ReassignmentSpec extends SharedMultiSyncLedgerSpec:
               "activation_type",
               "created_effective_at",
               "synchronizer_id",
-              "reassignment_counter"
+              "reassignment_counter",
+              "activated_at_record_time",
+              "deactivated_at_record_time"
             )
           )
           .returns(
             Table {
-              dar.get.packageId | s"${pingPong.name}:PingPong:Ping" | "template" | contractId | assignTx.offset.toLong | "assign" | createdEffectiveAt | sync2.id | 1
+              dar.get.packageId | s"${pingPong.name}:PingPong:Ping" | "template" | contractId | assignTx.offset.toLong | "assign" | createdEffectiveAt | sync2.id | 1 | assignTx.recordTime | archiveTx.recordTime
             }
           )
       Expect:
@@ -417,21 +419,27 @@ object ReassignmentSpec extends SharedMultiSyncLedgerSpec:
               "activation_type",
               "created_effective_at",
               "synchronizer_id",
-              "reassignment_counter"
+              "reassignment_counter",
+              "activated_at_record_time",
+              "deactivated_at_record_time"
             )
           )
           .returns(
             Table {
-              dar.get.packageId | s"${pingPong.name}:PingPong:Ping" | "template" | contractId | createTx.offset.toLong | "create" | createdEffectiveAt | sync1.id | 0
+              dar.get.packageId | s"${pingPong.name}:PingPong:Ping" | "template" | contractId | createTx.offset.toLong | "create" | createdEffectiveAt | sync1.id | 0 | createTx.recordTime | unassignTx.recordTime
             }
           )
       Expect:
         // lookup_contract returns the row with the highest reassignment_counter
         Database
-          .lookupContract(contractId.get, extraColumns = Seq("synchronizer_id", "reassignment_counter"))
+          .lookupContract(
+            contractId.get,
+            extraColumns =
+              Seq("synchronizer_id", "reassignment_counter", "activated_at_record_time", "deactivated_at_record_time")
+          )
           .returns(
             Table {
-              dar.get.packageId | s"${pingPong.name}:PingPong:Ping" | "template" | contractId | sync2.id | 1
+              dar.get.packageId | s"${pingPong.name}:PingPong:Ping" | "template" | contractId | sync2.id | 1 | assignTx.recordTime | archiveTx.recordTime
             }
           )
 
@@ -713,13 +721,13 @@ object ReassignmentSpec extends SharedMultiSyncLedgerSpec:
           )
       Expect:
         Database
-          .query(sql"""select choice, consuming, synchronizer_id, signatories
+          .query(sql"""select choice, consuming, synchronizer_id, signatories, exercised_at_record_time
                        from lookup_exercises(${contractId.get}) order by exercised_at_ix""")
           .returns(
             Table {
-              "Touch"   | false | sync1.id | s"{${alice.id}}"
-              "Touch"   | false | sync2.id | s"{${alice.id}}"
-              "Archive" | true  | sync2.id | s"{${alice.id}}"
+              "Touch"   | false | sync1.id | s"{${alice.id}}" | touchSync1.recordTime
+              "Touch"   | false | sync2.id | s"{${alice.id}}" | touchSync2.recordTime
+              "Archive" | true  | sync2.id | s"{${alice.id}}" | archiveTx.recordTime
             }
           )
     },
@@ -837,6 +845,14 @@ object ReassignmentSpec extends SharedMultiSyncLedgerSpec:
         Database
           .query(
             sql"select activated_at_record_time, deactivated_at_record_time from archives()"
+              .query[(Instant, Instant)]
+              .selectAll
+          )
+          .is(equalTo(Chunk((assignedAt, archivedAt))))
+      Expect:
+        Database
+          .query(
+            sql"select activated_at_record_time, deactivated_at_record_time from contracts()"
               .query[(Instant, Instant)]
               .selectAll
           )

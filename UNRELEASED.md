@@ -57,25 +57,26 @@ deactivated_at_offset bigint,
 deactivation_type deactivation_type,
 reassignment_counter bigint,
 synchronizer_id text,
+tpe_pk bigint,
 activated_at_record_time timestamp with time zone,
 deactivated_at_record_time timestamp with time zone;
 ```
 - Columns like `create_event_*`/`created_at_*` and `archive_event_*`/`archived_at_*` are generated from their respective `activate` or `deactivate` counterparts.
   - The PostgreSQL planner cannot use indexes on these derived fields.
   - Join or filter on the underlying `activate_event_pk`, `activated_at_ix`, `deactivate_event_pk` or `deactivated_at_ix` columns instead.
-- `activated_at_record_time` and `deactivated_at_record_time` hold the `record_time` of the update that activated (create or assign) and deactivated (archive or unassign) the contract. On an assign row, `activated_at_record_time` is the record time of the assign, while `created_effective_at` is the effective time of the original create. On an unassign row, `deactivated_at_record_time` is set while `archived_effective_at` is `NULL`. They are `NULL` for updates written by PQS 3.7 or older, and `activated_at_record_time` is `NULL` for the rows recorded by the ACS import.
+- `activated_at_record_time` and `deactivated_at_record_time` hold the `record_time` of the update that activated (create or assign) and deactivated (archive or unassign) the contract. They are `NULL` for updates written by PQS 3.7 or older, and `activated_at_record_time` is `NULL` for the rows recorded by the ACS import.
 - `active` and `lookup_contract` now return a single row per `(contract_id, template_fqn)`, keeping the row with the highest `reassignment_counter`.
 - `summary_active` counts each `contract_id` only once per `template_fqn`.
 - *BREAKING*: The `__transactions` column `domain_id` is renamed to `synchronizer_id`, to match Canton's current vocabulary. It is now populated for every update — every transaction and every reassignment. Rows written before this release keep `NULL` and are not getting backfilled.
 - The new `__transactions` column `record_time` holds the time at which the update was recorded by its synchronizer. It is populated for every update. Rows written before this release keep `NULL` and are not getting backfilled.
 - The `synchronizer_id text` column is added to the `transactions` SQL view. It returns `NULL` for rows written by PQS 3.7 or older.
 - The `synchronizer_id text` column is added to the output of the `exercises` and `lookup_exercises` SQL functions. They return `NULL` for rows written by PQS 3.7 or older.
-- The `record_time timestamp with time zone` column is added to the `transactions` SQL view. It returns `NULL` for rows written by PQS 3.7 or older.
+- The `record_time timestamp with time zone` column is added to the `transactions` SQL view. It returns `NULL` for rows written by PQS 3.7 or older, and for the `transaction` that PQS records at ix 0 when it seeds an empty datastore from the ACS.
 - The `exercised_at_record_time timestamp with time zone` column is added to the output of the `exercises` and `lookup_exercises` SQL functions. They return `NULL` for rows written by PQS 3.7 or older.
 - The `summary_reassignments` SQL function returns the number of assign and unassign events per Daml fully qualified name and per source and target synchronizer in the `[from_offset, to_offset]` range. It leaves out the assigns recorded by the ACS import.
 - The new `contracts` SQL function returns every contract known at `offset` that has not been pruned: active, archived, unassigned, divulged-only and transient. It returns a single row per `(contract_id, template_fqn)`, keeping the row with the highest `reassignment_counter`.
 - `summary_updates` returns additional `assigns bigint` and `unassigns bigint` columns: the number of assign and unassign events in the `[from_offset, to_offset]` range.
-- The `activations` and `deactivations` SQL functions return every activation (create or assign) and every deactivation (archive or unassign) in the `[from_offset, to_offset]` range. As in `archives`, `deactivation_type` is `NULL` on rows archived by PQS 3.7 or older. `from_offset` defaults to `coalesce(pruned_offset(), oldest_offset())`, as in `archives`, and a `from_offset` before the pruned offset raises an error. Divulged-only contracts are not returned. `activations` returns `activated_at_record_time` and `deactivations` returns `deactivated_at_record_time`, as in the `contract` type.
+- The `activations` and `deactivations` SQL functions return every activation (create or assign) and every deactivation (archive or unassign) in the `[from_offset, to_offset]` range. As in `archives`, `deactivation_type` is `NULL` on rows archived by PQS 3.7 or older. `from_offset` defaults to `coalesce(pruned_offset(), oldest_offset())`, as in `archives`, and a `from_offset` before the pruned offset raises an error. Divulged-only contracts are not returned.
 
 
 #### Pruning, Reset to offset and Redaction
