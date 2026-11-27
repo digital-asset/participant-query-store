@@ -3,6 +3,7 @@
 
 package com.digitalasset.pqs.perftest
 
+import com.digitalasset.pqs.docker.ContainerLimits
 import com.digitalasset.pqs.functest.FuncTest
 import com.digitalasset.pqs.functest.matchers.*
 import com.digitalasset.pqs.pipeline.pipeline.Config.Datasource
@@ -15,6 +16,7 @@ import zio.test.*
 import zio.jdbc.SqlFragment
 
 trait QueryPerfSpec[T] extends FuncTest[Ledger & Postgres & Parties]:
+  protected def pqsLimits = ContainerLimits(cpus = 2.0, memoryGiB = 0.8)
   protected def executeQuery(sql: SqlFragment): ZIO[Database, Throwable, T]
 
   def perfTest(name: String, source: Datasource = Datasource.TransactionStream)(
@@ -25,7 +27,7 @@ trait QueryPerfSpec[T] extends FuncTest[Ledger & Postgres & Parties]:
       val baseline  = Capture[Seq[Stats]]
       Given:
         Postgres.database
-          >+> Pqs37.runPipeline(
+          >+> Pqs37.runPipeline(pqsLimits)(
             s"--pipeline-datasource=$source",
             "--pipeline-ledger-start=Genesis",
             "--pipeline-ledger-stop=Latest",

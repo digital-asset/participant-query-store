@@ -68,7 +68,7 @@ object FTSpec extends ZIOSpecDefault:
     Unsafe.unsafe { implicit unsafe =>
       zio.Runtime.default.unsafe
         .run(Docker.queryResources)
-        .getOrElse(_ => DockerResources(hostProcessors, hostMemory, hostMemory))
+        .getOrElse(_ => DockerResources(hostProcessors, hostMemory * 4, hostMemory * 4))
     }
 
   /** Memory model constants derived from benchmarking across 4–16GB Docker configurations at 10 CPUs. memoryNeeded =

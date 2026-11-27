@@ -108,7 +108,9 @@ object `package` extends RootModule { root =>
 
       // Uses TLSv1.2 to avoid JDK-8221218 in forked test runs.
       // See also https://github.com/opensearch-project/security/issues/3299
-      override def forkArgs = T { Seq("-Djdk.tls.client.protocols=TLSv1.2") ++ super.forkArgs() }
+      override def forkArgs = T {
+        Seq("-Xmx4g", "-Djdk.tls.client.protocols=TLSv1.2") ++ super.forkArgs()
+      }
     }
 
   }

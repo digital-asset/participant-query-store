@@ -17,6 +17,7 @@
     "flake.nix",
     "flake.lock",
     "*/*.tpl",
+    ".mill-jvm-opts",
     ".mill-version",
     "charts/participant-query-store/.helmignore"
   ],

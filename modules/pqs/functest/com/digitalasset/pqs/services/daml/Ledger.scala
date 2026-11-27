@@ -26,7 +26,7 @@ import com.daml.ledger.api.v2.update_service.GetUpdatesRequest
 import com.daml.ledger.api.v2.update_service.ZioUpdateService.UpdateServiceClient
 import com.daml.ledger.api.v2.value.{Identifier, Value}
 import com.digitalasset.canonical.{ContractFilter, Event, MetadataFilter, Offset, Transaction}
-import com.digitalasset.pqs.docker.{Docker, Service}
+import com.digitalasset.pqs.docker.{ContainerLimits, Docker, Service}
 import com.digitalasset.pqs.functest.FTEnv
 import com.digitalasset.pqs.grpc.{ZClientInterceptor, ZManagedChannel}
 import com.digitalasset.pqs.pipeline.pipeline.Config.Datasource
@@ -467,7 +467,8 @@ object Ledger:
   private def canton(
       hostname: String,
       dockerImage: String,
-      cantonFiles: Seq[(os.Path, String | Array[Byte])]
+      cantonFiles: Seq[(os.Path, String | Array[Byte])],
+      limits: ContainerLimits = ContainerLimits(cpus = 4.0, memoryGiB = 2.0)
   ): ZIO[FTEnv & Docker & Scope, Throwable, Ledger] =
     for
       showCantonLogs <- FTEnv.showCantonLogs
@@ -479,7 +480,8 @@ object Ledger:
           hostname = Some(hostname),
           env = CantonConf.cantonEnvVarMap,
           user = Some(CantonConf.user),
-          suppressOutput = !showCantonLogs
+          suppressOutput = !showCantonLogs,
+          limits = limits
         )(CantonConf.cantonAdditionalCmds*)
         .build
       svc = env.get[Service[Ledger]]
