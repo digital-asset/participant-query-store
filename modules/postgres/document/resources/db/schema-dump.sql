@@ -249,8 +249,8 @@ CREATE TYPE public.exercise AS (
 	controllers text[],
 	last_descendant_node_id integer,
 	witnesses text[],
-	synchronizer_id text,
-	exercised_at_record_time timestamp with time zone
+	exercised_at_record_time timestamp with time zone,
+	synchronizer_id text
 );
 
 
@@ -542,8 +542,8 @@ select tpe.template_fqn,
        e.last_descendant_node_id,
        -- Backward compatibility: __events.witnesses was added in 3.8, __exercises.witnesses is not populated after 3.8
        COALESCE(ee.witnesses, e.witnesses),
-       e.synchronizer_id,
-       t.record_time
+       t.record_time,
+       e.synchronizer_id
 from __exercises e
          left join __contracts c on c.contract_id = e.contract_id and c.tpe_pk = e.contract_tpe_pk
              and c.activated_at_ix <= e.exercised_at_ix

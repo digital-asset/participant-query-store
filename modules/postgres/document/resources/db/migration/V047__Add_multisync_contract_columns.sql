@@ -54,6 +54,3 @@ drop trigger if exists __insert_archive_trg on __archives;
 drop function if exists __insert_archive_fn();
 
 drop view if exists __archives;
-
-alter type exercise
-    add attribute synchronizer_id text;
