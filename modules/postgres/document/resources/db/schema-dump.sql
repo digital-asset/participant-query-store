@@ -99,12 +99,12 @@ CREATE TYPE public.activation AS (
 	activate_event_id public.event_id,
 	activated_at_ix bigint,
 	activated_at_offset bigint,
+	activated_at_record_time timestamp with time zone,
 	activation_type public.activation_type,
 	witnesses text[],
 	reassignment_counter bigint,
 	source_synchronizer_id text,
-	synchronizer_id text,
-	activated_at_record_time timestamp with time zone
+	synchronizer_id text
 );
 
 
@@ -164,17 +164,17 @@ CREATE TYPE public.contract AS (
 	activate_event_id public.event_id,
 	activated_at_ix bigint,
 	activated_at_offset bigint,
+	activated_at_record_time timestamp with time zone,
 	activation_type public.activation_type,
 	deactivate_event_pk bigint,
 	deactivate_event_id public.event_id,
 	deactivated_at_ix bigint,
 	deactivated_at_offset bigint,
+	deactivated_at_record_time timestamp with time zone,
 	deactivation_type public.deactivation_type,
 	reassignment_counter bigint,
 	synchronizer_id text,
-	tpe_pk bigint,
-	activated_at_record_time timestamp with time zone,
-	deactivated_at_record_time timestamp with time zone
+	tpe_pk bigint
 );
 
 
@@ -214,12 +214,12 @@ CREATE TYPE public.deactivation AS (
 	deactivate_event_id public.event_id,
 	deactivated_at_ix bigint,
 	deactivated_at_offset bigint,
+	deactivated_at_record_time timestamp with time zone,
 	deactivation_type public.deactivation_type,
 	witnesses text[],
 	reassignment_counter bigint,
 	synchronizer_id text,
-	target_synchronizer_id text,
-	deactivated_at_record_time timestamp with time zone
+	target_synchronizer_id text
 );
 
 
@@ -362,17 +362,17 @@ select tpe.template_fqn,
        ae.event_id,
        c.activated_at_ix,
        at."offset",
+       at.record_time,
        c.activation_type,
        c.deactivate_event_pk,
        de.event_id,
        c.deactivated_at_ix,
        dt."offset",
+       dt.record_time,
        c.deactivation_type,
        c.reassignment_counter,
        c.synchronizer_id,
-       c.tpe_pk,
-       at.record_time,
-       dt.record_time
+       c.tpe_pk
 from __contracts c
     left join __contract_tpe tpe on tpe.pk = c.tpe_pk
     left join __transactions at on at.ix = c.activated_at_ix
@@ -1062,12 +1062,12 @@ select c.template_fqn,
        c.activate_event_id,
        c.activated_at_ix,
        c.activated_at_offset,
+       c.activated_at_record_time,
        c.activation_type,
        c.witnesses,
        c.reassignment_counter,
        r.source_synchronizer_id,
-       c.synchronizer_id,
-       c.activated_at_record_time
+       c.synchronizer_id
 from __contracts(qname) c
     left join __reassignments r on r.reassign_event_pk = c.activate_event_pk
 where not c.divulged_only
@@ -1148,17 +1148,17 @@ CREATE FUNCTION public.archives(qname text DEFAULT NULL::text, from_offset bigin
         c.activate_event_id,
         c.activated_at_ix,
         c.activated_at_offset,
+        c.activated_at_record_time,
         c.activation_type,
         c.deactivate_event_pk,
         c.deactivate_event_id,
         c.deactivated_at_ix,
         c.deactivated_at_offset,
+        c.deactivated_at_record_time,
         c.deactivation_type,
         c.reassignment_counter,
         c.synchronizer_id,
-        c.tpe_pk,
-        c.activated_at_record_time,
-        c.deactivated_at_record_time
+        c.tpe_pk
     from __contracts(qname) c
     where (c.deactivation_type is null or c.deactivation_type = 'archive')
         and c.deactivated_at_ix between (select __nearest_ix_ceil(from_offset)) and (select __nearest_ix_floor(to_offset))
@@ -1260,12 +1260,12 @@ select c.template_fqn,
        c.deactivate_event_id,
        c.deactivated_at_ix,
        c.deactivated_at_offset,
+       c.deactivated_at_record_time,
        c.deactivation_type,
        e.witnesses,
        r.reassignment_counter,
        c.synchronizer_id,
-       r.target_synchronizer_id,
-       c.deactivated_at_record_time
+       r.target_synchronizer_id
 from __contracts(qname) c
     left join __reassignments r on r.reassign_event_pk = c.deactivate_event_pk
     left join __events e on e.pk = c.deactivate_event_pk

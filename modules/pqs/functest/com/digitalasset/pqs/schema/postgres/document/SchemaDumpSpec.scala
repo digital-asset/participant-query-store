@@ -51,7 +51,7 @@ object SchemaDumpSpec extends SharedLedgerAndPostgresTest:
       When:
         // Running the pipeline once triggers PQS's normal schema auto-apply (Flyway migrate + mappings)
         // against a brand-new, empty database.
-        Pqs.runPipeline("--pipeline-ledger-stop=Latest")
+        Pqs.runPipeline("--pipeline-ledger-stop=Latest", "--retry-counter-attempts=0")
       Then:
         if regenerate then
           for
