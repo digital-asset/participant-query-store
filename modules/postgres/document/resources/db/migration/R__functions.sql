@@ -139,7 +139,9 @@ select tpe.template_fqn,
        c.deactivation_type,
        c.reassignment_counter,
        c.synchronizer_id,
-       c.tpe_pk
+       c.tpe_pk,
+       at.record_time,
+       dt.record_time
 from __contracts c
     left join __contract_tpe tpe on tpe.pk = c.tpe_pk
     left join __transactions at on at.ix = c.activated_at_ix
@@ -176,7 +178,8 @@ select tpe.template_fqn,
        e.controllers,
        e.last_descendant_node_id,
        e.witnesses,
-       e.synchronizer_id
+       e.synchronizer_id,
+       t.record_time
 from __exercises e
          left join __contracts c on c.contract_id = e.contract_id and c.tpe_pk = e.contract_tpe_pk
              and c.activated_at_ix <= e.exercised_at_ix
@@ -1159,7 +1162,8 @@ select c.template_fqn,
        c.activation_type,
        c.reassignment_counter,
        r.source_synchronizer_id,
-       c.synchronizer_id
+       c.synchronizer_id,
+       c.activated_at_record_time
 from __contracts(qname) c
     left join __reassignments r on r.reassign_event_pk = c.activate_event_pk and r.reassigned_at_ix = c.activated_at_ix
 where not c.divulged_only
@@ -1174,6 +1178,7 @@ Only activations within [from_offset; to_offset] range are considered.
 Divulged-only contracts are not returned.
 source_synchronizer_id is NULL for creates and for the assigns recorded by the ACS import.
 synchronizer_id is the target synchronizer for assigns; it is NULL on rows written by PQS 3.7 or older.
+activated_at_record_time is NULL for the rows recorded by the ACS import and on rows written by PQS 3.7 or older.
 Raises an error when from_offset is before the pruned offset.$$;
 
 create or replace function summary_creates(
@@ -1413,7 +1418,9 @@ $$
         c.deactivation_type,
         c.reassignment_counter,
         c.synchronizer_id,
-        c.tpe_pk
+        c.tpe_pk,
+        c.activated_at_record_time,
+        c.deactivated_at_record_time
     from __contracts(qname) c
     where (c.deactivation_type is null or c.deactivation_type = 'archive')
         and c.deactivated_at_ix between (select __nearest_ix_ceil(from_offset)) and (select __nearest_ix_floor(to_offset))
@@ -1455,7 +1462,8 @@ select c.template_fqn,
        c.deactivation_type,
        r.reassignment_counter,
        c.synchronizer_id,
-       r.target_synchronizer_id
+       r.target_synchronizer_id,
+       c.deactivated_at_record_time
 from __contracts(qname) c
     left join __reassignments r on r.reassign_event_pk = c.deactivate_event_pk and r.reassigned_at_ix = c.deactivated_at_ix
 where not c.divulged_only
@@ -1472,6 +1480,7 @@ archived_effective_at is NULL for unassigns.
 deactivation_type is NULL on rows archived by PQS 3.7 or older.
 reassignment_counter and target_synchronizer_id are NULL for archives.
 synchronizer_id is the source synchronizer for unassigns; it is NULL when the activation was written by PQS 3.7 or older.
+deactivated_at_record_time is NULL on rows deactivated by PQS 3.7 or older.
 Raises an error when from_offset is before the pruned offset.$$;
 
 create or replace function summary_archives(
