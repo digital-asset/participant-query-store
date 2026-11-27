@@ -60,11 +60,15 @@ object ReassignmentSpec extends SharedMultiSyncLedgerSpec:
             "--pipeline-ledger-stop=Latest"
           )
 
-      val createdAtOffset    = Capture[OffsetType]
-      val createdEffectiveAt = Capture[Instant]
-      val unassignedAtOffset = Capture[OffsetType]
-      val assignedAtOffset   = Capture[OffsetType]
-      val archivedAtOffset   = Capture[OffsetType]
+      val createdAtOffset        = Capture[OffsetType]
+      val createdEffectiveAt     = Capture[Instant]
+      val unassignedAtOffset     = Capture[OffsetType]
+      val assignedAtOffset       = Capture[OffsetType]
+      val archivedAtOffset       = Capture[OffsetType]
+      val createdAtRecordTime    = Capture[Instant]
+      val unassignedAtRecordTime = Capture[Instant]
+      val assignedAtRecordTime   = Capture[Instant]
+      val archivedAtRecordTime   = Capture[Instant]
       Expect:
         // A reassignment has no ledger effective time and must store none,
         // but every update has a record time.
@@ -76,10 +80,12 @@ object ReassignmentSpec extends SharedMultiSyncLedgerSpec:
           .returns(
             Table {
               // submitAndWait guarantees the causal order of these multi-sync transactions
-              createdAtOffset.capture    | sync1.id | createdEffectiveAt.capture | not(isNull)
-              unassignedAtOffset.capture | sync1.id | isNull                     | not(isNull)
-              assignedAtOffset.capture   | sync2.id | isNull                     | not(isNull)
-              archivedAtOffset.capture   | sync2.id | not(isNull)                | not(isNull)
+              createdAtOffset.capture | sync1.id | createdEffectiveAt.capture | not(
+                isNull
+              ) && createdAtRecordTime.capture
+              unassignedAtOffset.capture | sync1.id | isNull      | not(isNull) && unassignedAtRecordTime.capture
+              assignedAtOffset.capture   | sync2.id | isNull      | not(isNull) && assignedAtRecordTime.capture
+              archivedAtOffset.capture   | sync2.id | not(isNull) | not(isNull) && archivedAtRecordTime.capture
             }
           )
 
@@ -205,12 +211,18 @@ object ReassignmentSpec extends SharedMultiSyncLedgerSpec:
       Expect:
         Database
           .activations(extraColumns =
-            Seq("activated_at_offset", "source_synchronizer_id", "synchronizer_id", "created_effective_at")
+            Seq(
+              "activated_at_offset",
+              "source_synchronizer_id",
+              "synchronizer_id",
+              "created_effective_at",
+              "activated_at_record_time"
+            )
           )
           .returns(
             Table {
-              dar.get.packageId | s"${pingPong.name}:PingPong:Ping" | "template" | contractId | createdAtOffset | null | sync1.id | createdEffectiveAt
-              dar.get.packageId | s"${pingPong.name}:PingPong:Ping" | "template" | contractId | assignedAtOffset | sync1.id | sync2.id | createdEffectiveAt
+              dar.get.packageId | s"${pingPong.name}:PingPong:Ping" | "template" | contractId | createdAtOffset | null | sync1.id | createdEffectiveAt | createdAtRecordTime
+              dar.get.packageId | s"${pingPong.name}:PingPong:Ping" | "template" | contractId | assignedAtOffset | sync1.id | sync2.id | createdEffectiveAt | assignedAtRecordTime
             }
           )
       Expect:
@@ -222,15 +234,16 @@ object ReassignmentSpec extends SharedMultiSyncLedgerSpec:
               "synchronizer_id",
               "target_synchronizer_id",
               "reassignment_counter::text",
-              "archived_effective_at"
+              "archived_effective_at",
+              "deactivated_at_record_time"
             )
           )
           .returns(
             Table {
-              dar.get.packageId | s"${pingPong.name}:PingPong:Ping" | "template" | contractId | "unassign" | unassignedAtOffset | sync1.id | sync2.id | "1" | isNull
+              dar.get.packageId | s"${pingPong.name}:PingPong:Ping" | "template" | contractId | "unassign" | unassignedAtOffset | sync1.id | sync2.id | "1" | isNull | unassignedAtRecordTime
               dar.get.packageId | s"${pingPong.name}:PingPong:Ping" | "template" | contractId | "archive" | archivedAtOffset | sync2.id | null | null | not(
                 isNull
-              )
+              ) | archivedAtRecordTime
             }
           )
       Expect:
@@ -356,7 +369,7 @@ object ReassignmentSpec extends SharedMultiSyncLedgerSpec:
       Expect:
         Database
           .query(
-            sql"""select "offset", synchronizer_id, effective_at, record_time from __transactions order by "offset""""
+            sql"""select "offset", synchronizer_id, effective_at, record_time from transactions order by "offset""""
               .query[(Long, String, Option[Instant], Instant)]
               .selectAll
           )
@@ -384,11 +397,18 @@ object ReassignmentSpec extends SharedMultiSyncLedgerSpec:
       Expect:
         Database
           .archives(extraColumns =
-            Seq("archived_at_offset", "created_effective_at", "synchronizer_id", "reassignment_counter")
+            Seq(
+              "archived_at_offset",
+              "created_effective_at",
+              "synchronizer_id",
+              "reassignment_counter",
+              "activated_at_record_time",
+              "deactivated_at_record_time"
+            )
           )
           .returns(
             Table {
-              dar.get.packageId | s"${pingPong.name}:PingPong:Ping" | "template" | contractId | archiveTx.offset.toLong | createdEffectiveAt | sync2.id | 1
+              dar.get.packageId | s"${pingPong.name}:PingPong:Ping" | "template" | contractId | archiveTx.offset.toLong | createdEffectiveAt | sync2.id | 1 | assignTx.recordTime | archiveTx.recordTime
             }
           )
       Expect:
@@ -777,90 +797,6 @@ object ReassignmentSpec extends SharedMultiSyncLedgerSpec:
               "Archive" | true  | sync2.id | s"{${alice.id}}"
             }
           )
-    },
-    funcTest("Read API returns the record time of every update") {
-      val alice      = Party("Alice")
-      val contractId = Capture[String]
-      Given:
-        DamlSdk.allocateParties(alice -> Seq(sync1, sync2))
-      Then:
-        createContract(alice).is(contractId.capture)
-      When:
-        Ledger.reassign(contractId.get, alice, sync1, sync2)
-          *> Ledger.archive("PingPong:Ping", contractId.get, alice, sync2)
-      And:
-        Ledger.damlSchema()
-          >+> DamlSchema.protobufCodecs
-          >+> Ledger.updateService ++ Ledger.stateService
-
-      val transactions = Capture[Chunk[Transaction[Event]]]
-
-      def createdAt    = transactions.get(0).recordTime
-      def unassignedAt = transactions.get(1).recordTime
-      def assignedAt   = transactions.get(2).recordTime
-      def archivedAt   = transactions.get(3).recordTime
-
-      Then:
-        Ledger
-          .recordTransactionStream(source = Datasource.TransactionTreeStream)
-          .is(hasSize(equalTo(4)) && transactions.capture)
-
-      When:
-        Postgres.database
-          >+> DamlSchema.produce(JsonCodec())
-          >+> DamlSchema.produce(SqlSchema)
-          >+> InProcessPipeline.destinationLayer()
-      When:
-        InProcessPipeline.processTransactions(transactions.get)
-
-      Expect:
-        Database
-          .query(sql"""select record_time from transactions order by "offset"""".query[Instant].selectAll)
-          .is(equalTo(Chunk(createdAt, unassignedAt, assignedAt, archivedAt)))
-      Expect:
-        Database
-          .query(
-            sql"""select activation_type::text, activated_at_record_time from activations() order by activated_at_ix"""
-              .query[(String, Instant)]
-              .selectAll
-          )
-          .is(equalTo(Chunk(("create", createdAt), ("assign", assignedAt))))
-      Expect:
-        Database
-          .query(
-            sql"""select deactivation_type::text, deactivated_at_record_time from deactivations() order by deactivated_at_ix"""
-              .query[(String, Instant)]
-              .selectAll
-          )
-          .is(equalTo(Chunk(("unassign", unassignedAt), ("archive", archivedAt))))
-      Expect:
-        Database
-          .query(
-            sql"select activated_at_record_time, deactivated_at_record_time from creates()"
-              .query[(Instant, Instant)]
-              .selectAll
-          )
-          .is(equalTo(Chunk((createdAt, unassignedAt))))
-      Expect:
-        Database
-          .query(
-            sql"select activated_at_record_time, deactivated_at_record_time from archives()"
-              .query[(Instant, Instant)]
-              .selectAll
-          )
-          .is(equalTo(Chunk((assignedAt, archivedAt))))
-      Expect:
-        Database
-          .query(
-            sql"select activated_at_record_time, deactivated_at_record_time from contracts()"
-              .query[(Instant, Instant)]
-              .selectAll
-          )
-          .is(equalTo(Chunk((assignedAt, archivedAt))))
-      Expect:
-        Database
-          .query(sql"select choice, exercised_at_record_time from exercises()".query[(String, Instant)].selectAll)
-          .is(equalTo(Chunk(("Archive", archivedAt))))
     }
   )
 
