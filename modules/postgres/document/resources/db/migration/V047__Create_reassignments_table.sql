@@ -15,7 +15,6 @@ create table __reassignments
     target_synchronizer_id text                not null,
     submitter              text,
     reassignment_counter   bigint              not null,
-    witnesses              text[]              not null,
     -- unassign-only: before this time only the unassignment's submitter may assign
     assignment_exclusivity timestamp with time zone
 ) partition by list (contract_tpe_pk);

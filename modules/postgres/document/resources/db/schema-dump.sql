@@ -93,7 +93,6 @@ CREATE TYPE public.activation AS (
 	package_id text,
 	signatories text[],
 	observers text[],
-	witnesses text[],
 	creation_package_id text,
 	contract_key_hash bytea,
 	activate_event_pk bigint,
@@ -101,6 +100,7 @@ CREATE TYPE public.activation AS (
 	activated_at_ix bigint,
 	activated_at_offset bigint,
 	activation_type public.activation_type,
+	witnesses text[],
 	reassignment_counter bigint,
 	source_synchronizer_id text,
 	synchronizer_id text,
@@ -215,6 +215,7 @@ CREATE TYPE public.deactivation AS (
 	deactivated_at_ix bigint,
 	deactivated_at_offset bigint,
 	deactivation_type public.deactivation_type,
+	witnesses text[],
 	reassignment_counter bigint,
 	synchronizer_id text,
 	target_synchronizer_id text,
@@ -347,7 +348,8 @@ select tpe.template_fqn,
        p.id,
        c.signatories,
        c.observers,
-       c.witnesses,
+       -- Backward compatibility: __events.witnesses was added in 3.8, __contracts.witnesses is not populated after 3.8
+       COALESCE(ae.witnesses, c.witnesses),
        c.divulged_only,
        -- Storage optimization and backward compatibility:
        -- We don't store the creation package id on the contract if it is the same as the representative package,
@@ -538,7 +540,8 @@ select tpe.template_fqn,
        c.observers,
        e.controllers,
        e.last_descendant_node_id,
-       e.witnesses,
+       -- Backward compatibility: __events.witnesses was added in 3.8, __exercises.witnesses is not populated after 3.8
+       COALESCE(ee.witnesses, e.witnesses),
        e.synchronizer_id,
        t.record_time
 from __exercises e
@@ -1053,7 +1056,6 @@ select c.template_fqn,
        c.package_id,
        c.signatories,
        c.observers,
-       c.witnesses,
        c.creation_package_id,
        c.contract_key_hash,
        c.activate_event_pk,
@@ -1061,12 +1063,13 @@ select c.template_fqn,
        c.activated_at_ix,
        c.activated_at_offset,
        c.activation_type,
+       c.witnesses,
        c.reassignment_counter,
        r.source_synchronizer_id,
        c.synchronizer_id,
        c.activated_at_record_time
 from __contracts(qname) c
-    left join __reassignments r on r.reassign_event_pk = c.activate_event_pk and r.reassigned_at_ix = c.activated_at_ix
+    left join __reassignments r on r.reassign_event_pk = c.activate_event_pk
 where not c.divulged_only
     and c.activated_at_ix between (select __nearest_unpruned_ix_ceil(from_offset)) and (select __nearest_ix_floor(to_offset))
 $$;
@@ -1258,14 +1261,15 @@ select c.template_fqn,
        c.deactivated_at_ix,
        c.deactivated_at_offset,
        c.deactivation_type,
+       e.witnesses,
        r.reassignment_counter,
        c.synchronizer_id,
        r.target_synchronizer_id,
        c.deactivated_at_record_time
 from __contracts(qname) c
-    left join __reassignments r on r.reassign_event_pk = c.deactivate_event_pk and r.reassigned_at_ix = c.deactivated_at_ix
-where not c.divulged_only
-    and c.deactivated_at_ix between (select __nearest_unpruned_ix_ceil(from_offset)) and (select __nearest_ix_floor(to_offset))
+    left join __reassignments r on r.reassign_event_pk = c.deactivate_event_pk
+    left join __events e on e.pk = c.deactivate_event_pk
+where c.deactivated_at_ix between (select __nearest_unpruned_ix_ceil(from_offset)) and (select __nearest_ix_floor(to_offset))
 $$;
 
 
@@ -2180,7 +2184,8 @@ CREATE TABLE public.__events (
     pk bigint NOT NULL,
     tx_ix bigint NOT NULL,
     event_id public.event_id NOT NULL,
-    type public.__event_type NOT NULL
+    type public.__event_type NOT NULL,
+    witnesses text[]
 );
 
 
@@ -2320,7 +2325,6 @@ CREATE TABLE public.__reassignments (
     target_synchronizer_id text NOT NULL,
     submitter text,
     reassignment_counter bigint NOT NULL,
-    witnesses text[] NOT NULL,
     assignment_exclusivity timestamp with time zone
 )
 PARTITION BY LIST (contract_tpe_pk);
@@ -2341,7 +2345,6 @@ CREATE TABLE public.__reassignments_1 (
     target_synchronizer_id text NOT NULL,
     submitter text,
     reassignment_counter bigint NOT NULL,
-    witnesses text[] NOT NULL,
     assignment_exclusivity timestamp with time zone
 );
 

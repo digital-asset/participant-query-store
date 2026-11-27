@@ -220,10 +220,11 @@ final class Event(
     txIx: Long,
     eventId: EventId,
     eventType: EventType,
+    witnesses: Seq[Party],
     metrics: MetricsContext
 ) extends Copy:
   def table = Event
-  val row   = buildRow(pk, txIx, eventId, eventType)
+  val row   = buildRow(pk, txIx, eventId, eventType, witnesses)
 
   override val eventLabels: Set[MetricLabel] = eventType match
     // Exercise and Reassignment rows count the other event types, with the choice and the synchronizers.
@@ -238,7 +239,7 @@ final class Event(
 object Event
     extends Table(
       "__events",
-      Seq("pk", "tx_ix", "event_id", "type"),
+      Seq("pk", "tx_ix", "event_id", "type", "witnesses"),
       insertOrder = 1
     )
 
@@ -252,7 +253,6 @@ final class Contract(
     reassignmentCounter: Long,
     signatories: Seq[Party],
     observers: Seq[Party],
-    witnesses: Seq[Party],
     payload: ujson.Value,
     contractKey: Option[ujson.Value],
     contractKeyHash: Option[Array[Byte]],
@@ -284,7 +284,6 @@ final class Contract(
     creationPackageId,
     signatories,
     observers,
-    witnesses,
     !acsDelta,
     createdEffectiveAt,
     deactivateEventPk,
@@ -303,7 +302,6 @@ final class Contract(
       reassignmentCounter,
       signatories,
       observers,
-      witnesses,
       payload,
       contractKey,
       contractKeyHash,
@@ -337,7 +335,6 @@ object Contract
         "creation_package_id",
         "signatories",
         "observers",
-        "witnesses",
         "divulged_only",
         "created_effective_at",
         "deactivate_event_pk",
@@ -357,7 +354,6 @@ final class Exercise(
     argument: ujson.Value,
     result: ujson.Value,
     controllers: Seq[Party],
-    witnesses: Seq[Party],
     lastDescendant: NodeId,
     packagePk: PackagePk,
     synchronizerId: SynchronizerId,
@@ -373,7 +369,6 @@ final class Exercise(
     argument,
     result,
     controllers,
-    witnesses,
     lastDescendant,
     packagePk,
     synchronizerId
@@ -394,7 +389,6 @@ object Exercise
         "argument",
         "result",
         "controllers",
-        "witnesses",
         "last_descendant_node_id",
         "package_pk",
         "synchronizer_id"
@@ -452,7 +446,6 @@ final class Reassignment(
     target: SynchronizerId,
     submitter: Option[Party],
     reassignmentCounter: Long,
-    witnesses: Seq[Party],
     assignmentExclusivity: Option[Instant],
     metrics: MetricsContext
 ) extends Copy:
@@ -468,7 +461,6 @@ final class Reassignment(
     target,
     submitter,
     reassignmentCounter,
-    witnesses,
     assignmentExclusivity
   )
   override val eventLabels: Set[MetricLabel] =
@@ -489,7 +481,6 @@ object Reassignment
         "target_synchronizer_id",
         "submitter",
         "reassignment_counter",
-        "witnesses",
         "assignment_exclusivity"
       ),
       insertOrder = 5

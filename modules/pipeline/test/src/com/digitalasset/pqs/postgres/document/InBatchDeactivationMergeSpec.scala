@@ -137,7 +137,6 @@ object InBatchDeactivationMergeSpec extends ZIOSpecDefault:
       reassignmentCounter = 0,
       signatories = Seq.empty,
       observers = Seq.empty,
-      witnesses = Seq.empty,
       payload = ujson.Obj(),
       contractKey = None,
       contractKeyHash = None,

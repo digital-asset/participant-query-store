@@ -328,7 +328,7 @@ final case class DocumentPostgres(
 
     // A non-zero reassignmentCounter means the contract was reassigned onto this synchronizer after its creation
     if acsContract.reassignmentCounter == 0 then
-      val evt = Event(pk, txIx, acsContract.eventId, EventType.Create, metrics)
+      val evt = Event(pk, txIx, acsContract.eventId, EventType.Create, acsContract.witnesses, metrics)
       val contracts = mkContracts(
         pk,
         txIx,
@@ -340,7 +340,7 @@ final case class DocumentPostgres(
       )
       contracts :+ evt
     else
-      val evt = Event(pk, txIx, acsContract.eventId, EventType.Assign, metrics)
+      val evt = Event(pk, txIx, acsContract.eventId, EventType.Assign, acsContract.witnesses, metrics)
       val contracts = mkContracts(
         pk,
         txIx,
@@ -362,7 +362,7 @@ final case class DocumentPostgres(
     event match
       case c: canonical.Event.Created =>
         val metrics = MetricsContext(c.contract.templateId.qualifiedName, c.synchronizerId)
-        val evt     = Event(pk, txIx, c.eventId, EventType.Create, metrics)
+        val evt     = Event(pk, txIx, c.eventId, EventType.Create, c.witnesses, metrics)
         val contracts = mkContracts(
           eventPk = pk,
           txIx,
@@ -376,7 +376,7 @@ final case class DocumentPostgres(
 
       case a: canonical.Event.Archived =>
         val metrics = MetricsContext(a.templateId.qualifiedName, a.synchronizerId)
-        val evt     = Event(pk, txIx, a.eventId, EventType.Archive, metrics)
+        val evt     = Event(pk, txIx, a.eventId, EventType.Archive, a.witnesses, metrics)
         val archives =
           mkDeactivatedContracts(
             pk,
@@ -391,7 +391,7 @@ final case class DocumentPostgres(
 
       case e: canonical.Event.Exercised =>
         val metrics = MetricsContext(e.templateId.qualifiedName, e.synchronizerId, consuming = e.consuming)
-        val event   = Event(pk, txIx, e.eventId, EventType.Exercise, metrics)
+        val event   = Event(pk, txIx, e.eventId, EventType.Exercise, e.witnesses, metrics)
         val exercise = Exercise(
           entityType = exercisePkMap(e.entityId, e.choice),
           contractEntityType = entityPkMap(e.entityId),
@@ -402,7 +402,6 @@ final case class DocumentPostgres(
           argument = codec.choiceArgument(e.entityId, e.choice).fromDynamicValue(e.arg),
           result = codec.choiceResult(e.entityId, e.choice).fromDynamicValue(e.result),
           controllers = e.controllers,
-          witnesses = e.witnesses,
           lastDescendant = e.lastDescendant,
           packagePk = packageMap(e.templateId.packageId),
           synchronizerId = e.synchronizerId,
@@ -424,7 +423,7 @@ final case class DocumentPostgres(
 
       case u: canonical.Event.Unassigned =>
         val metrics = MetricsContext(u.templateId.qualifiedName, u.synchronizerId)
-        val event   = Event(pk, txIx, u.eventId, EventType.Unassign, metrics)
+        val event   = Event(pk, txIx, u.eventId, EventType.Unassign, u.witnesses, metrics)
         val unassignedContracts =
           mkDeactivatedContracts(
             pk,
@@ -446,7 +445,6 @@ final case class DocumentPostgres(
           target = u.target,
           submitter = u.submitter,
           reassignmentCounter = u.reassignmentCounter,
-          witnesses = u.witnesses,
           assignmentExclusivity = u.assignmentExclusivity,
           metrics = metrics
         )
@@ -454,7 +452,7 @@ final case class DocumentPostgres(
 
       case e: canonical.Event.Assigned =>
         val metrics = MetricsContext(e.contract.templateId.qualifiedName, e.synchronizerId)
-        val event   = Event(pk, txIx, e.eventId, EventType.Assign, metrics)
+        val event   = Event(pk, txIx, e.eventId, EventType.Assign, e.witnesses, metrics)
         val contracts =
           mkContracts(pk, txIx, e.contract, e.synchronizerId, e.reassignmentCounter, ActivationType.Assign, metrics)
         val reassignment = mkReassignment(
@@ -468,7 +466,6 @@ final case class DocumentPostgres(
           target = e.target,
           submitter = e.submitter,
           reassignmentCounter = e.reassignmentCounter,
-          witnesses = e.contract.witnesses,
           assignmentExclusivity = None,
           metrics = metrics
         )
@@ -495,7 +492,6 @@ final case class DocumentPostgres(
         reassignmentCounter = reassignmentCounter,
         signatories = contract.signatories,
         observers = contract.observers,
-        witnesses = contract.witnesses,
         payload = codec.template(entityId).fromDynamicValue(value),
         // A create yields a row per payload: one for the template, one per interface view. Only a keyed
         // template has a key codec, so checking templateKey codec drops both contractKey and contractKeyHash.
@@ -547,7 +543,6 @@ final case class DocumentPostgres(
       target: SynchronizerId,
       submitter: Option[Party],
       reassignmentCounter: Long,
-      witnesses: Chunk[Party],
       assignmentExclusivity: Option[Instant],
       metrics: MetricsContext
   ) =
@@ -562,7 +557,6 @@ final case class DocumentPostgres(
       target = target,
       submitter = submitter,
       reassignmentCounter = reassignmentCounter,
-      witnesses = witnesses,
       assignmentExclusivity = assignmentExclusivity,
       metrics = metrics
     )

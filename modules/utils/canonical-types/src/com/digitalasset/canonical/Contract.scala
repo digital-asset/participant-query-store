@@ -17,7 +17,6 @@ final case class Contract(
     payloads: Chunk[(Identifier, DynamicValue)],
     signatories: Chunk[Party],
     observers: Chunk[Party],
-    witnesses: Chunk[Party],
     createdAt: Option[Instant],
     metadata: Option[Array[Byte]],
     acsDelta: Boolean,
