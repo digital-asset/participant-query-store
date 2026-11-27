@@ -10,6 +10,7 @@ alter table __contracts rename column archive_event_pk to deactivate_event_pk;
 alter table __contracts rename column archived_at_ix to deactivated_at_ix;
 
 alter table __contracts
+  add column created_effective_at timestamp with time zone,
   add column activation_type activation_type not null default 'create',
   -- keep null values in legacy archived rows to avoid the table rewrite
   add column deactivation_type deactivation_type,
@@ -21,11 +22,13 @@ alter type contract
     add attribute activate_event_id event_id,
     add attribute activated_at_ix bigint,
     add attribute activated_at_offset bigint,
+    add attribute activated_at_record_time timestamp with time zone,
     add attribute activation_type activation_type,
     add attribute deactivate_event_pk bigint,
     add attribute deactivate_event_id event_id,
     add attribute deactivated_at_ix bigint,
     add attribute deactivated_at_offset bigint,
+    add attribute deactivated_at_record_time timestamp with time zone,
     add attribute deactivation_type deactivation_type,
     add attribute reassignment_counter bigint,
     add attribute synchronizer_id text,
@@ -52,6 +55,3 @@ drop trigger if exists __insert_archive_trg on __archives;
 drop function if exists __insert_archive_fn();
 
 drop view if exists __archives;
-
-alter type exercise
-    add attribute synchronizer_id text;

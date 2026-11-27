@@ -9,23 +9,23 @@ _Write summary of release_
 ## SQL Migration
 
 This release includes the following SQL migrations:
-- [V044__Add_reassignment_event_types.sql](https://github.com/digital-asset/participant-query-store/blob/main/modules/postgres/document/resources/db/migration/V044__Add_reassignment_event_types.sql):a dds the `assign` and `unassign` labels to the `__event_type` enum. Metadata-only, no table is scanned or rewritten. **[Impact: Instantaneous]**
+- [V044__Add_reassignment_event_types.sql](https://github.com/digital-asset/participant-query-store/blob/main/modules/postgres/document/resources/db/migration/V044__Add_reassignment_event_types.sql): adds the `assign` and `unassign` labels to the `__event_type` enum. Metadata-only, no table is scanned or rewritten. **[Impact: Instantaneous]**
 - [V045__Rename_domain_id_to_synchronizer_id.sql](https://github.com/digital-asset/participant-query-store/blob/main/modules/postgres/document/resources/db/migration/V045__Rename_domain_id_to_synchronizer_id.sql): renames the `domain_id` column of `__transactions` to `synchronizer_id`. Metadata-only, no table is scanned or rewritten. **[Impact: Instantaneous]**
-- [V046__Add_multisync_contract_columns.sql](https://github.com/digital-asset/participant-query-store/blob/main/modules/postgres/document/resources/db/migration/V046__Add_multisync_contract_columns.sql) **[Impact: Instantaneous]**:
+- [V046__Add_record_time_in_transactions.sql](https://github.com/digital-asset/participant-query-store/blob/main/modules/postgres/document/resources/db/migration/V046__Add_record_time_in_transactions.sql): adds the `record_time` column to `__transactions`. Metadata-only, no table is scanned or rewritten. **[Impact: Instantaneous]**
+- [V047__Add_multisync_contract_columns.sql](https://github.com/digital-asset/participant-query-store/blob/main/modules/postgres/document/resources/db/migration/V047__Add_multisync_contract_columns.sql) **[Impact: Instantaneous]**:
   - Define the `activation_type` and `deactivation_type` enums for the new `activation_type` and `deactivation_type` columns in the `__contracts` table.
   - Rename column `created_at_ix` to `activated_at_ix`, and `archived_at_ix` to `deactivated_at_ix`, in the `__contracts` table.
-  - Add the multi-sync columns `reassignment_counter`, `synchronizer_id` in the `__contracts` table.
+  - Add the `created_effective_at`, `reassignment_counter`, `synchronizer_id` columns in the `__contracts` table.
   - Drop the internal `__archives` view.
   - Drop the `__tmp_archived_contracts` and replace with `__tmp_deactivated_contracts` for internal use by the PQS pipeline.
-- [V047__Create_reassignments_table.sql](https://github.com/digital-asset/participant-query-store/blob/main/modules/postgres/document/resources/db/migration/V047__Create_reassignments_table.sql): creates the `__reassignment_type` enum and the list-partitioned `__reassignments` table, then creates one partition per row already present in `__contract_tpe`. **[Impact: Instantaneous /< 1 min]**
-- [V048__Prunning_reassignments.sql](https://github.com/digital-asset/participant-query-store/blob/main/modules/postgres/document/resources/db/migration/V048__Prunning_reassignments.sql): drops `prune_archived_to_offset` and `prune_archived_to_offset_dry_run` so that they can be re-created with the new `deleted_reassignments` result column. **[Impact: Instantaneous]**
-- [V049__Store_record_time.sql](https://github.com/digital-asset/participant-query-store/blob/main/modules/postgres/document/resources/db/migration/V049__Store_record_time.sql): adds the `record_time` column to `__transactions`. Metadata-only, no table is scanned or rewritten. **[Impact: Instantaneous]**
-- [V050__Store_exercise_synchronizer_id.sql](https://github.com/digital-asset/participant-query-store/blob/main/modules/postgres/document/resources/db/migration/V050__Store_exercise_synchronizer_id.sql): adds the `synchronizer_id` column to `__exercises`. Metadata-only, no table is scanned or rewritten. **[Impact: Instantaneous]**
+- [V048__Add_multisync_exercise_columns.sql](https://github.com/digital-asset/participant-query-store/blob/main/modules/postgres/document/resources/db/migration/V048__Add_multisync_exercise_columns.sql) **[Impact: Instantaneous]**:
+  - Add the `synchronizer_id` column in the `__exercises` table.
+  - Add the `exercised_at_offset` and `synchronizer_id` attributes in the `exercise` type.
+- [V049__Create_reassignments_table.sql](https://github.com/digital-asset/participant-query-store/blob/main/modules/postgres/document/resources/db/migration/V049__Create_reassignments_table.sql): creates the `__reassignment_type` enum and the list-partitioned `__reassignments` table, then creates one partition per row already present in `__contract_tpe`. **[Impact: Instantaneous /< 1 min]**
+- [V050__Pruning_reassignments.sql](https://github.com/digital-asset/participant-query-store/blob/main/modules/postgres/document/resources/db/migration/V050__Pruning_reassignments.sql): drops `prune_archived_to_offset` and `prune_archived_to_offset_dry_run` so that they can be re-created with the new `deleted_reassignments` result column. **[Impact: Instantaneous]**
 - [V051__Add_reassignments_to_summary_updates.sql](https://github.com/digital-asset/participant-query-store/blob/main/modules/postgres/document/resources/db/migration/V051__Add_reassignments_to_summary_updates.sql): drops `summary_updates` so that it can be re-created with the new `assigns` and `unassigns` result columns. **[Impact: Instantaneous]**
 - [V052__Add_activation_and_deactivation_types.sql](https://github.com/digital-asset/participant-query-store/blob/main/modules/postgres/document/resources/db/migration/V052__Add_activation_and_deactivation_types.sql): creates the `activation` and `deactivation` composite types returned by the new `activations` and `deactivations` SQL functions. Metadata-only, no table is scanned or rewritten. **[Impact: Instantaneous]**
-- [V053__Add_created_effective_in_contracts.sql](https://github.com/digital-asset/participant-query-store/blob/main/modules/postgres/document/resources/db/migration/V053__Add_created_effective_in_contracts.sql): adds the `created_effective_at` column to `__contracts`. Metadata-only, no table is scanned or rewritten. **[Impact: Instantaneous]**
-- [V054__Expose_record_time.sql](https://github.com/digital-asset/participant-query-store/blob/main/modules/postgres/document/resources/db/migration/V054__Expose_record_time.sql): adds the `activated_at_record_time` and `deactivated_at_record_time` attributes to the `contract` type, `activated_at_record_time` to `activation`, `deactivated_at_record_time` to `deactivation` and `exercised_at_record_time` to `exercise`. Metadata-only, no table is scanned or rewritten. **[Impact: Instantaneous]**
-- [V055__Add_witnesses_in_events.sql](https://github.com/digital-asset/participant-query-store/blob/main/modules/postgres/document/resources/db/migration/V055__Add_witnesses_in_events.sql): adds the `witnesses` column in the `__events` table. Metadata-only, no table is scanned or rewritten. **[Impact: Instantaneous]**
+- [V053__Add_witnesses_in_events.sql](https://github.com/digital-asset/participant-query-store/blob/main/modules/postgres/document/resources/db/migration/V053__Add_witnesses_in_events.sql): adds the `witnesses` column in the `__events` table. Metadata-only, no table is scanned or rewritten. **[Impact: Instantaneous]**
 
 ## What's New
 
@@ -50,17 +50,17 @@ activate_event_pk bigint,
 activate_event_id event_id,
 activated_at_ix bigint,
 activated_at_offset bigint,
+activated_at_record_time timestamp with time zone,
 activation_type activation_type,
 deactivate_event_pk bigint,
 deactivate_event_id event_id,
 deactivated_at_ix bigint,
 deactivated_at_offset bigint,
+deactivated_at_record_time timestamp with time zone,
 deactivation_type deactivation_type,
 reassignment_counter bigint,
 synchronizer_id text,
-tpe_pk bigint,
-activated_at_record_time timestamp with time zone,
-deactivated_at_record_time timestamp with time zone;
+tpe_pk bigint;
 ```
 - Columns like `create_event_*`/`created_at_*` and `archive_event_*`/`archived_at_*` are generated from their respective `activate` or `deactivate` counterparts.
   - The PostgreSQL planner cannot use indexes on these derived fields.
@@ -69,15 +69,13 @@ deactivated_at_record_time timestamp with time zone;
 - `active` and `lookup_contract` now return a single row per `(contract_id, template_fqn)`, keeping the row with the highest `reassignment_counter`.
 - `summary_active` counts each `contract_id` only once per `template_fqn`.
 - *BREAKING*: The `__transactions` column `domain_id` is renamed to `synchronizer_id`, to match Canton's current vocabulary. It is now populated for every update — every transaction and every reassignment. Rows written before this release keep `NULL` and are not getting backfilled.
-- The new `__transactions` column `record_time` holds the time at which the update was recorded by its synchronizer. It is populated for every update. Rows written before this release keep `NULL` and are not getting backfilled.
-- The `synchronizer_id text` column is added to the `transactions` SQL view. It returns `NULL` for rows written by PQS 3.7 or older.
-- The `synchronizer_id text` column is added to the output of the `exercises` and `lookup_exercises` SQL functions. They return `NULL` for rows written by PQS 3.7 or older.
-- The `record_time timestamp with time zone` column is added to the `transactions` SQL view. It returns `NULL` for rows written by PQS 3.7 or older, and for the `transaction` that PQS records at ix 0 when it seeds an empty datastore from the ACS.
+- The `record_time timestamp with time zone` and `synchronizer_id text` columns are added to the `transactions` SQL view. They return `NULL` for rows written by PQS 3.7 or older. `record_time` is `NULL` for the initial transaction, seeded from the ACS.
+- The `record_time timestamp with time zone` and `synchronizer_id text` columns are added to the output of the `exercises` and `lookup_exercises` SQL functions. They return `NULL` for rows written by PQS 3.7 or older.
 - The `exercised_at_record_time timestamp with time zone` column is added to the output of the `exercises` and `lookup_exercises` SQL functions. They return `NULL` for rows written by PQS 3.7 or older.
 - The `summary_reassignments` SQL function returns the number of assign and unassign events per Daml fully qualified name and per source and target synchronizer in the `[from_offset, to_offset]` range. It leaves out the assigns recorded by the ACS import.
 - The new `contracts` SQL function returns every contract known at `offset` that has not been pruned: active, archived, unassigned, divulged-only and transient. It returns a single row per `(contract_id, template_fqn)`, keeping the row with the highest `reassignment_counter`.
 - `summary_updates` returns additional `assigns bigint` and `unassigns bigint` columns: the number of assign and unassign events in the `[from_offset, to_offset]` range.
-- The `activations` and `deactivations` SQL functions return every activation (create or assign) and every deactivation (archive or unassign) in the `[from_offset, to_offset]` range. As in `archives`, `deactivation_type` is `NULL` on rows archived by PQS 3.7 or older. `from_offset` defaults to `coalesce(pruned_offset(), oldest_offset())`, as in `archives`, and a `from_offset` before the pruned offset raises an error. Divulged-only contracts are not returned.
+- The `activations` and `deactivations` SQL functions return every activation (create or assign) and every deactivation (archive or unassign) in the `[from_offset, to_offset]` range. As in `archives`, `deactivation_type` is `NULL` on rows archived by PQS 3.7 or older. `from_offset` defaults to `coalesce(pruned_offset(), oldest_offset())`, as in `archives`. A `from_offset` before the pruned offset raises an error. Divulged-only contracts are not returned.
 
 
 #### Pruning, Reset to offset and Redaction

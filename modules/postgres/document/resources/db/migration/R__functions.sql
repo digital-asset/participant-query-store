@@ -132,17 +132,17 @@ select tpe.template_fqn,
        ae.event_id,
        c.activated_at_ix,
        at."offset",
+       at.record_time,
        c.activation_type,
        c.deactivate_event_pk,
        de.event_id,
        c.deactivated_at_ix,
        dt."offset",
+       dt.record_time,
        c.deactivation_type,
        c.reassignment_counter,
        c.synchronizer_id,
-       c.tpe_pk,
-       at.record_time,
-       dt.record_time
+       c.tpe_pk
 from __contracts c
     left join __contract_tpe tpe on tpe.pk = c.tpe_pk
     left join __transactions at on at.ix = c.activated_at_ix
@@ -180,8 +180,8 @@ select tpe.template_fqn,
        e.last_descendant_node_id,
        -- Backward compatibility: __events.witnesses was added in 3.8, __exercises.witnesses is not populated after 3.8
        COALESCE(ee.witnesses, e.witnesses),
-       e.synchronizer_id,
-       t.record_time
+       t.record_time,
+       e.synchronizer_id
 from __exercises e
          left join __contracts c on c.contract_id = e.contract_id and c.tpe_pk = e.contract_tpe_pk
              and c.activated_at_ix <= e.exercised_at_ix
@@ -1160,12 +1160,12 @@ select c.template_fqn,
        c.activate_event_id,
        c.activated_at_ix,
        c.activated_at_offset,
+       c.activated_at_record_time,
        c.activation_type,
        c.witnesses,
        c.reassignment_counter,
        r.source_synchronizer_id,
-       c.synchronizer_id,
-       c.activated_at_record_time
+       c.synchronizer_id
 from __contracts(qname) c
     left join __reassignments r on r.reassign_event_pk = c.activate_event_pk
 where not c.divulged_only
@@ -1412,17 +1412,17 @@ $$
         c.activate_event_id,
         c.activated_at_ix,
         c.activated_at_offset,
+        c.activated_at_record_time,
         c.activation_type,
         c.deactivate_event_pk,
         c.deactivate_event_id,
         c.deactivated_at_ix,
         c.deactivated_at_offset,
+        c.deactivated_at_record_time,
         c.deactivation_type,
         c.reassignment_counter,
         c.synchronizer_id,
-        c.tpe_pk,
-        c.activated_at_record_time,
-        c.deactivated_at_record_time
+        c.tpe_pk
     from __contracts(qname) c
     where (c.deactivation_type is null or c.deactivation_type = 'archive')
         and c.deactivated_at_ix between (select __nearest_ix_ceil(from_offset)) and (select __nearest_ix_floor(to_offset))
@@ -1461,12 +1461,12 @@ select c.template_fqn,
        c.deactivate_event_id,
        c.deactivated_at_ix,
        c.deactivated_at_offset,
+       c.deactivated_at_record_time,
        c.deactivation_type,
        e.witnesses,
        r.reassignment_counter,
        c.synchronizer_id,
-       r.target_synchronizer_id,
-       c.deactivated_at_record_time
+       r.target_synchronizer_id
 from __contracts(qname) c
     left join __reassignments r on r.reassign_event_pk = c.deactivate_event_pk
     left join __events e on e.pk = c.deactivate_event_pk
