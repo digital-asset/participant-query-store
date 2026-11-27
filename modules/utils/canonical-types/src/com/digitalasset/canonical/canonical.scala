@@ -62,5 +62,6 @@ case class AcsContract(
     eventId: EventId,
     synchronizerId: SynchronizerId,
     reassignmentCounter: Long,
-    contract: Contract
+    contract: Contract,
+    witnesses: Seq[Party]
 )

@@ -348,7 +348,8 @@ select tpe.template_fqn,
        p.id,
        c.signatories,
        c.observers,
-       c.witnesses,
+       -- Backward compatibility: __events.witnesses was added in 3.8, __contracts.witnesses is not populated after 3.8
+       COALESCE(ae.witnesses, c.witnesses),
        c.divulged_only,
        -- Storage optimization and backward compatibility:
        -- We don't store the creation package id on the contract if it is the same as the representative package,
@@ -539,7 +540,8 @@ select tpe.template_fqn,
        c.observers,
        e.controllers,
        e.last_descendant_node_id,
-       e.witnesses,
+       -- Backward compatibility: __events.witnesses was added in 3.8, __exercises.witnesses is not populated after 3.8
+       COALESCE(ee.witnesses, e.witnesses),
        e.synchronizer_id,
        t.record_time
 from __exercises e

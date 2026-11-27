@@ -45,7 +45,14 @@ object eventConverters:
       evt: com.daml.ledger.api.v2.event.CreatedEvent,
       synchronizerId: SynchronizerId
   )(using codecs: ProtobufCodecs)(using DamlSchema): Task[Event.Created] =
-    toContract(evt).map(Event.Created(EventId(evt.offset, evt.nodeId), synchronizerId, _))
+    toContract(evt).map(
+      Event.Created(
+        EventId(evt.offset, evt.nodeId),
+        synchronizerId,
+        _,
+        evt.witnessParties.to(Chunk).map(Party)
+      )
+    )
 
   private def convertInterfaceView(
       contractId: String,
@@ -131,7 +138,8 @@ object eventConverters:
         submitter = Option.when(evt.submitter.nonEmpty)(Party(evt.submitter)),
         reassignmentCounter = evt.reassignmentCounter,
         synchronizerId = synchronizerId,
-        contract = contract
+        contract = contract,
+        witnesses = created.witnessParties.to(Chunk).map(Party)
       )
     }
 
@@ -164,7 +172,15 @@ object eventConverters:
       synchronizerId: SynchronizerId,
       reassignmentCounter: Long
   )(using codecs: ProtobufCodecs)(using DamlSchema): Task[AcsContract] =
-    toContract(evt).map(AcsContract(EventId(evt.offset, evt.nodeId), synchronizerId, reassignmentCounter, _))
+    toContract(evt).map(
+      AcsContract(
+        EventId(evt.offset, evt.nodeId),
+        synchronizerId,
+        reassignmentCounter,
+        _,
+        evt.witnessParties.to(Chunk).map(Party)
+      )
+    )
 
   private def toContract(
       evt: com.daml.ledger.api.v2.event.CreatedEvent
@@ -188,7 +204,6 @@ object eventConverters:
         },
         signatories = evt.signatories.to(Chunk).map(Party),
         observers = evt.observers.to(Chunk).map(Party),
-        witnesses = evt.witnessParties.to(Chunk).map(Party),
         createdAt = evt.createdAt.map(TimestampConverters.asJavaInstant),
         metadata = Option.when(payloads.map(_._1).exists(_.isMetadataIncluded))(evt.createdEventBlob.toByteArray),
         acsDelta = extractors.acsDelta(evt),

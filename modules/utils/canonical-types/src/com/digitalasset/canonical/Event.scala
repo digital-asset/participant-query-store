@@ -21,7 +21,8 @@ object Event:
   final case class Created(
       eventId: EventId,
       synchronizerId: SynchronizerId,
-      contract: Contract
+      contract: Contract,
+      witnesses: Chunk[Party]
   ) extends TransactionEvent
       with TreeEvent
 
@@ -74,7 +75,8 @@ object Event:
       submitter: Option[Party],
       synchronizerId: SynchronizerId,
       reassignmentCounter: Long,
-      contract: Contract
+      contract: Contract,
+      witnesses: Chunk[Party]
   ) extends ReassignmentEvent
 
 end Event
