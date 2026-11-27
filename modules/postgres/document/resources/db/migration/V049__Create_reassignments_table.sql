@@ -31,3 +31,6 @@ begin
             '__reassignments_' || tpe.pk, tpe.pk);
     end loop;
 end $$;
+
+create index __reassignments_reassigned_at_ix_idx
+	on __reassignments using btree (reassigned_at_ix);

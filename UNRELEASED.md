@@ -15,7 +15,7 @@ This release includes the following SQL migrations:
 - [V047__Add_multisync_contract_columns.sql](https://github.com/digital-asset/participant-query-store/blob/main/modules/postgres/document/resources/db/migration/V047__Add_multisync_contract_columns.sql) **[Impact: Instantaneous]**:
   - Define the `activation_type` and `deactivation_type` enums for the new `activation_type` and `deactivation_type` columns in the `__contracts` table.
   - Rename column `created_at_ix` to `activated_at_ix`, and `archived_at_ix` to `deactivated_at_ix`, in the `__contracts` table.
-  - Add the multi-sync columns `reassignment_counter`, `synchronizer_id` in the `__contracts` table.
+  - Add the `created_effective_at`, `reassignment_counter`, `synchronizer_id` columns in the `__contracts` table.
   - Drop the internal `__archives` view.
   - Drop the `__tmp_archived_contracts` and replace with `__tmp_deactivated_contracts` for internal use by the PQS pipeline.
 - [V048__Add_multisync_exercise_columns.sql](https://github.com/digital-asset/participant-query-store/blob/main/modules/postgres/document/resources/db/migration/V048__Add_multisync_exercise_columns.sql) **[Impact: Instantaneous]**:
@@ -25,8 +25,7 @@ This release includes the following SQL migrations:
 - [V050__Pruning_reassignments.sql](https://github.com/digital-asset/participant-query-store/blob/main/modules/postgres/document/resources/db/migration/V050__Pruning_reassignments.sql): drops `prune_archived_to_offset` and `prune_archived_to_offset_dry_run` so that they can be re-created with the new `deleted_reassignments` result column. **[Impact: Instantaneous]**
 - [V051__Add_reassignments_to_summary_updates.sql](https://github.com/digital-asset/participant-query-store/blob/main/modules/postgres/document/resources/db/migration/V051__Add_reassignments_to_summary_updates.sql): drops `summary_updates` so that it can be re-created with the new `assigns` and `unassigns` result columns. **[Impact: Instantaneous]**
 - [V052__Add_activation_and_deactivation_types.sql](https://github.com/digital-asset/participant-query-store/blob/main/modules/postgres/document/resources/db/migration/V052__Add_activation_and_deactivation_types.sql): creates the `activation` and `deactivation` composite types returned by the new `activations` and `deactivations` SQL functions. Metadata-only, no table is scanned or rewritten. **[Impact: Instantaneous]**
-- [V053__Add_created_effective_at_in_contracts.sql](https://github.com/digital-asset/participant-query-store/blob/main/modules/postgres/document/resources/db/migration/V054__Add_created_effective_at_in_contracts.sql): adds the `created_effective_at` column to `__contracts`. Metadata-only, no table is scanned or rewritten. **[Impact: Instantaneous]**
-- [V055__Add_witnesses_in_events.sql](https://github.com/digital-asset/participant-query-store/blob/main/modules/postgres/document/resources/db/migration/V055__Add_witnesses_in_events.sql): adds the `witnesses` column in the `__events` table. Metadata-only, no table is scanned or rewritten. **[Impact: Instantaneous]**
+- [V053__Add_witnesses_in_events.sql](https://github.com/digital-asset/participant-query-store/blob/main/modules/postgres/document/resources/db/migration/V053__Add_witnesses_in_events.sql): adds the `witnesses` column in the `__events` table. Metadata-only, no table is scanned or rewritten. **[Impact: Instantaneous]**
 
 ## What's New
 

@@ -2135,11 +2135,11 @@ CREATE TABLE public.__contracts (
     divulged_only boolean DEFAULT false NOT NULL,
     creation_package_id text,
     contract_key_hash bytea,
+    created_effective_at timestamp with time zone,
     activation_type public.activation_type DEFAULT 'create'::public.activation_type NOT NULL,
     deactivation_type public.deactivation_type,
     reassignment_counter bigint DEFAULT 0 NOT NULL,
-    synchronizer_id text,
-    created_effective_at timestamp with time zone
+    synchronizer_id text
 )
 PARTITION BY LIST (tpe_pk);
 
@@ -2167,11 +2167,11 @@ CREATE TABLE public.__contracts_1 (
     divulged_only boolean DEFAULT false NOT NULL,
     creation_package_id text,
     contract_key_hash bytea,
+    created_effective_at timestamp with time zone,
     activation_type public.activation_type DEFAULT 'create'::public.activation_type NOT NULL,
     deactivation_type public.deactivation_type,
     reassignment_counter bigint DEFAULT 0 NOT NULL,
-    synchronizer_id text,
-    created_effective_at timestamp with time zone
+    synchronizer_id text
 );
 ALTER TABLE ONLY public.__contracts_1 ALTER COLUMN metadata SET STORAGE EXTERNAL;
 
